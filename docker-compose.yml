@@ -19,7 +19,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ${DOCKER_APPS_FOLDERS}/plex/config:/config:z
       - ${DOCKER_APPS_FOLDERS}/plex/transcode:/transcode:z
-      - ${TV_FOLDER}:/data/tv:z
+      - ${TV_FOLDER}:/data/tvshows:z
       - ${MOVIES_FOLDER}:/data/movies:z
       - ${MUSIC_FOLDER}:/data/music:z
 
