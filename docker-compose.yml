@@ -1,0 +1,267 @@
+version: '3.8'
+services:
+
+  plex:
+    image: linuxserver/plex:${PLEX_VERSION}
+    container_name: plex
+    network_mode: host
+    restart: unless-stopped
+    devices:
+      - /dev/dri:/dev/dri # Intel QuickSync acceleration ON
+    environment:
+      PGID: ${GID}
+      PUID: ${UID}
+      UMASK: ${UMASK}
+      TZ: ${TIMEZONE}
+      VERSION: docker
+      PASSWORD: ${PLEX_PASSWORD}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${DOCKER_APPS_FOLDERS}/plex/config:/config:z
+      - ${DOCKER_APPS_FOLDERS}/plex/transcode:/transcode:z
+      - ${TV_FOLDER}:/data/tv:z
+      - ${MOVIES_FOLDER}:/data/movies:z
+      - ${MUSIC_FOLDER}:/data/music:z
+
+  # calibre:
+  #   image: lscr.io/linuxserver/calibre:latest
+  #   container_name: calibre
+  #   environment:
+  #     PUID: ${UID}
+  #     PGID: ${GID}
+  #     TZ: ${TIMEZONE}
+  #   volumes:
+  #     - /path/to/data:/config
+  #   ports:
+  #     - 9080:9080
+  #     - 9081:9081
+  #   restart: unless-stopped
+
+  protonvpn:
+    image: ghcr.io/tprasadtp/protonvpn:${PROTONVPN_VERSION}
+    container_name: protonvpn
+    network_mode: bridge
+    restart: unless-stopped
+    environment:
+      PROTONVPN_USERNAME: ${PROTONVPN_USERNAME}
+      PROTONVPN_PASSWORD: ${PROTONVPN_PASSWORD}
+      PROTONVPN_SERVER: ${PROTONVPN_SERVER}
+      PROTONVPN_TIER: ${PROTONVPN_TIER}
+      PROTONVPN_EXCLUDE_CIDRS: ${PROTONVPN_EXCLUDE_CIDRS}
+      PROTONVPN_CHECK_INTERVAL: ${PROTONVPN_CHECK_INTERVAL}
+      PROTONVPN_FAIL_THRESHOLD: ${PROTONVPN_FAIL_THRESHOLD}
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    sysctls:                                                                                                                                               
+      - net.ipv4.conf.all.rp_filter=2 
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    ports:                                                
+      - 5076:5076 # nzbhydra2-http or nzbhydra2-https
+      - 6789:6789 # nzbget-http
+      - 6791:6791 # nzbget-https
+      - 6868:6868 # lidarr-https / readarr-https
+      - 7878:7878 # radarr-http                                        
+      - 8080:8080 # qbittorrent-http / qbittorrent-https
+      - 8191:8191 # flaresolverr-http
+      - 8686:8686 # lidarr-http
+      - 8787:8787 # readarr-http
+      - 8989:8989 # sonarr-http
+      - 9117:9117 # jackett-http
+      - 9898:9898 # sonarr-https / radarr-https
+
+  flaresolverr:
+    image: flaresolverr/flaresolverr:${FLARESOLVER_VERSION}
+    container_name: flaresolverr
+    depends_on:
+      - protonvpn
+    network_mode: service:protonvpn
+    restart: unless-stopped
+    environment:
+      TZ: ${TIMEZONE}
+      FLARESOLVERR_LOG_LEVEL: ${FLARESOLVERR_LOG_LEVEL}
+      FLARESOLVERR_LOG_HTML: ${FLARESOLVERR_LOG_HTML}
+      FLARESOLVERR_CAPTCHA_SOLVER: ${FLARESOLVERR_CAPTCHA_SOLVER}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${DOCKER_APPS_FOLDERS}/jackett/config:/config:z
+      - ${DOWNLOADS_FOLDER}:/downloads:z
+
+  jackett:
+    image: linuxserver/jackett:${JACKETT_VERSION}
+    container_name: jackett
+    depends_on:
+      - protonvpn
+      - flaresolverr
+    network_mode: service:protonvpn
+    restart: unless-stopped
+    environment:
+      PGID: ${GID}
+      PUID: ${UID}
+      UMASK: ${UMASK}
+      TZ: ${TIMEZONE}
+      AUTO_UPDATE: ${JACKETT_AUTO_UPDATE}
+      PASSWORD_JACKETT: ${JACKETT_PASSWORD}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${DOCKER_APPS_FOLDERS}/jackett/config:/config:z
+      - ${DOWNLOADS_FOLDER}:/downloads:z
+
+  nzbhydra2:
+    image: linuxserver/nzbhydra2:${NZBHYDRA2_VERSION}
+    container_name: nzbhydra2
+    depends_on:
+      - protonvpn
+      - jackett
+    network_mode: service:protonvpn
+    restart: unless-stopped
+    environment:
+      PUID: ${UID}
+      PGID: ${GID}
+      UMASK: ${UMASK}
+      TZ: ${TIMEZONE}
+      PASSWORD: ${NZBHYDRA2_PASSWORD}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${DOCKER_APPS_FOLDERS}/nzbhydra2/config:/config:z
+      - ${DOWNLOADS_FOLDER}:/downloads:z 
+
+  qbittorrent:
+    image: linuxserver/qbittorrent:${QBITTORRENT_VERSION}
+    container_name: qbittorrent
+    depends_on:
+      - protonvpn
+    network_mode: service:protonvpn
+    restart: unless-stopped
+    environment:
+      PUID: ${UID}
+      PGID: ${GID}
+      UMASK: ${UMASK}
+      TZ: ${TIMEZONE}
+      WEBUI_PORT: ${WEBUI_PORT}
+      PASSWORD: ${QBITTORRENT_PASSWORD}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${DOCKER_APPS_FOLDERS}/qbittorrent/config:/config:z
+      - ${DOWNLOADS_FOLDER}:/downloads:z
+      - ${BOOKS_FOLDER}:/books:z
+      - ${MOVIES_FOLDER}:/movies:z
+      - ${MUSIC_FOLDER}:/music:z
+      - ${TV_FOLDER}:/tv:z
+
+  nzbget:
+    image: linuxserver/nzbget:${NZBGET_VERSION}
+    container_name: nzbget
+    depends_on:
+      - protonvpn
+    network_mode: service:protonvpn
+    restart: unless-stopped
+    environment:
+      PUID: ${UID}
+      PGID: ${GID}
+      UMASK: ${UMASK}
+      TZ: ${TIMEZONE}
+      NZBGET_USER: ${NZBGET_USER}
+      NZBGET_PASS: ${NZBGET_PASSWORD}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${DOCKER_APPS_FOLDERS}/nzbget/config:/config:z
+      - ${DOWNLOADS_FOLDER}:/downloads:z
+      - ${BOOKS_FOLDER}:/books:z
+      - ${MOVIES_FOLDER}:/movies:z
+      - ${MUSIC_FOLDER}:/music:z
+      - ${TV_FOLDER}:/tv:z
+
+  sonarr:
+    image: linuxserver/sonarr:${SONARR_VERSION}
+    container_name: sonarr
+    depends_on:
+      - plex
+      - protonvpn
+      - qbittorrent
+      - nzbget
+      - nzbhydra2
+    network_mode: service:protonvpn
+    restart: unless-stopped
+    environment:
+      PUID: ${UID}
+      PGID: ${GID}
+      TZ: ${TIMEZONE}
+      PASSWORD: ${SONARR_PASSWORD}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${DOCKER_APPS_FOLDERS}/sonarr/config:/config:z
+      - ${DOWNLOADS_FOLDER}:/downloads:z
+      - ${TV_FOLDER}:/tv:z
+  
+  radarr:
+    image: linuxserver/radarr:${RADARR_VERSION}
+    container_name: radarr
+    depends_on:
+      - plex
+      - protonvpn
+      - qbittorrent
+      - nzbget
+      - nzbhydra2
+    network_mode: service:protonvpn
+    restart: unless-stopped
+    environment:
+      PUID: ${UID}
+      PGID: ${GID}
+      UMASK: ${UMASK}
+      TZ: ${TIMEZONE}
+      PASSWORD: ${RADARR_PASSWORD}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${DOCKER_APPS_FOLDERS}/radarr/config:/config:z
+      - ${DOWNLOADS_FOLDER}:/downloads:z
+      - ${MOVIES_FOLDER}:/movies:z
+
+  lidarr:
+    image: linuxserver/lidarr:${LIDARR_VERSION}
+    container_name: lidarr
+    depends_on:
+      - plex
+      - protonvpn
+      - qbittorrent
+      - nzbget
+      - nzbhydra2
+    network_mode: service:protonvpn
+    restart: unless-stopped
+    environment:
+      PUID: ${UID}
+      PGID: ${GID}
+      UMASK: ${UMASK}
+      TZ: ${TIMEZONE}
+      PASSWORD: ${LIDARR_PASSWORD}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${DOCKER_APPS_FOLDERS}/lidarr/config:/config:z
+      - ${DOWNLOADS_FOLDER}:/downloads:z
+      - ${MUSIC_FOLDER}:/music:z
+
+  readarr:
+    image: linuxserver/readarr:${READARR_VERSION}
+    container_name: readarr
+    depends_on:
+      - plex
+      - protonvpn
+      - qbittorrent
+      - nzbget
+      - nzbhydra2
+    network_mode: service:protonvpn
+    restart: unless-stopped
+    environment:
+      PUID: ${UID}
+      PGID: ${GID}
+      UMASK: ${UMASK}
+      TZ: ${TIMEZONE}
+      PASSWORD: ${READARR_PASSWORD}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${DOCKER_APPS_FOLDERS}/readarr/config:/config:z
+      - ${DOWNLOADS_FOLDER}:/downloads:z
+      - ${BOOKS_FOLDER}:/books:z
