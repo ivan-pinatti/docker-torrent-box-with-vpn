@@ -1,6 +1,43 @@
 # Docker Torrent Box
 
-To be written...
+The code below is intented to be used as a Torrent Box through a VPN connection.
+
+
+## Apps Included
+
+|    App Name   |                    Docker Image                    |                     Function                     |
+|:-------------:|:--------------------------------------------------:|:------------------------------------------------:|
+|    Calibre    | https://hub.docker.com/r/linuxserver/calibre       |              eBooks Library Manager              |
+|  Calibre-web  | https://hub.docker.com/r/linuxserver/calibre-web   |              eBooks Library Manager              |
+|    Jackett    | https://hub.docker.com/r/linuxserver/jackett       |                Query Proxy Server                |
+|  Flaresolverr | https://hub.docker.com/r/flaresolverr/flaresolverr |        Bypass to Cloudflare and DDoS-GUARD       |
+| LazyLibrarian | https://hub.docker.com/r/linuxserver/lazylibrarian |               Books Tracker/Manager              |
+|     Lidarr    | https://hub.docker.com/r/linuxserver/lidarr        |               Music Tracker/Manager              |
+|     Mylar     | https://hub.docker.com/r/linuxserver/mylar3        |              Comics Tracker/Manager              |
+|     NZBGet    | https://hub.docker.com/r/linuxserver/nzbget        |                 Usenet Downloader                |
+|   NZBHydra2   | https://hub.docker.com/r/linuxserver/nzbhydra2     |          Meta Searcher for NZB indexers          |
+|      Plex     | https://hub.docker.com/r/linuxserver/plex          | Movie/TV Shows/Music Library Manager and Player  |
+|   ProtonVPN   | https://github.com/tprasadtp/protonvpn-docker      |                    VPN Gateway                   |
+|  qBittorrent  | https://hub.docker.com/r/linuxserver/qbittorrent   |                Torrent Downloader                |
+|     Radarr    | https://hub.docker.com/r/linuxserver/radarr        |              Movies Tracker/Manager              |
+|    Readarr    | https://hub.docker.com/r/linuxserver/readarr       |              eBooks Tracker/Manager              |
+|     Sonarr    | https://hub.docker.com/r/linuxserver/sonarr        |             TV Shows Tracker/Manager             |
+
+---
+
+## Prepare the environment
+
+Create Apps folders
+
+```shell
+mkdir calibre-web calibre jackett lazylibrarian lidarr mylar nzbget nzbhydra2 plex qbittorrent radarr readarr sonarr
+```
+
+Create the shared folder (for downloads and blackhole)
+```shell
+mkdir -p shared/downlads shared/blackhole
+```
+
 
 ---
 
