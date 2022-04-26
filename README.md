@@ -1,5 +1,7 @@
 # Docker Torrent Box
 
+[![license](https://img.shields.io/github/license/ivan-pinatti/docker-torrent-box?style=plastic)](https://github.com/ivan-pinatti/docker-torrent-box/blob/master/LICENSE)
+
 The code below is intented to be used as a Torrent Box through a VPN connection.
 
 
