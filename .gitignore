@@ -21,8 +21,12 @@
 .env
 
 ### Apps Folders
+calibre-web/**
+calibre/**
 jackett/**
+lazylibrarian/**
 lidarr/**
+mylar/**
 nzbget/**
 nzbhydra2/**
 plex/**
