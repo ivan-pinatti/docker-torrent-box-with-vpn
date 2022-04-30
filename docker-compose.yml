@@ -42,7 +42,7 @@ services:
       - ${CONFIG_FOLDER}/calibre/config:/config:Z
       - ${MEDIA_FOLDER}/AudioBooks:/audiobooks:z
       - ${MEDIA_FOLDER}/Comics:/comics:z
-      - ${MEDIA_FOLDER}/eBooks:/books:z
+      - ${MEDIA_FOLDER}/eBooks:/ebooks:z
 
   calibre-web:
     image: linuxserver/calibre-web:${CALIBREWEB_VERSION}
@@ -61,7 +61,7 @@ services:
       - ${CONFIG_FOLDER}/calibre-web/config:/config:Z
       - ${MEDIA_FOLDER}/AudioBooks:/audiobooks:z
       - ${MEDIA_FOLDER}/Comics:/comics:z
-      - ${MEDIA_FOLDER}/eBooks:/books:z
+      - ${MEDIA_FOLDER}/eBooks:/ebooks:z
 
   protonvpn:
     image: ghcr.io/tprasadtp/protonvpn:${PROTONVPN_VERSION}
@@ -197,10 +197,11 @@ services:
       - ${USENET_BLACKHOLE_FOLDER}:/blackhole:z
       - ${USENET_DOWNLOADS_FOLDER}:/downloads:z
       - ${MEDIA_FOLDER}/AudioBooks:/audiobooks:z
-      - ${MEDIA_FOLDER}/eBooks:/books:z
+      - ${MEDIA_FOLDER}/Comics:/comics:z
+      - ${MEDIA_FOLDER}/eBooks:/ebooks:z
       - ${MEDIA_FOLDER}/Movies:/movies:z
       - ${MEDIA_FOLDER}/Music:/music:z
-      - ${MEDIA_FOLDER}/Series:/tv:z
+      - ${MEDIA_FOLDER}/Series:/series:z
 
   sonarr:
     image: linuxserver/sonarr:${SONARR_VERSION}
@@ -222,9 +223,11 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/sonarr/config:/config:Z
+      - ${RECYCLE_FOLDER}/sonarr:/recycle:z
       - ${TORRENT_DOWNLOADS_FOLDER}:/downloads/torrent:z
       - ${USENET_DOWNLOADS_FOLDER}:/downloads/usenet:z
-      - ${MEDIA_FOLDER}/Series:/tv:z
+      - ${USENET_DOWNLOADS_FOLDER}/completed/Series:/downloads/completed/Series:z
+      - ${MEDIA_FOLDER}/Series:/series:z
   
   radarr:
     image: linuxserver/radarr:${RADARR_VERSION}
@@ -247,8 +250,10 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/radarr/config:/config:Z
+      - ${RECYCLE_FOLDER}/radarr:/recycle:z
       - ${TORRENT_DOWNLOADS_FOLDER}:/downloads/torrent:z
       - ${USENET_DOWNLOADS_FOLDER}:/downloads/usenet:z
+      - ${USENET_DOWNLOADS_FOLDER}/completed/Movies:/downloads/completed/Movies:z
       - ${MEDIA_FOLDER}/Movies:/movies:z
 
   lidarr:
@@ -275,6 +280,7 @@ services:
       - ${RECYCLE_FOLDER}/lidarr:/recycle:z
       - ${TORRENT_DOWNLOADS_FOLDER}:/downloads/torrent:z
       - ${USENET_DOWNLOADS_FOLDER}:/downloads/usenet:z
+      - ${USENET_DOWNLOADS_FOLDER}/completed/Music:/downloads/completed/Music:z
       - ${MEDIA_FOLDER}/Music:/music:z
 
   lazylibrarian:
@@ -300,11 +306,13 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/lazylibrarian/config:/config:Z
+      - ${TORRENT_BLACKHOLE_FOLDER}:/torrent/blackhole:z
       - ${TORRENT_DOWNLOADS_FOLDER}:/downloads/torrent:z
+      - ${USENET_BLACKHOLE_FOLDER}:/usenet/blackhole:z
       - ${USENET_DOWNLOADS_FOLDER}:/downloads/usenet:z
       - ${MEDIA_FOLDER}/AudioBooks:/audiobooks:z
       - ${MEDIA_FOLDER}/Comics:/comics:z
-      - ${MEDIA_FOLDER}/eBooks:/books:z
+      - ${MEDIA_FOLDER}/eBooks:/ebooks:z
 
   readarr:
     image: linuxserver/readarr:${READARR_VERSION}
@@ -327,8 +335,10 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/readarr/config:/config:Z
+      - ${RECYCLE_FOLDER}/readarr:/recycle:z
       - ${TORRENT_DOWNLOADS_FOLDER}:/downloads/torrent:z
       - ${USENET_DOWNLOADS_FOLDER}:/downloads/usenet:z
+      - ${USENET_DOWNLOADS_FOLDER}/completed/Readarr:/downloads/completed/Readarr:z
       - ${MEDIA_FOLDER}/AudioBooks:/audiobooks:z
       - ${MEDIA_FOLDER}/Comics:/comics:z
       - ${MEDIA_FOLDER}/eBooks:/books:z

@@ -4,3 +4,9 @@
 # Except .gitignore and dotenv file
 !.gitignore
 !.env
+
+# config file
+!config/
+config/*
+!config/config.ini
+!config/mylar.db

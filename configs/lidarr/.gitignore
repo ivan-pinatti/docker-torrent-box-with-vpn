@@ -9,3 +9,4 @@
 !config/
 config/*
 !config/config.xml
+!config/lidarr.db
