@@ -675,16 +675,17 @@ indexers:
   - "TV SD"
   - "XXX"
   downloadLimit: null
-  state: "ENABLED"
+  state: "DISABLED_SYSTEM_TEMPORARY"
   enabledForSearchSource: "BOTH"
   generalMinSize: null
   hitLimit: null
   hitLimitResetTime: 0
   host: "http://127.0.0.1:9117/api/v2.0/indexers/thepiratebay/results/torznab"
-  lastError: null
-  disabledUntil: null
-  disabledLevel: 0
-  disabledAt: null
+  lastError: "Error while communicating with indexer The Pirate Bay. Server returned:\
+    \ org.nzbhydra.webaccess.WebAccessException: Failed to connect to /127.0.0.1:9117"
+  disabledUntil: 1651362753615
+  disabledLevel: 1
+  disabledAt: "Sat, 30 Apr 2022 23:47:33 +0000"
   loadLimitOnRandom: null
   minSeeders: null
   name: "The Pirate Bay"
