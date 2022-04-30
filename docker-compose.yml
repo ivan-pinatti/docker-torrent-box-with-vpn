@@ -11,7 +11,7 @@ services:
     devices:
       - /dev/dri:/dev/dri # Intel QuickSync acceleration ON
     env_file:
-      - plex/.env
+      - ./configs/plex/.env
     environment:
       PGID: ${GID}
       PUID: ${UID}
@@ -19,11 +19,11 @@ services:
       TZ: ${TIMEZONE}
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${DOCKER_APPS_FOLDERS}/plex/config:/config:Z
-      - ${DOCKER_APPS_FOLDERS}/plex/transcode:/transcode:Z
-      - ${SERIES_FOLDER}:/data/tvshows:z
-      - ${MOVIES_FOLDER}:/data/movies:z
-      - ${MUSIC_FOLDER}:/data/music:z
+      - ./configs/plex/config:/config:Z
+      - ./configs/plex/transcode:/transcode:Z
+      - ./media/Series:/data/tvshows:z
+      - ./media/Movies:/data/movies:z
+      - ./media/Music:/data/music:z
 
   # calibre:
   #   image: linuxserver/calibre:${CALIBRE_VERSION}
@@ -31,7 +31,7 @@ services:
   #   network_mode: host
   #   restart: unless-stopped
   #   env_file:
-  #     - calibre/.env
+  #     - ./configs/calibre/.env
   #   environment:
   #     PGID: ${GID}
   #     PUID: ${UID}
@@ -39,10 +39,10 @@ services:
   #     TZ: ${TIMEZONE}
   #   volumes:
   #     - /etc/localtime:/etc/localtime:ro
-  #     - ${DOCKER_APPS_FOLDERS}/calibre/config:/config:Z
-  #     - ${AUDIOBOOKS_FOLDER}:/audiobooks:z
-  #     - ${COMICS_FOLDER}:/comics:z
-  #     - ${EBOOKS_FOLDER}:/books:z
+  #     - ./configs/calibre/config:/config:Z
+  #     - ./media/AudioBooks:/audiobooks:z
+  #     - ./media/Comics:/comics:z
+  #     - ./media/eBooks:/books:z
 
   # calibre-web:
   #   image: linuxserver/calibre-web:${CALIBREWEB_VERSION}
@@ -50,7 +50,7 @@ services:
   #   network_mode: host
   #   restart: unless-stopped
   #   env_file:
-  #     - calibre-web/.env
+  #     - ./configs/calibre-web/.env
   #   environment:
   #     PGID: ${GID}
   #     PUID: ${UID}
@@ -58,10 +58,10 @@ services:
   #     TZ: ${TIMEZONE}
   #   volumes:
   #     - /etc/localtime:/etc/localtime:ro
-  #     - ${DOCKER_APPS_FOLDERS}/calibre-web/config:/config:Z
-  #     - ${AUDIOBOOKS_FOLDER}:/audiobooks:z
-  #     - ${COMICS_FOLDER}:/comics:z
-  #     - ${EBOOKS_FOLDER}:/books:z
+  #     - ./configs/calibre-web/config:/config:Z
+  #     - ./media/AudioBooks:/audiobooks:z
+  #     - ./media/Comics:/comics:z
+  #     - ./media/eBooks:/books:z
 
   # protonvpn:
   #   image: ghcr.io/tprasadtp/protonvpn:${PROTONVPN_VERSION}
@@ -72,7 +72,7 @@ services:
   #   #   - proxy
   #   restart: unless-stopped
   #   env_file:
-  #     - protonvpn/.env
+  #     - ./configs/protonvpn/.env
   #     - .env
   #   cap_add:
   #     - NET_ADMIN
@@ -111,15 +111,14 @@ services:
   #   network_mode: service:protonvpn
   #   restart: unless-stopped
   #   env_file:
-  #     - flaresolverr/.env
+  #     - ./configs/flaresolverr/.env
   #   #sysctls:
   #   #  - net.ipv6.conf.all.disable_ipv6=1  # ipv4 only
   #   environment:
   #     TZ: ${TIMEZONE}
   #   volumes:
   #     - /etc/localtime:/etc/localtime:ro
-  #     - ${DOCKER_APPS_FOLDERS}/jackett/config:/config:Z
-  #     - ${DOWNLOADS_FOLDER}:/downloads:z
+  #     - ./configs/jackett/config:/config:Z
 
   # jackett:
   #   image: linuxserver/jackett:${JACKETT_VERSION}
@@ -130,7 +129,7 @@ services:
   #   network_mode: service:protonvpn
   #   restart: unless-stopped
   #   env_file:
-  #     - jackett/.env
+  #     - ./configs/jackett/.env
   #   sysctls:
   #     - net.ipv6.conf.all.disable_ipv6=1  # ipv4 only
   #   environment:
@@ -140,8 +139,7 @@ services:
   #     TZ: ${TIMEZONE}
   #   volumes:
   #     - /etc/localtime:/etc/localtime:ro
-  #     - ${DOCKER_APPS_FOLDERS}/jackett/config:/config:Z
-  #     - ${DOWNLOADS_FOLDER}:/downloads:z
+  #     - ./configs/jackett/config:/config:Z
 
   # nzbhydra2:
   #   image: linuxserver/nzbhydra2:${NZBHYDRA2_VERSION}
@@ -152,7 +150,7 @@ services:
   #   network_mode: service:protonvpn
   #   restart: unless-stopped
   #   env_file:
-  #     - nzbhydra2/.env
+  #     - ./configs/nzbhydra2/.env
   #   sysctls:
   #     - net.ipv6.conf.all.disable_ipv6=1  # ipv4 only
   #   environment:
@@ -162,8 +160,8 @@ services:
   #     TZ: ${TIMEZONE}
   #   volumes:
   #     - /etc/localtime:/etc/localtime:ro
-  #     - ${DOCKER_APPS_FOLDERS}/nzbhydra2/config:/config:Z
-  #     - ${DOWNLOADS_FOLDER}:/downloads:z 
+  #     - ./configs/nzbhydra2/config:/config:Z
+  #     - ./shared/Usenet:/downloads:z 
 
   # qbittorrent:
   #   image: linuxserver/qbittorrent:${QBITTORRENT_VERSION}
@@ -173,7 +171,7 @@ services:
   #   network_mode: service:protonvpn
   #   restart: unless-stopped
   #   env_file:
-  #     - qbittorrent/.env
+  #     - ./configs/qbittorrent/.env
   #   sysctls:
   #     - net.ipv6.conf.all.disable_ipv6=1  # ipv4 only
   #   environment:
@@ -183,14 +181,14 @@ services:
   #     TZ: ${TIMEZONE}
   #   volumes:
   #     - /etc/localtime:/etc/localtime:ro
-  #     - ${DOCKER_APPS_FOLDERS}/qbittorrent/config:/config:z
-  #     - ${DOWNLOADS_FOLDER}:/downloads:z
+  #     - ./configs/qbittorrent/config:/config:z
+  #     - ./shared/Torrent:/downloads:z
   #     - ${BLACKHOLE_FOLDER}:/blackhole:z
-  #     - ${AUDIOBOOKS_FOLDER}:/audiobooks:z
-  #     - ${EBOOKS_FOLDER}:/books:z
-  #     - ${MOVIES_FOLDER}:/movies:z
-  #     - ${MUSIC_FOLDER}:/music:z
-  #     - ${SERIES_FOLDER}:/tv:z
+  #     - ./media/AudioBooks:/audiobooks:z
+  #     - ./media/eBooks:/books:z
+  #     - ./media/Movies:/movies:z
+  #     - ./media/Music:/music:z
+  #     - ./media/Series:/tv:z
 
   # nzbget:
   #   image: linuxserver/nzbget:${NZBGET_VERSION}
@@ -200,7 +198,7 @@ services:
   #   network_mode: service:protonvpn
   #   restart: unless-stopped
   #   env_file:
-  #     - nzbget/.env
+  #     - ./configs/nzbget/.env
   #   sysctls:
   #     - net.ipv6.conf.all.disable_ipv6=1  # ipv4 only
   #   environment:
@@ -210,13 +208,13 @@ services:
   #     TZ: ${TIMEZONE}
   #   volumes:
   #     - /etc/localtime:/etc/localtime:ro
-  #     - ${DOCKER_APPS_FOLDERS}/nzbget/config:/config:Z
-  #     - ${DOWNLOADS_FOLDER}:/downloads:z
-  #     - ${AUDIOBOOKS_FOLDER}:/audiobooks:z
-  #     - ${EBOOKS_FOLDER}:/books:z
-  #     - ${MOVIES_FOLDER}:/movies:z
-  #     - ${MUSIC_FOLDER}:/music:z
-  #     - ${SERIES_FOLDER}:/tv:z
+  #     - ./configs/nzbget/config:/config:Z
+  #     - ./shared/Usenet:/downloads:z
+  #     - ./media/AudioBooks:/audiobooks:z
+  #     - ./media/eBooks:/books:z
+  #     - ./media/Movies:/movies:z
+  #     - ./media/Music:/music:z
+  #     - ./media/Series:/tv:z
 
   # sonarr:
   #   image: linuxserver/sonarr:${SONARR_VERSION}
@@ -230,7 +228,7 @@ services:
   #   network_mode: service:protonvpn
   #   restart: unless-stopped
   #   env_file:
-  #     - sonarr/.env
+  #     - ./configs/sonarr/.env
   #   sysctls:
   #     - net.ipv6.conf.all.disable_ipv6=1  # ipv4 only
   #   environment:
@@ -239,9 +237,9 @@ services:
   #     TZ: ${TIMEZONE}
   #   volumes:
   #     - /etc/localtime:/etc/localtime:ro
-  #     - ${DOCKER_APPS_FOLDERS}/sonarr/config:/config:Z
+  #     - ./configs/sonarr/config:/config:Z
   #     - ${DOWNLOADS_FOLDER}:/downloads:z
-  #     - ${SERIES_FOLDER}:/tv:z
+  #     - ./media/Series:/tv:z
   
   # radarr:
   #   image: linuxserver/radarr:${RADARR_VERSION}
@@ -255,7 +253,7 @@ services:
   #   network_mode: service:protonvpn
   #   restart: unless-stopped
   #   env_file:
-  #     - radarr/.env
+  #     - ./configs/radarr/.env
   #   sysctls:
   #     - net.ipv6.conf.all.disable_ipv6=1  # ipv4 only
   #   environment:
@@ -265,9 +263,9 @@ services:
   #     TZ: ${TIMEZONE}
   #   volumes:
   #     - /etc/localtime:/etc/localtime:ro
-  #     - ${DOCKER_APPS_FOLDERS}/radarr/config:/config:Z
+  #     - ./configs/radarr/config:/config:Z
   #     - ${DOWNLOADS_FOLDER}:/downloads:z
-  #     - ${MOVIES_FOLDER}:/movies:z
+  #     - ./media/Movies:/movies:z
 
   # lidarr:
   #   image: linuxserver/lidarr:${LIDARR_VERSION}
@@ -281,7 +279,7 @@ services:
   #   network_mode: service:protonvpn
   #   restart: unless-stopped
   #   env_file:
-  #     - lidarr/.env
+  #     - ./configs/lidarr/.env
   #   sysctls:
   #     - net.ipv6.conf.all.disable_ipv6=1  # ipv4 only
   #   environment:
@@ -291,9 +289,9 @@ services:
   #     TZ: ${TIMEZONE}
   #   volumes:
   #     - /etc/localtime:/etc/localtime:ro
-  #     - ${DOCKER_APPS_FOLDERS}/lidarr/config:/config:Z
+  #     - ./configs/lidarr/config:/config:Z
   #     - ${DOWNLOADS_FOLDER}:/downloads:z
-  #     - ${MUSIC_FOLDER}:/music:z
+  #     - ./media/Music:/music:z
 
   # lazylibrarian:
   #   image: linuxserver/lazylibrarian:${LAZYLIBRARIAN_VERSION}
@@ -308,7 +306,7 @@ services:
   #   network_mode: service:protonvpn
   #   restart: unless-stopped
   #   env_file:
-  #     - lidarr/.env
+  #     - ./configs/lidarr/.env
   #   sysctls:
   #     - net.ipv6.conf.all.disable_ipv6=1  # ipv4 only
   #   environment:
@@ -319,11 +317,11 @@ services:
   #     DOCKER_MODS: linuxserver/calibre-web:calibre|linuxserver/mods:lazylibrarian-ffmpeg #needed for calibredb
   #   volumes:
   #     - /etc/localtime:/etc/localtime:ro
-  #     - ${DOCKER_APPS_FOLDERS}/lazylibrarian/config:/config:Z
+  #     - ./configs/lazylibrarian/config:/config:Z
   #     - ${DOWNLOADS_FOLDER}:/downloads:z
-  #     - ${AUDIOBOOKS_FOLDER}:/audiobooks:z
-  #     - ${COMICS_FOLDER}:/comics:z
-  #     - ${EBOOKS_FOLDER}:/books:z
+  #     - ./media/AudioBooks:/audiobooks:z
+  #     - ./media/Comics:/comics:z
+  #     - ./media/eBooks:/books:z
 
   # readarr:
   #   image: linuxserver/readarr:${READARR_VERSION}
@@ -337,7 +335,7 @@ services:
   #   network_mode: service:protonvpn
   #   restart: unless-stopped
   #   env_file:
-  #     - readarr/.env
+  #     - ./configs/readarr/.env
   #   sysctls:
   #     - net.ipv6.conf.all.disable_ipv6=1  # ipv4 only
   #   environment:
@@ -347,11 +345,11 @@ services:
   #     TZ: ${TIMEZONE}
   #   volumes:
   #     - /etc/localtime:/etc/localtime:ro
-  #     - ${DOCKER_APPS_FOLDERS}/readarr/config:/config:Z
+  #     - ./configs/readarr/config:/config:Z
   #     - ${DOWNLOADS_FOLDER}:/downloads:z
-  #     - ${AUDIOBOOKS_FOLDER}:/audiobooks:z
-  #     - ${COMICS_FOLDER}:/comics:z
-  #     - ${EBOOKS_FOLDER}:/books:z
+  #     - ./media/AudioBooks:/audiobooks:z
+  #     - ./media/Comics:/comics:z
+  #     - ./media/eBooks:/books:z
 
   # mylar:
   #   image: linuxserver/mylar3:${MYLAR_VERSION}
@@ -364,7 +362,7 @@ services:
   #   network_mode: service:protonvpn
   #   restart: unless-stopped
   #   env_file:
-  #     - mylar/.env
+  #     - ./configs/mylar/.env
   #   sysctls:
   #     - net.ipv6.conf.all.disable_ipv6=1  # ipv4 only
   #   environment:
@@ -374,9 +372,9 @@ services:
   #     TZ: ${TIMEZONE}
   #   volumes:
   #     - /etc/localtime:/etc/localtime:ro
-  #     - ${DOCKER_APPS_FOLDERS}/mylar/config:/config:Z
+  #     - ./configs/mylar/config:/config:Z
   #     - ${DOWNLOADS_FOLDER}:/downloads:z
-  #     - ${COMICS_FOLDER}:/comics:z
+  #     - ./media/Comics:/comics:z
 
   # nginx:
   #   image: nginx:latest
