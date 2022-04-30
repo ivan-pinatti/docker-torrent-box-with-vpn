@@ -129,6 +129,7 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/jackett/config:/config:Z
+      - ${TORRENT_BLACKHOLE_FOLDER}:/blackhole:z
 
   nzbhydra2:
     image: linuxserver/nzbhydra2:${NZBHYDRA2_VERSION}
@@ -271,6 +272,7 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/lidarr/config:/config:Z
+      - ${RECYCLE_FOLDER}/lidarr:/recycle:z
       - ${TORRENT_DOWNLOADS_FOLDER}:/downloads/torrent:z
       - ${USENET_DOWNLOADS_FOLDER}:/downloads/usenet:z
       - ${MEDIA_FOLDER}/Music:/music:z

@@ -1,0 +1,16 @@
+<Config>
+  <LogLevel>info</LogLevel>
+  <BindAddress>*</BindAddress>
+  <EnableSsl>False</EnableSsl>
+  <SslCertPath></SslCertPath>
+  <Port>8686</Port>
+  <UrlBase></UrlBase>
+  <ApiKey>ebd2e05991db449b979c12ab20a8eff8</ApiKey>
+  <AuthenticationMethod>Forms</AuthenticationMethod>
+  <UpdateMechanism>Docker</UpdateMechanism>
+  <SslPort>6868</SslPort>
+  <LaunchBrowser>True</LaunchBrowser>
+  <Branch>master</Branch>
+  <SslCertPassword></SslCertPassword>
+  <AnalyticsEnabled>False</AnalyticsEnabled>
+</Config>

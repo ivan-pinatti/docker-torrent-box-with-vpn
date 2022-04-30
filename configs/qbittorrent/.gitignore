@@ -5,7 +5,7 @@
 !.gitignore
 !.env
 
-# qBittorrent config file
+# config file
 !config/
 config/*
 !config/qBittorrent
