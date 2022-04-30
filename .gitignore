@@ -20,8 +20,5 @@
 ### dotenv ###
 .env
 
-### Apps Folders
-shared/**
-
 ### Backup Folder
 backup/**
