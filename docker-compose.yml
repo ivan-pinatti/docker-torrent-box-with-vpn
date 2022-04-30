@@ -287,8 +287,6 @@ services:
     image: linuxserver/lazylibrarian:${LAZYLIBRARIAN_VERSION}
     container_name: lazylibrarian
     depends_on:
-      - calibre
-      - calibre-web
       - protonvpn
       - qbittorrent
       - nzbget
