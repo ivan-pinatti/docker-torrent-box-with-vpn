@@ -8,5 +8,7 @@
 # config file
 !config/
 config/*
-!config/config.ini
-!config/mylar.db
+!config/mylar/
+!config/mylar/*
+!config/mylar/config.ini
+!config/mylar/mylar.db

@@ -224,6 +224,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/sonarr/config:/config:Z
       - ${RECYCLE_FOLDER}/sonarr:/recycle:z
+      - ${TORRENT_DOWNLOADS_FOLDER}/completed/Sonarr:/downloads/completed/Sonarr:z
       - ${TORRENT_DOWNLOADS_FOLDER}:/downloads/torrent:z
       - ${USENET_DOWNLOADS_FOLDER}:/downloads/usenet:z
       - ${USENET_DOWNLOADS_FOLDER}/completed/Series:/downloads/completed/Series:z
@@ -252,6 +253,7 @@ services:
       - ${CONFIG_FOLDER}/radarr/config:/config:Z
       - ${RECYCLE_FOLDER}/radarr:/recycle:z
       - ${TORRENT_DOWNLOADS_FOLDER}:/downloads/torrent:z
+      - ${TORRENT_DOWNLOADS_FOLDER}/completed/Radarr:/downloads/completed/Radarr:z
       - ${USENET_DOWNLOADS_FOLDER}:/downloads/usenet:z
       - ${USENET_DOWNLOADS_FOLDER}/completed/Movies:/downloads/completed/Movies:z
       - ${MEDIA_FOLDER}/Movies:/movies:z
@@ -279,6 +281,7 @@ services:
       - ${CONFIG_FOLDER}/lidarr/config:/config:Z
       - ${RECYCLE_FOLDER}/lidarr:/recycle:z
       - ${TORRENT_DOWNLOADS_FOLDER}:/downloads/torrent:z
+      - ${TORRENT_DOWNLOADS_FOLDER}/completed/Lidarr:/downloads/completed/Lidarr:z
       - ${USENET_DOWNLOADS_FOLDER}:/downloads/usenet:z
       - ${USENET_DOWNLOADS_FOLDER}/completed/Music:/downloads/completed/Music:z
       - ${MEDIA_FOLDER}/Music:/music:z
@@ -335,6 +338,7 @@ services:
       - ${CONFIG_FOLDER}/readarr/config:/config:Z
       - ${RECYCLE_FOLDER}/readarr:/recycle:z
       - ${TORRENT_DOWNLOADS_FOLDER}:/downloads/torrent:z
+      # - ${TORRENT_DOWNLOADS_FOLDER}/completed/Readarr:/downloads/completed/Readarr:z
       - ${USENET_DOWNLOADS_FOLDER}:/downloads/usenet:z
       - ${USENET_DOWNLOADS_FOLDER}/completed/Readarr:/downloads/completed/Readarr:z
       - ${MEDIA_FOLDER}/AudioBooks:/audiobooks:z
