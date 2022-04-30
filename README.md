@@ -27,20 +27,6 @@ The code below is intented to be used as a Torrent Box through a VPN connection.
 
 ---
 
-## Prepare the environment
-
-Create Apps folders
-
-```shell
-mkdir calibre-web calibre jackett lazylibrarian lidarr mylar nzbget nzbhydra2 plex qbittorrent radarr readarr sonarr
-```
-
-Create the shared folder (for downloads and blackhole)
-```shell
-mkdir -p shared/downlads shared/blackhole
-```
-
-
 ---
 
 If you are using the code consider buying me a coffee or a beer :)
