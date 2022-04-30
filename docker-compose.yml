@@ -338,9 +338,9 @@ services:
       - ${CONFIG_FOLDER}/readarr/config:/config:Z
       - ${RECYCLE_FOLDER}/readarr:/recycle:z
       - ${TORRENT_DOWNLOADS_FOLDER}:/downloads/torrent:z
-      # - ${TORRENT_DOWNLOADS_FOLDER}/completed/Readarr:/downloads/completed/Readarr:z
+      - ${TORRENT_DOWNLOADS_FOLDER}/completed/Readarr:/downloads/completed/Readarr:z
       - ${USENET_DOWNLOADS_FOLDER}:/downloads/usenet:z
-      - ${USENET_DOWNLOADS_FOLDER}/completed/Readarr:/downloads/completed/Readarr:z
+      - ${USENET_DOWNLOADS_FOLDER}/completed/Readarr:/downloads/completed/eBooks:z
       - ${MEDIA_FOLDER}/AudioBooks:/audiobooks:z
       - ${MEDIA_FOLDER}/Comics:/comics:z
       - ${MEDIA_FOLDER}/eBooks:/books:z
