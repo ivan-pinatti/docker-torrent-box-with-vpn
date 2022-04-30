@@ -11,3 +11,8 @@ config/*
 !config/Jackett
 config/Jackett/*
 !config/Jackett/ServerConfig.json
+!config/Jackett/Indexers
+config/Jackett/Indexers/*
+!config/Jackett/Indexers/thepiratebay.json
+!config/Jackett/Indexers/thepiratebay.json.bak
+
