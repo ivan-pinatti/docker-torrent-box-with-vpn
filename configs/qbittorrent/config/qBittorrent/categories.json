@@ -1,0 +1,17 @@
+{
+    "lidarr": {
+        "save_path": "/downloads/completed/Lidarr"
+    },
+    "mylar": {
+        "save_path": "/downloads/completed/Mylar"
+    },
+    "radarr": {
+        "save_path": "/downloads/completed/Radarr"
+    },
+    "readarr": {
+        "save_path": "/downloads/completed/Readarr"
+    },
+    "sonarr": {
+        "save_path": "/downloads/completed/Sonarr"
+    }
+}

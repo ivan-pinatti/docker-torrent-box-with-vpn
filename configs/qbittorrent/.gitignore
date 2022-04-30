@@ -11,3 +11,5 @@ config/*
 !config/qBittorrent
 config/qBittorrent/*
 !config/qBittorrent/qBittorrent.conf
+!config/qBittorrent/categories.json
+!config/qBittorrent/watched_folders.json
