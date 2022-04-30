@@ -17,8 +17,11 @@
 .history
 .ionide
 
-### dotenv ###
+# dotenv ###
 .env
 
-### Backup Folder
+# Backup Folder
 backup/**
+
+# Docker-compose dev file
+docker-compose.dev..yml

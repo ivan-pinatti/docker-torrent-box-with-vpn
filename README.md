@@ -52,6 +52,11 @@ After that, check your timezone. For that, run:
 cat /etc/timezone
 ```
 
+The result should be something like;
+```shell
+America/Toronto
+```
+
 Save these values for later reference.
 
 ## 3 - Edit dotenv (.env) file

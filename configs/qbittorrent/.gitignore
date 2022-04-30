@@ -1,6 +1,13 @@
-# Ignore everything in this directory
+# # Ignore everything in this directory
 *
 
-# Except .gitignore and dotenv file
+# # Except
 !.gitignore
 !.env
+
+# qBittorrent config file
+!config/
+config/*
+!config/qBittorrent
+config/qBittorrent/*
+!config/qBittorrent/qBittorrent.conf
