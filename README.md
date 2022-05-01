@@ -129,8 +129,6 @@ To access the services, please use the table below;
 
 ---
 # Indexers
-The pre-configured setup order is outlined below;
-
 ## Torrent
 LazyLibrarian  --->  NzbHydra2  --->  Jackett  --->  Flaresolverr\
 Lidarr         --->  NzbHydra2  --->  Jackett  --->  Flaresolverr\
@@ -149,8 +147,6 @@ Sonarr         --->  NzbHydra2
 
 ---
 # Downloaders
-The pre-configured setup order is outlined below;
-
 ## Torrent
 LazyLibrarian  --->  qBitTorrent\
 Lidarr         --->  qBitTorrent\
@@ -167,9 +163,8 @@ Radarr         --->  NzbGet\
 Readarr        --->  NzbGet\
 Sonarr         --->  NzbGet
 
+---
 # Library Managers
-The pre-configured setup order is outlined below;
-
 Lidarr         --->  Plex Media Server\
 Radarr         --->  Plex Media Server\
 Sonarr         --->  Plex Media Server
@@ -177,6 +172,15 @@ Sonarr         --->  Plex Media Server
 LazyLibrarian  --->  Calibre\
 Mylar          --->  Calibre\
 Readarr        --->  Calibre
+
+---
+# Bandwith Control
+Both downloaders, qBitTorrent and NzbGet, are configured to limit from 8AM to 11:59PM to;
+
+- **Download Rate** - 1 Gbps
+- **Upload Rate**   - 30 Mbps (only applicable to qBitTorrent)
+
+Outside of these hours no speed control applied.
 
 ---
 ## Clean up and revert to original state
