@@ -9,11 +9,7 @@ All the apps are pre-configured and integrated. Therefore, with a few clicks you
 
 **IMPORTANT:** I strongly recommend rotating all the API keys and changing all the passwords.
 
-
-[![license](https://img.shields.io/github/license/ivan-pinatti/docker-torrent-box?style=plastic)](https://github.com/ivan-pinatti/docker-torrent-box/blob/master/LICENSE)
-
 ---
-
 ## Requisites
 
 |       **App**      |  **Version**  |                     **Site**                   |
@@ -195,6 +191,16 @@ If you need to revert to the original code and also want to delete any files ins
 ```shell
 docker-compose down
 make clean
+```
+
+---
+# License
+[![license](https://img.shields.io/github/license/ivan-pinatti/docker-torrent-box?style=plastic)](https://github.com/ivan-pinatti/docker-torrent-box/blob/master/LICENSE)
+
+See [LICENSE](LICENSE) for full details.
+
+```text
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
 ---
