@@ -106,7 +106,7 @@ The media type will be stored into the folders below;
 |     Series    	|               media/Series          	    |
 
 ---
-## Services Links
+## App Links
 
 To access the services, please use the table below;
 
@@ -130,20 +130,20 @@ To access the services, please use the table below;
 ---
 # Indexers
 ## Torrent
-LazyLibrarian  --->  NzbHydra2  --->  Jackett  --->  Flaresolverr\
-Lidarr         --->  NzbHydra2  --->  Jackett  --->  Flaresolverr\
-Mylar          --->  NzbHydra2  --->  Jackett  --->  Flaresolverr\
-Radarr         --->  NzbHydra2  --->  Jackett  --->  Flaresolverr\
-Readarr        --->  NzbHydra2  --->  Jackett  --->  Flaresolverr\
-Sonarr         --->  NzbHydra2  --->  Jackett  --->  Flaresolverr
+LazyLibrarian  <--->  NzbHydra2  <--->  Jackett  <--->  Flaresolverr\
+Lidarr         <--->  NzbHydra2  <--->  Jackett  <--->  Flaresolverr\
+Mylar          <--->  NzbHydra2  <--->  Jackett  <--->  Flaresolverr\
+Radarr         <--->  NzbHydra2  <--->  Jackett  <--->  Flaresolverr\
+Readarr        <--->  NzbHydra2  <--->  Jackett  <--->  Flaresolverr\
+Sonarr         <--->  NzbHydra2  <--->  Jackett  <--->  Flaresolverr
 
 ## Usenet
-LazyLibrarian  --->  NzbHydra2\
-Lidarr         --->  NzbHydra2\
-Mylar          --->  NzbHydra2\
-Radarr         --->  NzbHydra2\
-Readarr        --->  NzbHydra2\
-Sonarr         --->  NzbHydra2
+LazyLibrarian  <--->  NzbHydra2\
+Lidarr         <--->  NzbHydra2\
+Mylar          <--->  NzbHydra2\
+Radarr         <--->  NzbHydra2\
+Readarr        <--->  NzbHydra2\
+Sonarr         <--->  NzbHydra2
 
 ---
 # Downloaders
