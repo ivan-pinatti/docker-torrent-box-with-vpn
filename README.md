@@ -1,11 +1,13 @@
-# Usenet/Torrent Box using Docker Compose with ProtonVPN
+# Torrent, Usenet, NZB, VPN (ProtonVPN) box through Docker Compose
 
+The code on this repository is intended to be used to share media content with various networks such as Torrent and Usenet while protecting your privacy through a VPN (ProtonVPN). The main idea is to provide access where internet censors and content restriction apply. I totally discourage using this code for any piracy reasons.
 
+The stack can be run in any Linux box.\
+Besides Plex transcoding, all other apps and functions are super light and a basic Raspberry Pi is able to handle the load.
 
 [![license](https://img.shields.io/github/license/ivan-pinatti/docker-torrent-box?style=plastic)](https://github.com/ivan-pinatti/docker-torrent-box/blob/master/LICENSE)
 
-The code below is intended to be used as a Torrent Box through a VPN connection.
-
+---
 
 ## Apps Included
 
@@ -132,7 +134,7 @@ make clean
 
 ---
 
-If you are using the code consider buying me a coffee or a beer :)
+If you are using the code, entirelly or partially, forking the project, or getting inspired by it, consider buying me a coffee or maybe a beer, I would really appreciate it :smiley:
 
 <a href="https://www.buymeacoffee.com/ivan.pinatti" target="_blank"><img src="https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png" alt="Buy Me A Coffee" style="height: 41px !important;width: 174px !important;box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;-webkit-box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;" ></a>
 
