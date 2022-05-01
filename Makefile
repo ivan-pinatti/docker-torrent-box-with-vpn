@@ -1,16 +1,15 @@
 .PHONY: clean
 
 clean: 
+	@echo "Reverting git files to orignal"
+	@git clean -fdx
 	@echo -n "Cleaning Download folders."
-	@sudo rm -rf shared/Torrent/Downloads/*/
-	@echo -n "."
-	@sudo rm -rf shared/Torrent/Blackhole/*/
-	@echo -n "."
-	@sudo rm -rf shared/Torrent/Blackhole/*.torrent
-	@echo -n "."
-	@sudo rm -rf shared/Usenet/Blackhole/*/
-	@echo -n "."
-	@sudo rm -rf shared/Usenet/Downloads/*/
-	@echo -n "."
-	@sudo rm -rf shared/Usenet/Downloads/nzbget.log
+	@cd shared
+	@sudo find . ! -name '.gitignore' -type f -exec rm -f {} +
+	@cd ..
+	@echo ".OK!"
+	@echo -n "Cleaning Media folders."
+	@cd media
+	@sudo find . ! -name '.gitignore' -type f -exec rm -f {} +
+	@cd ..
 	@echo ".OK!"
