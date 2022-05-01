@@ -182,8 +182,8 @@ By default, both downloaders, qBitTorrent and NzbGet, are configured to limit fr
 - **Download Rate** - 1 Gbps
 - **Upload Rate**   - 30 Mbps (only applicable to qBitTorrent)
 
-Outside of these hours no speed control applied.\
-If desired, it is possible to change or disable these settings in these app's configs.
+Outside of these hours, no speed control applied.\
+If desired, it is possible to change or disable the settings in these app's configs.
 
 ---
 ## Clean up and revert to original state
