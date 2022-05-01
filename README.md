@@ -14,6 +14,14 @@ All the apps are pre-configured and integrated. Therefore, with a few clicks you
 
 ---
 
+## Requisites
+
+|       **App**      |  **Version**  |                     **Site**                   |
+|:------------------:|:-------------:|:----------------------------------------------:|
+|   Docker-Compose   |      >2.4     |      https://docs.docker.com/compose/install   |
+
+---
+
 ## Apps Included
 
 |    **App Name**   |                    **Docker Image**                    |                     **Function**                     |
@@ -36,12 +44,6 @@ All the apps are pre-configured and integrated. Therefore, with a few clicks you
 
 ---
 # How to run
-
-## Requisites
-
-|       **App**      |  **Version**  |                     **Site**                   |
-|:------------------:|:-------------:|:----------------------------------------------:|
-|   Docker-Compose   |      >2.4     |      https://docs.docker.com/compose/install   |
 
 ## 1 - Create dotenv (.env) file
 Copy from the example and generate a new .env file.
@@ -127,7 +129,7 @@ To access the services, please use the table below;
 |    Readarr    	|          http://localhost:8787/          	|    readarr    	|    readarr    	|   	|
 |     Sonarr    	|          http://localhost:8989/          	|     sonarr    	|     sonarr    	|   	|
 
-## To clean up and revert to original state
+## Clean up and revert to original state
 
 If you need to revert to the original code and also want to delete any files inside the `shared` and `media` folders, simply run;
 
