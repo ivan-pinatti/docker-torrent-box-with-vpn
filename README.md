@@ -177,12 +177,13 @@ Readarr        --->  Calibre
 
 ---
 # Bandwith Control
-Both downloaders, qBitTorrent and NzbGet, are configured to limit from 8AM to 11:59PM to;
+By default, both downloaders, qBitTorrent and NzbGet, are configured to limit from 8AM to 11:59PM to;
 
 - **Download Rate** - 1 Gbps
 - **Upload Rate**   - 30 Mbps (only applicable to qBitTorrent)
 
-Outside of these hours no speed control applied.
+Outside of these hours no speed control applied.\
+If desired, it is possible to change or disable these settings in these app's configs.
 
 ---
 ## Clean up and revert to original state
