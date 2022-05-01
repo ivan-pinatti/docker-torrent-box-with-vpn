@@ -63,7 +63,7 @@ Save these values for later reference.
 Edit the newly created .env file and change the `UID, GID, and TIMEZONE` parameters to the values you gathered from steps 1 and 2.
 
 ## 4 - Configure the ProtonVPN parameters
-Now, edit the file `protonvpn/.env` with the values from the ProtonVPN page. If you don't know how to get them, please visit [https://protonvpn.com/support/vpn-login](https://protonvpn.com/support/vpn-login).
+Now, edit the file `configs/protonvpn/.env` with the values from the ProtonVPN page. If you don't know how to get them, please visit [https://protonvpn.com/support/vpn-login](https://protonvpn.com/support/vpn-login).
 
 With the values from the page, change the `PROTONVPN_USERNAME, PROTONVPN_PASSWORD, and PROTONVPN_EXCLUDE_CIDRS`.
 
