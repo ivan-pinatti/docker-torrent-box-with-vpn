@@ -7,32 +7,32 @@ The code below is intented to be used as a Torrent Box through a VPN connection.
 
 ## Apps Included
 
-|    App Name   |                    Docker Image                    |                     Function                     |
-|:-------------:|:--------------------------------------------------:|:------------------------------------------------:|
-|    Calibre    | https://hub.docker.com/r/linuxserver/calibre       |              eBooks Library Manager              |
-|  Calibre-web  | https://hub.docker.com/r/linuxserver/calibre-web   |              eBooks Library Manager              |
-|    Jackett    | https://hub.docker.com/r/linuxserver/jackett       |                Query Proxy Server                |
-|  Flaresolverr | https://hub.docker.com/r/flaresolverr/flaresolverr |        Bypass to Cloudflare and DDoS-GUARD       |
-| LazyLibrarian | https://hub.docker.com/r/linuxserver/lazylibrarian |               Books Tracker/Manager              |
-|     Lidarr    | https://hub.docker.com/r/linuxserver/lidarr        |               Music Tracker/Manager              |
-|     Mylar     | https://hub.docker.com/r/linuxserver/mylar3        |              Comics Tracker/Manager              |
-|     NZBGet    | https://hub.docker.com/r/linuxserver/nzbget        |                 Usenet Downloader                |
-|   NZBHydra2   | https://hub.docker.com/r/linuxserver/nzbhydra2     |          Meta Searcher for NZB indexers          |
-|      Plex     | https://hub.docker.com/r/linuxserver/plex          | Movie/TV Shows/Music Library Manager and Player  |
-|   ProtonVPN   | https://github.com/tprasadtp/protonvpn-docker      |                    VPN Gateway                   |
-|  qBittorrent  | https://hub.docker.com/r/linuxserver/qbittorrent   |                Torrent Downloader                |
-|     Radarr    | https://hub.docker.com/r/linuxserver/radarr        |              Movies Tracker/Manager              |
-|    Readarr    | https://hub.docker.com/r/linuxserver/readarr       |              eBooks Tracker/Manager              |
-|     Sonarr    | https://hub.docker.com/r/linuxserver/sonarr        |             TV Shows Tracker/Manager             |
+|    **App Name**   |                    **Docker Image**                    |                     **Function**                     |
+|:-----------------:|:------------------------------------------------------:|:----------------------------------------------------:|
+|       Calibre     |   https://hub.docker.com/r/linuxserver/calibre         |               eBooks Library Manager                 |
+|     Calibre-web   |   https://hub.docker.com/r/linuxserver/calibre-web     |               eBooks Library Manager                 |
+|       Jackett     |   https://hub.docker.com/r/linuxserver/jackett         |                 Query Proxy Server                   |
+|     Flaresolverr  |   https://hub.docker.com/r/flaresolverr/flaresolverr   |         Bypass to Cloudflare and DDoS-GUARD          |
+|    LazyLibrarian  |   https://hub.docker.com/r/linuxserver/lazylibrarian   |                Books Tracker/Manager                 |
+|        Lidarr     |   https://hub.docker.com/r/linuxserver/lidarr          |                Music Tracker/Manager                 |
+|        Mylar      |   https://hub.docker.com/r/linuxserver/mylar3          |               Comics Tracker/Manager                 |
+|        NZBGet     |   https://hub.docker.com/r/linuxserver/nzbget          |                  Usenet Downloader                   |
+|      NZBHydra2    |   https://hub.docker.com/r/linuxserver/nzbhydra2       |           Meta Searcher for NZB indexers             |
+|         Plex      |   https://hub.docker.com/r/linuxserver/plex            |  Movie/TV Shows/Music Library Manager and Player     |
+|      ProtonVPN    |   https://github.com/tprasadtp/protonvpn-docker        |                     VPN Gateway                      |
+|     qBittorrent   |   https://hub.docker.com/r/linuxserver/qbittorrent     |                 Torrent Downloader                   |
+|        Radarr     |   https://hub.docker.com/r/linuxserver/radarr          |               Movies Tracker/Manager                 |
+|       Readarr     |   https://hub.docker.com/r/linuxserver/readarr         |               eBooks Tracker/Manager                 |
+|        Sonarr     |   https://hub.docker.com/r/linuxserver/sonarr          |              TV Shows Tracker/Manager                |
 
 ---
 # How to run
 
 ## Requisites
 
-|       App      |  Version  |                     Site                   |
-|:--------------:|:---------:|:------------------------------------------:|
-| Docker-Compose |   >2.4    |  https://docs.docker.com/compose/install   |
+|       **App**      |  **Version**  |                     **Site**                   |
+|:------------------:|:-------------:|:----------------------------------------------:|
+|   Docker-Compose   |      >2.4     |      https://docs.docker.com/compose/install   |
 
 ## 1 - Create dotenv (.env) file
 Copy from the example and generate a new .env file.
@@ -82,6 +82,30 @@ docker-compose up -d
 
 ---
 
+## Services Links
+
+To access the services, please use the table below;
+
+|    **App**    	|                 **Link**                 	|    **User**   	|  **Password** 	|   	|
+|:-------------:	|:----------------------------------------:	|:-------------:	|:-------------:	|---	|
+|    Calibre    	|          http://localhost:8080/          	|      abc      	|    calibre    	|   	|
+|  Calibre-Web  	|          http://localhost:8083/          	|    calibre    	|    calibre    	|   	|
+|  FlareSolverr 	|          http://localhost:8191/          	|       -       	|       -       	|   	|
+|    Jackett    	|          http://localhost:9117/          	|    jackett    	|    jackett    	|   	|
+| LazyLibrarian 	|          http://localhost:5299/          	| lazylibrarian 	| lazylibrarian 	|   	|
+|     Lidarr    	|          http://localhost:8686/          	|     lidarr    	|     lidarr    	|   	|
+|     Mylar     	|          http://localhost:8090/          	|     mylar     	|     mylar     	|   	|
+|     Nzbget    	|          http://localhost:6789/          	|     nzbget    	|     nzbget    	|   	|
+|   NzbHydra2   	|          http://localhost:5076/          	|   nzbhydra2   	|   nzbhydra2   	|   	|
+|      Plex     	| http://localhost:32400/web/index.html#!/ 	|       -       	|       -       	|   	|
+|  qBitTorrent  	|          http://localhost:8082/          	|  qbittorrent  	|  qbittorrent  	|   	|
+|     Radarr    	|          http://localhost:7878/          	|     radarr    	|     radarr    	|   	|
+|    Readarr    	|          http://localhost:8787/          	|    readarr    	|    readarr    	|   	|
+|     Sonarr    	|          http://localhost:8989/          	|     sonarr    	|     sonarr    	|   	|
+
+---
+
 If you are using the code consider buying me a coffee or a beer :)
 
 <a href="https://www.buymeacoffee.com/ivan.pinatti" target="_blank"><img src="https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png" alt="Buy Me A Coffee" style="height: 41px !important;width: 174px !important;box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;-webkit-box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;" ></a>
+
