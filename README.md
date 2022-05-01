@@ -43,40 +43,6 @@ All the apps are pre-configured and integrated. Therefore, with a few clicks you
 |        Sonarr     |   https://hub.docker.com/r/linuxserver/sonarr          |              TV Shows Tracker/Manager                |
 
 ---
-# Indexers
-
-The pre-configured setup order is outlined below;
-
-## Torrent
-LazyLibrarian  --->  NzbHydra2  --->  Jackett  --->  Flaresolverr\
-Lidarr         --->  NzbHydra2  --->  Jackett  --->  Flaresolverr\
-Mylar          --->  NzbHydra2  --->  Jackett  --->  Flaresolverr\
-Radarr         --->  NzbHydra2  --->  Jackett  --->  Flaresolverr\
-Readarr        --->  NzbHydra2  --->  Jackett  --->  Flaresolverr\
-Sonarr         --->  NzbHydra2  --->  Jackett  --->  Flaresolverr
-
-## Usenet
-Radarr, Sonarr, Lidarr, Readarr, LazyLibrarian, and Mylar --> NzbHydra2 (Meta Searcher)
-
----
-# Downloaders
-
-The pre-configured setup order is outlined below;
-
-## Torrent
-Radarr, Sonarr, Lidarr, Readarr, LazyLibrarian, and Mylar --> qBitTorrent
-
-## Usenet
-Radarr, Sonarr, Lidarr, Readarr, LazyLibrarian, and Mylar --> NzbGet
-
-# Library Managers
-
-The pre-configured setup order is outlined below;
-
-Radarr, Sonarr, and Lidarr --> Plex Media Server
-Readarr, LazyLibrarian, and Mylar --> Calibre
-
----
 # How to run
 
 ## 1 - Create dotenv (.env) file
@@ -126,7 +92,6 @@ docker-compose up -d
 ```
 
 ---
-
 ## Folders
 
 The media type will be stored into the folders below;
@@ -141,7 +106,6 @@ The media type will be stored into the folders below;
 |     Series    	|               media/Series          	    |
 
 ---
-
 ## Services Links
 
 To access the services, please use the table below;
@@ -163,6 +127,58 @@ To access the services, please use the table below;
 |    Readarr    	|          http://localhost:8787/          	|    readarr    	|    readarr    	|   	|
 |     Sonarr    	|          http://localhost:8989/          	|     sonarr    	|     sonarr    	|   	|
 
+---
+# Indexers
+The pre-configured setup order is outlined below;
+
+## Torrent
+LazyLibrarian  --->  NzbHydra2  --->  Jackett  --->  Flaresolverr\
+Lidarr         --->  NzbHydra2  --->  Jackett  --->  Flaresolverr\
+Mylar          --->  NzbHydra2  --->  Jackett  --->  Flaresolverr\
+Radarr         --->  NzbHydra2  --->  Jackett  --->  Flaresolverr\
+Readarr        --->  NzbHydra2  --->  Jackett  --->  Flaresolverr\
+Sonarr         --->  NzbHydra2  --->  Jackett  --->  Flaresolverr
+
+## Usenet
+LazyLibrarian  --->  NzbHydra2\
+Lidarr         --->  NzbHydra2\
+Mylar          --->  NzbHydra2\
+Radarr         --->  NzbHydra2\
+Readarr        --->  NzbHydra2\
+Sonarr         --->  NzbHydra2
+
+---
+# Downloaders
+The pre-configured setup order is outlined below;
+
+## Torrent
+LazyLibrarian  --->  qBitTorrent\
+Lidarr         --->  qBitTorrent\
+Mylar          --->  qBitTorrent\
+Radarr         --->  qBitTorrent\
+Readarr        --->  qBitTorrent\
+Sonarr         --->  qBitTorrent
+
+## Usenet
+LazyLibrarian  --->  NzbGet\
+Lidarr         --->  NzbGet\
+Mylar          --->  NzbGet\
+Radarr         --->  NzbGet\
+Readarr        --->  NzbGet\
+Sonarr         --->  NzbGet
+
+# Library Managers
+The pre-configured setup order is outlined below;
+
+Lidarr         --->  Plex Media Server\
+Radarr         --->  Plex Media Server\
+Sonarr         --->  Plex Media Server
+
+LazyLibrarian  --->  Calibre\
+Mylar          --->  Calibre\
+Readarr        --->  Calibre
+
+---
 ## Clean up and revert to original state
 
 If you need to revert to the original code and also want to delete any files inside the `shared` and `media` folders, simply run;
@@ -174,7 +190,7 @@ make clean
 ```
 
 ---
-
+# Contribute / Donate
 If you are using the code, entirelly or partially, forking the project, or getting inspired by it, consider buying me a coffee or maybe a beer, I would really appreciate it :smiley:
 
 <a href="https://www.buymeacoffee.com/ivan.pinatti" target="_blank"><img src="https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png" alt="Buy Me A Coffee" style="height: 41px !important;width: 174px !important;box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;-webkit-box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;" ></a>
