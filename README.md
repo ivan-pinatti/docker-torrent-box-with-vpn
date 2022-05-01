@@ -26,8 +26,13 @@ The code below is intented to be used as a Torrent Box through a VPN connection.
 |     Sonarr    | https://hub.docker.com/r/linuxserver/sonarr        |             TV Shows Tracker/Manager             |
 
 ---
-
 # How to run
+
+## Requisites
+
+|       App      |  Version  |                     Site                   |
+|:--------------:|:---------:|:------------------------------------------:|
+| Docker-Compose |   >2.4    |  https://docs.docker.com/compose/install   |
 
 ## 1 - Create dotenv (.env) file
 Copy from the example and generate a new .env file.
