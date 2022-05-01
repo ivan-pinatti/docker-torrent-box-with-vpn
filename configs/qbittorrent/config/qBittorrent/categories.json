@@ -1,4 +1,7 @@
 {
+    "lazylibrarian": {
+        "save_path": "/downloads/completed/eBooks"
+    },
     "lidarr": {
         "save_path": "/downloads/completed/Lidarr"
     },

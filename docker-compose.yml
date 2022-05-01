@@ -309,6 +309,7 @@ services:
       - ${CONFIG_FOLDER}/lazylibrarian/config:/config:Z
       - ${TORRENT_BLACKHOLE_FOLDER}:/torrent/blackhole:z
       - ${TORRENT_DOWNLOADS_FOLDER}:/downloads/torrent:z
+      - ${TORRENT_DOWNLOADS_FOLDER}/completed/eBooks:/downloads/completed/eBooks:z
       - ${USENET_BLACKHOLE_FOLDER}:/usenet/blackhole:z
       - ${USENET_DOWNLOADS_FOLDER}:/downloads/usenet:z
       - ${MEDIA_FOLDER}/AudioBooks:/audiobooks:z
