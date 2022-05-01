@@ -1,6 +1,6 @@
 # Torrent, Usenet, NZB, VPN (ProtonVPN) box through Docker Compose
 
-The code on this repository is intended to be used to share media content with various networks such as Torrent and Usenet while protecting your privacy through a VPN (ProtonVPN). The main idea is to provide access where internet censors and content restriction apply. I totally discourage using this code for any piracy reasons.
+The code on this repository is intended to be used to share media content with various networks such as Torrent and Usenet while protecting your privacy through a VPN (ProtonVPN). The main idea is to provide access where Internet censors and content restriction apply. I totally discourage using this code for any piracy reasons.
 
 The stack can be run in any Linux box.\
 Besides Plex transcoding, all other apps and functions are super light and a basic Raspberry Pi is able to handle the load.
@@ -41,6 +41,35 @@ All the apps are pre-configured and integrated. Therefore, with a few clicks you
 |        Radarr     |   https://hub.docker.com/r/linuxserver/radarr          |               Movies Tracker/Manager                 |
 |       Readarr     |   https://hub.docker.com/r/linuxserver/readarr         |               eBooks Tracker/Manager                 |
 |        Sonarr     |   https://hub.docker.com/r/linuxserver/sonarr          |              TV Shows Tracker/Manager                |
+
+---
+# Indexers
+
+The pre-configured setup order is outlined below;
+
+## Torrent
+Radarr, Sonarr, Lidarr, Readarr, LazyLibrarian, and Mylar ---> NzbHydra2 (Meta Searcher) ---> Jackett (Torrent Indexer) ---> Flaresolverr (Cloudflare / DDoS-Guard bypass)
+
+## Usenet
+Radarr, Sonarr, Lidarr, Readarr, LazyLibrarian, and Mylar ---> NzbHydra2 (Meta Searcher)
+
+---
+# Downloaders
+
+The pre-configured setup order is outlined below;
+
+## Torrent
+Radarr, Sonarr, Lidarr, Readarr, LazyLibrarian, and Mylar ---> qBitTorrent
+
+## Usenet
+Radarr, Sonarr, Lidarr, Readarr, LazyLibrarian, and Mylar ---> NzbGet
+
+# Library Managers
+
+The pre-configured setup order is outlined below;
+
+Radarr, Sonarr, and Lidarr ---> Plex Media Server
+Readarr, LazyLibrarian, and Mylar --> Calibre
 
 ---
 # How to run
