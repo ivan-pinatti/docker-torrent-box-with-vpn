@@ -193,6 +193,7 @@ If you need to revert to the original code and also want to delete any files ins
 **IMPORTANT:** This will **ERASE** every file on your media folder!
 
 ```shell
+docker-compose down
 make clean
 ```
 
