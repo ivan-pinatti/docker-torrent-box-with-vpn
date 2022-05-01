@@ -48,12 +48,12 @@ All the apps are pre-configured and integrated. Therefore, with a few clicks you
 The pre-configured setup order is outlined below;
 
 ## Torrent
-Radarr --> NzbHydra2 (Meta Searcher) --> Jackett (Torrent Indexer) --> Flaresolverr (Cloudflare / DDoS-Guard bypass)\
-Sonarr --> NzbHydra2 (Meta Searcher) --> Jackett (Torrent Indexer) --> Flaresolverr (Cloudflare / DDoS-Guard bypass)\
-Lidarr --> NzbHydra2 (Meta Searcher) --> Jackett (Torrent Indexer) --> Flaresolverr (Cloudflare / DDoS-Guard bypass)\
-Readarr --> NzbHydra2 (Meta Searcher) --> Jackett (Torrent Indexer) --> Flaresolverr (Cloudflare / DDoS-Guard bypass)\
-LazyLibrarian --> NzbHydra2 (Meta Searcher) --> Jackett (Torrent Indexer) --> Flaresolverr (Cloudflare / DDoS-Guard bypass)\
-Mylar --> NzbHydra2 (Meta Searcher) --> Jackett (Torrent Indexer) --> Flaresolverr (Cloudflare / DDoS-Guard bypass)
+Radarr --> NzbHydra2 --> Jackett --> Flaresolverr\
+Sonarr --> NzbHydra2 --> Jackett --> Flaresolverr\
+Lidarr --> NzbHydra2 --> Jackett --> Flaresolverr\
+Readarr --> NzbHydra2 --> Jackett --> Flaresolverr\
+LazyLibrarian --> NzbHydra2 --> Jackett --> Flaresolverr\
+Mylar --> NzbHydra2 --> Jackett --> Flaresolverr
 
 ## Usenet
 Radarr, Sonarr, Lidarr, Readarr, LazyLibrarian, and Mylar --> NzbHydra2 (Meta Searcher)
