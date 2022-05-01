@@ -1,8 +1,10 @@
-# Docker Torrent Box
+# Usenet/Torrent Box using Docker Compose with ProtonVPN
+
+
 
 [![license](https://img.shields.io/github/license/ivan-pinatti/docker-torrent-box?style=plastic)](https://github.com/ivan-pinatti/docker-torrent-box/blob/master/LICENSE)
 
-The code below is intented to be used as a Torrent Box through a VPN connection.
+The code below is intended to be used as a Torrent Box through a VPN connection.
 
 
 ## Apps Included
@@ -118,6 +120,15 @@ To access the services, please use the table below;
 |    Readarr    	|          http://localhost:8787/          	|    readarr    	|    readarr    	|   	|
 |     Sonarr    	|          http://localhost:8989/          	|     sonarr    	|     sonarr    	|   	|
 
+## To clean up and revert to original state
+
+If you need to revert to the original code and also want to delete any files inside the `shared` and `media` folders, simply run;
+
+**IMPORTANT:** This will **ERASE** every file on your media folder!
+
+```shell
+make clean
+```
 
 ---
 
