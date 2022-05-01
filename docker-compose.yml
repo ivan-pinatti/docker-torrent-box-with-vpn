@@ -1,8 +1,6 @@
 version: '3.8'
 services:
 
-# Media Library Apps - Host Network
-
   plex:
     image: linuxserver/plex:${PLEX_VERSION}
     container_name: plex
