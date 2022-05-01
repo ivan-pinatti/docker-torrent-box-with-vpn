@@ -115,7 +115,7 @@ To access the services, please use the table below;
 |    Calibre    	|          http://localhost:8080/          	|      abc        |    calibre    	|
 |  Calibre-Web  	|          http://localhost:8083/          	|    calibre      |    calibre    	|
 |  FlareSolverr 	|          http://localhost:8191/          	|       -         |       -       	|
-|    Jackett    	|          http://localhost:9117/          	|    jackett      |    jackett    	|
+|    Jackett    	|          http://localhost:9117/          	|       -         |    jackett    	|
 | LazyLibrarian 	|          http://localhost:5299/          	| lazylibrarian   | lazylibrarian 	|
 |     Lidarr    	|          http://localhost:8686/          	|     lidarr      |     lidarr    	|
 |     Mylar     	|          http://localhost:8090/          	|     mylar       |     mylar     	|
