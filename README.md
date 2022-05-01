@@ -42,7 +42,7 @@ All the apps are pre-configured and integrated. Therefore, with a few clicks you
 |        Sonarr     |   https://hub.docker.com/r/linuxserver/sonarr          |              TV Shows Tracker/Manager                |
 
 ---
-# How to run
+# Usage
 
 ## 1 - Create dotenv (.env) file
 Copy from the example and generate a new .env file.
