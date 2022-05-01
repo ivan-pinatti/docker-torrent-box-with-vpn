@@ -6,7 +6,9 @@ services:
   plex:
     image: linuxserver/plex:${PLEX_VERSION}
     container_name: plex
-    network_mode: host
+    depends_on:
+      - protonvpn
+    network_mode: service:protonvpn
     restart: unless-stopped
     # devices:
     #   - /dev/dri:/dev/dri # Intel QuickSync acceleration ON - Uncomment if your machine is capable
@@ -28,7 +30,9 @@ services:
   calibre:
     image: linuxserver/calibre:${CALIBRE_VERSION}
     container_name: calibre
-    network_mode: host
+    depends_on:
+      - protonvpn
+    network_mode: service:protonvpn
     restart: unless-stopped
     env_file:
       - ${CONFIG_FOLDER}/calibre/.env
@@ -47,7 +51,9 @@ services:
   calibre-web:
     image: linuxserver/calibre-web:${CALIBREWEB_VERSION}
     container_name: calibre-web
-    network_mode: host
+    depends_on:
+      - protonvpn
+    network_mode: service:protonvpn
     restart: unless-stopped
     env_file:
       - ${CONFIG_FOLDER}/calibre-web/.env
@@ -84,10 +90,10 @@ services:
       - 6791:6791 # nzbget-https
       - 6868:6868 # lidarr-https / readarr-https
       - 7878:7878 # radarr-http
-      #- 8080:8080 # calibre
-      #- 8081:8081 # calibre-web (from calibre)
+      - 8080:8080 # calibre
+      - 8081:8081 # calibre-web (from calibre)
       - 8082:8082 # qbittorrent
-      #- 8083:8083 # calibre-web (from calibre-web container)
+      - 8083:8083 # calibre-web (from calibre-web container)
       - 8090:8090 # mylar-http
       - 8191:8191 # flaresolverr-http
       - 8686:8686 # lidarr-http
@@ -95,6 +101,16 @@ services:
       - 8989:8989 # sonarr-http
       - 9117:9117 # jackett-http
       - 9898:9898 # sonarr-https / radarr-https
+      - 32400:32400 # plex
+      - 1900:1900/udp # plex
+      - 3005:3005 # plex
+      #- 5353:5353/udp # plex
+      - 8324:8324 # plex
+      - 32410:32410/udp # plex
+      - 32412:32412/udp # plex
+      - 32413:32413/udp # plex
+      - 32414:32414/udp # plex
+      - 32469:32469 # plex
 
   flaresolverr:
     image: flaresolverr/flaresolverr:${FLARESOLVER_VERSION}
