@@ -82,6 +82,21 @@ docker-compose up -d
 
 ---
 
+## Folders
+
+The media type will be stored into the folders below;
+
+|    **Media**    	|                 **Folder**                |
+|:-------------:	|:-----------------------------------------:|
+|    AudioBooks    	|               media/AudioBooks          	|
+|     Comics   	    |               media/Comics              	|
+|     eBooks   	    |               media/eBooks             	|
+|     Movies    	|               media/Movies          	    |
+|     Music    	    |               media/Music       	        |
+|     Series    	|               media/Series          	    |
+
+---
+
 ## Services Links
 
 To access the services, please use the table below;
@@ -102,6 +117,7 @@ To access the services, please use the table below;
 |     Radarr    	|          http://localhost:7878/          	|     radarr    	|     radarr    	|   	|
 |    Readarr    	|          http://localhost:8787/          	|    readarr    	|    readarr    	|   	|
 |     Sonarr    	|          http://localhost:8989/          	|     sonarr    	|     sonarr    	|   	|
+
 
 ---
 
