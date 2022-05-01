@@ -165,10 +165,12 @@ Sonarr         --->  NzbGet
 
 ---
 # Library Managers
+## Movies / Series / Music
 Lidarr         --->  Plex Media Server\
 Radarr         --->  Plex Media Server\
 Sonarr         --->  Plex Media Server
 
+## AudioBooks / eBooks / Comics
 LazyLibrarian  --->  Calibre\
 Mylar          --->  Calibre\
 Readarr        --->  Calibre
