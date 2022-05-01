@@ -5,6 +5,11 @@ The code on this repository is intended to be used to share media content with v
 The stack can be run in any Linux box.\
 Besides Plex transcoding, all other apps and functions are super light and a basic Raspberry Pi is able to handle the load.
 
+All the apps are pre-configured and integrated. Therefore, with a few clicks you can start adding Indexers to the configurations and tinkering to your liking.
+
+**IMPORTANT:** I strongly recommend rotating all the API keys and changing all the passwords.
+
+
 [![license](https://img.shields.io/github/license/ivan-pinatti/docker-torrent-box?style=plastic)](https://github.com/ivan-pinatti/docker-torrent-box/blob/master/LICENSE)
 
 ---
