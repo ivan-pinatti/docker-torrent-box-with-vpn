@@ -4,3 +4,18 @@
 # Except .gitignore and dotenv file
 !.gitignore
 !.env
+
+# config file
+!config/
+config/*
+!config/.config/
+config/.config/*
+!config/.config/calibre
+config/.config/calibre/*
+!config/.config/calibre/gui.json
+!config/.config/calibre/gui.py.json
+!config/.config/calibre/global.py.json
+!config/.config/calibre/dynamic.pickle.json
+!config/.config/calibre/conversion
+config/.config/calibre/conversion/*
+!config/.config/calibre/conversion/page_setup.py

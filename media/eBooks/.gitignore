@@ -3,3 +3,4 @@
 
 # Except .gitignore and dotenv file
 !.gitignore
+!metadata.db
