@@ -8,8 +8,8 @@ services:
     container_name: plex
     network_mode: host
     restart: unless-stopped
-    devices:
-      - /dev/dri:/dev/dri # Intel QuickSync acceleration ON
+    # devices:
+    #   - /dev/dri:/dev/dri # Intel QuickSync acceleration ON - Uncomment if your machine is capable
     env_file:
       - ${CONFIG_FOLDER}/plex/.env
     environment:
