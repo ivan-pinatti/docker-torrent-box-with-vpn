@@ -110,22 +110,22 @@ The media type will be stored into the folders below;
 
 To access the services, please use the table below;
 
-|    **App**    	|                 **Link**                 	|    **User**   	|  **Password** 	|   	|
-|:-------------:	|:----------------------------------------:	|:-------------:	|:-------------:	|---	|
-|    Calibre    	|          http://localhost:8080/          	|      abc      	|    calibre    	|   	|
-|  Calibre-Web  	|          http://localhost:8083/          	|    calibre    	|    calibre    	|   	|
-|  FlareSolverr 	|          http://localhost:8191/          	|       -       	|       -       	|   	|
-|    Jackett    	|          http://localhost:9117/          	|    jackett    	|    jackett    	|   	|
-| LazyLibrarian 	|          http://localhost:5299/          	| lazylibrarian 	| lazylibrarian 	|   	|
-|     Lidarr    	|          http://localhost:8686/          	|     lidarr    	|     lidarr    	|   	|
-|     Mylar     	|          http://localhost:8090/          	|     mylar     	|     mylar     	|   	|
-|     Nzbget    	|          http://localhost:6789/          	|     nzbget    	|     nzbget    	|   	|
-|   NzbHydra2   	|          http://localhost:5076/          	|   nzbhydra2   	|   nzbhydra2   	|   	|
-|      Plex     	| http://localhost:32400/web/index.html#!/ 	|       -       	|       -       	|   	|
-|  qBitTorrent  	|          http://localhost:8082/          	|  qbittorrent  	|  qbittorrent  	|   	|
-|     Radarr    	|          http://localhost:7878/          	|     radarr    	|     radarr    	|   	|
-|    Readarr    	|          http://localhost:8787/          	|    readarr    	|    readarr    	|   	|
-|     Sonarr    	|          http://localhost:8989/          	|     sonarr    	|     sonarr    	|   	|
+|    **App**    	|                 **Link**                 	|    **User**     |  **Password** 	|
+|:-------------:	|:----------------------------------------:	|:-------------:  |:---------------:|
+|    Calibre    	|          http://localhost:8080/          	|      abc        |    calibre    	|
+|  Calibre-Web  	|          http://localhost:8083/          	|    calibre      |    calibre    	|
+|  FlareSolverr 	|          http://localhost:8191/          	|       -         |       -       	|
+|    Jackett    	|          http://localhost:9117/          	|    jackett      |    jackett    	|
+| LazyLibrarian 	|          http://localhost:5299/          	| lazylibrarian   | lazylibrarian 	|
+|     Lidarr    	|          http://localhost:8686/          	|     lidarr      |     lidarr    	|
+|     Mylar     	|          http://localhost:8090/          	|     mylar       |     mylar     	|
+|     Nzbget    	|          http://localhost:6789/          	|     nzbget      |     nzbget    	|
+|   NzbHydra2   	|          http://localhost:5076/          	|   nzbhydra2     |   nzbhydra2   	|
+|      Plex     	| http://localhost:32400/web/index.html#!/ 	|       -         |       -       	|
+|  qBitTorrent  	|          http://localhost:8082/          	|  qbittorrent    |  qbittorrent  	|
+|     Radarr    	|          http://localhost:7878/          	|     radarr      |     radarr    	|
+|    Readarr    	|          http://localhost:8787/          	|    readarr      |    readarr    	|
+|     Sonarr    	|          http://localhost:8989/          	|     sonarr      |     sonarr    	|
 
 ---
 # Indexers
