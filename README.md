@@ -1,4 +1,4 @@
-# Torrent, Usenet, NZB, VPN (ProtonVPN) box through Docker Compose
+# Torrent, Usenet, NZB, VPN (ProtonVPN) box by Docker Compose containers
 
 The code on this repository is intended to be used to share media content with various networks such as Torrent and Usenet while protecting your privacy through a VPN (ProtonVPN). The main idea is to provide access where Internet censors and content restriction apply. I totally discourage using this code for any piracy reasons.
 
