@@ -12,6 +12,9 @@
 # Built Visual Studio Code Extensions
 *.vsix
 
+# Visual Code Workspace
+*.code-workspace
+
 ### VisualStudioCode Patch ###
 # Ignore all local history of files
 .history
