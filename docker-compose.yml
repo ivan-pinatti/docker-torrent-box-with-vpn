@@ -96,16 +96,6 @@ services:
       - 8989:8989 # sonarr-http
       - 9117:9117 # jackett-http
       - 9898:9898 # sonarr-https / radarr-https
-      - 32400:32400 # plex
-      - 1900:1900/udp # plex
-      - 3005:3005 # plex
-      #- 5353:5353/udp # plex
-      - 8324:8324 # plex
-      - 32410:32410/udp # plex
-      - 32412:32412/udp # plex
-      - 32413:32413/udp # plex
-      - 32414:32414/udp # plex
-      - 32469:32469 # plex
 
   flaresolverr:
     image: flaresolverr/flaresolverr:${FLARESOLVER_VERSION}
