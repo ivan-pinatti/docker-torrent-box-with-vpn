@@ -1,12 +1,9 @@
-version: '3.8'
+version: "3.8"
 services:
-
   plex:
     image: linuxserver/plex:${PLEX_VERSION}
     container_name: plex
-    depends_on:
-      - protonvpn
-    network_mode: service:protonvpn
+    network_mode: host
     restart: unless-stopped
     # devices:
     #   - /dev/dri:/dev/dri # Intel QuickSync acceleration ON - Uncomment if your machine is capable
@@ -164,7 +161,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/nzbhydra2/config:/config:Z
       - ${TORRENT_BLACKHOLE_FOLDER}:/downloads/torrent/blackhole:z
-      - ${USENET_BLACKHOLE_FOLDER}:/downloads/usenet/blackhole:z 
+      - ${USENET_BLACKHOLE_FOLDER}:/downloads/usenet/blackhole:z
 
   qbittorrent:
     image: linuxserver/qbittorrent:${QBITTORRENT_VERSION}
@@ -243,7 +240,7 @@ services:
       - ${USENET_DOWNLOADS_FOLDER}:/downloads/usenet:z
       - ${USENET_DOWNLOADS_FOLDER}/completed/Series:/downloads/completed/Series:z
       - ${MEDIA_FOLDER}/Series:/series:z
-  
+
   radarr:
     image: linuxserver/radarr:${RADARR_VERSION}
     container_name: radarr
