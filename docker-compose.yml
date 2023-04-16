@@ -68,19 +68,21 @@ services:
       - ${MEDIA_FOLDER}/eBooks:/ebooks:z
 
   protonvpn:
-    image: ghcr.io/tprasadtp/protonvpn:${PROTONVPN_VERSION}
+    image: ghcr.io/tprasadtp/protonwire:${PROTONVPN_VERSION}
     container_name: protonvpn
-    network_mode: bridge
     restart: unless-stopped
     env_file:
       - ${CONFIG_FOLDER}/protonvpn/.env
       - .env
     cap_add:
       - NET_ADMIN
-    devices:
-      - /dev/net/tun:/dev/net/tun
+    sysctls:
+      net.ipv4.conf.all.rp_filter: 2
+      net.ipv6.conf.all.disable_ipv6: 1
     volumes:
       - /etc/localtime:/etc/localtime:ro
+      - type: tmpfs
+        target: /tmp
     ports:
       - 5076:5076 # nzbhydra2-http or nzbhydra2-https
       - 5299:5299 # lazylibrarian
@@ -317,7 +319,7 @@ services:
       PGID: ${GID}
       UMASK: ${UMASK}
       TZ: ${TIMEZONE}
-      DOCKER_MODS: linuxserver/calibre-web:calibre|linuxserver/mods:lazylibrarian-ffmpeg #needed for calibredb
+      DOCKER_MODS: ghcr.io/linuxserver/mods:universal-calibre|linuxserver/mods:lazylibrarian-ffmpeg #needed for calibredb
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/lazylibrarian/config:/config:Z
