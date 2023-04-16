@@ -77,18 +77,44 @@ Save these values for later reference.
 ## 3 - Edit dotenv (.env) file
 Edit the newly created .env file and change the `UID, GID, and TIMEZONE` parameters to the values you gathered from steps 1 and 2.
 
-## 4 - Configure the ProtonVPN parameters
-Now, edit the file `configs/protonvpn/.env` with the values from the ProtonVPN page. If you don't know how to get them, please visit [https://protonvpn.com/support/vpn-login](https://protonvpn.com/support/vpn-login).
+## 4 - Configure the ProtonVPN/WireGuard parameters
+Now, edit the file `configs/protonvpn/.env` with the values from the ProtonVPN page.
 
-With the values from the page, change the `PROTONVPN_USERNAME, PROTONVPN_PASSWORD, and PROTONVPN_EXCLUDE_CIDRS`.
+- Log in to ProtonVPN and go to Downloads → WireGuard configuration.
+- Enter a name for the key, and select features to enable like NetShield and VPN Accelerator & click create.
+- Generated config might look something like below;
 
-**IMPORTANT:** The value of `PROTONVPN_EXCLUDE_CIDRS` it is your LAN IP range, for example; 192.168.0.0/24.
+```[Interface]
+# Key for <name>
+# VPN Accelerator = on
+PrivateKey = KLjfIMiuxPskM4+DaSUDmL2uSIYKJ9Wap+CHvs0Lfkw=
+Address = 10.2.0.2/32
+DNS = 10.2.0.1
+
+[Peer]
+# NL-FREE#128
+PublicKey = jbTC1lYeHxiz1LNSJHQMKDTq6sHgcWxkBwXvt7GWo1E=
+AllowedIPs = 0.0.0.0/0
+Endpoint = 91.229.23.180:51820
+```
+
+- Only thing needed from the above config is PrivateKey.
+- See https://protonvpn.com/support/wireguard-configurations/ for more info.
+
+With the values from the page, change the `WIREGUARD_PRIVATE_KEY` and `PROTONVPN_SERVER`.
+
+**IMPORTANT:** To use a server that is best for you, please check the details in the ProtonVPN Docker page; https://github.com/tprasadtp/protonvpn-docker#protonvpn_server
 
 ## 5 - Run the containers
 Now that everything is set, please run the containers by using the command below;
 ```shell
 docker-compose up -d
 ```
+
+## 6 - Rotate your keys
+All the services are pre-configured, therefore they already have API keys set.
+
+It is **strongly recommended rotating all of them** for the sake of security.
 
 ---
 ## Folders
@@ -120,7 +146,7 @@ To access the services, please use the table below;
 |     Mylar     	|          http://localhost:8090/          	|     mylar       |     mylar     	|
 |     Nzbget    	|          http://localhost:6789/          	|     nzbget      |     nzbget    	|
 |   NzbHydra2   	|          http://localhost:5076/          	|   nzbhydra2     |   nzbhydra2   	|
-|      Plex     	| http://localhost:32400/web/index.html#!/ 	|       -         |       -       	|
+|      Plex     	| http://localhost:32400/ 	|       -         |       -       	|
 |  qBitTorrent  	|          http://localhost:8082/          	|  qbittorrent    |  qbittorrent  	|
 |     Radarr    	|          http://localhost:7878/          	|     radarr      |     radarr    	|
 |    Readarr    	|          http://localhost:8787/          	|    readarr      |    readarr    	|
