@@ -49,6 +49,11 @@ Copy from the example and generate a new .env file.
 ```shell
 cp .env.example .env
 ```
+**OR**
+
+```shell
+make create_config
+```
 
 ## 2 - Check your parameters
 It is necessary to set a few parameters to match your environment.
@@ -109,6 +114,12 @@ With the values from the page, change the `WIREGUARD_PRIVATE_KEY` and `PROTONVPN
 Now that everything is set, please run the containers by using the command below;
 ```shell
 docker-compose up -d
+```
+
+**OR**
+
+```shell
+make start
 ```
 
 ## 6 - Rotate your keys
