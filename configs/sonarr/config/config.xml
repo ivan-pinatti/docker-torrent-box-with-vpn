@@ -12,4 +12,5 @@
   <Branch>main</Branch>
   <SslCertHash></SslCertHash>
   <AnalyticsEnabled>False</AnalyticsEnabled>
+  <InstanceName>Sonarr</InstanceName>
 </Config>
