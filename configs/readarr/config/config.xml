@@ -13,4 +13,5 @@
   <SslCertPath></SslCertPath>
   <SslCertPassword></SslCertPassword>
   <AnalyticsEnabled>False</AnalyticsEnabled>
+  <InstanceName>Readarr</InstanceName>
 </Config>

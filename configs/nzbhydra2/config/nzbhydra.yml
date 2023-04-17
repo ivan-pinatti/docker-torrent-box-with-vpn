@@ -732,7 +732,6 @@ main:
   updateAutomatically: false
   updateToPrereleases: false
   updateCheckEnabled: true
-  showUpdateBannerOnDocker: true
   showWhatsNewBanner: true
   showNews: true
   startupBrowser: true
@@ -758,6 +757,7 @@ main:
     logfilelevel: "INFO"
     logUsername: false
     markersToLog: []
+  showUpdateBannerOnDocker: true
 searching:
   applyRestrictions: "NONE"
   coverSize: 128
@@ -836,6 +836,7 @@ searching:
   - "Greek"
   - "Hungarian"
   - "-xpost"
+  replaceUmlauts: false
   requiredRegex: null
   requiredWords: []
   sendTorznabCategories: true
@@ -871,3 +872,5 @@ notificationConfig:
 genericStorage:
   outdatedWrapperDetected: "false"
   FirstStart: "\"2022-04-30T11:40:17.132354\""
+  belowJava17: "false"
+  BackupData: "{\"lastBackup\":\"2023-04-16T17:37:16.377237\"}"

@@ -7,6 +7,8 @@ services:
     depends_on:
       - protonvpn
     network_mode: service:protonvpn
+    sysctls:
+      net.ipv6.conf.all.disable_ipv6: 1
     restart: unless-stopped
     # devices:
     #   - /dev/dri:/dev/dri # Intel QuickSync acceleration ON - Uncomment if your machine is capable
@@ -31,6 +33,8 @@ services:
     depends_on:
       - protonvpn
     network_mode: service:protonvpn
+    sysctls:
+      net.ipv6.conf.all.disable_ipv6: 1
     restart: unless-stopped
     env_file:
       - ${CONFIG_FOLDER}/calibre/.env
@@ -52,6 +56,8 @@ services:
     depends_on:
       - protonvpn
     network_mode: service:protonvpn
+    sysctls:
+      net.ipv6.conf.all.disable_ipv6: 1
     restart: unless-stopped
     env_file:
       - ${CONFIG_FOLDER}/calibre-web/.env
@@ -68,19 +74,21 @@ services:
       - ${MEDIA_FOLDER}/eBooks:/ebooks:z
 
   protonvpn:
-    image: ghcr.io/tprasadtp/protonvpn:${PROTONVPN_VERSION}
+    image: ghcr.io/tprasadtp/protonwire:${PROTONVPN_VERSION}
     container_name: protonvpn
-    network_mode: bridge
     restart: unless-stopped
     env_file:
       - ${CONFIG_FOLDER}/protonvpn/.env
       - .env
     cap_add:
       - NET_ADMIN
-    devices:
-      - /dev/net/tun:/dev/net/tun
+    sysctls:
+      net.ipv6.conf.all.disable_ipv6: 1
+      net.ipv4.conf.all.rp_filter: 2
     volumes:
       - /etc/localtime:/etc/localtime:ro
+      - type: tmpfs
+        target: /tmp
     ports:
       - 5076:5076 # nzbhydra2-http or nzbhydra2-https
       - 5299:5299 # lazylibrarian
@@ -116,6 +124,8 @@ services:
     depends_on:
       - protonvpn
     network_mode: service:protonvpn
+    sysctls:
+      net.ipv6.conf.all.disable_ipv6: 1
     restart: unless-stopped
     env_file:
       - ${CONFIG_FOLDER}/flaresolverr/.env
@@ -132,6 +142,8 @@ services:
       - protonvpn
       - flaresolverr
     network_mode: service:protonvpn
+    sysctls:
+      net.ipv6.conf.all.disable_ipv6: 1
     restart: unless-stopped
     env_file:
       - ${CONFIG_FOLDER}/jackett/.env
@@ -152,6 +164,8 @@ services:
       - protonvpn
       - jackett
     network_mode: service:protonvpn
+    sysctls:
+      net.ipv6.conf.all.disable_ipv6: 1
     restart: unless-stopped
     env_file:
       - ${CONFIG_FOLDER}/nzbhydra2/.env
@@ -172,6 +186,8 @@ services:
     depends_on:
       - protonvpn
     network_mode: service:protonvpn
+    sysctls:
+      net.ipv6.conf.all.disable_ipv6: 1
     restart: unless-stopped
     env_file:
       - ${CONFIG_FOLDER}/qbittorrent/.env
@@ -197,6 +213,8 @@ services:
     depends_on:
       - protonvpn
     network_mode: service:protonvpn
+    sysctls:
+      net.ipv6.conf.all.disable_ipv6: 1
     restart: unless-stopped
     env_file:
       - ${CONFIG_FOLDER}/nzbget/.env
@@ -227,6 +245,8 @@ services:
       - nzbget
       - nzbhydra2
     network_mode: service:protonvpn
+    sysctls:
+      net.ipv6.conf.all.disable_ipv6: 1
     restart: unless-stopped
     env_file:
       - ${CONFIG_FOLDER}/sonarr/.env
@@ -254,6 +274,8 @@ services:
       - nzbget
       - nzbhydra2
     network_mode: service:protonvpn
+    sysctls:
+      net.ipv6.conf.all.disable_ipv6: 1
     restart: unless-stopped
     env_file:
       - ${CONFIG_FOLDER}/radarr/.env
@@ -282,6 +304,8 @@ services:
       - nzbget
       - nzbhydra2
     network_mode: service:protonvpn
+    sysctls:
+      net.ipv6.conf.all.disable_ipv6: 1
     restart: unless-stopped
     env_file:
       - ${CONFIG_FOLDER}/lidarr/.env
@@ -309,6 +333,8 @@ services:
       - nzbget
       - nzbhydra2
     network_mode: service:protonvpn
+    sysctls:
+      net.ipv6.conf.all.disable_ipv6: 1
     restart: unless-stopped
     env_file:
       - ${CONFIG_FOLDER}/lazylibrarian/.env
@@ -317,7 +343,7 @@ services:
       PGID: ${GID}
       UMASK: ${UMASK}
       TZ: ${TIMEZONE}
-      DOCKER_MODS: linuxserver/calibre-web:calibre|linuxserver/mods:lazylibrarian-ffmpeg #needed for calibredb
+      DOCKER_MODS: ghcr.io/linuxserver/mods:universal-calibre|linuxserver/mods:lazylibrarian-ffmpeg #needed for calibredb
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/lazylibrarian/config:/config:Z
@@ -340,6 +366,8 @@ services:
       - nzbget
       - nzbhydra2
     network_mode: service:protonvpn
+    sysctls:
+      net.ipv6.conf.all.disable_ipv6: 1
     restart: unless-stopped
     env_file:
       - ${CONFIG_FOLDER}/readarr/.env
@@ -369,6 +397,8 @@ services:
       - nzbget
       - nzbhydra2
     network_mode: service:protonvpn
+    sysctls:
+      net.ipv6.conf.all.disable_ipv6: 1
     restart: unless-stopped
     env_file:
       - ${CONFIG_FOLDER}/mylar/.env
