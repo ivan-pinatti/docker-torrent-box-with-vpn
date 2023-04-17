@@ -8,8 +8,9 @@
 
 ### In Progress
 
-- [ ] Research Dependabot for Docker image versions
 ### Done ✓
 
 - [x] Create my first TODO.md
 - [x] Add more tasks to Makefile
+- [x] Research Dependabot for Docker image versions - Not possible at the moment as the feature is not available, more info at https://github.com/dependabot/dependabot-core/issues/390
+
