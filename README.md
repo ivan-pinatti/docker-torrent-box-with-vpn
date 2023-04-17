@@ -243,7 +243,8 @@ See [LICENSE](LICENSE) for full details.
 
 ---
 # Contribute / Donate
-If you are using the code, entirelly or partially, forking the project, or getting inspired by it, consider buying me a coffee or maybe a beer, I would really appreciate it :smiley:
+If you are using the code, entirelly or partially, forking the project, or getting inspired by it, consider becoming a sponsor, buying me a coffee, or maybe a beer, I would really appreciate it :smiley:
+
+[![](https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub&color=%23fe8e86)](https://github.com/sponsors/ivan-pinatti)
 
 <a href="https://www.buymeacoffee.com/ivan.pinatti" target="_blank"><img src="https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png" alt="Buy Me A Coffee" style="height: 41px !important;width: 174px !important;box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;-webkit-box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;" ></a>
-
