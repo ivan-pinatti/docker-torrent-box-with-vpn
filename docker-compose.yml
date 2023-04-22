@@ -76,6 +76,8 @@ services:
       - 6789:6789       # nzbget-http
       - 6791:6791       # nzbget-https
       - 6868:6868       # lidarr-https / readarr-https
+      - 6881:6881       # qbittorrent
+      - 6881:6881/udp   # qbittorrent
       - 7878:7878       # radarr-http
       - 7879:7879       # radarr-https
       - 8080:8080       # calibre
@@ -154,6 +156,7 @@ services:
     environment: [ "PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}" ]
     volumes:
       - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
       - ${CONFIG_FOLDER}/qbittorrent/config:/config:z
       - ${TORRENT_BLACKHOLE_FOLDER}:/blackhole:z
       - ${TORRENT_DOWNLOADS_FOLDER}:/downloads:z
@@ -197,6 +200,7 @@ services:
     environment: [ "PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}" ]
     volumes:
       - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
       - ${CONFIG_FOLDER}/sonarr/config:/config:z
       - ${RECYCLE_FOLDER}/sonarr:/recycle:z
       - ${TORRENT_DOWNLOADS_FOLDER}/completed/Sonarr:/downloads/completed/Sonarr:z
@@ -217,6 +221,7 @@ services:
     environment: [ "PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}" ]
     volumes:
       - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
       - ${CONFIG_FOLDER}/radarr/config:/config:z
       - ${RECYCLE_FOLDER}/radarr:/recycle:z
       - ${TORRENT_DOWNLOADS_FOLDER}:/downloads/torrent:z
@@ -237,6 +242,7 @@ services:
     environment: [ "PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}" ]
     volumes:
       - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
       - ${CONFIG_FOLDER}/lidarr/config:/config:z
       - ${RECYCLE_FOLDER}/lidarr:/recycle:z
       - ${TORRENT_DOWNLOADS_FOLDER}:/downloads/torrent:z
