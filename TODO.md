@@ -1,10 +1,8 @@
 ### Todo
 
 - [ ] Enhance the library update process
-- [ ] Create the scripts folder and invoke them to have better logic - Create config file IF config file don't exists
 - [ ] Automate release generation
 - [ ] Augment the stack to use a reverse proxy w/ https
-- [ ] Pre-commit hooks - Linting, security, etc...
 - [ ] Add Stale bot for issues
 - [ ] Add Patreon and Paypal buttons - https://github.com/ivan-pinatti/docker-torrent-box-with-vpn#contribute--donate
 
@@ -13,8 +11,10 @@
 - [ ] Research Dependabot for Docker image versions
 - [ ] Create the script to generate self-certificate
 - [ ] Config HTTPS to all services
+
 ### Done ✓
 
+- [x] Pre-commit hooks - Linting, security, etc...
 - [x] Added restart to Makefile
 - [x] Added ports 6881 and 6881/udp to qBittorrent container
 - [x] Made the `docker-compose` file more compact

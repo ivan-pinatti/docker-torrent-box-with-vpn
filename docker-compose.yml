@@ -1,19 +1,19 @@
-version: '3.8'
+version: "3.8"
 services:
-
   plex:
     image: linuxserver/plex:${PLEX_VERSION}
     container_name: plex
-    depends_on: [ protonvpn ]
-    profiles: [ "${PLEX_PROFILE}" ]
+    depends_on: [protonvpn]
+    profiles: ["${PLEX_PROFILE}"]
     network_mode: service:protonvpn
-    sysctls: [ "net.ipv6.conf.all.disable_ipv6=1" ]
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
     # Leave commented unless your machine is capable of Hardware acceleration - Intel / Nvidia
     # More information at; https://github.com/linuxserver/docker-plex#hardware-acceleration
     # devices: [ "/dev/dri:/dev/dri" ] # Intel QuickSync
-    env_file: [ "${CONFIG_FOLDER}/plex/.env" ]
-    environment: [ "PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}" ]
+    env_file: ["${CONFIG_FOLDER}/plex/.env"]
+    environment:
+      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/plex/config:/config:z
@@ -25,13 +25,14 @@ services:
   calibre:
     image: linuxserver/calibre:${CALIBRE_VERSION}
     container_name: calibre
-    depends_on: [ protonvpn ]
-    profiles: [ "${CALIBRE_PROFILE}" ]
+    depends_on: [protonvpn]
+    profiles: ["${CALIBRE_PROFILE}"]
     network_mode: service:protonvpn
-    sysctls: [ "net.ipv6.conf.all.disable_ipv6=1" ]
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
-    env_file: [ "${CONFIG_FOLDER}/calibre/.env" ]
-    environment: [ "PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}" ]
+    env_file: ["${CONFIG_FOLDER}/calibre/.env"]
+    environment:
+      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/calibre/config:/config:z
@@ -42,13 +43,14 @@ services:
   calibre-web:
     image: linuxserver/calibre-web:${CALIBREWEB_VERSION}
     container_name: calibre-web
-    depends_on: [ protonvpn ]
-    profiles: [ "${CALIBREWEB_PROFILE}" ]
+    depends_on: [protonvpn]
+    profiles: ["${CALIBREWEB_PROFILE}"]
     network_mode: service:protonvpn
-    sysctls: [ "net.ipv6.conf.all.disable_ipv6=1" ]
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
-    env_file: [ "${CONFIG_FOLDER}/calibre-web/.env" ]
-    environment: [ "PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}" ]
+    env_file: ["${CONFIG_FOLDER}/calibre-web/.env"]
+    environment:
+      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/calibre-web/config:/config:z
@@ -60,56 +62,57 @@ services:
     image: ghcr.io/tprasadtp/protonwire:${PROTONVPN_VERSION}
     container_name: protonvpn
     restart: unless-stopped
-    profiles: [ "${PROTONVPN_PROFILE}" ]
-    env_file: [ "${CONFIG_FOLDER}/protonvpn/.env" ]
-    cap_add: [ NET_ADMIN ]
-    sysctls: [ "net.ipv6.conf.all.disable_ipv6=1", "net.ipv4.conf.all.rp_filter=2" ]
+    profiles: ["${PROTONVPN_PROFILE}"]
+    env_file: ["${CONFIG_FOLDER}/protonvpn/.env"]
+    cap_add: [NET_ADMIN]
+    sysctls:
+      ["net.ipv6.conf.all.disable_ipv6=1", "net.ipv4.conf.all.rp_filter=2"]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /tmp:/tmp:z
     ports:
-      - 1900:1900/udp   # plex
-      - 3005:3005       # plex
-      - 5076:5076       # nzbhydra2-http or nzbhydra2-https
-      - 5299:5299       # lazylibrarian
+      - 1900:1900/udp # plex
+      - 3005:3005 # plex
+      - 5076:5076 # nzbhydra2-http or nzbhydra2-https
+      - 5299:5299 # lazylibrarian
       # - 5353:5353/udp   # plex
-      - 6789:6789       # nzbget-http
-      - 6791:6791       # nzbget-https
-      - 6868:6868       # lidarr-https
-      - 6881:6881       # qbittorrent
-      - 6881:6881/udp   # qbittorrent
-      - 7878:7878       # radarr-http
-      - 7879:7879       # radarr-https
-      - 8080:8080       # calibre
-      - 8081:8081       # calibre-web (from calibre)
-      - 8082:8082       # qbittorrent
-      - 8083:8083       # calibre-web (from calibre-web container)
-      - 8090:8090       # mylar-http
-      - 8191:8191       # flaresolverr-http
-      - 8324:8324       # plex
-      - 8686:8686       # lidarr-http
-      - 8787:8787       # readarr-http
-      - 8788:8788       # readarr-https
-      - 8989:8989       # sonarr-http
-      - 8990:8990       # sonarr-https
-      - 9117:9117       # jackett-http
-      - 32400:32400     # plex
+      - 6789:6789 # nzbget-http
+      - 6791:6791 # nzbget-https
+      - 6868:6868 # lidarr-https
+      - 6881:6881 # qbittorrent
+      - 6881:6881/udp # qbittorrent
+      - 7878:7878 # radarr-http
+      - 7879:7879 # radarr-https
+      - 8080:8080 # calibre
+      - 8081:8081 # calibre-web (from calibre)
+      - 8082:8082 # qbittorrent
+      - 8083:8083 # calibre-web (from calibre-web container)
+      - 8090:8090 # mylar-http
+      - 8191:8191 # flaresolverr-http
+      - 8324:8324 # plex
+      - 8686:8686 # lidarr-http
+      - 8787:8787 # readarr-http
+      - 8788:8788 # readarr-https
+      - 8989:8989 # sonarr-http
+      - 8990:8990 # sonarr-https
+      - 9117:9117 # jackett-http
+      - 32400:32400 # plex
       - 32410:32410/udp # plex
       - 32412:32412/udp # plex
       - 32413:32413/udp # plex
       - 32414:32414/udp # plex
-      - 32469:32469     # plex
+      - 32469:32469 # plex
 
   flaresolverr:
     image: flaresolverr/flaresolverr:${FLARESOLVERR_VERSION}
     container_name: flaresolverr
-    depends_on: [ protonvpn ]
-    profiles: [ "${FLARESOLVERR_PROFILE}" ]
+    depends_on: [protonvpn]
+    profiles: ["${FLARESOLVERR_PROFILE}"]
     network_mode: service:protonvpn
-    sysctls: [ "net.ipv6.conf.all.disable_ipv6=1" ]
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
-    env_file: [ "${CONFIG_FOLDER}/flaresolverr/.env" ]
-    environment: [ "TZ: ${TIMEZONE}" ]
+    env_file: ["${CONFIG_FOLDER}/flaresolverr/.env"]
+    environment: ["TZ: ${TIMEZONE}"]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/jackett/config:/config:z
@@ -117,13 +120,14 @@ services:
   jackett:
     image: linuxserver/jackett:${JACKETT_VERSION}
     container_name: jackett
-    depends_on: [ protonvpn ]
-    profiles: [ "${JACKETT_PROFILE}" ]
+    depends_on: [protonvpn]
+    profiles: ["${JACKETT_PROFILE}"]
     network_mode: service:protonvpn
-    sysctls: [ "net.ipv6.conf.all.disable_ipv6=1" ]
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
-    env_file: [ "${CONFIG_FOLDER}/jackett/.env" ]
-    environment: [ "PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}" ]
+    env_file: ["${CONFIG_FOLDER}/jackett/.env"]
+    environment:
+      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/jackett/config:/config:z
@@ -132,29 +136,31 @@ services:
   nzbhydra2:
     image: linuxserver/nzbhydra2:${NZBHYDRA2_VERSION}
     container_name: nzbhydra2
-    depends_on: [ protonvpn ]
-    profiles: [ "${NZBHYDRA2_PROFILE}" ]
+    depends_on: [protonvpn]
+    profiles: ["${NZBHYDRA2_PROFILE}"]
     network_mode: service:protonvpn
-    sysctls: [ "net.ipv6.conf.all.disable_ipv6=1" ]
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
-    env_file: [ "${CONFIG_FOLDER}/nzbhydra2/.env" ]
-    environment: [ "PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}" ]
+    env_file: ["${CONFIG_FOLDER}/nzbhydra2/.env"]
+    environment:
+      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/nzbhydra2/config:/config:z
       - ${TORRENT_BLACKHOLE_FOLDER}:/downloads/torrent/blackhole:z
-      - ${USENET_BLACKHOLE_FOLDER}:/downloads/usenet/blackhole:z 
+      - ${USENET_BLACKHOLE_FOLDER}:/downloads/usenet/blackhole:z
 
   qbittorrent:
     image: linuxserver/qbittorrent:${QBITTORRENT_VERSION}
     container_name: qbittorrent
-    depends_on: [ protonvpn ]
-    profiles: [ "${QBITTORRENT_PROFILE}" ]
+    depends_on: [protonvpn]
+    profiles: ["${QBITTORRENT_PROFILE}"]
     network_mode: service:protonvpn
-    sysctls: [ "net.ipv6.conf.all.disable_ipv6=1" ]
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
-    env_file: [ "${CONFIG_FOLDER}/qbittorrent/.env" ]
-    environment: [ "PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}" ]
+    env_file: ["${CONFIG_FOLDER}/qbittorrent/.env"]
+    environment:
+      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CERTIFICATES_FOLDER}:/certs:ro
@@ -170,13 +176,14 @@ services:
   nzbget:
     image: linuxserver/nzbget:${NZBGET_VERSION}
     container_name: nzbget
-    depends_on: [ protonvpn ]
-    profiles: [ "${NZBGET_PROFILE}" ]
+    depends_on: [protonvpn]
+    profiles: ["${NZBGET_PROFILE}"]
     network_mode: service:protonvpn
-    sysctls: [ "net.ipv6.conf.all.disable_ipv6=1" ]
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
-    env_file: [ "${CONFIG_FOLDER}/nzbget/.env" ]
-    environment: [ "PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}" ]
+    env_file: ["${CONFIG_FOLDER}/nzbget/.env"]
+    environment:
+      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/nzbget/config:/config:z
@@ -192,13 +199,14 @@ services:
   sonarr:
     image: linuxserver/sonarr:${SONARR_VERSION}
     container_name: sonarr
-    depends_on: [ protonvpn ]
-    profiles: [ "${SONARR_PROFILE}" ]
+    depends_on: [protonvpn]
+    profiles: ["${SONARR_PROFILE}"]
     network_mode: service:protonvpn
-    sysctls: [ "net.ipv6.conf.all.disable_ipv6=1" ]
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
-    env_file: [ "${CONFIG_FOLDER}/sonarr/.env" ]
-    environment: [ "PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}" ]
+    env_file: ["${CONFIG_FOLDER}/sonarr/.env"]
+    environment:
+      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CERTIFICATES_FOLDER}:/certs:ro
@@ -209,17 +217,18 @@ services:
       - ${USENET_DOWNLOADS_FOLDER}:/downloads/usenet:z
       - ${USENET_DOWNLOADS_FOLDER}/completed/Series:/downloads/completed/Series:z
       - ${MEDIA_FOLDER}/Series:/series:z
-  
+
   radarr:
     image: linuxserver/radarr:${RADARR_VERSION}
     container_name: radarr
-    depends_on: [ protonvpn ]
-    profiles: [ "${RADARR_PROFILE}" ]
+    depends_on: [protonvpn]
+    profiles: ["${RADARR_PROFILE}"]
     network_mode: service:protonvpn
-    sysctls: [ "net.ipv6.conf.all.disable_ipv6=1" ]
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
-    env_file: [ "${CONFIG_FOLDER}/radarr/.env" ]
-    environment: [ "PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}" ]
+    env_file: ["${CONFIG_FOLDER}/radarr/.env"]
+    environment:
+      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CERTIFICATES_FOLDER}:/certs:ro
@@ -234,13 +243,14 @@ services:
   lidarr:
     image: linuxserver/lidarr:${LIDARR_VERSION}
     container_name: lidarr
-    depends_on: [ protonvpn ]
-    profiles: [ "${LIDARR_PROFILE}" ]
+    depends_on: [protonvpn]
+    profiles: ["${LIDARR_PROFILE}"]
     network_mode: service:protonvpn
-    sysctls: [ "net.ipv6.conf.all.disable_ipv6=1" ]
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
-    env_file: [ "${CONFIG_FOLDER}/lidarr/.env" ]
-    environment: [ "PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}" ]
+    env_file: ["${CONFIG_FOLDER}/lidarr/.env"]
+    environment:
+      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CERTIFICATES_FOLDER}:/certs:ro
@@ -255,12 +265,12 @@ services:
   lazylibrarian:
     image: linuxserver/lazylibrarian:${LAZYLIBRARIAN_VERSION}
     container_name: lazylibrarian
-    depends_on: [ protonvpn ]
-    profiles: [ "${LAZYLIBRARIAN_PROFILE}" ]
+    depends_on: [protonvpn]
+    profiles: ["${LAZYLIBRARIAN_PROFILE}"]
     network_mode: service:protonvpn
-    sysctls: [ "net.ipv6.conf.all.disable_ipv6=1" ]
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
-    env_file: [ "${CONFIG_FOLDER}/lazylibrarian/.env" ]
+    env_file: ["${CONFIG_FOLDER}/lazylibrarian/.env"]
     environment:
       PUID: ${UID}
       PGID: ${GID}
@@ -282,13 +292,14 @@ services:
   readarr:
     image: linuxserver/readarr:${READARR_VERSION}
     container_name: readarr
-    depends_on: [ protonvpn ]
-    profiles: [ "${READARR_PROFILE}" ]
+    depends_on: [protonvpn]
+    profiles: ["${READARR_PROFILE}"]
     network_mode: service:protonvpn
-    sysctls: [ "net.ipv6.conf.all.disable_ipv6=1" ]
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
-    env_file: [ "${CONFIG_FOLDER}/readarr/.env" ]
-    environment: [ "PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}" ]
+    env_file: ["${CONFIG_FOLDER}/readarr/.env"]
+    environment:
+      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CERTIFICATES_FOLDER}:/certs:ro
@@ -305,13 +316,14 @@ services:
   mylar:
     image: linuxserver/mylar3:${MYLAR_VERSION}
     container_name: mylar
-    depends_on: [ protonvpn ]
-    profiles: [ "${MYLAR_PROFILE}" ]
+    depends_on: [protonvpn]
+    profiles: ["${MYLAR_PROFILE}"]
     network_mode: service:protonvpn
-    sysctls: [ "net.ipv6.conf.all.disable_ipv6=1" ]
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
-    env_file: [ "${CONFIG_FOLDER}/mylar/.env" ]
-    environment: [ "PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}" ]
+    env_file: ["${CONFIG_FOLDER}/mylar/.env"]
+    environment:
+      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/mylar/config:/config:z

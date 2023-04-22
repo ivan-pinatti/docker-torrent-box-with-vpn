@@ -15,4 +15,3 @@ config/Jackett/*
 config/Jackett/Indexers/*
 !config/Jackett/Indexers/thepiratebay.json
 !config/Jackett/Indexers/thepiratebay.json.bak
-

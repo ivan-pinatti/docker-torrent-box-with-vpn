@@ -35,6 +35,10 @@ generate_certificate:
 	@openssl req -new -newkey rsa:4096 -days 365 -nodes -x509 -subj "/C=${CERT_COUNTRY}/ST=${CERT_STATE}/L=${CERT_CITY}/O=${CERT_ORGANIZATION}/OU=${CERT_OU}/CN=${CERT_FQDN}" -keyout certs/server.key -out certs/server.crt
 	@openssl pkcs12 -export -out certs/server.pfx -inkey certs/server.key -in certs/server.crt
 
+pre_commit:
+	@echo "Running pre-commit checks..."
+	@pre-commit run --all-files
+
 restart:
 	@echo "Re-starting containers..."
 	@docker-compose --profile enabled restart
@@ -50,3 +54,7 @@ stop:
 update_images:
 	@echo "Updating Docker Images..."
 	@docker-compose pull
+
+update_pre_commit:
+	@echo "Updating pre-commit hooks..."
+	@pre-commit autoupdate
