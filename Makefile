@@ -28,6 +28,10 @@ create_config:
 	@cp .env.example .env
 	@echo ".OK!"
 
+generate_certificate:
+	@echo -n "Generating self-signed certificate........."
+	@echo ".OK!"
+
 start:
 	@echo "Starting containers..."
 	@docker-compose --profile enabled up --detach

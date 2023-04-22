@@ -6,12 +6,12 @@
 - [ ] Augment the stack to use a reverse proxy w/ https
 - [ ] Pre-commit hooks - Linting, security, etc...
 - [ ] Add Stale bot for issues
-
 - [ ] Add Patreon and Paypal buttons - https://github.com/ivan-pinatti/docker-torrent-box-with-vpn#contribute--donate
 
 ### In Progress
 
 - [ ] Research Dependabot for Docker image versions
+- [ ] Create the script to generate self-certificate
 - [ ] Config HTTPS to all services
 ### Done ✓
 
