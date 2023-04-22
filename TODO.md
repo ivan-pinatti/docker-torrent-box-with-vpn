@@ -3,15 +3,15 @@
 - [ ] Enhance the library update process
 - [ ] Automate release generation
 - [ ] Augment the stack to use a reverse proxy w/ https
+- [ ] Research Dependabot/Renovate for Docker image versions
 
 ### In Progress
 
-- [ ] Research Dependabot for Docker image versions
-- [ ] Create the script to generate self-certificate
 - [ ] Config HTTPS to all services
 
 ### Done ✓
 
+- [x] Create the script to generate self-certificate
 - [x] Add Stale bot
 - [x] Pre-commit hooks - Linting, security, etc...
 - [x] Added restart to Makefile
