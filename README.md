@@ -82,7 +82,10 @@ Save these values for later reference.
 ## 3 - Edit dotenv (.env) file
 Edit the newly created .env file and change the `UID, GID, and TIMEZONE` parameters to the values you gathered from steps 1 and 2.
 
-## 4 - Configure the ProtonVPN/WireGuard parameters
+## 4 - Enable / Disable Apps
+In the same `.env` file, edit the Docker container profile to enabled/disabled for the apps in the stack.
+
+## 5 - Configure the ProtonVPN/WireGuard parameters
 Now, edit the file `configs/protonvpn/.env` with the values from the ProtonVPN page.
 
 - Log in to ProtonVPN and go to Downloads → WireGuard configuration.
@@ -110,10 +113,10 @@ With the values from the page, change the `WIREGUARD_PRIVATE_KEY` and `PROTONVPN
 
 **IMPORTANT:** To use a server that is best for you, please check the details in the ProtonVPN Docker page; https://github.com/tprasadtp/protonvpn-docker#protonvpn_server
 
-## 5 - Run the containers
+## 6 - Run the containers
 Now that everything is set, please run the containers by using the command below;
 ```shell
-docker-compose up -d
+docker-compose --profile enabled up --detach
 ```
 
 **OR**
@@ -222,16 +225,22 @@ Outside of these hours, no speed control applied.\
 If desired, it is possible to change or disable the settings in these app's configs.
 
 ---
-## Clean up and revert to original state
+## Revert to original state
 
-If you need to revert to the original code and also want to delete any files inside the `shared` and `media` folders, simply run;
-
-**IMPORTANT:** This will **ERASE** every file on your media folder!
+If you need to revert to the original code and configs, simply run;
 
 ```shell
-docker-compose down
+docker-compose down # if the containers are running
 make clean
 ```
+
+---
+## Clean up everything (including media folder)
+```shell
+docker-compose down # if the containers are running
+make clean_all
+```
+**IMPORTANT:** This will **ERASE** every file on your media folder!
 
 ---
 # License

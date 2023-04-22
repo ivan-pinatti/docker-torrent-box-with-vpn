@@ -30,7 +30,7 @@ create_config:
 
 start:
 	@echo "Starting containers..."
-	@docker-compose up --detach
+	@docker-compose --profile enabled up --detach
 
 stop:
 	@echo "Stopping containers (if they are running)..."

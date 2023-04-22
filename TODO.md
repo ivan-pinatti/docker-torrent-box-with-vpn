@@ -1,15 +1,24 @@
 ### Todo
 
 - [ ] Enhance the library update process
+- [ ] Create the scripts folder and invoke them to have better logic - Create config file IF config file don't exists
 - [ ] Automate release generation
 - [ ] Augment the stack to use a reverse proxy w/ https
 - [ ] Pre-commit hooks - Linting, security, etc...
 - [ ] Add Stale bot for issues
+
+- [ ] Add Patreon and Paypal buttons - https://github.com/ivan-pinatti/docker-torrent-box-with-vpn#contribute--donate
 
 ### In Progress
 
 - [ ] Research Dependabot for Docker image versions
 ### Done ✓
 
+- [x] Made the `docker-compose` file more compact
+- [x] Remove the `depends_on` clause from the containers to make it more customizable
+- [x] Add the option to select to enable/disable apps
+- [x] Fix the text for the `make clean`
+- [x] Flaresolverr typo (missing an R)
+- [x] Flaresolverr doesn't have a captcha solver - investigate
 - [x] Create my first TODO.md
 - [x] Add more tasks to Makefile
