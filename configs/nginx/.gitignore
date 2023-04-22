@@ -1,0 +1,11 @@
+# Ignore everything in this directory
+*
+
+# Except .gitignore and dotenv file
+!.gitignore
+!.env
+
+# config file
+!templates/
+templates/*
+!templates/default.conf.template
