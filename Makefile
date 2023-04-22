@@ -30,6 +30,11 @@ create_config:
 	@cp .env.example .env
 	@echo ".OK!"
 
+detect_secrets_create_baseline:
+	@echo -n "Creating detect-secrets baseline file........."
+	@detect-secrets scan > .secrets.baseline
+	@echo ".OK!"
+
 generate_certificate:
 	@echo -n "Generating self-signed certificate..."
 	@openssl req -new -newkey rsa:4096 -days 365 -nodes -x509 -subj "/C=${CERT_COUNTRY}/ST=${CERT_STATE}/L=${CERT_CITY}/O=${CERT_ORGANIZATION}/OU=${CERT_OU}/CN=${CERT_FQDN}" -keyout certs/server.key -out certs/server.crt
