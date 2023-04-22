@@ -12,8 +12,10 @@
 ### In Progress
 
 - [ ] Research Dependabot for Docker image versions
+- [ ] Config HTTPS to all services
 ### Done ✓
 
+- [x] Added ports 6881 and 6881/udp to qBittorrent container
 - [x] Made the `docker-compose` file more compact
 - [x] Remove the `depends_on` clause from the containers to make it more customizable
 - [x] Add the option to select to enable/disable apps
