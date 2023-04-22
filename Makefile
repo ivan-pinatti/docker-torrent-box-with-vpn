@@ -1,6 +1,6 @@
 .PHONY: backup clean clean_all create_config start stop update_images
 
-all: create_config update_images start
+all: create_config generate_certificate update_images start
 
 backup:
 	@echo "Backing up config files..."
@@ -30,6 +30,7 @@ create_config:
 
 generate_certificate:
 	@echo -n "Generating self-signed certificate........."
+	@openssl req -new -newkey rsa:4096 -days 365 -nodes -x509 -subj "/C=${CERT_COUNTRY}/ST=${CERT_STATE}/L=${CERT_CITY}/O=${CERT_ORGANIZATION}/OU=${CERT_OU}/CN=${CERT_FQDN}" -keyout certs/server.key -out certs/server.crt
 	@echo ".OK!"
 
 start:

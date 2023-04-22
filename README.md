@@ -15,9 +15,11 @@ All the apps are pre-configured and integrated. Therefore, with a few clicks you
 ---
 ## Requisites
 
-|       **App**      |  **Version**  |                     **Site**                   |
-|:------------------:|:-------------:|:----------------------------------------------:|
-|   Docker-Compose   |      >2.4     |      https://docs.docker.com/compose/install   |
+|       **App**      |  **Version**  |                                      **Site**                                             |
+|:------------------:|:-------------:|:-----------------------------------------------------------------------------------------:|
+|   Docker-Compose   |      >2.4     |                  https://docs.docker.com/compose/install                                  |
+|   Linux Kernel     |      >5.6     |   More info at: https://github.com/tprasadtp/protonvpn-docker#linux-kernel-requirements   |
+|       Makefile     |      >4.x     |                        -                                                                  |
 
 ---
 
