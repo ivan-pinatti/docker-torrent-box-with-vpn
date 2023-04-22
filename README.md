@@ -230,14 +230,12 @@ If desired, it is possible to change or disable the settings in these app's conf
 If you need to revert to the original code and configs, simply run;
 
 ```shell
-docker-compose down # if the containers are running
 make clean
 ```
 
 ---
 ## Clean up everything (including media folder)
 ```shell
-docker-compose down # if the containers are running
 make clean_all
 ```
 **IMPORTANT:** This will **ERASE** every file on your media folder!

@@ -18,7 +18,7 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/plex/config:/config:z
-      - ${CONFIG_FOLDER}/plex/t ranscode:/transcode:z
+      - ${CONFIG_FOLDER}/plex/transcode:/transcode:z
       - ${MEDIA_FOLDER}/Series:/data/Series:z
       - ${MEDIA_FOLDER}/Movies:/data/Movies:z
       - ${MEDIA_FOLDER}/Music:/data/Music:z
