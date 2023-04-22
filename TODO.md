@@ -15,6 +15,7 @@
 - [ ] Config HTTPS to all services
 ### Done ✓
 
+- [x] Added restart to Makefile
 - [x] Added ports 6881 and 6881/udp to qBittorrent container
 - [x] Made the `docker-compose` file more compact
 - [x] Remove the `depends_on` clause from the containers to make it more customizable

@@ -75,7 +75,7 @@ services:
       # - 5353:5353/udp   # plex
       - 6789:6789       # nzbget-http
       - 6791:6791       # nzbget-https
-      - 6868:6868       # lidarr-https / readarr-https
+      - 6868:6868       # lidarr-https
       - 6881:6881       # qbittorrent
       - 6881:6881/udp   # qbittorrent
       - 7878:7878       # radarr-http
@@ -89,6 +89,7 @@ services:
       - 8324:8324       # plex
       - 8686:8686       # lidarr-http
       - 8787:8787       # readarr-http
+      - 8788:8788       # readarr-https
       - 8989:8989       # sonarr-http
       - 8990:8990       # sonarr-https
       - 9117:9117       # jackett-http
@@ -290,6 +291,7 @@ services:
     environment: [ "PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}" ]
     volumes:
       - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
       - ${CONFIG_FOLDER}/readarr/config:/config:z
       - ${RECYCLE_FOLDER}/readarr:/recycle:z
       - ${TORRENT_DOWNLOADS_FOLDER}:/downloads/torrent:z
