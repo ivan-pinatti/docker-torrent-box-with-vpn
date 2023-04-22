@@ -13,7 +13,7 @@ services:
     # More information at; https://github.com/linuxserver/docker-plex#hardware-acceleration
     # devices: [ "/dev/dri:/dev/dri" ] # Intel QuickSync
     env_file: [ "${CONFIG_FOLDER}/plex/.env" ]
-    environment: [ "PGID: ${GID}", "PUID: ${UID}", "UMASK: ${UMASK}", "TZ: ${TIMEZONE}" ]
+    environment: [ "PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}" ]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/plex/config:/config:z
@@ -31,7 +31,7 @@ services:
     sysctls: [ "net.ipv6.conf.all.disable_ipv6=1" ]
     restart: unless-stopped
     env_file: [ "${CONFIG_FOLDER}/calibre/.env" ]
-    environment: [ "PGID: ${GID}", "PUID: ${UID}", "UMASK: ${UMASK}", "TZ: ${TIMEZONE}" ]
+    environment: [ "PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}" ]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/calibre/config:/config:z
@@ -48,7 +48,7 @@ services:
     sysctls: [ "net.ipv6.conf.all.disable_ipv6=1" ]
     restart: unless-stopped
     env_file: [ "${CONFIG_FOLDER}/calibre-web/.env" ]
-    environment: [ "PGID: ${GID}", "PUID: ${UID}", "UMASK: ${UMASK}", "TZ: ${TIMEZONE}" ]
+    environment: [ "PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}" ]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/calibre-web/config:/config:z
@@ -77,6 +77,7 @@ services:
       - 6791:6791       # nzbget-https
       - 6868:6868       # lidarr-https / readarr-https
       - 7878:7878       # radarr-http
+      - 7879:7879       # radarr-https
       - 8080:8080       # calibre
       - 8081:8081       # calibre-web (from calibre)
       - 8082:8082       # qbittorrent
@@ -87,8 +88,8 @@ services:
       - 8686:8686       # lidarr-http
       - 8787:8787       # readarr-http
       - 8989:8989       # sonarr-http
+      - 8990:8990       # sonarr-https
       - 9117:9117       # jackett-http
-      - 9898:9898       # sonarr-https / radarr-https
       - 32400:32400     # plex
       - 32410:32410/udp # plex
       - 32412:32412/udp # plex
@@ -119,7 +120,7 @@ services:
     sysctls: [ "net.ipv6.conf.all.disable_ipv6=1" ]
     restart: unless-stopped
     env_file: [ "${CONFIG_FOLDER}/jackett/.env" ]
-    environment: [ "PGID: ${GID}", "PUID: ${UID}", "UMASK: ${UMASK}", "TZ: ${TIMEZONE}" ]
+    environment: [ "PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}" ]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/jackett/config:/config:z
@@ -134,7 +135,7 @@ services:
     sysctls: [ "net.ipv6.conf.all.disable_ipv6=1" ]
     restart: unless-stopped
     env_file: [ "${CONFIG_FOLDER}/nzbhydra2/.env" ]
-    environment: [ "PGID: ${GID}", "PUID: ${UID}", "UMASK: ${UMASK}", "TZ: ${TIMEZONE}" ]
+    environment: [ "PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}" ]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/nzbhydra2/config:/config:z
@@ -150,7 +151,7 @@ services:
     sysctls: [ "net.ipv6.conf.all.disable_ipv6=1" ]
     restart: unless-stopped
     env_file: [ "${CONFIG_FOLDER}/qbittorrent/.env" ]
-    environment: [ "PGID: ${GID}", "PUID: ${UID}", "UMASK: ${UMASK}", "TZ: ${TIMEZONE}" ]
+    environment: [ "PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}" ]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/qbittorrent/config:/config:z
@@ -171,7 +172,7 @@ services:
     sysctls: [ "net.ipv6.conf.all.disable_ipv6=1" ]
     restart: unless-stopped
     env_file: [ "${CONFIG_FOLDER}/nzbget/.env" ]
-    environment: [ "PGID: ${GID}", "PUID: ${UID}", "UMASK: ${UMASK}", "TZ: ${TIMEZONE}" ]
+    environment: [ "PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}" ]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/nzbget/config:/config:z
@@ -193,7 +194,7 @@ services:
     sysctls: [ "net.ipv6.conf.all.disable_ipv6=1" ]
     restart: unless-stopped
     env_file: [ "${CONFIG_FOLDER}/sonarr/.env" ]
-    environment: [ "PGID: ${GID}", "PUID: ${UID}", "UMASK: ${UMASK}", "TZ: ${TIMEZONE}" ]
+    environment: [ "PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}" ]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/sonarr/config:/config:z
@@ -213,7 +214,7 @@ services:
     sysctls: [ "net.ipv6.conf.all.disable_ipv6=1" ]
     restart: unless-stopped
     env_file: [ "${CONFIG_FOLDER}/radarr/.env" ]
-    environment: [ "PGID: ${GID}", "PUID: ${UID}", "UMASK: ${UMASK}", "TZ: ${TIMEZONE}" ]
+    environment: [ "PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}" ]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/radarr/config:/config:z
@@ -233,7 +234,7 @@ services:
     sysctls: [ "net.ipv6.conf.all.disable_ipv6=1" ]
     restart: unless-stopped
     env_file: [ "${CONFIG_FOLDER}/lidarr/.env" ]
-    environment: [ "PGID: ${GID}", "PUID: ${UID}", "UMASK: ${UMASK}", "TZ: ${TIMEZONE}" ]
+    environment: [ "PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}" ]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/lidarr/config:/config:z
@@ -280,7 +281,7 @@ services:
     sysctls: [ "net.ipv6.conf.all.disable_ipv6=1" ]
     restart: unless-stopped
     env_file: [ "${CONFIG_FOLDER}/readarr/.env" ]
-    environment: [ "PGID: ${GID}", "PUID: ${UID}", "UMASK: ${UMASK}", "TZ: ${TIMEZONE}" ]
+    environment: [ "PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}" ]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/readarr/config:/config:z
@@ -302,7 +303,7 @@ services:
     sysctls: [ "net.ipv6.conf.all.disable_ipv6=1" ]
     restart: unless-stopped
     env_file: [ "${CONFIG_FOLDER}/mylar/.env" ]
-    environment: [ "PGID: ${GID}", "PUID: ${UID}", "UMASK: ${UMASK}", "TZ: ${TIMEZONE}" ]
+    environment: [ "PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}" ]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/mylar/config:/config:z
