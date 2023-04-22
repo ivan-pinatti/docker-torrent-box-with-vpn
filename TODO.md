@@ -3,8 +3,6 @@
 - [ ] Enhance the library update process
 - [ ] Automate release generation
 - [ ] Augment the stack to use a reverse proxy w/ https
-- [ ] Add Stale bot for issues
-- [ ] Add Patreon and Paypal buttons - https://github.com/ivan-pinatti/docker-torrent-box-with-vpn#contribute--donate
 
 ### In Progress
 
@@ -14,6 +12,7 @@
 
 ### Done ✓
 
+- [x] Add Stale bot
 - [x] Pre-commit hooks - Linting, security, etc...
 - [x] Added restart to Makefile
 - [x] Added ports 6881 and 6881/udp to qBittorrent container
