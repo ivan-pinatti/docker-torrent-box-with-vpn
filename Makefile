@@ -9,7 +9,7 @@ backup:
 
 clean:
 	@echo "Stopping and removing containers (if they are running)..."
-	@docker-compose down
+	@docker-compose --profile enabled down
 
 	@echo "Reverting git files to orignal"
 	@sudo git clean -fdx
@@ -34,7 +34,7 @@ start:
 
 stop:
 	@echo "Stopping containers (if they are running)..."
-	@docker-compose stop
+	@docker-compose --profile enabled stop
 
 update_images:
 	@echo "Updating Docker Images..."

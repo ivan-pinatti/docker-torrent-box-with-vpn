@@ -1,5 +1,4 @@
 version: '3.8'
-
 services:
 
   plex:
@@ -73,7 +72,7 @@ services:
       - 3005:3005       # plex
       - 5076:5076       # nzbhydra2-http or nzbhydra2-https
       - 5299:5299       # lazylibrarian
-      - 5353:5353/udp   # plex
+      # - 5353:5353/udp   # plex
       - 6789:6789       # nzbget-http
       - 6791:6791       # nzbget-https
       - 6868:6868       # lidarr-https / readarr-https
