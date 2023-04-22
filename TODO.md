@@ -2,12 +2,12 @@
 
 - [ ] Enhance the library update process
 - [ ] Automate release generation
-- [ ] Augment the stack to use a reverse proxy w/ https
 - [ ] Research Dependabot/Renovate for Docker image versions
+- [ ] Config HTTPS to all services
 
 ### In Progress
 
-- [ ] Config HTTPS to all services
+- [ ] Augment the stack to use a reverse proxy w/ https
 
 ### Done ✓
 
