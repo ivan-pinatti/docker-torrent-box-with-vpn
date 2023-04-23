@@ -121,7 +121,6 @@ Copy from the example and generate a new .env file.
 cp .env.example .env
 ```
 
-
 ## 3. Edit dotenv (.env) file
 
 Edit the newly created .env file and change the `UID, GID, and TIMEZONE` parameters to the values you gathered from steps 1 and 2.

@@ -34,7 +34,7 @@ detect_secrets_create_baseline:
 generate_certificate:
 	@echo -n "Generating self-signed certificate..."
 	@openssl req -new -newkey rsa:4096 -days 365 -nodes -x509 -subj "/C=${CERT_COUNTRY}/ST=${CERT_STATE}/L=${CERT_CITY}/O=${CERT_ORGANIZATION}/OU=${CERT_OU}/CN=${CERT_FQDN}" -keyout certs/server.key -out certs/server.crt
-	@openssl pkcs12 -export -out certs/server.pfx -inkey certs/server.key -in certs/server.crt
+	@openssl pkcs12 -export -out ${CERTIFICATES_FOLDER}/server.pfx -inkey ${CERTIFICATES_FOLDER}/server.key -in ${CERTIFICATES_FOLDER}/server.crt
 
 pre_commit:
 	@echo "Running pre-commit checks..."
