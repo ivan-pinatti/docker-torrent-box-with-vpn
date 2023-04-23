@@ -1,25 +1,170 @@
-upstream radarr {
-  server 127.0.0.1:8989;
+server {
+  listen ${NGINX_HTTP_PORT};
+  server_name _;
+  return 301 https://$host$request_uri;
+}
+
+upstream calibre {
+  server 127.0.0.1:${CALIBRE_HTTP_PORT};
+}
+
+upstream calibre_web {
+  server 127.0.0.1:${CALIBRE_WEB_HTTP_PORT};
+}
+
+upstream flaresolverr {
+  server 127.0.0.1:${FLARESOLVERR_HTTP_PORT};
+}
+
+upstream jackett {
+  server 127.0.0.1:${JACKETT_HTTP_PORT};
+}
+
+upstream lazylibrarian {
+  server 127.0.0.1:${LAZYLIBRARIAN_HTTP_PORT};
+}
+
+upstream lidarr {
+  server 127.0.0.1:${LIDARR_HTTP_PORT};
 }
 
 upstream mylar {
-  server 127.0.0.1:8090;
+  server 127.0.0.1:${MYLAR_HTTP_PORT};
+}
+
+upstream nzbget {
+  server 127.0.0.1:${NZBGET_HTTP_PORT};
+}
+
+upstream nzbhydra2 {
+  server 127.0.0.1:${NZBHYDRA2_HTTP_PORT};
+}
+
+upstream qbittorrent {
+  server 127.0.0.1:${QBITTORRENT_HTTP_PORT};
+}
+
+upstream radarr {
+  server 127.0.0.1:${RADARR_HTTP_PORT};
+}
+
+upstream readarr {
+  server 127.0.0.1:${READARR_HTTP_PORT};
+}
+
+upstream sonarr {
+  server 127.0.0.1:${SONARR_HTTP_PORT};
 }
 
 server {
-  listen ${NGINX_HTTP_PORT};
+  listen ${NGINX_HTTPS_PORT} ssl;
 
-  # location / {
-  #   proxy_pass        http://radarr;
-  #   proxy_redirect    off;
-  #   proxy_set_header  Host $host;
-  #   proxy_set_header  X-Real-IP $remote_addr;
-  #   proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
-  #   proxy_set_header  X-Forwarded-Host $server_name;
-  # }
+  ssl_certificate       /certs/server.crt;
+  ssl_certificate_key   /certs/server.key;
+  ssl_protocols         TLSv1 TLSv1.1 TLSv1.2 TLSv1.3;
+  ssl_ciphers           HIGH:!aNULL:!MD5;
 
-  location / {
+  location /calibre/ {
+    proxy_pass        http://calibre;
+    proxy_redirect    off;
+    proxy_set_header  Host $host;
+    proxy_set_header  X-Real-IP $remote_addr;
+    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header  X-Forwarded-Host $server_name;
+  }
+
+location /flaresolverr/ {
+    proxy_pass        http://flaresolverr;
+    proxy_redirect    off;
+    proxy_set_header  Host $host;
+    proxy_set_header  X-Real-IP $remote_addr;
+    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header  X-Forwarded-Host $server_name;
+  }
+
+location /jackett/ {
+    proxy_pass        http://jackett;
+    proxy_redirect    off;
+    proxy_set_header  Host $host;
+    proxy_set_header  X-Real-IP $remote_addr;
+    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header  X-Forwarded-Host $server_name;
+  }
+
+  location /lazylibrarian/ {
+    proxy_pass        http://lazylibrarian;
+    proxy_redirect    off;
+    proxy_set_header  Host $host;
+    proxy_set_header  X-Real-IP $remote_addr;
+    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header  X-Forwarded-Host $server_name;
+  }
+
+  location /lidarr/ {
+    proxy_pass        http://lidarr;
+    proxy_redirect    off;
+    proxy_set_header  Host $host;
+    proxy_set_header  X-Real-IP $remote_addr;
+    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header  X-Forwarded-Host $server_name;
+  }
+
+  location /mylar/ {
     proxy_pass        http://mylar;
+    proxy_redirect    off;
+    proxy_set_header  Host $host;
+    proxy_set_header  X-Real-IP $remote_addr;
+    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header  X-Forwarded-Host $server_name;
+  }
+
+  location /nzbget/ {
+    proxy_pass        http://nzbget;
+    proxy_redirect    off;
+    proxy_set_header  Host $host;
+    proxy_set_header  X-Real-IP $remote_addr;
+    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header  X-Forwarded-Host $server_name;
+  }
+
+    location /nzbhydra2/ {
+    proxy_pass        http://nzbhydra2;
+    proxy_redirect    off;
+    proxy_set_header  Host $host;
+    proxy_set_header  X-Real-IP $remote_addr;
+    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header  X-Forwarded-Host $server_name;
+  }
+
+    location /qbittorrent/ {
+    proxy_pass        http://qbittorrent;
+    proxy_redirect    off;
+    proxy_set_header  Host $host;
+    proxy_set_header  X-Real-IP $remote_addr;
+    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header  X-Forwarded-Host $server_name;
+  }
+
+    location /radarr/ {
+    proxy_pass        http://radarr;
+    proxy_redirect    off;
+    proxy_set_header  Host $host;
+    proxy_set_header  X-Real-IP $remote_addr;
+    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header  X-Forwarded-Host $server_name;
+  }
+
+  location /readarr/ {
+    proxy_pass        http://readarr;
+    proxy_redirect    off;
+    proxy_set_header  Host $host;
+    proxy_set_header  X-Real-IP $remote_addr;
+    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header  X-Forwarded-Host $server_name;
+  }
+
+  location /sonarr/ {
+    proxy_pass        http://sonarr;
     proxy_redirect    off;
     proxy_set_header  Host $host;
     proxy_set_header  X-Real-IP $remote_addr;

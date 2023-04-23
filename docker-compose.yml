@@ -144,6 +144,7 @@ services:
     env_file: ["${CONFIG_FOLDER}/nginx/.env"]
     volumes:
       - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
       - ${CONFIG_FOLDER}/nginx/templates:/etc/nginx/templates:z
 
   nzbget:
@@ -237,8 +238,8 @@ services:
       - 8081:8081 # calibre-web (from calibre)
       - 8082:8082 # qbittorrent
       - 8083:8083 # calibre-web (from calibre-web container)
-      - 8084:8084 # nginx-http
-      - 8085:8085 # nginx-https
+      - 80:80 # nginx-http
+      - 443:443 # nginx-https
       - 8090:8090 # mylar-http
       - 8191:8191 # flaresolverr-http
       - 8324:8324 # plex
