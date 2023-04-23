@@ -3,9 +3,9 @@ services:
   calibre:
     image: linuxserver/calibre:${CALIBRE_VERSION}
     container_name: calibre
-    depends_on: [protonvpn]
+    depends_on: ["${VPN_PROVIDER}"]
     profiles: ["${CALIBRE_PROFILE}"]
-    network_mode: service:protonvpn
+    network_mode: service:${VPN_PROVIDER}
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
     env_file: ["${CONFIG_FOLDER}/calibre/.env"]
@@ -21,9 +21,9 @@ services:
   calibre-web:
     image: linuxserver/calibre-web:${CALIBREWEB_VERSION}
     container_name: calibre-web
-    depends_on: [protonvpn]
+    depends_on: ["${VPN_PROVIDER}"]
     profiles: ["${CALIBREWEB_PROFILE}"]
-    network_mode: service:protonvpn
+    network_mode: service:${VPN_PROVIDER}
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
     env_file: ["${CONFIG_FOLDER}/calibre-web/.env"]
@@ -39,9 +39,9 @@ services:
   flaresolverr:
     image: flaresolverr/flaresolverr:${FLARESOLVERR_VERSION}
     container_name: flaresolverr
-    depends_on: [protonvpn]
+    depends_on: ["${VPN_PROVIDER}"]
     profiles: ["${FLARESOLVERR_PROFILE}"]
-    network_mode: service:protonvpn
+    network_mode: service:${VPN_PROVIDER}
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
     env_file: ["${CONFIG_FOLDER}/flaresolverr/.env"]
@@ -53,9 +53,9 @@ services:
   jackett:
     image: linuxserver/jackett:${JACKETT_VERSION}
     container_name: jackett
-    depends_on: [protonvpn]
+    depends_on: ["${VPN_PROVIDER}"]
     profiles: ["${JACKETT_PROFILE}"]
-    network_mode: service:protonvpn
+    network_mode: service:${VPN_PROVIDER}
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
     env_file: ["${CONFIG_FOLDER}/jackett/.env"]
@@ -69,9 +69,9 @@ services:
   lazylibrarian:
     image: linuxserver/lazylibrarian:${LAZYLIBRARIAN_VERSION}
     container_name: lazylibrarian
-    depends_on: [protonvpn]
+    depends_on: ["${VPN_PROVIDER}"]
     profiles: ["${LAZYLIBRARIAN_PROFILE}"]
-    network_mode: service:protonvpn
+    network_mode: service:${VPN_PROVIDER}
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
     env_file: ["${CONFIG_FOLDER}/lazylibrarian/.env"]
@@ -96,9 +96,9 @@ services:
   lidarr:
     image: linuxserver/lidarr:${LIDARR_VERSION}
     container_name: lidarr
-    depends_on: [protonvpn]
+    depends_on: ["${VPN_PROVIDER}"]
     profiles: ["${LIDARR_PROFILE}"]
-    network_mode: service:protonvpn
+    network_mode: service:${VPN_PROVIDER}
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
     env_file: ["${CONFIG_FOLDER}/lidarr/.env"]
@@ -118,9 +118,9 @@ services:
   mylar:
     image: linuxserver/mylar3:${MYLAR_VERSION}
     container_name: mylar
-    depends_on: [protonvpn]
+    depends_on: ["${VPN_PROVIDER}"]
     profiles: ["${MYLAR_PROFILE}"]
-    network_mode: service:protonvpn
+    network_mode: service:${VPN_PROVIDER}
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
     env_file: ["${CONFIG_FOLDER}/mylar/.env"]
@@ -136,12 +136,12 @@ services:
   nginx:
     image: nginx:${NGINX_VERSION}
     container_name: nginx
-    depends_on: [protonvpn]
+    depends_on: ["${VPN_PROVIDER}"]
     profiles: ["${NGINX_PROFILE}"]
-    network_mode: service:protonvpn
+    network_mode: service:${VPN_PROVIDER}
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
-    env_file: ["${CONFIG_FOLDER}/nginx/.env"]
+    env_file: [".env", "${CONFIG_FOLDER}/nginx/.env"]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CERTIFICATES_FOLDER}:/certs:ro
@@ -150,9 +150,9 @@ services:
   nzbget:
     image: linuxserver/nzbget:${NZBGET_VERSION}
     container_name: nzbget
-    depends_on: [protonvpn]
+    depends_on: ["${VPN_PROVIDER}"]
     profiles: ["${NZBGET_PROFILE}"]
-    network_mode: service:protonvpn
+    network_mode: service:${VPN_PROVIDER}
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
     env_file: ["${CONFIG_FOLDER}/nzbget/.env"]
@@ -173,9 +173,9 @@ services:
   nzbhydra2:
     image: linuxserver/nzbhydra2:${NZBHYDRA2_VERSION}
     container_name: nzbhydra2
-    depends_on: [protonvpn]
+    depends_on: ["${VPN_PROVIDER}"]
     profiles: ["${NZBHYDRA2_PROFILE}"]
-    network_mode: service:protonvpn
+    network_mode: service:${VPN_PROVIDER}
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
     env_file: ["${CONFIG_FOLDER}/nzbhydra2/.env"]
@@ -190,9 +190,9 @@ services:
   plex:
     image: linuxserver/plex:${PLEX_VERSION}
     container_name: plex
-    depends_on: [protonvpn]
+    depends_on: ["${VPN_PROVIDER}"]
     profiles: ["${PLEX_PROFILE}"]
-    network_mode: service:protonvpn
+    network_mode: service:${VPN_PROVIDER}
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
     # Leave commented unless your machine is capable of Hardware acceleration - Intel / Nvidia
@@ -214,7 +214,7 @@ services:
     container_name: protonvpn
     restart: unless-stopped
     profiles: ["${PROTONVPN_PROFILE}"]
-    env_file: ["${CONFIG_FOLDER}/protonvpn/.env"]
+    env_file: [".env", "${CONFIG_FOLDER}/protonvpn/.env"]
     cap_add: [NET_ADMIN]
     sysctls:
       ["net.ipv6.conf.all.disable_ipv6=1", "net.ipv4.conf.all.rp_filter=2"]
@@ -222,33 +222,33 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - /tmp:/tmp:z
     ports:
+      - ${CALIBRE_HTTP_PORT}:${CALIBRE_HTTP_PORT}                             # calibre
+      - ${CALIBRE_WEB_CONTAINER_HTTP_PORT}:${CALIBRE_WEB_CONTAINER_HTTP_PORT} # calibre-web (from calibre-web container)
+      - ${CALIBRE_WEB_HTTP_PORT}:${CALIBRE_WEB_HTTP_PORT}                     # calibre-web (from calibre)
+      - ${FLARESOLVERR_HTTP_PORT}:${FLARESOLVERR_HTTP_PORT}                   # flaresolverr-http
+      - ${JACKETT_HTTP_PORT}:${JACKETT_HTTP_PORT}                             # jackett-http
+      - ${LAZYLIBRARIAN_HTTP_PORT}:${LAZYLIBRARIAN_HTTP_PORT}                 # lazylibrarian
+      - ${LIDARR_HTTP_PORT}:${LIDARR_HTTP_PORT}                               # lidarr-http
+      - ${LIDARR_HTTPS_PORT}:${LIDARR_HTTPS_PORT}                             # lidarr-https
+      - ${MYLAR_HTTP_PORT}:${MYLAR_HTTP_PORT}                                 # mylar-http
+      - ${NGINX_HTTP_PORT}:${NGINX_HTTP_PORT}                                 # nginx-http
+      - ${NGINX_HTTPS_PORT}:${NGINX_HTTP_PORT}                                # nginx-https
+      - ${NZBGET_HTTP_PORT}:${NZBGET_HTTP_PORT}                               # nzbget-http
+      - ${NZBGET_HTTPS_PORT}:${NZBGET_HTTPS_PORT}                             # nzbget-https
+      - ${NZBHYDRA2_HTTP_PORT}:${NZBHYDRA2_HTTP_PORT}                         # nzbhydra2-http or nzbhydra2-https
+      - ${QBITTORRENT_HTTP_PORT}:${QBITTORRENT_HTTP_PORT}                     # qbittorrent-http
+      - ${QBITTORRENT_PORT}:${QBITTORRENT_PORT}                               # qbittorrent-torrent
+      - ${QBITTORRENT_PORT}:${QBITTORRENT_PORT}/udp                           # qbittorrent-torrent
+      - ${RADARR_HTTP_PORT}:${RADARR_HTTP_PORT}                               # radarr-http
+      - ${RADARR_HTTPS_PORT}:${RADARR_HTTPS_PORT}                             # radarr-https
+      - ${READARR_HTTP_PORT}:${READARR_HTTP_PORT}                             # readarr-http
+      - ${READARR_HTTPS_PORT}:${READARR_HTTPS_PORT}                           # readarr-https
+      - ${SONARR_HTTP_PORT}:${SONARR_HTTP_PORT}                               # sonarr-http
+      - ${SONARR_HTTPS_PORT}:${SONARR_HTTPS_PORT}                             # sonarr-https
+      - 8324:8324 # plex
       - 1900:1900/udp # plex
       - 3005:3005 # plex
-      - 5076:5076 # nzbhydra2-http or nzbhydra2-https
-      - 5299:5299 # lazylibrarian
       # - 5353:5353/udp   # plex
-      - 6789:6789 # nzbget-http
-      - 6791:6791 # nzbget-https
-      - 6868:6868 # lidarr-https
-      - 6881:6881 # qbittorrent
-      - 6881:6881/udp # qbittorrent
-      - 7878:7878 # radarr-http
-      - 7879:7879 # radarr-https
-      - 8080:8080 # calibre
-      - 8081:8081 # calibre-web (from calibre)
-      - 8082:8082 # qbittorrent
-      - 8083:8083 # calibre-web (from calibre-web container)
-      - 80:80 # nginx-http
-      - 443:443 # nginx-https
-      - 8090:8090 # mylar-http
-      - 8191:8191 # flaresolverr-http
-      - 8324:8324 # plex
-      - 8686:8686 # lidarr-http
-      - 8787:8787 # readarr-http
-      - 8788:8788 # readarr-https
-      - 8989:8989 # sonarr-http
-      - 8990:8990 # sonarr-https
-      - 9117:9117 # jackett-http
       - 32400:32400 # plex
       - 32410:32410/udp # plex
       - 32412:32412/udp # plex
@@ -259,9 +259,9 @@ services:
   qbittorrent:
     image: linuxserver/qbittorrent:${QBITTORRENT_VERSION}
     container_name: qbittorrent
-    depends_on: [protonvpn]
+    depends_on: ["${VPN_PROVIDER}"]
     profiles: ["${QBITTORRENT_PROFILE}"]
-    network_mode: service:protonvpn
+    network_mode: service:${VPN_PROVIDER}
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
     env_file: ["${CONFIG_FOLDER}/qbittorrent/.env"]
@@ -282,9 +282,9 @@ services:
   radarr:
     image: linuxserver/radarr:${RADARR_VERSION}
     container_name: radarr
-    depends_on: [protonvpn]
+    depends_on: ["${VPN_PROVIDER}"]
     profiles: ["${RADARR_PROFILE}"]
-    network_mode: service:protonvpn
+    network_mode: service:${VPN_PROVIDER}
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
     env_file: ["${CONFIG_FOLDER}/radarr/.env"]
@@ -304,9 +304,9 @@ services:
   readarr:
     image: linuxserver/readarr:${READARR_VERSION}
     container_name: readarr
-    depends_on: [protonvpn]
+    depends_on: ["${VPN_PROVIDER}"]
     profiles: ["${READARR_PROFILE}"]
-    network_mode: service:protonvpn
+    network_mode: service:${VPN_PROVIDER}
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
     env_file: ["${CONFIG_FOLDER}/readarr/.env"]
@@ -328,9 +328,9 @@ services:
   sonarr:
     image: linuxserver/sonarr:${SONARR_VERSION}
     container_name: sonarr
-    depends_on: [protonvpn]
+    depends_on: ["${VPN_PROVIDER}"]
     profiles: ["${SONARR_PROFILE}"]
-    network_mode: service:protonvpn
+    network_mode: service:${VPN_PROVIDER}
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
     env_file: ["${CONFIG_FOLDER}/sonarr/.env"]
