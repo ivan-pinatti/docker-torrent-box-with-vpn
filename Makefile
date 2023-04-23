@@ -2,11 +2,12 @@ include .env
 
 .PHONY: backup clean clean_all create_config start stop update_images
 
-all: create_config generate_certificate update_images start
+all: generate_certificate update_images start
 
 backup:
 	@echo "Backing up config files..."
 	@cp --recursive configs configs.backup.`date +%Y-%m-%d-%H:%M:%S`
+	@cp .env .env.backup.`date +%Y-%m-%d-%H:%M:%S`
 	@echo ".OK!"
 
 clean:
@@ -23,11 +24,6 @@ clean:
 clean_all: clean
 	@echo -n "Cleaning Media folders........."
 	@cd media && find . ! -name '.gitignore' ! -name 'metadata.db' -type f -exec sudo rm -f {} + && cd ..
-	@echo ".OK!"
-
-create_config:
-	@echo -n "Creating .env file with defaults........."
-	@cp .env.example .env
 	@echo ".OK!"
 
 detect_secrets_create_baseline:
