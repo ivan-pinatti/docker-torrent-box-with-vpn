@@ -303,7 +303,7 @@ To access the services, please use the table below;
 
 |    **App**    |        **Link**         |   **User**    | **Password**  |
 | :-----------: | :---------------------: | :-----------: | :-----------: |
-|    Calibre    | http://localhost:8080/  |      abc      |    calibre    |
+|    Calibre    | http://localhost:8080/  |    calibre    |    calibre    |
 |  Calibre-Web  | http://localhost:8083/  |    calibre    |    calibre    |
 | FlareSolverr  | http://localhost:8191/  |       -       |       -       |
 |    Jackett    | http://localhost:9117/  |       -       |    jackett    |

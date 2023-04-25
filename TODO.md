@@ -3,7 +3,8 @@
 - [ ] Enhance the library update process
 - [ ] Automate release generation
 - [ ] Research Dependabot/Renovate for Docker image versions
-- [ ] Config HTTPS to all services
+- [ ] Lidarr is not configured for Indexers due to a restriction to add it
+- [ ] Mylar is not working to add HTTPS qBitorrent and Nzbget
 
 ### In Progress
 
@@ -11,6 +12,7 @@
 
 ### Done ✓
 
+- [x] Config HTTPS available services
 - [x] Create the script to generate self-certificate
 - [x] Add Stale bot
 - [x] Pre-commit hooks - Linting, security, etc...

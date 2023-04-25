@@ -680,7 +680,7 @@ indexers:
   generalMinSize: null
   hitLimit: null
   hitLimitResetTime: 0
-  host: "http://127.0.0.1:9117/api/v2.0/indexers/thepiratebay/results/torznab"
+  host: "http://127.0.0.1:9117/jackett/api/v2.0/indexers/thepiratebay/results/torznab"
   lastError: null
   disabledUntil: null
   disabledLevel: 0
@@ -706,7 +706,7 @@ indexers:
 main:
   configVersion: 19
   host: "0.0.0.0"
-  port: 5076
+  port: 5077
   urlBase: "/nzbhydra2"
   proxyType: "NONE"
   proxyHost: null
