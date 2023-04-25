@@ -1,0 +1,12 @@
+# Ignore everything in this directory
+*
+
+# Except .gitignore and dotenv file
+!.gitignore
+!.env
+
+# config file
+!config/
+config/*
+!config/config.xml
+!config/prowlarr.db
