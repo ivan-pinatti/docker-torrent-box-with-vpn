@@ -5,6 +5,8 @@
 - [ ] Research Dependabot/Renovate for Docker image versions
 - [ ] Lidarr is not configured for Indexers due to a restriction to add it
 - [ ] Mylar is not working to add HTTPS qBitorrent and Nzbget
+- [ ] Sonarr HTTPS
+- [ ] Add Lazylibrarian to Prowlarr
 
 ### In Progress
 
@@ -12,6 +14,7 @@
 
 ### Done ✓
 
+- [x] Added Prowlarr to the stack
 - [x] Config HTTPS available services
 - [x] Create the script to generate self-certificate
 - [x] Add Stale bot

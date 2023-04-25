@@ -1,5 +1,26 @@
 version: "3.8"
 services:
+  bazarr:
+    image: linuxserver/bazarr:${BAZARR_VERSION}
+    container_name: bazarr
+    depends_on: ["${VPN_PROVIDER}"]
+    profiles: ["${BAZARR_PROFILE}"]
+    network_mode: service:${VPN_PROVIDER}
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
+    restart: unless-stopped
+    env_file: [".env", "${CONFIG_FOLDER}/bazarr/.env"]
+    environment:
+      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CONFIG_FOLDER}/bazarr/config:/config:z
+      - ${RECYCLE_FOLDER}/bazarr:/recycle:z
+      - ${USENET_BLACKHOLE_FOLDER}:/blackhole:z
+      - ${USENET_DOWNLOADS_FOLDER}:/downloads:z
+      - ${MEDIA_FOLDER}/Movies:/movies:z
+      - ${MEDIA_FOLDER}/Series:/series:z
+
   calibre:
     image: lscr.io/linuxserver/calibre:${CALIBRE_VERSION}
     container_name: calibre
@@ -233,6 +254,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - /tmp:/tmp:z
     ports:
+      - ${BAZARR_HTTP_PORT}:${BAZARR_HTTP_PORT}                                   # bazarr-http
       - ${CALIBRE_DESKTOP_HTTP_PORT}:${CALIBRE_DESKTOP_HTTP_PORT}                 # calibre-desktop-http
       - ${CALIBRE_GUI_WEB_HTTP_PORT}:${CALIBRE_GUI_WEB_HTTP_PORT}                 # calibre-web-gui-http
       - ${CALIBRE_DESKTOP_HTTPS_PORT}:${CALIBRE_DESKTOP_HTTPS_PORT}               # calibre-desktop-https
@@ -252,6 +274,8 @@ services:
       - ${NZBGET_HTTPS_PORT}:${NZBGET_HTTPS_PORT}                                 # nzbget-https
       - ${NZBHYDRA2_HTTP_PORT}:${NZBHYDRA2_HTTP_PORT}                             # nzbhydra2-http
       - ${NZBHYDRA2_HTTPS_PORT}:${NZBHYDRA2_HTTPS_PORT}                           # nzbhydra2-https
+      - ${PROWLARR_HTTP_PORT}:${PROWLARR_HTTP_PORT}                               # prowlarr-http
+      - ${PROWLARR_HTTPS_PORT}:${PROWLARR_HTTPS_PORT}                              # prowlarr-https
       - ${QBITTORRENT_HTTP_PORT}:${QBITTORRENT_HTTP_PORT}                         # qbittorrent-http
       - ${QBITTORRENT_HTTPS_PORT}:${QBITTORRENT_HTTPS_PORT}                       # qbittorrent-https
       - ${QBITTORRENT_PORT}:${QBITTORRENT_PORT}                                   # qbittorrent-torrent
@@ -262,16 +286,41 @@ services:
       - ${READARR_HTTPS_PORT}:${READARR_HTTPS_PORT}                               # readarr-https
       - ${SONARR_HTTP_PORT}:${SONARR_HTTP_PORT}                                   # sonarr-http
       - ${SONARR_HTTPS_PORT}:${SONARR_HTTPS_PORT}                                 # sonarr-https
-      - 8324:8324 # plex
-      - 1900:1900/udp # plex
-      - 3005:3005 # plex
+      - 1900:1900/udp                                                             # plex
+      - 3005:3005                                                                 # plex
+      - 32400:32400                                                               # plex
+      - 32410:32410/udp                                                           # plex
+      - 32412:32412/udp                                                           # plex
+      - 32413:32413/udp                                                           # plex
+      - 32414:32414/udp                                                           # plex
+      - 32469:32469                                                               # plex
+      - 8324:8324                                                                 # plex
       # - 5353:5353/udp   # plex
-      - 32400:32400 # plex
-      - 32410:32410/udp # plex
-      - 32412:32412/udp # plex
-      - 32413:32413/udp # plex
-      - 32414:32414/udp # plex
-      - 32469:32469 # plex
+
+  prowlarr:
+    image: linuxserver/prowlarr:${PROWLARR_VERSION}
+    container_name: prowlarr
+    depends_on: ["${VPN_PROVIDER}"]
+    profiles: ["${PROWLARR_PROFILE}"]
+    network_mode: service:${VPN_PROVIDER}
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
+    restart: unless-stopped
+    env_file: [".env", "${CONFIG_FOLDER}/prowlarr/.env"]
+    environment:
+      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CONFIG_FOLDER}/prowlarr/config:/config:z
+      - ${RECYCLE_FOLDER}/prowlarr:/recycle:z
+      - ${USENET_BLACKHOLE_FOLDER}:/blackhole:z
+      - ${USENET_DOWNLOADS_FOLDER}:/downloads:z
+      - ${MEDIA_FOLDER}/AudioBooks:/audiobooks:z
+      - ${MEDIA_FOLDER}/Comics:/comics:z
+      - ${MEDIA_FOLDER}/eBooks:/ebooks:z
+      - ${MEDIA_FOLDER}/Movies:/movies:z
+      - ${MEDIA_FOLDER}/Music:/music:z
+      - ${MEDIA_FOLDER}/Series:/series:z
 
   qbittorrent:
     image: linuxserver/qbittorrent:${QBITTORRENT_VERSION}

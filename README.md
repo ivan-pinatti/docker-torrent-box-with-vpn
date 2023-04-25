@@ -26,23 +26,26 @@ All the apps are pre-configured and integrated. Therefore, with a few clicks you
 
 # Apps Included
 
-| **App Name**  |                  **Docker Image**                  |                  **Function**                   |
-| :-----------: | :------------------------------------------------: | :---------------------------------------------: |
-|    Calibre    |    https://hub.docker.com/r/linuxserver/calibre    |             eBooks Library Manager              |
-|  Calibre-web  |  https://hub.docker.com/r/linuxserver/calibre-web  |             eBooks Library Manager              |
-|    Jackett    |    https://hub.docker.com/r/linuxserver/jackett    |               Query Proxy Server                |
-| Flaresolverr  | https://hub.docker.com/r/flaresolverr/flaresolverr |       Bypass to Cloudflare and DDoS-GUARD       |
-| LazyLibrarian | https://hub.docker.com/r/linuxserver/lazylibrarian |              Books Tracker/Manager              |
-|    Lidarr     |    https://hub.docker.com/r/linuxserver/lidarr     |              Music Tracker/Manager              |
-|     Mylar     |    https://hub.docker.com/r/linuxserver/mylar3     |             Comics Tracker/Manager              |
-|    NZBGet     |    https://hub.docker.com/r/linuxserver/nzbget     |                Usenet Downloader                |
-|   NZBHydra2   |   https://hub.docker.com/r/linuxserver/nzbhydra2   |         Meta Searcher for NZB indexers          |
-|     Plex      |     https://hub.docker.com/r/linuxserver/plex      | Movie/TV Shows/Music Library Manager and Player |
-|   ProtonVPN   |   https://github.com/tprasadtp/protonvpn-docker    |                   VPN Gateway                   |
-|  qBittorrent  |  https://hub.docker.com/r/linuxserver/qbittorrent  |               Torrent Downloader                |
-|    Radarr     |    https://hub.docker.com/r/linuxserver/radarr     |             Movies Tracker/Manager              |
-|    Readarr    |    https://hub.docker.com/r/linuxserver/readarr    |             eBooks Tracker/Manager              |
-|    Sonarr     |    https://hub.docker.com/r/linuxserver/sonarr     |            TV Shows Tracker/Manager             |
+|  **App Name** |                  **Docker Image**                  |                   **Function**                  | **Default** |
+|:-------------:|:--------------------------------------------------:|:-----------------------------------------------:|-------------|
+|     Bazarr    |     https://hub.docker.com/r/linuxserver/bazarr    |            Subtitles Tracker/Manager            |   enabled   |
+|    Calibre    |    https://hub.docker.com/r/linuxserver/calibre    |              eBooks Library Manager             |   enabled   |
+|  Calibre-web  |  https://hub.docker.com/r/linuxserver/calibre-web  |              eBooks Library Manager             |   enabled   |
+|    Jackett    |    https://hub.docker.com/r/linuxserver/jackett    |                Query Proxy Server               |   enabled   |
+|  Flaresolverr | https://hub.docker.com/r/flaresolverr/flaresolverr |       Bypass to Cloudflare and DDoS-GUARD       |   enabled   |
+| LazyLibrarian | https://hub.docker.com/r/linuxserver/lazylibrarian |              Books Tracker/Manager              |   enabled   |
+|     Lidarr    |     https://hub.docker.com/r/linuxserver/lidarr    |              Music Tracker/Manager              |   enabled   |
+|     Mylar     |     https://hub.docker.com/r/linuxserver/mylar3    |              Comics Tracker/Manager             |   enabled   |
+|     Nginx     |           https://hub.docker.com/_/nginx           |          Reverse Proxy + Security Layer         |   enabled   |
+|     NZBGet    |     https://hub.docker.com/r/linuxserver/nzbget    |                Usenet Downloader                |   enabled   |
+|   NZBHydra2   |   https://hub.docker.com/r/linuxserver/nzbhydra2   |          Meta Searcher for NZB indexers         |   enabled   |
+|      Plex     |      https://hub.docker.com/r/linuxserver/plex     | Movie/TV Shows/Music Library Manager and Player |   enabled   |
+|   ProtonVPN   |    https://github.com/tprasadtp/protonvpn-docker   |                   VPN Gateway                   |   enabled   |
+|    Prowlarr   |    https://hub.docker.com/r/linuxserver/prowlarr   |                Query Proxy Server               |   disabled  |
+|  qBittorrent  |  https://hub.docker.com/r/linuxserver/qbittorrent  |                Torrent Downloader               |   enabled   |
+|     Radarr    |     https://hub.docker.com/r/linuxserver/radarr    |              Movies Tracker/Manager             |   enabled   |
+|    Readarr    |    https://hub.docker.com/r/linuxserver/readarr    |              eBooks Tracker/Manager             |   enabled   |
+|     Sonarr    |     https://hub.docker.com/r/linuxserver/sonarr    |             TV Shows Tracker/Manager            |   enabled   |
 
 ---
 
@@ -66,6 +69,9 @@ All the apps are pre-configured and integrated. Therefore, with a few clicks you
   - [9. Backup](#9-backup)
 - [Folders](#folders)
 - [App Links](#app-links)
+  - [**HTTP**](#http)
+  - [**HTTPS**](#https)
+  - [**HTTPS through reverse proxy (Nginx)**](#https-through-reverse-proxy-nginx)
 - [Indexers](#indexers)
   - [Torrent](#torrent)
   - [Usenet](#usenet)
@@ -75,11 +81,13 @@ All the apps are pre-configured and integrated. Therefore, with a few clicks you
 - [Library Managers](#library-managers)
   - [Movies / Series / Music](#movies--series--music)
   - [AudioBooks / eBooks / Comics](#audiobooks--ebooks--comics)
+  - [Subtitles (Movies / TV Shows)](#subtitles-movies--tv-shows)
 - [Bandwith Control](#bandwith-control)
   - [Revert to original state](#revert-to-original-state)
   - [Clean up everything (including media folder)](#clean-up-everything-including-media-folder)
 - [License](#license)
 - [Contribute / Donate](#contribute--donate)
+
 ---
 
 # Usage
@@ -216,6 +224,7 @@ The only **REQUIRED** app is the `VPN_PROVIDER` as the stack is tightly coupled 
 It will look like this;
 ```
 # Default Apps' Profiles (enabled/disabled)
+BAZARR_PROFILE=disabled
 CALIBRE_PROFILE=disabled
 CALIBREWEB_PROFILE=disabled
 FLARESOLVERR_PROFILE=enabled
@@ -299,24 +308,63 @@ The media type will be stored into the folders below;
 
 # App Links
 
-To access the services, please use the table below;
+These tables list the apps, protocols (HTTP or HTTPS), ports, and credentials.
+
+Some apps are available on both, HTTP and HTTPS, whereas some are only available in one protocol.
+
+Not all apps are fully working through the reverse proxy (Nginx). I am still working on it.
+
+## **HTTP**
 
 |    **App**    |        **Link**         |   **User**    | **Password**  |
 | :-----------: | :---------------------: | :-----------: | :-----------: |
-|    Calibre    | http://localhost:8080/  |    calibre    |    calibre    |
-|  Calibre-Web  | http://localhost:8083/  |    calibre    |    calibre    |
+|    Bazarr     | http://localhost:6767/  |    bazarr     |    bazarr     |
+|    Calibre    | http://localhost:8080/  |    calibre    |    bazarr     |
 | FlareSolverr  | http://localhost:8191/  |       -       |       -       |
 |    Jackett    | http://localhost:9117/  |       -       |    jackett    |
 | LazyLibrarian | http://localhost:5299/  | lazylibrarian | lazylibrarian |
 |    Lidarr     | http://localhost:8686/  |    lidarr     |    lidarr     |
-|     Mylar     | http://localhost:8090/  |     mylar     |     mylar     |
+|    Nginx      | http://localhost:80/    |       -       |       -       |
 |    Nzbget     | http://localhost:6789/  |    nzbget     |    nzbget     |
-|   NzbHydra2   | http://localhost:5076/  |   nzbhydra2   |   nzbhydra2   |
 |     Plex      | http://localhost:32400/ |       -       |       -       |
-|  qBitTorrent  | http://localhost:8082/  |  qbittorrent  |  qbittorrent  |
+|   Prowlarr    | http://localhost:9696/  |   prowlarr    |   prowlarr    |
 |    Radarr     | http://localhost:7878/  |    radarr     |    radarr     |
 |    Readarr    | http://localhost:8787/  |    readarr    |    readarr    |
 |    Sonarr     | http://localhost:8989/  |    sonarr     |    sonarr     |
+
+## **HTTPS**
+
+|    **App**    |        **Link**                     |   **User**    | **Password**  |
+| :-----------: | :---------------------------------: | :-----------: | :-----------: |
+|    Calibre    | https://localhost:8181/             |    calibre    |    calibre    |
+|  Calibre-Web  | https://localhost:8084/             |    calibre    |    calibre    |
+|    Lidarr     | https://localhost:6868/             |    lidarr     |    lidarr     |
+|    Nginx      | https://localhost:443/              |       -       |       -       |
+|     Mylar     | https://localhost:8091/mylar/       |     mylar     |     mylar     |
+|    Nzbget     | https://localhost:6791/             |    nzbget     |    nzbget     |
+|   NzbHydra2   | https://localhost:5077/nzbhydra2/   |   nzbhydra2   |   nzbhydra2   |
+|   Prowlarr    | https://localhost:6969/             |   prowlarr    |   prowlarr    |
+|  qBitTorrent  | https://localhost:8085/             |  qbittorrent  |  qbittorrent  |
+|    Radarr     | https://localhost:7879/             |    radarr     |    radarr     |
+|    Readarr    | https://localhost:8788/             |    readarr    |    readarr    |
+
+## **HTTPS through reverse proxy (Nginx)**
+
+|    **App**    |        **Link**                                     |   **User**    | **Password**  |
+| :-----------: | :-------------------------------------------------: | :-----------: | :-----------: |
+|    Bazarr     | https://localhost/bazarr/                           |    bazarr     |    bazarr     |
+|    Calibre    | https://localhost/calibre/                          |    calibre    |    calibre    |
+|  Calibre-Web  | https://localhost/calibre_web/                      |    calibre    |    calibre    |
+| FlareSolverr  | http://localhost/flaresolverr/                      |       -       |       -       |
+|    Jackett    | http://localhost/jackett/                           |       -       |    jackett    |
+|    Lidarr     | https://localhost/lidarr/                           |    lidarr     |    lidarr     |
+|     Mylar     | https://localhost/mylar/                            |     mylar     |     mylar     |
+|    Nzbget     | https://localhost/nzbget/                           |    nzbget     |    nzbget     |
+|   NzbHydra2   | https://localhost/nzbhydra2/                        |   nzbhydra2   |   nzbhydra2   |
+|   Prowlarr    | https://localhost/prowlarr/                         |   prowlarr   |   prowlarr   |
+|  qBitTorrent  | https://localhost/qbittorrent/                      |  qbittorrent  |  qbittorrent  |
+|    Radarr     | https://localhost/radarr/                           |    radarr     |    radarr     |
+|    Readarr    | https://localhost/readarr/                          |    readarr    |    readarr    |
 
 ---
 
@@ -377,6 +425,10 @@ Sonarr ---> Plex Media Server
 LazyLibrarian ---> Calibre\
 Mylar ---> Calibre\
 Readarr ---> Calibre
+
+## Subtitles (Movies / TV Shows)
+Bazarr ---> Sonarr\
+Bazarr ---> Radarr
 
 ---
 

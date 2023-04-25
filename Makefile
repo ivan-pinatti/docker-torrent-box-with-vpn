@@ -48,7 +48,7 @@ pre_commit:
 
 pull_docker_images:
 	@echo "Pulling Docker Images..."
-	@docker-compose pull
+	@docker-compose --profile enabled pull
 
 restart:
 	@echo "Re-starting containers..."

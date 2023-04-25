@@ -1,0 +1,16 @@
+# Ignore everything in this directory
+*
+
+# Except .gitignore and dotenv file
+!.gitignore
+!.env
+
+# config file
+!config/
+config/*
+!config/config/
+config/config/*
+!config/config/config.ini
+!config/db/
+config/db/*
+!config/db/bazarr.db
