@@ -8,7 +8,7 @@
   "BlackholeDir": "/blackhole",
   "UpdateDisabled": true,
   "UpdatePrerelease": false,
-  "BasePathOverride": "",
+  "BasePathOverride": "/jackett",
   "BaseUrlOverride": "",
   "CacheEnabled": true,
   "CacheTtl": 2100,

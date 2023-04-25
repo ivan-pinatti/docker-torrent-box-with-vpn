@@ -31,14 +31,24 @@ detect_secrets_create_baseline:
 	@detect-secrets scan > .secrets.baseline
 	@echo ".OK!"
 
+down:
+	@echo "Stopping containers (if they are running)..."
+	@docker-compose --profile enabled down
+
 generate_certificate:
 	@echo -n "Generating self-signed certificate..."
 	@openssl req -new -newkey rsa:4096 -days 365 -nodes -x509 -subj "/C=${CERT_COUNTRY}/ST=${CERT_STATE}/L=${CERT_CITY}/O=${CERT_ORGANIZATION}/OU=${CERT_OU}/CN=${CERT_FQDN}" -keyout certs/server.key -out certs/server.crt
-	@openssl pkcs12 -export -out ${CERTIFICATES_FOLDER}/server.pfx -inkey ${CERTIFICATES_FOLDER}/server.key -in ${CERTIFICATES_FOLDER}/server.crt
+	@openssl pkcs12 -export -out ${CERTIFICATES_FOLDER}/server.pfx -inkey ${CERTIFICATES_FOLDER}/server.key -in ${CERTIFICATES_FOLDER}/server.crt -password pass:${CERT_PASSWORD}
+	@echo Hash for the certificate is...
+	@openssl x509 -noout -fingerprint -sha256 -inform pem -in ${CERTIFICATES_FOLDER}/server.crt
 
 pre_commit:
 	@echo "Running pre-commit checks..."
 	@pre-commit run --all-files
+
+pull_docker_images:
+	@echo "Pulling Docker Images..."
+	@docker-compose pull
 
 restart:
 	@echo "Re-starting containers..."
@@ -52,9 +62,15 @@ stop:
 	@echo "Stopping containers (if they are running)..."
 	@docker-compose --profile enabled stop
 
-update_images:
-	@echo "Updating Docker Images..."
+update_containers:
+	@echo "Stopping Docker Containers..."
+	@docker-compose --profile enabled stop
+
+	@echo "Pulling Docker Images..."
 	@docker-compose pull
+
+	@echo "Starting containers..."
+	@docker-compose --profile enabled up --detach
 
 update_pre_commit:
 	@echo "Updating pre-commit hooks..."

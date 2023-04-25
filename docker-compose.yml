@@ -1,14 +1,15 @@
 version: "3.8"
 services:
   calibre:
-    image: linuxserver/calibre:${CALIBRE_VERSION}
+    image: lscr.io/linuxserver/calibre:${CALIBRE_VERSION}
     container_name: calibre
     depends_on: ["${VPN_PROVIDER}"]
     profiles: ["${CALIBRE_PROFILE}"]
     network_mode: service:${VPN_PROVIDER}
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
+    security_opt: ["seccomp=unconfined"]
     restart: unless-stopped
-    env_file: ["${CONFIG_FOLDER}/calibre/.env"]
+    env_file: [".env", "${CONFIG_FOLDER}/calibre/.env"]
     environment:
       ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
     volumes:
@@ -26,11 +27,12 @@ services:
     network_mode: service:${VPN_PROVIDER}
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
-    env_file: ["${CONFIG_FOLDER}/calibre-web/.env"]
+    env_file: [".env", "${CONFIG_FOLDER}/calibre-web/.env"]
     environment:
       ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
     volumes:
       - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
       - ${CONFIG_FOLDER}/calibre-web/config:/config:z
       - ${MEDIA_FOLDER}/AudioBooks:/audiobooks:z
       - ${MEDIA_FOLDER}/Comics:/comics:z
@@ -44,7 +46,7 @@ services:
     network_mode: service:${VPN_PROVIDER}
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
-    env_file: ["${CONFIG_FOLDER}/flaresolverr/.env"]
+    env_file: [".env", "${CONFIG_FOLDER}/flaresolverr/.env"]
     environment: ["TZ: ${TIMEZONE}"]
     volumes:
       - /etc/localtime:/etc/localtime:ro
@@ -58,7 +60,7 @@ services:
     network_mode: service:${VPN_PROVIDER}
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
-    env_file: ["${CONFIG_FOLDER}/jackett/.env"]
+    env_file: [".env", "${CONFIG_FOLDER}/jackett/.env"]
     environment:
       ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
     volumes:
@@ -74,7 +76,7 @@ services:
     network_mode: service:${VPN_PROVIDER}
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
-    env_file: ["${CONFIG_FOLDER}/lazylibrarian/.env"]
+    env_file: [".env", "${CONFIG_FOLDER}/lazylibrarian/.env"]
     environment:
       PUID: ${UID}
       PGID: ${GID}
@@ -83,6 +85,7 @@ services:
       DOCKER_MODS: ghcr.io/linuxserver/mods:universal-calibre|linuxserver/mods:lazylibrarian-ffmpeg #needed for calibredb
     volumes:
       - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
       - ${CONFIG_FOLDER}/lazylibrarian/config:/config:z
       - ${TORRENT_BLACKHOLE_FOLDER}:/torrent/blackhole:z
       - ${TORRENT_DOWNLOADS_FOLDER}:/downloads/torrent:z
@@ -101,7 +104,7 @@ services:
     network_mode: service:${VPN_PROVIDER}
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
-    env_file: ["${CONFIG_FOLDER}/lidarr/.env"]
+    env_file: [".env", "${CONFIG_FOLDER}/lidarr/.env"]
     environment:
       ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
     volumes:
@@ -123,11 +126,17 @@ services:
     network_mode: service:${VPN_PROVIDER}
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
-    env_file: ["${CONFIG_FOLDER}/mylar/.env"]
+    env_file: [".env", "${CONFIG_FOLDER}/mylar/.env"]
     environment:
-      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+      PUID: ${UID}
+      PGID: ${GID}
+      UMASK: ${UMASK}
+      TZ: ${TIMEZONE}
+      DOCKER_MODS: linuxserver/mods:universal-package-install
+      INSTALL_PIP_PACKAGES: pyOpenSSL
     volumes:
       - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
       - ${CONFIG_FOLDER}/mylar/config:/config:z
       - ${TORRENT_DOWNLOADS_FOLDER}:/downloads/torrent:z
       - ${USENET_DOWNLOADS_FOLDER}:/downloads/usenet:z
@@ -155,11 +164,12 @@ services:
     network_mode: service:${VPN_PROVIDER}
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
-    env_file: ["${CONFIG_FOLDER}/nzbget/.env"]
+    env_file: [".env", "${CONFIG_FOLDER}/nzbget/.env"]
     environment:
       ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
     volumes:
       - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
       - ${CONFIG_FOLDER}/nzbget/config:/config:z
       - ${USENET_BLACKHOLE_FOLDER}:/blackhole:z
       - ${USENET_DOWNLOADS_FOLDER}:/downloads:z
@@ -178,11 +188,12 @@ services:
     network_mode: service:${VPN_PROVIDER}
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
-    env_file: ["${CONFIG_FOLDER}/nzbhydra2/.env"]
+    env_file: [".env", "${CONFIG_FOLDER}/nzbhydra2/.env"]
     environment:
       ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
     volumes:
       - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
       - ${CONFIG_FOLDER}/nzbhydra2/config:/config:z
       - ${TORRENT_BLACKHOLE_FOLDER}:/downloads/torrent/blackhole:z
       - ${USENET_BLACKHOLE_FOLDER}:/downloads/usenet/blackhole:z
@@ -198,7 +209,7 @@ services:
     # Leave commented unless your machine is capable of Hardware acceleration - Intel / Nvidia
     # More information at; https://github.com/linuxserver/docker-plex#hardware-acceleration
     # devices: [ "/dev/dri:/dev/dri" ] # Intel QuickSync
-    env_file: ["${CONFIG_FOLDER}/plex/.env"]
+    env_file: [".env", "${CONFIG_FOLDER}/plex/.env"]
     environment:
       ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
     volumes:
@@ -222,29 +233,35 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - /tmp:/tmp:z
     ports:
-      - ${CALIBRE_HTTP_PORT}:${CALIBRE_HTTP_PORT}                             # calibre
-      - ${CALIBRE_WEB_CONTAINER_HTTP_PORT}:${CALIBRE_WEB_CONTAINER_HTTP_PORT} # calibre-web (from calibre-web container)
-      - ${CALIBRE_WEB_HTTP_PORT}:${CALIBRE_WEB_HTTP_PORT}                     # calibre-web (from calibre)
-      - ${FLARESOLVERR_HTTP_PORT}:${FLARESOLVERR_HTTP_PORT}                   # flaresolverr-http
-      - ${JACKETT_HTTP_PORT}:${JACKETT_HTTP_PORT}                             # jackett-http
-      - ${LAZYLIBRARIAN_HTTP_PORT}:${LAZYLIBRARIAN_HTTP_PORT}                 # lazylibrarian
-      - ${LIDARR_HTTP_PORT}:${LIDARR_HTTP_PORT}                               # lidarr-http
-      - ${LIDARR_HTTPS_PORT}:${LIDARR_HTTPS_PORT}                             # lidarr-https
-      - ${MYLAR_HTTP_PORT}:${MYLAR_HTTP_PORT}                                 # mylar-http
-      - ${NGINX_HTTP_PORT}:${NGINX_HTTP_PORT}                                 # nginx-http
-      - ${NGINX_HTTPS_PORT}:${NGINX_HTTP_PORT}                                # nginx-https
-      - ${NZBGET_HTTP_PORT}:${NZBGET_HTTP_PORT}                               # nzbget-http
-      - ${NZBGET_HTTPS_PORT}:${NZBGET_HTTPS_PORT}                             # nzbget-https
-      - ${NZBHYDRA2_HTTP_PORT}:${NZBHYDRA2_HTTP_PORT}                         # nzbhydra2-http or nzbhydra2-https
-      - ${QBITTORRENT_HTTP_PORT}:${QBITTORRENT_HTTP_PORT}                     # qbittorrent-http
-      - ${QBITTORRENT_PORT}:${QBITTORRENT_PORT}                               # qbittorrent-torrent
-      - ${QBITTORRENT_PORT}:${QBITTORRENT_PORT}/udp                           # qbittorrent-torrent
-      - ${RADARR_HTTP_PORT}:${RADARR_HTTP_PORT}                               # radarr-http
-      - ${RADARR_HTTPS_PORT}:${RADARR_HTTPS_PORT}                             # radarr-https
-      - ${READARR_HTTP_PORT}:${READARR_HTTP_PORT}                             # readarr-http
-      - ${READARR_HTTPS_PORT}:${READARR_HTTPS_PORT}                           # readarr-https
-      - ${SONARR_HTTP_PORT}:${SONARR_HTTP_PORT}                               # sonarr-http
-      - ${SONARR_HTTPS_PORT}:${SONARR_HTTPS_PORT}                             # sonarr-https
+      - ${CALIBRE_DESKTOP_HTTP_PORT}:${CALIBRE_DESKTOP_HTTP_PORT}                 # calibre-desktop-http
+      - ${CALIBRE_GUI_WEB_HTTP_PORT}:${CALIBRE_GUI_WEB_HTTP_PORT}                 # calibre-web-gui-http
+      - ${CALIBRE_DESKTOP_HTTPS_PORT}:${CALIBRE_DESKTOP_HTTPS_PORT}               # calibre-desktop-https
+      - ${CALIBRE_WEB_CONTAINER_HTTP_PORT}:${CALIBRE_WEB_CONTAINER_HTTP_PORT}     # calibre-web-http (from calibre-web container)
+      - ${CALIBRE_WEB_CONTAINER_HTTPS_PORT}:${CALIBRE_WEB_CONTAINER_HTTPS_PORT}   # calibre-web-https (from calibre-web container)
+      - ${FLARESOLVERR_HTTP_PORT}:${FLARESOLVERR_HTTP_PORT}                       # flaresolverr-http
+      - ${JACKETT_HTTP_PORT}:${JACKETT_HTTP_PORT}                                 # jackett-http
+      - ${LAZYLIBRARIAN_HTTP_PORT}:${LAZYLIBRARIAN_HTTP_PORT}                     # lazylibrarian-http
+      - ${LAZYLIBRARIAN_HTTPS_PORT}:${LAZYLIBRARIAN_HTTPS_PORT}                   # lazylibrarian-https
+      - ${LIDARR_HTTP_PORT}:${LIDARR_HTTP_PORT}                                   # lidarr-http
+      - ${LIDARR_HTTPS_PORT}:${LIDARR_HTTPS_PORT}                                 # lidarr-https
+      - ${MYLAR_HTTP_PORT}:${MYLAR_HTTP_PORT}                                     # mylar-http
+      - ${MYLAR_HTTPS_PORT}:${MYLAR_HTTPS_PORT}                                   # mylar-https
+      - ${NGINX_HTTP_PORT}:${NGINX_HTTP_PORT}                                     # nginx-http
+      - ${NGINX_HTTPS_PORT}:${NGINX_HTTPS_PORT}                                   # nginx-https
+      - ${NZBGET_HTTP_PORT}:${NZBGET_HTTP_PORT}                                   # nzbget-http
+      - ${NZBGET_HTTPS_PORT}:${NZBGET_HTTPS_PORT}                                 # nzbget-https
+      - ${NZBHYDRA2_HTTP_PORT}:${NZBHYDRA2_HTTP_PORT}                             # nzbhydra2-http
+      - ${NZBHYDRA2_HTTPS_PORT}:${NZBHYDRA2_HTTPS_PORT}                           # nzbhydra2-https
+      - ${QBITTORRENT_HTTP_PORT}:${QBITTORRENT_HTTP_PORT}                         # qbittorrent-http
+      - ${QBITTORRENT_HTTPS_PORT}:${QBITTORRENT_HTTPS_PORT}                       # qbittorrent-https
+      - ${QBITTORRENT_PORT}:${QBITTORRENT_PORT}                                   # qbittorrent-torrent
+      - ${QBITTORRENT_PORT}:${QBITTORRENT_PORT}/udp                               # qbittorrent-torrent
+      - ${RADARR_HTTP_PORT}:${RADARR_HTTP_PORT}                                   # radarr-http
+      - ${RADARR_HTTPS_PORT}:${RADARR_HTTPS_PORT}                                 # radarr-https
+      - ${READARR_HTTP_PORT}:${READARR_HTTP_PORT}                                 # readarr-http
+      - ${READARR_HTTPS_PORT}:${READARR_HTTPS_PORT}                               # readarr-https
+      - ${SONARR_HTTP_PORT}:${SONARR_HTTP_PORT}                                   # sonarr-http
+      - ${SONARR_HTTPS_PORT}:${SONARR_HTTPS_PORT}                                 # sonarr-https
       - 8324:8324 # plex
       - 1900:1900/udp # plex
       - 3005:3005 # plex
@@ -264,7 +281,7 @@ services:
     network_mode: service:${VPN_PROVIDER}
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
-    env_file: ["${CONFIG_FOLDER}/qbittorrent/.env"]
+    env_file: [".env", "${CONFIG_FOLDER}/qbittorrent/.env"]
     environment:
       ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
     volumes:
@@ -287,7 +304,7 @@ services:
     network_mode: service:${VPN_PROVIDER}
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
-    env_file: ["${CONFIG_FOLDER}/radarr/.env"]
+    env_file: [".env", "${CONFIG_FOLDER}/radarr/.env"]
     environment:
       ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
     volumes:
@@ -309,7 +326,7 @@ services:
     network_mode: service:${VPN_PROVIDER}
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
-    env_file: ["${CONFIG_FOLDER}/readarr/.env"]
+    env_file: [".env", "${CONFIG_FOLDER}/readarr/.env"]
     environment:
       ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
     volumes:
@@ -333,7 +350,7 @@ services:
     network_mode: service:${VPN_PROVIDER}
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
-    env_file: ["${CONFIG_FOLDER}/sonarr/.env"]
+    env_file: [".env", "${CONFIG_FOLDER}/sonarr/.env"]
     environment:
       ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
     volumes:
