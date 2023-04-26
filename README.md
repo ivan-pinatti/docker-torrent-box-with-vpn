@@ -84,6 +84,7 @@ All the apps are pre-configured and integrated. Therefore, with a few clicks you
   - [Subtitles (Movies / TV Shows)](#subtitles-movies--tv-shows)
 - [Bandwith Control](#bandwith-control)
   - [Revert to original state](#revert-to-original-state)
+  - [Known Issues and future improvements](#known-issues-and-future-improvements)
   - [Clean up everything (including media folder)](#clean-up-everything-including-media-folder)
 - [License](#license)
 - [Contribute / Donate](#contribute--donate)
@@ -322,7 +323,6 @@ Not all apps are fully working through the reverse proxy (Nginx). I am still wor
 |    Calibre    | http://localhost:8080/  |    calibre    |    bazarr     |
 | FlareSolverr  | http://localhost:8191/  |       -       |       -       |
 |    Jackett    | http://localhost:9117/  |       -       |    jackett    |
-| LazyLibrarian | http://localhost:5299/  | lazylibrarian | lazylibrarian |
 |    Lidarr     | http://localhost:8686/  |    lidarr     |    lidarr     |
 |    Nginx      | http://localhost:80/    |       -       |       -       |
 |    Nzbget     | http://localhost:6789/  |    nzbget     |    nzbget     |
@@ -334,19 +334,20 @@ Not all apps are fully working through the reverse proxy (Nginx). I am still wor
 
 ## **HTTPS**
 
-|    **App**    |        **Link**                     |   **User**    | **Password**  |
-| :-----------: | :---------------------------------: | :-----------: | :-----------: |
-|    Calibre    | https://localhost:8181/             |    calibre    |    calibre    |
-|  Calibre-Web  | https://localhost:8084/             |    calibre    |    calibre    |
-|    Lidarr     | https://localhost:6868/             |    lidarr     |    lidarr     |
-|    Nginx      | https://localhost:443/              |       -       |       -       |
-|     Mylar     | https://localhost:8091/mylar/       |     mylar     |     mylar     |
-|    Nzbget     | https://localhost:6791/             |    nzbget     |    nzbget     |
-|   NzbHydra2   | https://localhost:5077/nzbhydra2/   |   nzbhydra2   |   nzbhydra2   |
-|   Prowlarr    | https://localhost:6969/             |   prowlarr    |   prowlarr    |
-|  qBitTorrent  | https://localhost:8085/             |  qbittorrent  |  qbittorrent  |
-|    Radarr     | https://localhost:7879/             |    radarr     |    radarr     |
-|    Readarr    | https://localhost:8788/             |    readarr    |    readarr    |
+|    **App**    |        **Link**                       |   **User**    | **Password**  |
+| :-----------: | :-----------------------------------: | :-----------: | :-----------: |
+|    Calibre    | https://localhost:8181/               |    calibre    |    calibre    |
+|  Calibre-Web  | https://localhost:8084/               |    calibre    |    calibre    |
+| LazyLibrarian | https://localhost:5299/lazylibrarian  | lazylibrarian | lazylibrarian |
+|    Lidarr     | https://localhost:6868/               |    lidarr     |    lidarr     |
+|    Nginx      | https://localhost:443/                |       -       |       -       |
+|     Mylar     | https://localhost:8091/mylar/         |     mylar     |     mylar     |
+|    Nzbget     | https://localhost:6791/               |    nzbget     |    nzbget     |
+|   NzbHydra2   | https://localhost:5077/nzbhydra2/     |   nzbhydra2   |   nzbhydra2   |
+|   Prowlarr    | https://localhost:6969/               |   prowlarr    |   prowlarr    |
+|  qBitTorrent  | https://localhost:8085/               |  qbittorrent  |  qbittorrent  |
+|    Radarr     | https://localhost:7879/               |    radarr     |    radarr     |
+|    Readarr    | https://localhost:8788/               |    readarr    |    readarr    |
 
 ## **HTTPS through reverse proxy (Nginx)**
 
@@ -357,11 +358,12 @@ Not all apps are fully working through the reverse proxy (Nginx). I am still wor
 |  Calibre-Web  | https://localhost/calibre_web/                      |    calibre    |    calibre    |
 | FlareSolverr  | http://localhost/flaresolverr/                      |       -       |       -       |
 |    Jackett    | http://localhost/jackett/                           |       -       |    jackett    |
+| Lazylibrarian | https://localhost/lazylibrarian/                    | lazylibrarian | lazylibrarian |
 |    Lidarr     | https://localhost/lidarr/                           |    lidarr     |    lidarr     |
 |     Mylar     | https://localhost/mylar/                            |     mylar     |     mylar     |
 |    Nzbget     | https://localhost/nzbget/                           |    nzbget     |    nzbget     |
 |   NzbHydra2   | https://localhost/nzbhydra2/                        |   nzbhydra2   |   nzbhydra2   |
-|   Prowlarr    | https://localhost/prowlarr/                         |   prowlarr   |   prowlarr   |
+|   Prowlarr    | https://localhost/prowlarr/                         |   prowlarr    |   prowlarr    |
 |  qBitTorrent  | https://localhost/qbittorrent/                      |  qbittorrent  |  qbittorrent  |
 |    Radarr     | https://localhost/radarr/                           |    radarr     |    radarr     |
 |    Readarr    | https://localhost/readarr/                          |    readarr    |    readarr    |
@@ -453,6 +455,15 @@ make clean
 ```
 
 ---
+
+## Known Issues and future improvements
+
+1. Lidarr is not pre-configured for the indexers because it didn't allow to add for a category issue
+2. Sonarr is not configured yet on HTTPS, it requires more tweaking
+3. Mylar doesn't work with qBittorrent and Nzbget using a self-signed certificate
+4. Lazylibarian doesn't work with qBittorrent using a self-signed certificate. 
+
+If you can help working on any of these issues and require more information, please feel free to open a issue and reach out.
 
 ## Clean up everything (including media folder)
 

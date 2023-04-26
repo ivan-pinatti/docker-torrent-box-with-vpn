@@ -6,14 +6,15 @@
 - [ ] Lidarr is not configured for Indexers due to a restriction to add it
 - [ ] Mylar is not working to add HTTPS qBitorrent and Nzbget
 - [ ] Sonarr HTTPS
-- [ ] Add Lazylibrarian to Prowlarr
+- [ ] Lazylibrarian not working with qBittorrent on HTTPS
+
 
 ### In Progress
 
-- [ ] Augment the stack to use a reverse proxy w/ https
-
 ### Done ✓
 
+- [x] Augment the stack to use a reverse proxy w/ https
+- [x] Add Lazylibrarian to Prowlarr
 - [x] Added Prowlarr to the stack
 - [x] Config HTTPS available services
 - [x] Create the script to generate self-certificate
