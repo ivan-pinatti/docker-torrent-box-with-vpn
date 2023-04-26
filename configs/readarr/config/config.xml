@@ -1,17 +1,17 @@
 <Config>
   <LogLevel>info</LogLevel>
-  <UrlBase></UrlBase>
+  <UrlBase>/readarr</UrlBase>
   <UpdateMechanism>Docker</UpdateMechanism>
   <BindAddress>*</BindAddress>
   <Port>8787</Port>
-  <SslPort>6868</SslPort>
-  <EnableSsl>False</EnableSsl>
+  <SslPort>8788</SslPort>
+  <EnableSsl>True</EnableSsl>
   <LaunchBrowser>True</LaunchBrowser>
   <ApiKey>e506218147094782bdc16c17fbfe62dd</ApiKey>
   <AuthenticationMethod>Forms</AuthenticationMethod>
   <Branch>develop</Branch>
-  <SslCertPath></SslCertPath>
-  <SslCertPassword></SslCertPassword>
+  <SslCertPath>/certs/server.pfx</SslCertPath>
+  <SslCertPassword>0123456789</SslCertPassword>
   <AnalyticsEnabled>False</AnalyticsEnabled>
   <InstanceName>Readarr</InstanceName>
 </Config>

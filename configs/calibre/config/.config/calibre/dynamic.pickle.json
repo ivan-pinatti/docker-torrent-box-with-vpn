@@ -1,5 +1,9 @@
 {
   "database location dialog": "/ebooks",
+  "notified-version-updates": {
+    "__class__": "set",
+    "__value__": ["6.16"]
+  },
   "welcome_wizard_device": "kobo",
   "welcome_wizard_was_run": true
 }

@@ -1,51 +1,41 @@
-version: '3.8'
+version: "3.8"
 services:
-
-  plex:
-    image: linuxserver/plex:${PLEX_VERSION}
-    container_name: plex
-    depends_on:
-      - protonvpn
-    network_mode: service:protonvpn
-    sysctls:
-      net.ipv6.conf.all.disable_ipv6: 1
+  bazarr:
+    image: linuxserver/bazarr:${BAZARR_VERSION}
+    container_name: bazarr
+    depends_on: ["${VPN_PROVIDER}"]
+    profiles: ["${BAZARR_PROFILE}"]
+    network_mode: service:${VPN_PROVIDER}
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
-    # devices:
-    #   - /dev/dri:/dev/dri # Intel QuickSync acceleration ON - Uncomment if your machine is capable
-    env_file:
-      - ${CONFIG_FOLDER}/plex/.env
+    env_file: [".env", "${CONFIG_FOLDER}/bazarr/.env"]
     environment:
-      PGID: ${GID}
-      PUID: ${UID}
-      UMASK: ${UMASK}
-      TZ: ${TIMEZONE}
+      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CONFIG_FOLDER}/plex/config:/config:Z
-      - ${CONFIG_FOLDER}/plex/transcode:/transcode:Z
-      - ${MEDIA_FOLDER}/Series:/data/Series:z
-      - ${MEDIA_FOLDER}/Movies:/data/Movies:z
-      - ${MEDIA_FOLDER}/Music:/data/Music:z
+      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CONFIG_FOLDER}/bazarr/config:/config:z
+      - ${RECYCLE_FOLDER}/bazarr:/recycle:z
+      - ${USENET_BLACKHOLE_FOLDER}:/blackhole:z
+      - ${USENET_DOWNLOADS_FOLDER}:/downloads:z
+      - ${MEDIA_FOLDER}/Movies:/movies:z
+      - ${MEDIA_FOLDER}/Series:/series:z
 
   calibre:
-    image: linuxserver/calibre:${CALIBRE_VERSION}
+    image: lscr.io/linuxserver/calibre:${CALIBRE_VERSION}
     container_name: calibre
-    depends_on:
-      - protonvpn
-    network_mode: service:protonvpn
-    sysctls:
-      net.ipv6.conf.all.disable_ipv6: 1
+    depends_on: ["${VPN_PROVIDER}"]
+    profiles: ["${CALIBRE_PROFILE}"]
+    network_mode: service:${VPN_PROVIDER}
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
+    security_opt: ["seccomp=unconfined"]
     restart: unless-stopped
-    env_file:
-      - ${CONFIG_FOLDER}/calibre/.env
+    env_file: [".env", "${CONFIG_FOLDER}/calibre/.env"]
     environment:
-      PGID: ${GID}
-      PUID: ${UID}
-      UMASK: ${UMASK}
-      TZ: ${TIMEZONE}
+      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CONFIG_FOLDER}/calibre/config:/config:Z
+      - ${CONFIG_FOLDER}/calibre/config:/config:z
       - ${MEDIA_FOLDER}/AudioBooks:/audiobooks:z
       - ${MEDIA_FOLDER}/Comics:/comics:z
       - ${MEDIA_FOLDER}/eBooks:/ebooks:z
@@ -53,291 +43,61 @@ services:
   calibre-web:
     image: linuxserver/calibre-web:${CALIBREWEB_VERSION}
     container_name: calibre-web
-    depends_on:
-      - protonvpn
-    network_mode: service:protonvpn
-    sysctls:
-      net.ipv6.conf.all.disable_ipv6: 1
+    depends_on: ["${VPN_PROVIDER}"]
+    profiles: ["${CALIBREWEB_PROFILE}"]
+    network_mode: service:${VPN_PROVIDER}
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
-    env_file:
-      - ${CONFIG_FOLDER}/calibre-web/.env
+    env_file: [".env", "${CONFIG_FOLDER}/calibre-web/.env"]
     environment:
-      PGID: ${GID}
-      PUID: ${UID}
-      UMASK: ${UMASK}
-      TZ: ${TIMEZONE}
+      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CONFIG_FOLDER}/calibre-web/config:/config:Z
+      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CONFIG_FOLDER}/calibre-web/config:/config:z
       - ${MEDIA_FOLDER}/AudioBooks:/audiobooks:z
       - ${MEDIA_FOLDER}/Comics:/comics:z
       - ${MEDIA_FOLDER}/eBooks:/ebooks:z
 
-  protonvpn:
-    image: ghcr.io/tprasadtp/protonwire:${PROTONVPN_VERSION}
-    container_name: protonvpn
-    restart: unless-stopped
-    env_file:
-      - ${CONFIG_FOLDER}/protonvpn/.env
-      - .env
-    cap_add:
-      - NET_ADMIN
-    sysctls:
-      net.ipv6.conf.all.disable_ipv6: 1
-      net.ipv4.conf.all.rp_filter: 2
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - type: tmpfs
-        target: /tmp
-    ports:
-      - 5076:5076 # nzbhydra2-http or nzbhydra2-https
-      - 5299:5299 # lazylibrarian
-      - 6789:6789 # nzbget-http
-      - 6791:6791 # nzbget-https
-      - 6868:6868 # lidarr-https / readarr-https
-      - 7878:7878 # radarr-http
-      - 8080:8080 # calibre
-      - 8081:8081 # calibre-web (from calibre)
-      - 8082:8082 # qbittorrent
-      - 8083:8083 # calibre-web (from calibre-web container)
-      - 8090:8090 # mylar-http
-      - 8191:8191 # flaresolverr-http
-      - 8686:8686 # lidarr-http
-      - 8787:8787 # readarr-http
-      - 8989:8989 # sonarr-http
-      - 9117:9117 # jackett-http
-      - 9898:9898 # sonarr-https / radarr-https
-      - 32400:32400 # plex
-      - 1900:1900/udp # plex
-      - 3005:3005 # plex
-      #- 5353:5353/udp # plex
-      - 8324:8324 # plex
-      - 32410:32410/udp # plex
-      - 32412:32412/udp # plex
-      - 32413:32413/udp # plex
-      - 32414:32414/udp # plex
-      - 32469:32469 # plex
-
   flaresolverr:
-    image: flaresolverr/flaresolverr:${FLARESOLVER_VERSION}
+    image: flaresolverr/flaresolverr:${FLARESOLVERR_VERSION}
     container_name: flaresolverr
-    depends_on:
-      - protonvpn
-    network_mode: service:protonvpn
-    sysctls:
-      net.ipv6.conf.all.disable_ipv6: 1
+    depends_on: ["${VPN_PROVIDER}"]
+    profiles: ["${FLARESOLVERR_PROFILE}"]
+    network_mode: service:${VPN_PROVIDER}
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
-    env_file:
-      - ${CONFIG_FOLDER}/flaresolverr/.env
-    environment:
-      TZ: ${TIMEZONE}
+    env_file: [".env", "${CONFIG_FOLDER}/flaresolverr/.env"]
+    environment: ["TZ: ${TIMEZONE}"]
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CONFIG_FOLDER}/jackett/config:/config:Z
+      - ${CONFIG_FOLDER}/jackett/config:/config:z
 
   jackett:
     image: linuxserver/jackett:${JACKETT_VERSION}
     container_name: jackett
-    depends_on:
-      - protonvpn
-      - flaresolverr
-    network_mode: service:protonvpn
-    sysctls:
-      net.ipv6.conf.all.disable_ipv6: 1
+    depends_on: ["${VPN_PROVIDER}"]
+    profiles: ["${JACKETT_PROFILE}"]
+    network_mode: service:${VPN_PROVIDER}
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
-    env_file:
-      - ${CONFIG_FOLDER}/jackett/.env
+    env_file: [".env", "${CONFIG_FOLDER}/jackett/.env"]
     environment:
-      PGID: ${GID}
-      PUID: ${UID}
-      UMASK: ${UMASK}
-      TZ: ${TIMEZONE}
+      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CONFIG_FOLDER}/jackett/config:/config:Z
+      - ${CONFIG_FOLDER}/jackett/config:/config:z
       - ${TORRENT_BLACKHOLE_FOLDER}:/blackhole:z
-
-  nzbhydra2:
-    image: linuxserver/nzbhydra2:${NZBHYDRA2_VERSION}
-    container_name: nzbhydra2
-    depends_on:
-      - protonvpn
-      - jackett
-    network_mode: service:protonvpn
-    sysctls:
-      net.ipv6.conf.all.disable_ipv6: 1
-    restart: unless-stopped
-    env_file:
-      - ${CONFIG_FOLDER}/nzbhydra2/.env
-    environment:
-      PUID: ${UID}
-      PGID: ${GID}
-      UMASK: ${UMASK}
-      TZ: ${TIMEZONE}
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ${CONFIG_FOLDER}/nzbhydra2/config:/config:Z
-      - ${TORRENT_BLACKHOLE_FOLDER}:/downloads/torrent/blackhole:z
-      - ${USENET_BLACKHOLE_FOLDER}:/downloads/usenet/blackhole:z 
-
-  qbittorrent:
-    image: linuxserver/qbittorrent:${QBITTORRENT_VERSION}
-    container_name: qbittorrent
-    depends_on:
-      - protonvpn
-    network_mode: service:protonvpn
-    sysctls:
-      net.ipv6.conf.all.disable_ipv6: 1
-    restart: unless-stopped
-    env_file:
-      - ${CONFIG_FOLDER}/qbittorrent/.env
-    environment:
-      PUID: ${UID}
-      PGID: ${GID}
-      UMASK: ${UMASK}
-      TZ: ${TIMEZONE}
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ${CONFIG_FOLDER}/qbittorrent/config:/config:z
-      - ${TORRENT_BLACKHOLE_FOLDER}:/blackhole:z
-      - ${TORRENT_DOWNLOADS_FOLDER}:/downloads:z
-      - ${MEDIA_FOLDER}/AudioBooks:/audiobooks:z
-      - ${MEDIA_FOLDER}/eBooks:/books:z
-      - ${MEDIA_FOLDER}/Movies:/movies:z
-      - ${MEDIA_FOLDER}/Music:/music:z
-      - ${MEDIA_FOLDER}/Series:/tv:z
-
-  nzbget:
-    image: linuxserver/nzbget:${NZBGET_VERSION}
-    container_name: nzbget
-    depends_on:
-      - protonvpn
-    network_mode: service:protonvpn
-    sysctls:
-      net.ipv6.conf.all.disable_ipv6: 1
-    restart: unless-stopped
-    env_file:
-      - ${CONFIG_FOLDER}/nzbget/.env
-    environment:
-      PUID: ${UID}
-      PGID: ${GID}
-      UMASK: ${UMASK}
-      TZ: ${TIMEZONE}
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ${CONFIG_FOLDER}/nzbget/config:/config:Z
-      - ${USENET_BLACKHOLE_FOLDER}:/blackhole:z
-      - ${USENET_DOWNLOADS_FOLDER}:/downloads:z
-      - ${MEDIA_FOLDER}/AudioBooks:/audiobooks:z
-      - ${MEDIA_FOLDER}/Comics:/comics:z
-      - ${MEDIA_FOLDER}/eBooks:/ebooks:z
-      - ${MEDIA_FOLDER}/Movies:/movies:z
-      - ${MEDIA_FOLDER}/Music:/music:z
-      - ${MEDIA_FOLDER}/Series:/series:z
-
-  sonarr:
-    image: linuxserver/sonarr:${SONARR_VERSION}
-    container_name: sonarr
-    depends_on:
-      - plex
-      - protonvpn
-      - qbittorrent
-      - nzbget
-      - nzbhydra2
-    network_mode: service:protonvpn
-    sysctls:
-      net.ipv6.conf.all.disable_ipv6: 1
-    restart: unless-stopped
-    env_file:
-      - ${CONFIG_FOLDER}/sonarr/.env
-    environment:
-      PUID: ${UID}
-      PGID: ${GID}
-      TZ: ${TIMEZONE}
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ${CONFIG_FOLDER}/sonarr/config:/config:Z
-      - ${RECYCLE_FOLDER}/sonarr:/recycle:z
-      - ${TORRENT_DOWNLOADS_FOLDER}/completed/Sonarr:/downloads/completed/Sonarr:z
-      - ${TORRENT_DOWNLOADS_FOLDER}:/downloads/torrent:z
-      - ${USENET_DOWNLOADS_FOLDER}:/downloads/usenet:z
-      - ${USENET_DOWNLOADS_FOLDER}/completed/Series:/downloads/completed/Series:z
-      - ${MEDIA_FOLDER}/Series:/series:z
-  
-  radarr:
-    image: linuxserver/radarr:${RADARR_VERSION}
-    container_name: radarr
-    depends_on:
-      - plex
-      - protonvpn
-      - qbittorrent
-      - nzbget
-      - nzbhydra2
-    network_mode: service:protonvpn
-    sysctls:
-      net.ipv6.conf.all.disable_ipv6: 1
-    restart: unless-stopped
-    env_file:
-      - ${CONFIG_FOLDER}/radarr/.env
-    environment:
-      PUID: ${UID}
-      PGID: ${GID}
-      UMASK: ${UMASK}
-      TZ: ${TIMEZONE}
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ${CONFIG_FOLDER}/radarr/config:/config:Z
-      - ${RECYCLE_FOLDER}/radarr:/recycle:z
-      - ${TORRENT_DOWNLOADS_FOLDER}:/downloads/torrent:z
-      - ${TORRENT_DOWNLOADS_FOLDER}/completed/Radarr:/downloads/completed/Radarr:z
-      - ${USENET_DOWNLOADS_FOLDER}:/downloads/usenet:z
-      - ${USENET_DOWNLOADS_FOLDER}/completed/Movies:/downloads/completed/Movies:z
-      - ${MEDIA_FOLDER}/Movies:/movies:z
-
-  lidarr:
-    image: linuxserver/lidarr:${LIDARR_VERSION}
-    container_name: lidarr
-    depends_on:
-      - plex
-      - protonvpn
-      - qbittorrent
-      - nzbget
-      - nzbhydra2
-    network_mode: service:protonvpn
-    sysctls:
-      net.ipv6.conf.all.disable_ipv6: 1
-    restart: unless-stopped
-    env_file:
-      - ${CONFIG_FOLDER}/lidarr/.env
-    environment:
-      PUID: ${UID}
-      PGID: ${GID}
-      UMASK: ${UMASK}
-      TZ: ${TIMEZONE}
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ${CONFIG_FOLDER}/lidarr/config:/config:Z
-      - ${RECYCLE_FOLDER}/lidarr:/recycle:z
-      - ${TORRENT_DOWNLOADS_FOLDER}:/downloads/torrent:z
-      - ${TORRENT_DOWNLOADS_FOLDER}/completed/Lidarr:/downloads/completed/Lidarr:z
-      - ${USENET_DOWNLOADS_FOLDER}:/downloads/usenet:z
-      - ${USENET_DOWNLOADS_FOLDER}/completed/Music:/downloads/completed/Music:z
-      - ${MEDIA_FOLDER}/Music:/music:z
 
   lazylibrarian:
     image: linuxserver/lazylibrarian:${LAZYLIBRARIAN_VERSION}
     container_name: lazylibrarian
-    depends_on:
-      - protonvpn
-      - qbittorrent
-      - nzbget
-      - nzbhydra2
-    network_mode: service:protonvpn
-    sysctls:
-      net.ipv6.conf.all.disable_ipv6: 1
+    depends_on: ["${VPN_PROVIDER}"]
+    profiles: ["${LAZYLIBRARIAN_PROFILE}"]
+    network_mode: service:${VPN_PROVIDER}
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
-    env_file:
-      - ${CONFIG_FOLDER}/lazylibrarian/.env
+    env_file: [".env", "${CONFIG_FOLDER}/lazylibrarian/.env"]
     environment:
       PUID: ${UID}
       PGID: ${GID}
@@ -346,7 +106,8 @@ services:
       DOCKER_MODS: ghcr.io/linuxserver/mods:universal-calibre|linuxserver/mods:lazylibrarian-ffmpeg #needed for calibredb
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CONFIG_FOLDER}/lazylibrarian/config:/config:Z
+      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CONFIG_FOLDER}/lazylibrarian/config:/config:z
       - ${TORRENT_BLACKHOLE_FOLDER}:/torrent/blackhole:z
       - ${TORRENT_DOWNLOADS_FOLDER}:/downloads/torrent:z
       - ${TORRENT_DOWNLOADS_FOLDER}/completed/eBooks:/downloads/completed/eBooks:z
@@ -356,29 +117,271 @@ services:
       - ${MEDIA_FOLDER}/Comics:/comics:z
       - ${MEDIA_FOLDER}/eBooks:/ebooks:z
 
-  readarr:
-    image: linuxserver/readarr:${READARR_VERSION}
-    container_name: readarr
-    depends_on:
-      - calibre
-      - protonvpn
-      - qbittorrent
-      - nzbget
-      - nzbhydra2
-    network_mode: service:protonvpn
-    sysctls:
-      net.ipv6.conf.all.disable_ipv6: 1
+  lidarr:
+    image: linuxserver/lidarr:${LIDARR_VERSION}
+    container_name: lidarr
+    depends_on: ["${VPN_PROVIDER}"]
+    profiles: ["${LIDARR_PROFILE}"]
+    network_mode: service:${VPN_PROVIDER}
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
-    env_file:
-      - ${CONFIG_FOLDER}/readarr/.env
+    env_file: [".env", "${CONFIG_FOLDER}/lidarr/.env"]
+    environment:
+      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CONFIG_FOLDER}/lidarr/config:/config:z
+      - ${RECYCLE_FOLDER}/lidarr:/recycle:z
+      - ${TORRENT_DOWNLOADS_FOLDER}:/downloads/torrent:z
+      - ${TORRENT_DOWNLOADS_FOLDER}/completed/Lidarr:/downloads/completed/Lidarr:z
+      - ${USENET_DOWNLOADS_FOLDER}:/downloads/usenet:z
+      - ${USENET_DOWNLOADS_FOLDER}/completed/Music:/downloads/completed/Music:z
+      - ${MEDIA_FOLDER}/Music:/music:z
+
+  mylar:
+    image: linuxserver/mylar3:${MYLAR_VERSION}
+    container_name: mylar
+    depends_on: ["${VPN_PROVIDER}"]
+    profiles: ["${MYLAR_PROFILE}"]
+    network_mode: service:${VPN_PROVIDER}
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
+    restart: unless-stopped
+    env_file: [".env", "${CONFIG_FOLDER}/mylar/.env"]
     environment:
       PUID: ${UID}
       PGID: ${GID}
       UMASK: ${UMASK}
       TZ: ${TIMEZONE}
+      DOCKER_MODS: linuxserver/mods:universal-package-install
+      INSTALL_PIP_PACKAGES: pyOpenSSL
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CONFIG_FOLDER}/readarr/config:/config:Z
+      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CONFIG_FOLDER}/mylar/config:/config:z
+      - ${TORRENT_DOWNLOADS_FOLDER}:/downloads/torrent:z
+      - ${USENET_DOWNLOADS_FOLDER}:/downloads/usenet:z
+      - ${MEDIA_FOLDER}/Comics:/comics:z
+
+  nginx:
+    image: nginx:${NGINX_VERSION}
+    container_name: nginx
+    depends_on: ["${VPN_PROVIDER}"]
+    profiles: ["${NGINX_PROFILE}"]
+    network_mode: service:${VPN_PROVIDER}
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
+    restart: unless-stopped
+    env_file: [".env", "${CONFIG_FOLDER}/nginx/.env"]
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CONFIG_FOLDER}/nginx/templates:/etc/nginx/templates:z
+
+  nzbget:
+    image: linuxserver/nzbget:${NZBGET_VERSION}
+    container_name: nzbget
+    depends_on: ["${VPN_PROVIDER}"]
+    profiles: ["${NZBGET_PROFILE}"]
+    network_mode: service:${VPN_PROVIDER}
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
+    restart: unless-stopped
+    env_file: [".env", "${CONFIG_FOLDER}/nzbget/.env"]
+    environment:
+      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CONFIG_FOLDER}/nzbget/config:/config:z
+      - ${USENET_BLACKHOLE_FOLDER}:/blackhole:z
+      - ${USENET_DOWNLOADS_FOLDER}:/downloads:z
+      - ${MEDIA_FOLDER}/AudioBooks:/audiobooks:z
+      - ${MEDIA_FOLDER}/Comics:/comics:z
+      - ${MEDIA_FOLDER}/eBooks:/ebooks:z
+      - ${MEDIA_FOLDER}/Movies:/movies:z
+      - ${MEDIA_FOLDER}/Music:/music:z
+      - ${MEDIA_FOLDER}/Series:/series:z
+
+  nzbhydra2:
+    image: linuxserver/nzbhydra2:${NZBHYDRA2_VERSION}
+    container_name: nzbhydra2
+    depends_on: ["${VPN_PROVIDER}"]
+    profiles: ["${NZBHYDRA2_PROFILE}"]
+    network_mode: service:${VPN_PROVIDER}
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
+    restart: unless-stopped
+    env_file: [".env", "${CONFIG_FOLDER}/nzbhydra2/.env"]
+    environment:
+      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CONFIG_FOLDER}/nzbhydra2/config:/config:z
+      - ${TORRENT_BLACKHOLE_FOLDER}:/downloads/torrent/blackhole:z
+      - ${USENET_BLACKHOLE_FOLDER}:/downloads/usenet/blackhole:z
+
+  plex:
+    image: linuxserver/plex:${PLEX_VERSION}
+    container_name: plex
+    depends_on: ["${VPN_PROVIDER}"]
+    profiles: ["${PLEX_PROFILE}"]
+    network_mode: service:${VPN_PROVIDER}
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
+    restart: unless-stopped
+    # Leave commented unless your machine is capable of Hardware acceleration - Intel / Nvidia
+    # More information at; https://github.com/linuxserver/docker-plex#hardware-acceleration
+    # devices: [ "/dev/dri:/dev/dri" ] # Intel QuickSync
+    env_file: [".env", "${CONFIG_FOLDER}/plex/.env"]
+    environment:
+      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CONFIG_FOLDER}/plex/config:/config:z
+      - ${CONFIG_FOLDER}/plex/transcode:/transcode:z
+      - ${MEDIA_FOLDER}/Series:/data/Series:z
+      - ${MEDIA_FOLDER}/Movies:/data/Movies:z
+      - ${MEDIA_FOLDER}/Music:/data/Music:z
+
+  protonvpn:
+    image: ghcr.io/tprasadtp/protonwire:${PROTONVPN_VERSION}
+    container_name: protonvpn
+    restart: unless-stopped
+    profiles: ["${PROTONVPN_PROFILE}"]
+    env_file: [".env", "${CONFIG_FOLDER}/protonvpn/.env"]
+    cap_add: [NET_ADMIN]
+    sysctls:
+      ["net.ipv6.conf.all.disable_ipv6=1", "net.ipv4.conf.all.rp_filter=2"]
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /tmp:/tmp:z
+    ports:
+      - ${BAZARR_HTTP_PORT}:${BAZARR_HTTP_PORT}                                   # bazarr-http
+      - ${CALIBRE_DESKTOP_HTTP_PORT}:${CALIBRE_DESKTOP_HTTP_PORT}                 # calibre-desktop-http
+      - ${CALIBRE_GUI_WEB_HTTP_PORT}:${CALIBRE_GUI_WEB_HTTP_PORT}                 # calibre-web-gui-http
+      - ${CALIBRE_DESKTOP_HTTPS_PORT}:${CALIBRE_DESKTOP_HTTPS_PORT}               # calibre-desktop-https
+      - ${CALIBRE_WEB_CONTAINER_HTTP_PORT}:${CALIBRE_WEB_CONTAINER_HTTP_PORT}     # calibre-web-http (from calibre-web container)
+      - ${CALIBRE_WEB_CONTAINER_HTTPS_PORT}:${CALIBRE_WEB_CONTAINER_HTTPS_PORT}   # calibre-web-https (from calibre-web container)
+      - ${FLARESOLVERR_HTTP_PORT}:${FLARESOLVERR_HTTP_PORT}                       # flaresolverr-http
+      - ${JACKETT_HTTP_PORT}:${JACKETT_HTTP_PORT}                                 # jackett-http
+      - ${LAZYLIBRARIAN_HTTP_PORT}:${LAZYLIBRARIAN_HTTP_PORT}                     # lazylibrarian-http
+      - ${LAZYLIBRARIAN_HTTPS_PORT}:${LAZYLIBRARIAN_HTTPS_PORT}                   # lazylibrarian-https
+      - ${LIDARR_HTTP_PORT}:${LIDARR_HTTP_PORT}                                   # lidarr-http
+      - ${LIDARR_HTTPS_PORT}:${LIDARR_HTTPS_PORT}                                 # lidarr-https
+      - ${MYLAR_HTTP_PORT}:${MYLAR_HTTP_PORT}                                     # mylar-http
+      - ${MYLAR_HTTPS_PORT}:${MYLAR_HTTPS_PORT}                                   # mylar-https
+      - ${NGINX_HTTP_PORT}:${NGINX_HTTP_PORT}                                     # nginx-http
+      - ${NGINX_HTTPS_PORT}:${NGINX_HTTPS_PORT}                                   # nginx-https
+      - ${NZBGET_HTTP_PORT}:${NZBGET_HTTP_PORT}                                   # nzbget-http
+      - ${NZBGET_HTTPS_PORT}:${NZBGET_HTTPS_PORT}                                 # nzbget-https
+      - ${NZBHYDRA2_HTTP_PORT}:${NZBHYDRA2_HTTP_PORT}                             # nzbhydra2-http
+      - ${NZBHYDRA2_HTTPS_PORT}:${NZBHYDRA2_HTTPS_PORT}                           # nzbhydra2-https
+      - ${PROWLARR_HTTP_PORT}:${PROWLARR_HTTP_PORT}                               # prowlarr-http
+      - ${PROWLARR_HTTPS_PORT}:${PROWLARR_HTTPS_PORT}                              # prowlarr-https
+      - ${QBITTORRENT_HTTP_PORT}:${QBITTORRENT_HTTP_PORT}                         # qbittorrent-http
+      - ${QBITTORRENT_HTTPS_PORT}:${QBITTORRENT_HTTPS_PORT}                       # qbittorrent-https
+      - ${QBITTORRENT_PORT}:${QBITTORRENT_PORT}                                   # qbittorrent-torrent
+      - ${QBITTORRENT_PORT}:${QBITTORRENT_PORT}/udp                               # qbittorrent-torrent
+      - ${RADARR_HTTP_PORT}:${RADARR_HTTP_PORT}                                   # radarr-http
+      - ${RADARR_HTTPS_PORT}:${RADARR_HTTPS_PORT}                                 # radarr-https
+      - ${READARR_HTTP_PORT}:${READARR_HTTP_PORT}                                 # readarr-http
+      - ${READARR_HTTPS_PORT}:${READARR_HTTPS_PORT}                               # readarr-https
+      - ${SONARR_HTTP_PORT}:${SONARR_HTTP_PORT}                                   # sonarr-http
+      - ${SONARR_HTTPS_PORT}:${SONARR_HTTPS_PORT}                                 # sonarr-https
+      - 1900:1900/udp                                                             # plex
+      - 3005:3005                                                                 # plex
+      - 32400:32400                                                               # plex
+      - 32410:32410/udp                                                           # plex
+      - 32412:32412/udp                                                           # plex
+      - 32413:32413/udp                                                           # plex
+      - 32414:32414/udp                                                           # plex
+      - 32469:32469                                                               # plex
+      - 8324:8324                                                                 # plex
+      # - 5353:5353/udp   # plex
+
+  prowlarr:
+    image: linuxserver/prowlarr:${PROWLARR_VERSION}
+    container_name: prowlarr
+    depends_on: ["${VPN_PROVIDER}"]
+    profiles: ["${PROWLARR_PROFILE}"]
+    network_mode: service:${VPN_PROVIDER}
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
+    restart: unless-stopped
+    env_file: [".env", "${CONFIG_FOLDER}/prowlarr/.env"]
+    environment:
+      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CONFIG_FOLDER}/prowlarr/config:/config:z
+      - ${RECYCLE_FOLDER}/prowlarr:/recycle:z
+      - ${USENET_BLACKHOLE_FOLDER}:/blackhole:z
+      - ${USENET_DOWNLOADS_FOLDER}:/downloads:z
+      - ${MEDIA_FOLDER}/AudioBooks:/audiobooks:z
+      - ${MEDIA_FOLDER}/Comics:/comics:z
+      - ${MEDIA_FOLDER}/eBooks:/ebooks:z
+      - ${MEDIA_FOLDER}/Movies:/movies:z
+      - ${MEDIA_FOLDER}/Music:/music:z
+      - ${MEDIA_FOLDER}/Series:/series:z
+
+  qbittorrent:
+    image: linuxserver/qbittorrent:${QBITTORRENT_VERSION}
+    container_name: qbittorrent
+    depends_on: ["${VPN_PROVIDER}"]
+    profiles: ["${QBITTORRENT_PROFILE}"]
+    network_mode: service:${VPN_PROVIDER}
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
+    restart: unless-stopped
+    env_file: [".env", "${CONFIG_FOLDER}/qbittorrent/.env"]
+    environment:
+      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CONFIG_FOLDER}/qbittorrent/config:/config:z
+      - ${TORRENT_BLACKHOLE_FOLDER}:/blackhole:z
+      - ${TORRENT_DOWNLOADS_FOLDER}:/downloads:z
+      - ${MEDIA_FOLDER}/AudioBooks:/audiobooks:z
+      - ${MEDIA_FOLDER}/eBooks:/books:z
+      - ${MEDIA_FOLDER}/Movies:/movies:z
+      - ${MEDIA_FOLDER}/Music:/music:z
+      - ${MEDIA_FOLDER}/Series:/tv:z
+
+  radarr:
+    image: linuxserver/radarr:${RADARR_VERSION}
+    container_name: radarr
+    depends_on: ["${VPN_PROVIDER}"]
+    profiles: ["${RADARR_PROFILE}"]
+    network_mode: service:${VPN_PROVIDER}
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
+    restart: unless-stopped
+    env_file: [".env", "${CONFIG_FOLDER}/radarr/.env"]
+    environment:
+      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CONFIG_FOLDER}/radarr/config:/config:z
+      - ${RECYCLE_FOLDER}/radarr:/recycle:z
+      - ${TORRENT_DOWNLOADS_FOLDER}:/downloads/torrent:z
+      - ${TORRENT_DOWNLOADS_FOLDER}/completed/Radarr:/downloads/completed/Radarr:z
+      - ${USENET_DOWNLOADS_FOLDER}:/downloads/usenet:z
+      - ${USENET_DOWNLOADS_FOLDER}/completed/Movies:/downloads/completed/Movies:z
+      - ${MEDIA_FOLDER}/Movies:/movies:z
+
+  readarr:
+    image: linuxserver/readarr:${READARR_VERSION}
+    container_name: readarr
+    depends_on: ["${VPN_PROVIDER}"]
+    profiles: ["${READARR_PROFILE}"]
+    network_mode: service:${VPN_PROVIDER}
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
+    restart: unless-stopped
+    env_file: [".env", "${CONFIG_FOLDER}/readarr/.env"]
+    environment:
+      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CONFIG_FOLDER}/readarr/config:/config:z
       - ${RECYCLE_FOLDER}/readarr:/recycle:z
       - ${TORRENT_DOWNLOADS_FOLDER}:/downloads/torrent:z
       - ${TORRENT_DOWNLOADS_FOLDER}/completed/Readarr:/downloads/completed/Readarr:z
@@ -388,28 +391,24 @@ services:
       - ${MEDIA_FOLDER}/Comics:/comics:z
       - ${MEDIA_FOLDER}/eBooks:/books:z
 
-  mylar:
-    image: linuxserver/mylar3:${MYLAR_VERSION}
-    container_name: mylar
-    depends_on:
-      - protonvpn
-      - qbittorrent
-      - nzbget
-      - nzbhydra2
-    network_mode: service:protonvpn
-    sysctls:
-      net.ipv6.conf.all.disable_ipv6: 1
+  sonarr:
+    image: linuxserver/sonarr:${SONARR_VERSION}
+    container_name: sonarr
+    depends_on: ["${VPN_PROVIDER}"]
+    profiles: ["${SONARR_PROFILE}"]
+    network_mode: service:${VPN_PROVIDER}
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
-    env_file:
-      - ${CONFIG_FOLDER}/mylar/.env
+    env_file: [".env", "${CONFIG_FOLDER}/sonarr/.env"]
     environment:
-      PUID: ${UID}
-      PGID: ${GID}
-      UMASK: ${UMASK}
-      TZ: ${TIMEZONE}
+      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CONFIG_FOLDER}/mylar/config:/config:Z
+      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CONFIG_FOLDER}/sonarr/config:/config:z
+      - ${RECYCLE_FOLDER}/sonarr:/recycle:z
+      - ${TORRENT_DOWNLOADS_FOLDER}/completed/Sonarr:/downloads/completed/Sonarr:z
       - ${TORRENT_DOWNLOADS_FOLDER}:/downloads/torrent:z
       - ${USENET_DOWNLOADS_FOLDER}:/downloads/usenet:z
-      - ${MEDIA_FOLDER}/Comics:/comics:z
+      - ${USENET_DOWNLOADS_FOLDER}/completed/Series:/downloads/completed/Series:z
+      - ${MEDIA_FOLDER}/Series:/series:z

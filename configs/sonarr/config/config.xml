@@ -1,16 +1,17 @@
 <Config>
   <LogLevel>info</LogLevel>
-  <EnableSsl>False</EnableSsl>
+  <EnableSsl>True</EnableSsl>
   <Port>8989</Port>
-  <SslPort>9898</SslPort>
-  <UrlBase></UrlBase>
+  <SslPort>9899</SslPort>
+  <UrlBase>/sonarr/</UrlBase>
   <BindAddress>*</BindAddress>
   <ApiKey>426664939e4c4d45ac9e2090906c9e31</ApiKey>
   <AuthenticationMethod>Forms</AuthenticationMethod>
   <UpdateMechanism>Docker</UpdateMechanism>
   <LaunchBrowser>True</LaunchBrowser>
   <Branch>main</Branch>
-  <SslCertHash></SslCertHash>
+  <SslCertHash>B0:BF:19:D5:EA:CC:17:D3:3A:0E:0E:A2:E9:E0:B2:22:B3:84:25:F9:56:9B:10:45:25:77:AC:BB:05:AA:13:04</SslCertHash>
   <AnalyticsEnabled>False</AnalyticsEnabled>
   <InstanceName>Sonarr</InstanceName>
+  <SyslogPort>514</SyslogPort>
 </Config>

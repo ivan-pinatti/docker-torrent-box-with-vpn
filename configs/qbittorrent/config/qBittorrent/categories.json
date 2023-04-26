@@ -8,6 +8,9 @@
     "mylar": {
         "save_path": "/downloads/completed/Mylar"
     },
+    "prowlarr": {
+        "save_path": ""
+    },
     "radarr": {
         "save_path": "/downloads/completed/Radarr"
     },

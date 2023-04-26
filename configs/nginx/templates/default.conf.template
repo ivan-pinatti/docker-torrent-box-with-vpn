@@ -1,0 +1,164 @@
+server {
+  listen ${NGINX_HTTP_PORT};
+  server_name _;
+  return 301 https://$host$request_uri;
+}
+
+server {
+  listen ${NGINX_HTTPS_PORT} ssl;
+
+  ssl_certificate       /certs/server.crt;
+  ssl_certificate_key   /certs/server.key;
+  ssl_protocols         TLSv1.2 TLSv1.3;
+  ssl_ciphers           HIGH:!aNULL:!MD5;
+
+  location /bazarr/ {
+    proxy_pass        http://127.0.0.1:${BAZARR_HTTP_PORT};
+    # proxy_pass        https://127.0.0.1:${BAZARR_HTTPS_PORT};
+    proxy_redirect    off;
+    proxy_set_header  Host $host;
+    proxy_set_header  X-Real-IP $remote_addr;
+    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header  X-Forwarded-Host $server_name;
+  }
+
+  location /calibre/ {
+    # proxy_pass        http://127.0.0.1:${CALIBRE_DESKTOP_HTTP_PORT}/;
+    proxy_pass        https://127.0.0.1:${CALIBRE_DESKTOP_HTTPS_PORT}/;
+    proxy_redirect    off;
+    proxy_set_header  Host $host;
+    proxy_set_header  X-Real-IP $remote_addr;
+    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header  X-Forwarded-Host $server_name;
+  }
+
+  location /calibre_web/ {
+    # proxy_pass        http://127.0.0.1:${CALIBRE_WEB_CONTAINER_HTTP_PORT};
+    proxy_pass        https://127.0.0.1:${CALIBRE_WEB_CONTAINER_HTTPS_PORT};
+    proxy_redirect    off;
+    proxy_set_header  Host $host;
+    proxy_set_header  X-Real-IP $remote_addr;
+    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header  X-Forwarded-Host $server_name;
+  }
+
+  location /flaresolverr/ {
+    proxy_pass        http://127.0.0.1:${FLARESOLVERR_HTTP_PORT}/;
+    # proxy_pass        https://127.0.0.1:${FLARESOLVERR_HTTPS_PORT}/;
+    proxy_redirect    off;
+    proxy_set_header  Host $host;
+    proxy_set_header  X-Real-IP $remote_addr;
+    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header  X-Forwarded-Host $server_name;
+  }
+
+  location /jackett/ {
+    proxy_pass        http://127.0.0.1:${JACKETT_HTTP_PORT};
+    # proxy_pass        https://127.0.0.1:${JACKETT_HTTPS_PORT};
+    proxy_redirect    off;
+    proxy_set_header  Host $host;
+    proxy_set_header  X-Real-IP $remote_addr;
+    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header  X-Forwarded-Host $server_name;
+  }
+
+  location /lazylibrarian/ {
+    proxy_pass        http://127.0.0.1:${LAZYLIBRARIAN_HTTP_PORT};
+    # proxy_pass        https://127.0.0.1:${LAZYLIBRARIAN_HTTPS_PORT};
+    proxy_redirect    off;
+    proxy_set_header  Host $host;
+    proxy_set_header  X-Real-IP $remote_addr;
+    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header  X-Forwarded-Host $server_name;
+  }
+
+  location /lidarr/ {
+    # proxy_pass        http://127.0.0.1:${LIDARR_HTTP_PORT};
+    proxy_pass        https://127.0.0.1:${LIDARR_HTTPS_PORT};
+    proxy_redirect    off;
+    proxy_set_header  Host $host;
+    proxy_set_header  X-Real-IP $remote_addr;
+    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header  X-Forwarded-Host $server_name;
+  }
+
+  location /mylar/ {
+    # proxy_pass        http://127.0.0.1:${MYLAR_HTTP_PORT};
+    proxy_pass        https://127.0.0.1:${MYLAR_HTTPS_PORT};
+    proxy_redirect    off;
+    proxy_set_header  Host $host;
+    proxy_set_header  X-Real-IP $remote_addr;
+    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header  X-Forwarded-Host $server_name;
+  }
+
+  location /nzbget/ {
+    # proxy_pass        http://127.0.0.1:${NZBGET_HTTP_PORT};
+    proxy_pass        https://127.0.0.1:${NZBGET_HTTPS_PORT};
+    proxy_redirect    off;
+    proxy_set_header  Host $host;
+    proxy_set_header  X-Real-IP $remote_addr;
+    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header  X-Forwarded-Host $server_name;
+  }
+
+    location /nzbhydra2/ {
+    # proxy_pass        http://127.0.0.1:${NZBHYDRA2_HTTP_PORT};
+    proxy_pass        https://127.0.0.1:${NZBHYDRA2_HTTPS_PORT};
+    proxy_redirect    off;
+    proxy_set_header  Host $host;
+    proxy_set_header  X-Real-IP $remote_addr;
+    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header  X-Forwarded-Host $server_name;
+  }
+
+    location /prowlarr/ {
+    # proxy_pass        http://127.0.0.1:${PROWLARR_HTTP_PORT};
+    proxy_pass        https://127.0.0.1:${PROWLARR_HTTPS_PORT};
+    proxy_redirect    off;
+    proxy_set_header  Host $host;
+    proxy_set_header  X-Real-IP $remote_addr;
+    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header  X-Forwarded-Host $server_name;
+  }
+
+    location /qbittorrent/ {
+    # proxy_pass        http://127.0.0.1:${QBITTORRENT_HTTP_PORT}/;
+    proxy_pass        https://127.0.0.1:${QBITTORRENT_HTTPS_PORT}/;
+    proxy_redirect    off;
+    proxy_set_header  Host $host;
+    proxy_set_header  X-Real-IP $remote_addr;
+    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header  X-Forwarded-Host $server_name;
+  }
+
+    location /radarr/ {
+    # proxy_pass        http://127.0.0.1:${RADARR_HTTP_PORT};
+    proxy_pass        https://127.0.0.1:${RADARR_HTTPS_PORT};
+    proxy_redirect    off;
+    proxy_set_header  Host $host;
+    proxy_set_header  X-Real-IP $remote_addr;
+    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header  X-Forwarded-Host $server_name;
+  }
+
+  location /readarr/ {
+    # proxy_pass        http://127.0.0.1:${READARR_HTTP_PORT};
+    proxy_pass        https://127.0.0.1:${READARR_HTTPS_PORT};
+    proxy_redirect    off;
+    proxy_set_header  Host $host;
+    proxy_set_header  X-Real-IP $remote_addr;
+    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header  X-Forwarded-Host $server_name;
+  }
+
+  location /sonarr/ {
+    proxy_pass        http://127.0.0.1:${SONARR_HTTP_PORT};
+    # proxy_pass        https://127.0.0.1:${SONARR_HTTPS_PORT};
+    proxy_redirect    off;
+    proxy_set_header  Host $host;
+    proxy_set_header  X-Real-IP $remote_addr;
+    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header  X-Forwarded-Host $server_name;
+  }
+}
