@@ -12,306 +12,306 @@ auth:
   restrictStats: false
   allowApiStats: true
   users:
-  - maySeeAdmin: true
-    maySeeDetailsDl: true
-    maySeeStats: true
-    showIndexerSelection: true
-    username: "nzbhydra2"
-    password: "{noop}nzbhydra2"
+    - maySeeAdmin: true
+      maySeeDetailsDl: true
+      maySeeStats: true
+      showIndexerSelection: true
+      username: "nzbhydra2"
+      password: "{noop}nzbhydra2"
 categoriesConfig:
   enableCategorySizes: true
   categories:
-  - name: "Anime"
-    mayBeSelected: true
-    searchType: "SEARCH"
-    newznabCategories:
-    - "5070"
-    ignoreResultsFrom: "NONE"
-    applyRestrictionsType: "BOTH"
-    forbiddenRegex: null
-    forbiddenWords: []
-    requiredRegex: null
-    requiredWords: []
-    maxSizePreset: 3000
-    minSizePreset: 50
-    applySizeLimitsToApi: false
-    description: null
-    preselect: true
-    subtype: "ANIME"
-  - name: "Audio"
-    mayBeSelected: true
-    searchType: "MUSIC"
-    newznabCategories:
-    - "3000"
-    ignoreResultsFrom: "NONE"
-    applyRestrictionsType: "BOTH"
-    forbiddenRegex: null
-    forbiddenWords: []
-    requiredRegex: null
-    requiredWords: []
-    maxSizePreset: 2000
-    minSizePreset: 1
-    applySizeLimitsToApi: false
-    description: null
-    preselect: true
-    subtype: "NONE"
-  - name: "Audiobook"
-    mayBeSelected: true
-    searchType: "MUSIC"
-    newznabCategories:
-    - "3030"
-    ignoreResultsFrom: "NONE"
-    applyRestrictionsType: "BOTH"
-    forbiddenRegex: null
-    forbiddenWords: []
-    requiredRegex: null
-    requiredWords: []
-    maxSizePreset: 1000
-    minSizePreset: 50
-    applySizeLimitsToApi: false
-    description: null
-    preselect: true
-    subtype: "AUDIOBOOK"
-  - name: "Comic"
-    mayBeSelected: true
-    searchType: "SEARCH"
-    newznabCategories:
-    - "7030"
-    ignoreResultsFrom: "NONE"
-    applyRestrictionsType: "BOTH"
-    forbiddenRegex: null
-    forbiddenWords: []
-    requiredRegex: null
-    requiredWords: []
-    maxSizePreset: 250
-    minSizePreset: 1
-    applySizeLimitsToApi: false
-    description: null
-    preselect: true
-    subtype: "COMIC"
-  - name: "Console"
-    mayBeSelected: true
-    searchType: "SEARCH"
-    newznabCategories:
-    - "1000"
-    ignoreResultsFrom: "NONE"
-    applyRestrictionsType: "BOTH"
-    forbiddenRegex: null
-    forbiddenWords: []
-    requiredRegex: null
-    requiredWords: []
-    maxSizePreset: 40000
-    minSizePreset: 100
-    applySizeLimitsToApi: false
-    description: null
-    preselect: true
-    subtype: "NONE"
-  - name: "Ebook"
-    mayBeSelected: true
-    searchType: "BOOK"
-    newznabCategories:
-    - "7020"
-    - "8010"
-    ignoreResultsFrom: "NONE"
-    applyRestrictionsType: "BOTH"
-    forbiddenRegex: null
-    forbiddenWords: []
-    requiredRegex: null
-    requiredWords: []
-    maxSizePreset: 100
-    minSizePreset: null
-    applySizeLimitsToApi: false
-    description: null
-    preselect: true
-    subtype: "EBOOK"
-  - name: "FLAC"
-    mayBeSelected: true
-    searchType: "MUSIC"
-    newznabCategories:
-    - "3040"
-    ignoreResultsFrom: "NONE"
-    applyRestrictionsType: "BOTH"
-    forbiddenRegex: null
-    forbiddenWords: []
-    requiredRegex: null
-    requiredWords: []
-    maxSizePreset: 2000
-    minSizePreset: 10
-    applySizeLimitsToApi: false
-    description: null
-    preselect: true
-    subtype: "NONE"
-  - name: "MP3"
-    mayBeSelected: true
-    searchType: "MUSIC"
-    newznabCategories:
-    - "3010"
-    ignoreResultsFrom: "NONE"
-    applyRestrictionsType: "BOTH"
-    forbiddenRegex: null
-    forbiddenWords: []
-    requiredRegex: null
-    requiredWords: []
-    maxSizePreset: 500
-    minSizePreset: 1
-    applySizeLimitsToApi: false
-    description: null
-    preselect: true
-    subtype: "NONE"
-  - name: "Movies"
-    mayBeSelected: true
-    searchType: "MOVIE"
-    newznabCategories:
-    - "2000"
-    ignoreResultsFrom: "NONE"
-    applyRestrictionsType: "BOTH"
-    forbiddenRegex: null
-    forbiddenWords: []
-    requiredRegex: null
-    requiredWords: []
-    maxSizePreset: 20000
-    minSizePreset: 500
-    applySizeLimitsToApi: false
-    description: null
-    preselect: true
-    subtype: "NONE"
-  - name: "Movies HD"
-    mayBeSelected: true
-    searchType: "MOVIE"
-    newznabCategories:
-    - "2040"
-    - "2050"
-    - "2060"
-    - "2070"
-    ignoreResultsFrom: "NONE"
-    applyRestrictionsType: "BOTH"
-    forbiddenRegex: null
-    forbiddenWords: []
-    requiredRegex: null
-    requiredWords: []
-    maxSizePreset: 20000
-    minSizePreset: 3000
-    applySizeLimitsToApi: false
-    description: null
-    preselect: true
-    subtype: "NONE"
-  - name: "Movies SD"
-    mayBeSelected: true
-    searchType: "MOVIE"
-    newznabCategories:
-    - "2030"
-    ignoreResultsFrom: "NONE"
-    applyRestrictionsType: "BOTH"
-    forbiddenRegex: null
-    forbiddenWords: []
-    requiredRegex: null
-    requiredWords: []
-    maxSizePreset: 3000
-    minSizePreset: 500
-    applySizeLimitsToApi: false
-    description: null
-    preselect: true
-    subtype: "NONE"
-  - name: "PC"
-    mayBeSelected: true
-    searchType: "SEARCH"
-    newznabCategories:
-    - "4000"
-    ignoreResultsFrom: "NONE"
-    applyRestrictionsType: "BOTH"
-    forbiddenRegex: null
-    forbiddenWords: []
-    requiredRegex: null
-    requiredWords: []
-    maxSizePreset: 50000
-    minSizePreset: 100
-    applySizeLimitsToApi: false
-    description: null
-    preselect: true
-    subtype: "NONE"
-  - name: "TV"
-    mayBeSelected: true
-    searchType: "TVSEARCH"
-    newznabCategories:
-    - "5000"
-    ignoreResultsFrom: "NONE"
-    applyRestrictionsType: "BOTH"
-    forbiddenRegex: null
-    forbiddenWords: []
-    requiredRegex: null
-    requiredWords: []
-    maxSizePreset: 5000
-    minSizePreset: 50
-    applySizeLimitsToApi: false
-    description: null
-    preselect: true
-    subtype: "NONE"
-  - name: "TV HD"
-    mayBeSelected: true
-    searchType: "TVSEARCH"
-    newznabCategories:
-    - "5040"
-    ignoreResultsFrom: "NONE"
-    applyRestrictionsType: "BOTH"
-    forbiddenRegex: null
-    forbiddenWords: []
-    requiredRegex: null
-    requiredWords: []
-    maxSizePreset: 4500
-    minSizePreset: 300
-    applySizeLimitsToApi: false
-    description: null
-    preselect: true
-    subtype: "NONE"
-  - name: "TV SD"
-    mayBeSelected: true
-    searchType: "TVSEARCH"
-    newznabCategories:
-    - "5030"
-    ignoreResultsFrom: "NONE"
-    applyRestrictionsType: "BOTH"
-    forbiddenRegex: null
-    forbiddenWords: []
-    requiredRegex: null
-    requiredWords: []
-    maxSizePreset: 1000
-    minSizePreset: 50
-    applySizeLimitsToApi: false
-    description: null
-    preselect: true
-    subtype: "NONE"
-  - name: "XXX"
-    mayBeSelected: true
-    searchType: "SEARCH"
-    newznabCategories:
-    - "6000"
-    ignoreResultsFrom: "NONE"
-    applyRestrictionsType: "BOTH"
-    forbiddenRegex: null
-    forbiddenWords: []
-    requiredRegex: null
-    requiredWords: []
-    maxSizePreset: 10000
-    minSizePreset: 100
-    applySizeLimitsToApi: false
-    description: null
-    preselect: true
-    subtype: "NONE"
+    - name: "Anime"
+      mayBeSelected: true
+      searchType: "SEARCH"
+      newznabCategories:
+        - "5070"
+      ignoreResultsFrom: "NONE"
+      applyRestrictionsType: "BOTH"
+      forbiddenRegex: null
+      forbiddenWords: []
+      requiredRegex: null
+      requiredWords: []
+      maxSizePreset: 3000
+      minSizePreset: 50
+      applySizeLimitsToApi: false
+      description: null
+      preselect: true
+      subtype: "ANIME"
+    - name: "Audio"
+      mayBeSelected: true
+      searchType: "MUSIC"
+      newznabCategories:
+        - "3000"
+      ignoreResultsFrom: "NONE"
+      applyRestrictionsType: "BOTH"
+      forbiddenRegex: null
+      forbiddenWords: []
+      requiredRegex: null
+      requiredWords: []
+      maxSizePreset: 2000
+      minSizePreset: 1
+      applySizeLimitsToApi: false
+      description: null
+      preselect: true
+      subtype: "NONE"
+    - name: "Audiobook"
+      mayBeSelected: true
+      searchType: "MUSIC"
+      newznabCategories:
+        - "3030"
+      ignoreResultsFrom: "NONE"
+      applyRestrictionsType: "BOTH"
+      forbiddenRegex: null
+      forbiddenWords: []
+      requiredRegex: null
+      requiredWords: []
+      maxSizePreset: 1000
+      minSizePreset: 50
+      applySizeLimitsToApi: false
+      description: null
+      preselect: true
+      subtype: "AUDIOBOOK"
+    - name: "Comic"
+      mayBeSelected: true
+      searchType: "SEARCH"
+      newznabCategories:
+        - "7030"
+      ignoreResultsFrom: "NONE"
+      applyRestrictionsType: "BOTH"
+      forbiddenRegex: null
+      forbiddenWords: []
+      requiredRegex: null
+      requiredWords: []
+      maxSizePreset: 250
+      minSizePreset: 1
+      applySizeLimitsToApi: false
+      description: null
+      preselect: true
+      subtype: "COMIC"
+    - name: "Console"
+      mayBeSelected: true
+      searchType: "SEARCH"
+      newznabCategories:
+        - "1000"
+      ignoreResultsFrom: "NONE"
+      applyRestrictionsType: "BOTH"
+      forbiddenRegex: null
+      forbiddenWords: []
+      requiredRegex: null
+      requiredWords: []
+      maxSizePreset: 40000
+      minSizePreset: 100
+      applySizeLimitsToApi: false
+      description: null
+      preselect: true
+      subtype: "NONE"
+    - name: "Ebook"
+      mayBeSelected: true
+      searchType: "BOOK"
+      newznabCategories:
+        - "7020"
+        - "8010"
+      ignoreResultsFrom: "NONE"
+      applyRestrictionsType: "BOTH"
+      forbiddenRegex: null
+      forbiddenWords: []
+      requiredRegex: null
+      requiredWords: []
+      maxSizePreset: 100
+      minSizePreset: null
+      applySizeLimitsToApi: false
+      description: null
+      preselect: true
+      subtype: "EBOOK"
+    - name: "FLAC"
+      mayBeSelected: true
+      searchType: "MUSIC"
+      newznabCategories:
+        - "3040"
+      ignoreResultsFrom: "NONE"
+      applyRestrictionsType: "BOTH"
+      forbiddenRegex: null
+      forbiddenWords: []
+      requiredRegex: null
+      requiredWords: []
+      maxSizePreset: 2000
+      minSizePreset: 10
+      applySizeLimitsToApi: false
+      description: null
+      preselect: true
+      subtype: "NONE"
+    - name: "MP3"
+      mayBeSelected: true
+      searchType: "MUSIC"
+      newznabCategories:
+        - "3010"
+      ignoreResultsFrom: "NONE"
+      applyRestrictionsType: "BOTH"
+      forbiddenRegex: null
+      forbiddenWords: []
+      requiredRegex: null
+      requiredWords: []
+      maxSizePreset: 500
+      minSizePreset: 1
+      applySizeLimitsToApi: false
+      description: null
+      preselect: true
+      subtype: "NONE"
+    - name: "Movies"
+      mayBeSelected: true
+      searchType: "MOVIE"
+      newznabCategories:
+        - "2000"
+      ignoreResultsFrom: "NONE"
+      applyRestrictionsType: "BOTH"
+      forbiddenRegex: null
+      forbiddenWords: []
+      requiredRegex: null
+      requiredWords: []
+      maxSizePreset: 20000
+      minSizePreset: 500
+      applySizeLimitsToApi: false
+      description: null
+      preselect: true
+      subtype: "NONE"
+    - name: "Movies HD"
+      mayBeSelected: true
+      searchType: "MOVIE"
+      newznabCategories:
+        - "2040"
+        - "2050"
+        - "2060"
+        - "2070"
+      ignoreResultsFrom: "NONE"
+      applyRestrictionsType: "BOTH"
+      forbiddenRegex: null
+      forbiddenWords: []
+      requiredRegex: null
+      requiredWords: []
+      maxSizePreset: 20000
+      minSizePreset: 3000
+      applySizeLimitsToApi: false
+      description: null
+      preselect: true
+      subtype: "NONE"
+    - name: "Movies SD"
+      mayBeSelected: true
+      searchType: "MOVIE"
+      newznabCategories:
+        - "2030"
+      ignoreResultsFrom: "NONE"
+      applyRestrictionsType: "BOTH"
+      forbiddenRegex: null
+      forbiddenWords: []
+      requiredRegex: null
+      requiredWords: []
+      maxSizePreset: 3000
+      minSizePreset: 500
+      applySizeLimitsToApi: false
+      description: null
+      preselect: true
+      subtype: "NONE"
+    - name: "PC"
+      mayBeSelected: true
+      searchType: "SEARCH"
+      newznabCategories:
+        - "4000"
+      ignoreResultsFrom: "NONE"
+      applyRestrictionsType: "BOTH"
+      forbiddenRegex: null
+      forbiddenWords: []
+      requiredRegex: null
+      requiredWords: []
+      maxSizePreset: 50000
+      minSizePreset: 100
+      applySizeLimitsToApi: false
+      description: null
+      preselect: true
+      subtype: "NONE"
+    - name: "TV"
+      mayBeSelected: true
+      searchType: "TVSEARCH"
+      newznabCategories:
+        - "5000"
+      ignoreResultsFrom: "NONE"
+      applyRestrictionsType: "BOTH"
+      forbiddenRegex: null
+      forbiddenWords: []
+      requiredRegex: null
+      requiredWords: []
+      maxSizePreset: 5000
+      minSizePreset: 50
+      applySizeLimitsToApi: false
+      description: null
+      preselect: true
+      subtype: "NONE"
+    - name: "TV HD"
+      mayBeSelected: true
+      searchType: "TVSEARCH"
+      newznabCategories:
+        - "5040"
+      ignoreResultsFrom: "NONE"
+      applyRestrictionsType: "BOTH"
+      forbiddenRegex: null
+      forbiddenWords: []
+      requiredRegex: null
+      requiredWords: []
+      maxSizePreset: 4500
+      minSizePreset: 300
+      applySizeLimitsToApi: false
+      description: null
+      preselect: true
+      subtype: "NONE"
+    - name: "TV SD"
+      mayBeSelected: true
+      searchType: "TVSEARCH"
+      newznabCategories:
+        - "5030"
+      ignoreResultsFrom: "NONE"
+      applyRestrictionsType: "BOTH"
+      forbiddenRegex: null
+      forbiddenWords: []
+      requiredRegex: null
+      requiredWords: []
+      maxSizePreset: 1000
+      minSizePreset: 50
+      applySizeLimitsToApi: false
+      description: null
+      preselect: true
+      subtype: "NONE"
+    - name: "XXX"
+      mayBeSelected: true
+      searchType: "SEARCH"
+      newznabCategories:
+        - "6000"
+      ignoreResultsFrom: "NONE"
+      applyRestrictionsType: "BOTH"
+      forbiddenRegex: null
+      forbiddenWords: []
+      requiredRegex: null
+      requiredWords: []
+      maxSizePreset: 10000
+      minSizePreset: 100
+      applySizeLimitsToApi: false
+      description: null
+      preselect: true
+      subtype: "NONE"
   defaultCategory: "All"
 downloading:
   downloaders:
-  - apiKey: null
-    defaultCategory: null
-    downloadType: "NZB"
-    enabled: true
-    iconCssClass: null
-    name: "NZBGet"
-    nzbAddingType: "UPLOAD"
-    downloaderType: "NZBGET"
-    url: "http://nzbget:nzbget@localhost:6789"
-    username: "nzbget"
-    password: "nzbget"
-    addPaused: false
+    - apiKey: null
+      defaultCategory: null
+      downloadType: "NZB"
+      enabled: true
+      iconCssClass: null
+      name: "NZBGet"
+      nzbAddingType: "UPLOAD"
+      downloaderType: "NZBGET"
+      url: "http://nzbget:nzbget@localhost:6789"
+      username: "nzbget"
+      password: "nzbget"
+      addPaused: false
   saveTorrentsTo: "/downloads/torrent/blackhole"
   saveNzbsTo: "/downloads/usenet/blackhole"
   sendMagnetLinks: true
@@ -322,741 +322,741 @@ downloading:
   externalUrl: null
   primaryDownloader: null
 indexers:
-- allCapsChecked: true
-  apiKey: "3pod18qrg9drngwzn7ps3nthi0g7ydia"
-  apiPath: null
-  backend: "NEWZNAB"
-  categoryMapping:
-    anime: 100028
-    audiobook: 100052
-    comic: 100039
-    ebook: 100036
-    magazine: 100050
-    categories:
-    - id: 1000
-      name: "Console"
-      subCategories:
-      - id: 1010
-        name: "Console/NDS"
-      - id: 1020
-        name: "Console/PSP"
-      - id: 1030
-        name: "Console/Wii"
-      - id: 1040
-        name: "Console/XBox"
-      - id: 1050
-        name: "Console/XBox 360"
-      - id: 1080
-        name: "Console/PS3"
-      - id: 1090
-        name: "Console/Other"
-      - id: 1110
-        name: "Console/3DS"
-      - id: 1180
-        name: "Console/PS4"
-    - id: 2000
-      name: "Movies"
-      subCategories:
-      - id: 2010
-        name: "Movies/Foreign"
-      - id: 2030
-        name: "Movies/SD"
-      - id: 2040
-        name: "Movies/HD"
-      - id: 2045
-        name: "Movies/UHD"
-      - id: 2060
-        name: "Movies/3D"
-      - id: 2070
-        name: "Movies/DVD"
-    - id: 3000
-      name: "Audio"
-      subCategories:
-      - id: 3010
-        name: "Audio/MP3"
-      - id: 3020
-        name: "Audio/Video"
-      - id: 3030
-        name: "Audio/Audiobook"
-      - id: 3040
-        name: "Audio/Lossless"
-      - id: 3050
-        name: "Audio/Other"
-    - id: 4000
-      name: "PC"
-      subCategories:
-      - id: 4030
-        name: "PC/Mac"
-      - id: 4040
-        name: "PC/Mobile-Other"
-      - id: 4050
-        name: "PC/Games"
-      - id: 4060
-        name: "PC/Mobile-iOS"
-      - id: 4070
-        name: "PC/Mobile-Android"
-    - id: 5000
-      name: "TV"
-      subCategories:
-      - id: 5030
-        name: "TV/SD"
-      - id: 5040
-        name: "TV/HD"
-      - id: 5070
-        name: "TV/Anime"
-      - id: 5080
-        name: "TV/Documentary"
-    - id: 6000
-      name: "XXX"
-      subCategories:
-      - id: 6010
-        name: "XXX/DVD"
-      - id: 6060
-        name: "XXX/ImageSet"
-    - id: 7000
-      name: "Books"
-      subCategories:
-      - id: 7020
-        name: "Books/EBook"
-      - id: 7030
-        name: "Books/Comics"
-    - id: 8000
-      name: "Other"
-      subCategories:
-      - id: 8010
-        name: "Other/Misc"
-    - id: 100028
-      name: "Anime/Anime"
-      subCategories: []
-    - id: 100078
-      name: "Anime/Dual Audio"
-      subCategories: []
-    - id: 100079
-      name: "Anime/Dubbed"
-      subCategories: []
-    - id: 100081
-      name: "Anime/Raw"
-      subCategories: []
-    - id: 100080
-      name: "Anime/Subbed"
-      subCategories: []
-    - id: 100056
-      name: "Apps/Android"
-      subCategories: []
-    - id: 100057
-      name: "Apps/iOS"
-      subCategories: []
-    - id: 100020
-      name: "Apps/Linux"
-      subCategories: []
-    - id: 100019
-      name: "Apps/Mac"
-      subCategories: []
-    - id: 100021
-      name: "Apps/Other"
-      subCategories: []
-    - id: 100018
-      name: "Apps/PC Software"
-      subCategories: []
-    - id: 100072
-      name: "Games/3DS"
-      subCategories: []
-    - id: 100016
-      name: "Games/Dreamcast"
-      subCategories: []
-    - id: 100045
-      name: "Games/DS"
-      subCategories: []
-    - id: 100046
-      name: "Games/GameCube"
-      subCategories: []
-    - id: 100017
-      name: "Games/Other"
-      subCategories: []
-    - id: 100010
-      name: "Games/PC Game"
-      subCategories: []
-    - id: 100015
-      name: "Games/PS1"
-      subCategories: []
-    - id: 100011
-      name: "Games/PS2"
-      subCategories: []
-    - id: 100043
-      name: "Games/PS3"
-      subCategories: []
-    - id: 100077
-      name: "Games/PS4"
-      subCategories: []
-    - id: 100012
-      name: "Games/PSP"
-      subCategories: []
-    - id: 100082
-      name: "Games/Switch"
-      subCategories: []
-    - id: 100044
-      name: "Games/Wii"
-      subCategories: []
-    - id: 100013
-      name: "Games/Xbox"
-      subCategories: []
-    - id: 100014
-      name: "Games/Xbox360"
-      subCategories: []
-    - id: 100066
-      name: "Movies/3D"
-      subCategories: []
-    - id: 100073
-      name: "Movies/Bollywood"
-      subCategories: []
-    - id: 100002
-      name: "Movies/Divx/Xvid"
-      subCategories: []
-    - id: 100004
-      name: "Movies/Dubs/Dual Audio"
-      subCategories: []
-    - id: 100001
-      name: "Movies/DVD"
-      subCategories: []
-    - id: 100054
-      name: "Movies/h.264/x264"
-      subCategories: []
-    - id: 100042
-      name: "Movies/HD"
-      subCategories: []
-    - id: 100070
-      name: "Movies/HEVC/x265"
-      subCategories: []
-    - id: 100055
-      name: "Movies/Mp4"
-      subCategories: []
-    - id: 100003
-      name: "Movies/SVCD/VCD"
-      subCategories: []
-    - id: 100076
-      name: "Movies/UHD"
-      subCategories: []
-    - id: 100069
-      name: "Music/AAC"
-      subCategories: []
-    - id: 100053
-      name: "Music/Album"
-      subCategories: []
-    - id: 100058
-      name: "Music/Box set"
-      subCategories: []
-    - id: 100068
-      name: "Music/Concerts"
-      subCategories: []
-    - id: 100059
-      name: "Music/Discography"
-      subCategories: []
-    - id: 100024
-      name: "Music/DVD"
-      subCategories: []
-    - id: 100023
-      name: "Music/Lossless"
-      subCategories: []
-    - id: 100022
-      name: "Music/MP3"
-      subCategories: []
-    - id: 100027
-      name: "Music/Other"
-      subCategories: []
-    - id: 100026
-      name: "Music/Radio"
-      subCategories: []
-    - id: 100060
-      name: "Music/Single"
-      subCategories: []
-    - id: 100025
-      name: "Music/Video"
-      subCategories: []
-    - id: 100052
-      name: "Other/Audiobook"
-      subCategories: []
-    - id: 100039
-      name: "Other/Comics"
-      subCategories: []
-    - id: 100036
-      name: "Other/E-books"
-      subCategories: []
-    - id: 100033
-      name: "Other/Emulation"
-      subCategories: []
-    - id: 100037
-      name: "Other/Images"
-      subCategories: []
-    - id: 100038
-      name: "Other/Mobile Phone"
-      subCategories: []
-    - id: 100047
-      name: "Other/Nulled Script"
-      subCategories: []
-    - id: 100040
-      name: "Other/Other"
-      subCategories: []
-    - id: 100035
-      name: "Other/Sounds"
-      subCategories: []
-    - id: 100034
-      name: "Other/Tutorial"
-      subCategories: []
-    - id: 100074
-      name: "TV/Cartoons"
-      subCategories: []
-    - id: 100006
-      name: "TV/Divx/Xvid"
-      subCategories: []
-    - id: 100009
-      name: "TV/Documentary"
-      subCategories: []
-    - id: 100005
-      name: "TV/DVD"
-      subCategories: []
-    - id: 100041
-      name: "TV/HD"
-      subCategories: []
-    - id: 100071
-      name: "TV/HEVC/x265"
-      subCategories: []
-    - id: 100075
-      name: "TV/SD"
-      subCategories: []
-    - id: 100007
-      name: "TV/SVCD/VCD"
-      subCategories: []
-    - id: 100067
-      name: "XXX/Games"
-      subCategories: []
-    - id: 100051
-      name: "XXX/Hentai"
-      subCategories: []
-    - id: 100050
-      name: "XXX/Magazine"
-      subCategories: []
-    - id: 100049
-      name: "XXX/Picture"
-      subCategories: []
-    - id: 100048
-      name: "XXX/Video"
-      subCategories: []
-  color: null
-  configComplete: true
-  enabledCategories: []
-  downloadLimit: null
-  state: "ENABLED"
-  enabledForSearchSource: "BOTH"
-  generalMinSize: null
-  hitLimit: null
-  hitLimitResetTime: 0
-  host: "http://127.0.0.1:9117/jackett/api/v2.0/indexers/1337x/results/torznab"
-  lastError: null
-  disabledUntil: null
-  disabledLevel: 0
-  disabledAt: null
-  loadLimitOnRandom: null
-  minSeeders: null
-  name: "1337x"
-  password: null
-  customParameters: []
-  preselect: true
-  schedule: []
-  score: 0
-  searchModuleType: "TORZNAB"
-  showOnSearch: true
-  supportedSearchIds: []
-  supportedSearchTypes:
-  - "AUDIO"
-  - "BOOK"
-  timeout: null
-  username: null
-  userAgent: null
-  vipExpirationDate: null
-- allCapsChecked: true
-  apiKey: null
-  apiPath: null
-  backend: "NEWZNAB"
-  categoryMapping: null
-  color: null
-  configComplete: true
-  enabledCategories:
-  - "Anime"
-  - "Audio"
-  - "Audiobook"
-  - "Comic"
-  - "Console"
-  - "Ebook"
-  - "FLAC"
-  - "MP3"
-  - "Movies"
-  - "Movies HD"
-  - "Movies SD"
-  - "PC"
-  - "TV"
-  - "TV HD"
-  - "TV SD"
-  - "XXX"
-  downloadLimit: null
-  state: "ENABLED"
-  enabledForSearchSource: "BOTH"
-  generalMinSize: null
-  hitLimit: null
-  hitLimitResetTime: null
-  host: "https://binsearch.info"
-  lastError: null
-  disabledUntil: null
-  disabledLevel: 0
-  disabledAt: null
-  loadLimitOnRandom: null
-  minSeeders: null
-  name: "Binsearch"
-  password: null
-  customParameters: []
-  preselect: true
-  schedule: []
-  score: 0
-  searchModuleType: "BINSEARCH"
-  showOnSearch: true
-  supportedSearchIds: []
-  supportedSearchTypes: []
-  timeout: null
-  username: null
-  userAgent: null
-  vipExpirationDate: null
-- allCapsChecked: true
-  apiKey: null
-  apiPath: null
-  backend: "NEWZNAB"
-  categoryMapping: null
-  color: null
-  configComplete: true
-  enabledCategories:
-  - "Anime"
-  - "Audio"
-  - "Audiobook"
-  - "Comic"
-  - "Console"
-  - "Ebook"
-  - "FLAC"
-  - "MP3"
-  - "Movies"
-  - "Movies HD"
-  - "Movies SD"
-  - "PC"
-  - "TV"
-  - "TV HD"
-  - "TV SD"
-  - "XXX"
-  downloadLimit: null
-  state: "ENABLED"
-  enabledForSearchSource: "BOTH"
-  generalMinSize: 1
-  hitLimit: null
-  hitLimitResetTime: null
-  host: "https://nzbindex.com"
-  lastError: null
-  disabledUntil: null
-  disabledLevel: 0
-  disabledAt: null
-  loadLimitOnRandom: null
-  minSeeders: null
-  name: "NZBIndex"
-  password: null
-  customParameters: []
-  preselect: true
-  schedule: []
-  score: 0
-  searchModuleType: "NZBINDEX"
-  showOnSearch: true
-  supportedSearchIds: []
-  supportedSearchTypes: []
-  timeout: null
-  username: null
-  userAgent: null
-  vipExpirationDate: null
-- allCapsChecked: true
-  apiKey: "3pod18qrg9drngwzn7ps3nthi0g7ydia"
-  apiPath: null
-  backend: "NEWZNAB"
-  categoryMapping:
-    anime: null
-    audiobook: 3030
-    comic: 100602
-    ebook: 100601
-    magazine: null
-    categories:
-    - id: 1000
-      name: "Console"
-      subCategories:
-      - id: 1030
-        name: "Console/Wii"
-      - id: 1040
-        name: "Console/XBox"
-      - id: 1090
-        name: "Console/Other"
-      - id: 1180
-        name: "Console/PS4"
-    - id: 2000
-      name: "Movies"
-      subCategories:
-      - id: 2020
-        name: "Movies/Other"
-      - id: 2040
-        name: "Movies/HD"
-      - id: 2060
-        name: "Movies/3D"
-    - id: 3000
-      name: "Audio"
-      subCategories:
-      - id: 3020
-        name: "Audio/Video"
-      - id: 3030
-        name: "Audio/Audiobook"
-      - id: 3040
-        name: "Audio/Lossless"
-      - id: 3050
-        name: "Audio/Other"
-    - id: 4000
-      name: "PC"
-      subCategories:
-      - id: 4030
-        name: "PC/Mac"
-      - id: 4040
-        name: "PC/Mobile-Other"
-      - id: 4050
-        name: "PC/Games"
-      - id: 4060
-        name: "PC/Mobile-iOS"
-      - id: 4070
-        name: "PC/Mobile-Android"
-    - id: 5000
-      name: "TV"
-      subCategories:
-      - id: 5040
-        name: "TV/HD"
-      - id: 5050
-        name: "TV/Other"
-    - id: 6000
-      name: "XXX"
-      subCategories:
-      - id: 6010
-        name: "XXX/DVD"
-      - id: 6060
-        name: "XXX/ImageSet"
-      - id: 6070
-        name: "XXX/Other"
-    - id: 7000
-      name: "Books"
-      subCategories:
-      - id: 7030
-        name: "Books/Comics"
-      - id: 7050
-        name: "Books/Other"
-    - id: 8000
-      name: "Other"
-      subCategories: []
-    - id: 100209
-      name: "3D"
-      subCategories: []
-    - id: 100306
-      name: "Android"
-      subCategories: []
-    - id: 100408
-      name: "Android"
-      subCategories: []
-    - id: 100300
-      name: "Applications"
-      subCategories: []
-    - id: 100100
-      name: "Audio"
-      subCategories: []
-    - id: 100102
-      name: "Audio Books"
-      subCategories: []
-    - id: 100199
-      name: "Audio Other"
-      subCategories: []
-    - id: 100602
-      name: "Comics"
-      subCategories: []
-    - id: 100604
-      name: "Covers"
-      subCategories: []
-    - id: 100601
-      name: "E-books"
-      subCategories: []
-    - id: 100104
-      name: "FLAC"
-      subCategories: []
-    - id: 100400
-      name: "Games"
-      subCategories: []
-    - id: 100504
-      name: "Games"
-      subCategories: []
-    - id: 100499
-      name: "Games Other"
-      subCategories: []
-    - id: 100206
-      name: "Handheld"
-      subCategories: []
-    - id: 100304
-      name: "Handheld"
-      subCategories: []
-    - id: 100406
-      name: "Handheld"
-      subCategories: []
-    - id: 100207
-      name: "HD - Movies"
-      subCategories: []
-    - id: 100505
-      name: "HD - Movies"
-      subCategories: []
-    - id: 100208
-      name: "HD - TV shows"
-      subCategories: []
-    - id: 100305
-      name: "IOS (iPad/iPhone)"
-      subCategories: []
-    - id: 100407
-      name: "IOS (iPad/iPhone)"
-      subCategories: []
-    - id: 100302
-      name: "Mac"
-      subCategories: []
-    - id: 100402
-      name: "Mac"
-      subCategories: []
-    - id: 100204
-      name: "Movie Clips"
-      subCategories: []
-    - id: 100506
-      name: "Movie Clips"
-      subCategories: []
-    - id: 100201
-      name: "Movies"
-      subCategories: []
-    - id: 100202
-      name: "Movies"
-      subCategories: []
-    - id: 100501
-      name: "Movies"
-      subCategories: []
-    - id: 100502
-      name: "Movies DVDR"
-      subCategories: []
-    - id: 100101
-      name: "Music"
-      subCategories: []
-    - id: 100203
-      name: "Music Videos"
-      subCategories: []
-    - id: 100600
-      name: "Other"
-      subCategories: []
-    - id: 100399
-      name: "Other OS"
-      subCategories: []
-    - id: 100699
-      name: "Other Other"
-      subCategories: []
-    - id: 100401
-      name: "PC"
-      subCategories: []
-    - id: 100605
-      name: "Physibles"
-      subCategories: []
-    - id: 100503
-      name: "Pictures"
-      subCategories: []
-    - id: 100603
-      name: "Pictures"
-      subCategories: []
-    - id: 100500
-      name: "Porn"
-      subCategories: []
-    - id: 100599
-      name: "Porn other"
-      subCategories: []
-    - id: 100403
-      name: "PSx"
-      subCategories: []
-    - id: 100103
-      name: "Sound Clips"
-      subCategories: []
-    - id: 100205
-      name: "TV"
-      subCategories: []
-    - id: 100303
-      name: "UNIX"
-      subCategories: []
-    - id: 100200
-      name: "Video"
-      subCategories: []
-    - id: 100299
-      name: "Video Other"
-      subCategories: []
-    - id: 100405
-      name: "Wii"
-      subCategories: []
-    - id: 100301
-      name: "Windows"
-      subCategories: []
-    - id: 100404
-      name: "XBOX360"
-      subCategories: []
-  color: null
-  configComplete: true
-  enabledCategories:
-  - "Anime"
-  - "Audio"
-  - "Audiobook"
-  - "Comic"
-  - "Console"
-  - "Ebook"
-  - "FLAC"
-  - "MP3"
-  - "Movies"
-  - "Movies HD"
-  - "Movies SD"
-  - "PC"
-  - "TV"
-  - "TV HD"
-  - "TV SD"
-  - "XXX"
-  downloadLimit: null
-  state: "ENABLED"
-  enabledForSearchSource: "BOTH"
-  generalMinSize: null
-  hitLimit: null
-  hitLimitResetTime: 0
-  host: "http://127.0.0.1:9117/jackett/api/v2.0/indexers/thepiratebay/results/torznab"
-  lastError: null
-  disabledUntil: null
-  disabledLevel: 0
-  disabledAt: null
-  loadLimitOnRandom: null
-  minSeeders: null
-  name: "The Pirate Bay"
-  password: null
-  customParameters: []
-  preselect: true
-  schedule: []
-  score: 0
-  searchModuleType: "TORZNAB"
-  showOnSearch: true
-  supportedSearchIds: []
-  supportedSearchTypes:
-  - "SEARCH"
-  - "AUDIO"
-  - "TVSEARCH"
-  - "MOVIE"
-  - "BOOK"
-  timeout: null
-  username: null
-  userAgent: null
-  vipExpirationDate: null
+  - allCapsChecked: true
+    apiKey: "3pod18qrg9drngwzn7ps3nthi0g7ydia"
+    apiPath: null
+    backend: "NEWZNAB"
+    categoryMapping:
+      anime: 100028
+      audiobook: 100052
+      comic: 100039
+      ebook: 100036
+      magazine: 100050
+      categories:
+        - id: 1000
+          name: "Console"
+          subCategories:
+            - id: 1010
+              name: "Console/NDS"
+            - id: 1020
+              name: "Console/PSP"
+            - id: 1030
+              name: "Console/Wii"
+            - id: 1040
+              name: "Console/XBox"
+            - id: 1050
+              name: "Console/XBox 360"
+            - id: 1080
+              name: "Console/PS3"
+            - id: 1090
+              name: "Console/Other"
+            - id: 1110
+              name: "Console/3DS"
+            - id: 1180
+              name: "Console/PS4"
+        - id: 2000
+          name: "Movies"
+          subCategories:
+            - id: 2010
+              name: "Movies/Foreign"
+            - id: 2030
+              name: "Movies/SD"
+            - id: 2040
+              name: "Movies/HD"
+            - id: 2045
+              name: "Movies/UHD"
+            - id: 2060
+              name: "Movies/3D"
+            - id: 2070
+              name: "Movies/DVD"
+        - id: 3000
+          name: "Audio"
+          subCategories:
+            - id: 3010
+              name: "Audio/MP3"
+            - id: 3020
+              name: "Audio/Video"
+            - id: 3030
+              name: "Audio/Audiobook"
+            - id: 3040
+              name: "Audio/Lossless"
+            - id: 3050
+              name: "Audio/Other"
+        - id: 4000
+          name: "PC"
+          subCategories:
+            - id: 4030
+              name: "PC/Mac"
+            - id: 4040
+              name: "PC/Mobile-Other"
+            - id: 4050
+              name: "PC/Games"
+            - id: 4060
+              name: "PC/Mobile-iOS"
+            - id: 4070
+              name: "PC/Mobile-Android"
+        - id: 5000
+          name: "TV"
+          subCategories:
+            - id: 5030
+              name: "TV/SD"
+            - id: 5040
+              name: "TV/HD"
+            - id: 5070
+              name: "TV/Anime"
+            - id: 5080
+              name: "TV/Documentary"
+        - id: 6000
+          name: "XXX"
+          subCategories:
+            - id: 6010
+              name: "XXX/DVD"
+            - id: 6060
+              name: "XXX/ImageSet"
+        - id: 7000
+          name: "Books"
+          subCategories:
+            - id: 7020
+              name: "Books/EBook"
+            - id: 7030
+              name: "Books/Comics"
+        - id: 8000
+          name: "Other"
+          subCategories:
+            - id: 8010
+              name: "Other/Misc"
+        - id: 100028
+          name: "Anime/Anime"
+          subCategories: []
+        - id: 100078
+          name: "Anime/Dual Audio"
+          subCategories: []
+        - id: 100079
+          name: "Anime/Dubbed"
+          subCategories: []
+        - id: 100081
+          name: "Anime/Raw"
+          subCategories: []
+        - id: 100080
+          name: "Anime/Subbed"
+          subCategories: []
+        - id: 100056
+          name: "Apps/Android"
+          subCategories: []
+        - id: 100057
+          name: "Apps/iOS"
+          subCategories: []
+        - id: 100020
+          name: "Apps/Linux"
+          subCategories: []
+        - id: 100019
+          name: "Apps/Mac"
+          subCategories: []
+        - id: 100021
+          name: "Apps/Other"
+          subCategories: []
+        - id: 100018
+          name: "Apps/PC Software"
+          subCategories: []
+        - id: 100072
+          name: "Games/3DS"
+          subCategories: []
+        - id: 100016
+          name: "Games/Dreamcast"
+          subCategories: []
+        - id: 100045
+          name: "Games/DS"
+          subCategories: []
+        - id: 100046
+          name: "Games/GameCube"
+          subCategories: []
+        - id: 100017
+          name: "Games/Other"
+          subCategories: []
+        - id: 100010
+          name: "Games/PC Game"
+          subCategories: []
+        - id: 100015
+          name: "Games/PS1"
+          subCategories: []
+        - id: 100011
+          name: "Games/PS2"
+          subCategories: []
+        - id: 100043
+          name: "Games/PS3"
+          subCategories: []
+        - id: 100077
+          name: "Games/PS4"
+          subCategories: []
+        - id: 100012
+          name: "Games/PSP"
+          subCategories: []
+        - id: 100082
+          name: "Games/Switch"
+          subCategories: []
+        - id: 100044
+          name: "Games/Wii"
+          subCategories: []
+        - id: 100013
+          name: "Games/Xbox"
+          subCategories: []
+        - id: 100014
+          name: "Games/Xbox360"
+          subCategories: []
+        - id: 100066
+          name: "Movies/3D"
+          subCategories: []
+        - id: 100073
+          name: "Movies/Bollywood"
+          subCategories: []
+        - id: 100002
+          name: "Movies/Divx/Xvid"
+          subCategories: []
+        - id: 100004
+          name: "Movies/Dubs/Dual Audio"
+          subCategories: []
+        - id: 100001
+          name: "Movies/DVD"
+          subCategories: []
+        - id: 100054
+          name: "Movies/h.264/x264"
+          subCategories: []
+        - id: 100042
+          name: "Movies/HD"
+          subCategories: []
+        - id: 100070
+          name: "Movies/HEVC/x265"
+          subCategories: []
+        - id: 100055
+          name: "Movies/Mp4"
+          subCategories: []
+        - id: 100003
+          name: "Movies/SVCD/VCD"
+          subCategories: []
+        - id: 100076
+          name: "Movies/UHD"
+          subCategories: []
+        - id: 100069
+          name: "Music/AAC"
+          subCategories: []
+        - id: 100053
+          name: "Music/Album"
+          subCategories: []
+        - id: 100058
+          name: "Music/Box set"
+          subCategories: []
+        - id: 100068
+          name: "Music/Concerts"
+          subCategories: []
+        - id: 100059
+          name: "Music/Discography"
+          subCategories: []
+        - id: 100024
+          name: "Music/DVD"
+          subCategories: []
+        - id: 100023
+          name: "Music/Lossless"
+          subCategories: []
+        - id: 100022
+          name: "Music/MP3"
+          subCategories: []
+        - id: 100027
+          name: "Music/Other"
+          subCategories: []
+        - id: 100026
+          name: "Music/Radio"
+          subCategories: []
+        - id: 100060
+          name: "Music/Single"
+          subCategories: []
+        - id: 100025
+          name: "Music/Video"
+          subCategories: []
+        - id: 100052
+          name: "Other/Audiobook"
+          subCategories: []
+        - id: 100039
+          name: "Other/Comics"
+          subCategories: []
+        - id: 100036
+          name: "Other/E-books"
+          subCategories: []
+        - id: 100033
+          name: "Other/Emulation"
+          subCategories: []
+        - id: 100037
+          name: "Other/Images"
+          subCategories: []
+        - id: 100038
+          name: "Other/Mobile Phone"
+          subCategories: []
+        - id: 100047
+          name: "Other/Nulled Script"
+          subCategories: []
+        - id: 100040
+          name: "Other/Other"
+          subCategories: []
+        - id: 100035
+          name: "Other/Sounds"
+          subCategories: []
+        - id: 100034
+          name: "Other/Tutorial"
+          subCategories: []
+        - id: 100074
+          name: "TV/Cartoons"
+          subCategories: []
+        - id: 100006
+          name: "TV/Divx/Xvid"
+          subCategories: []
+        - id: 100009
+          name: "TV/Documentary"
+          subCategories: []
+        - id: 100005
+          name: "TV/DVD"
+          subCategories: []
+        - id: 100041
+          name: "TV/HD"
+          subCategories: []
+        - id: 100071
+          name: "TV/HEVC/x265"
+          subCategories: []
+        - id: 100075
+          name: "TV/SD"
+          subCategories: []
+        - id: 100007
+          name: "TV/SVCD/VCD"
+          subCategories: []
+        - id: 100067
+          name: "XXX/Games"
+          subCategories: []
+        - id: 100051
+          name: "XXX/Hentai"
+          subCategories: []
+        - id: 100050
+          name: "XXX/Magazine"
+          subCategories: []
+        - id: 100049
+          name: "XXX/Picture"
+          subCategories: []
+        - id: 100048
+          name: "XXX/Video"
+          subCategories: []
+    color: null
+    configComplete: true
+    enabledCategories: []
+    downloadLimit: null
+    state: "ENABLED"
+    enabledForSearchSource: "BOTH"
+    generalMinSize: null
+    hitLimit: null
+    hitLimitResetTime: 0
+    host: "http://127.0.0.1:9117/jackett/api/v2.0/indexers/1337x/results/torznab"
+    lastError: null
+    disabledUntil: null
+    disabledLevel: 0
+    disabledAt: null
+    loadLimitOnRandom: null
+    minSeeders: null
+    name: "1337x"
+    password: null
+    customParameters: []
+    preselect: true
+    schedule: []
+    score: 0
+    searchModuleType: "TORZNAB"
+    showOnSearch: true
+    supportedSearchIds: []
+    supportedSearchTypes:
+      - "AUDIO"
+      - "BOOK"
+    timeout: null
+    username: null
+    userAgent: null
+    vipExpirationDate: null
+  - allCapsChecked: true
+    apiKey: null
+    apiPath: null
+    backend: "NEWZNAB"
+    categoryMapping: null
+    color: null
+    configComplete: true
+    enabledCategories:
+      - "Anime"
+      - "Audio"
+      - "Audiobook"
+      - "Comic"
+      - "Console"
+      - "Ebook"
+      - "FLAC"
+      - "MP3"
+      - "Movies"
+      - "Movies HD"
+      - "Movies SD"
+      - "PC"
+      - "TV"
+      - "TV HD"
+      - "TV SD"
+      - "XXX"
+    downloadLimit: null
+    state: "ENABLED"
+    enabledForSearchSource: "BOTH"
+    generalMinSize: null
+    hitLimit: null
+    hitLimitResetTime: null
+    host: "https://binsearch.info"
+    lastError: null
+    disabledUntil: null
+    disabledLevel: 0
+    disabledAt: null
+    loadLimitOnRandom: null
+    minSeeders: null
+    name: "Binsearch"
+    password: null
+    customParameters: []
+    preselect: true
+    schedule: []
+    score: 0
+    searchModuleType: "BINSEARCH"
+    showOnSearch: true
+    supportedSearchIds: []
+    supportedSearchTypes: []
+    timeout: null
+    username: null
+    userAgent: null
+    vipExpirationDate: null
+  - allCapsChecked: true
+    apiKey: null
+    apiPath: null
+    backend: "NEWZNAB"
+    categoryMapping: null
+    color: null
+    configComplete: true
+    enabledCategories:
+      - "Anime"
+      - "Audio"
+      - "Audiobook"
+      - "Comic"
+      - "Console"
+      - "Ebook"
+      - "FLAC"
+      - "MP3"
+      - "Movies"
+      - "Movies HD"
+      - "Movies SD"
+      - "PC"
+      - "TV"
+      - "TV HD"
+      - "TV SD"
+      - "XXX"
+    downloadLimit: null
+    state: "ENABLED"
+    enabledForSearchSource: "BOTH"
+    generalMinSize: 1
+    hitLimit: null
+    hitLimitResetTime: null
+    host: "https://nzbindex.com"
+    lastError: null
+    disabledUntil: null
+    disabledLevel: 0
+    disabledAt: null
+    loadLimitOnRandom: null
+    minSeeders: null
+    name: "NZBIndex"
+    password: null
+    customParameters: []
+    preselect: true
+    schedule: []
+    score: 0
+    searchModuleType: "NZBINDEX"
+    showOnSearch: true
+    supportedSearchIds: []
+    supportedSearchTypes: []
+    timeout: null
+    username: null
+    userAgent: null
+    vipExpirationDate: null
+  - allCapsChecked: true
+    apiKey: "3pod18qrg9drngwzn7ps3nthi0g7ydia"
+    apiPath: null
+    backend: "NEWZNAB"
+    categoryMapping:
+      anime: null
+      audiobook: 3030
+      comic: 100602
+      ebook: 100601
+      magazine: null
+      categories:
+        - id: 1000
+          name: "Console"
+          subCategories:
+            - id: 1030
+              name: "Console/Wii"
+            - id: 1040
+              name: "Console/XBox"
+            - id: 1090
+              name: "Console/Other"
+            - id: 1180
+              name: "Console/PS4"
+        - id: 2000
+          name: "Movies"
+          subCategories:
+            - id: 2020
+              name: "Movies/Other"
+            - id: 2040
+              name: "Movies/HD"
+            - id: 2060
+              name: "Movies/3D"
+        - id: 3000
+          name: "Audio"
+          subCategories:
+            - id: 3020
+              name: "Audio/Video"
+            - id: 3030
+              name: "Audio/Audiobook"
+            - id: 3040
+              name: "Audio/Lossless"
+            - id: 3050
+              name: "Audio/Other"
+        - id: 4000
+          name: "PC"
+          subCategories:
+            - id: 4030
+              name: "PC/Mac"
+            - id: 4040
+              name: "PC/Mobile-Other"
+            - id: 4050
+              name: "PC/Games"
+            - id: 4060
+              name: "PC/Mobile-iOS"
+            - id: 4070
+              name: "PC/Mobile-Android"
+        - id: 5000
+          name: "TV"
+          subCategories:
+            - id: 5040
+              name: "TV/HD"
+            - id: 5050
+              name: "TV/Other"
+        - id: 6000
+          name: "XXX"
+          subCategories:
+            - id: 6010
+              name: "XXX/DVD"
+            - id: 6060
+              name: "XXX/ImageSet"
+            - id: 6070
+              name: "XXX/Other"
+        - id: 7000
+          name: "Books"
+          subCategories:
+            - id: 7030
+              name: "Books/Comics"
+            - id: 7050
+              name: "Books/Other"
+        - id: 8000
+          name: "Other"
+          subCategories: []
+        - id: 100209
+          name: "3D"
+          subCategories: []
+        - id: 100306
+          name: "Android"
+          subCategories: []
+        - id: 100408
+          name: "Android"
+          subCategories: []
+        - id: 100300
+          name: "Applications"
+          subCategories: []
+        - id: 100100
+          name: "Audio"
+          subCategories: []
+        - id: 100102
+          name: "Audio Books"
+          subCategories: []
+        - id: 100199
+          name: "Audio Other"
+          subCategories: []
+        - id: 100602
+          name: "Comics"
+          subCategories: []
+        - id: 100604
+          name: "Covers"
+          subCategories: []
+        - id: 100601
+          name: "E-books"
+          subCategories: []
+        - id: 100104
+          name: "FLAC"
+          subCategories: []
+        - id: 100400
+          name: "Games"
+          subCategories: []
+        - id: 100504
+          name: "Games"
+          subCategories: []
+        - id: 100499
+          name: "Games Other"
+          subCategories: []
+        - id: 100206
+          name: "Handheld"
+          subCategories: []
+        - id: 100304
+          name: "Handheld"
+          subCategories: []
+        - id: 100406
+          name: "Handheld"
+          subCategories: []
+        - id: 100207
+          name: "HD - Movies"
+          subCategories: []
+        - id: 100505
+          name: "HD - Movies"
+          subCategories: []
+        - id: 100208
+          name: "HD - TV shows"
+          subCategories: []
+        - id: 100305
+          name: "IOS (iPad/iPhone)"
+          subCategories: []
+        - id: 100407
+          name: "IOS (iPad/iPhone)"
+          subCategories: []
+        - id: 100302
+          name: "Mac"
+          subCategories: []
+        - id: 100402
+          name: "Mac"
+          subCategories: []
+        - id: 100204
+          name: "Movie Clips"
+          subCategories: []
+        - id: 100506
+          name: "Movie Clips"
+          subCategories: []
+        - id: 100201
+          name: "Movies"
+          subCategories: []
+        - id: 100202
+          name: "Movies"
+          subCategories: []
+        - id: 100501
+          name: "Movies"
+          subCategories: []
+        - id: 100502
+          name: "Movies DVDR"
+          subCategories: []
+        - id: 100101
+          name: "Music"
+          subCategories: []
+        - id: 100203
+          name: "Music Videos"
+          subCategories: []
+        - id: 100600
+          name: "Other"
+          subCategories: []
+        - id: 100399
+          name: "Other OS"
+          subCategories: []
+        - id: 100699
+          name: "Other Other"
+          subCategories: []
+        - id: 100401
+          name: "PC"
+          subCategories: []
+        - id: 100605
+          name: "Physibles"
+          subCategories: []
+        - id: 100503
+          name: "Pictures"
+          subCategories: []
+        - id: 100603
+          name: "Pictures"
+          subCategories: []
+        - id: 100500
+          name: "Porn"
+          subCategories: []
+        - id: 100599
+          name: "Porn other"
+          subCategories: []
+        - id: 100403
+          name: "PSx"
+          subCategories: []
+        - id: 100103
+          name: "Sound Clips"
+          subCategories: []
+        - id: 100205
+          name: "TV"
+          subCategories: []
+        - id: 100303
+          name: "UNIX"
+          subCategories: []
+        - id: 100200
+          name: "Video"
+          subCategories: []
+        - id: 100299
+          name: "Video Other"
+          subCategories: []
+        - id: 100405
+          name: "Wii"
+          subCategories: []
+        - id: 100301
+          name: "Windows"
+          subCategories: []
+        - id: 100404
+          name: "XBOX360"
+          subCategories: []
+    color: null
+    configComplete: true
+    enabledCategories:
+      - "Anime"
+      - "Audio"
+      - "Audiobook"
+      - "Comic"
+      - "Console"
+      - "Ebook"
+      - "FLAC"
+      - "MP3"
+      - "Movies"
+      - "Movies HD"
+      - "Movies SD"
+      - "PC"
+      - "TV"
+      - "TV HD"
+      - "TV SD"
+      - "XXX"
+    downloadLimit: null
+    state: "ENABLED"
+    enabledForSearchSource: "BOTH"
+    generalMinSize: null
+    hitLimit: null
+    hitLimitResetTime: 0
+    host: "http://127.0.0.1:9117/jackett/api/v2.0/indexers/thepiratebay/results/torznab"
+    lastError: null
+    disabledUntil: null
+    disabledLevel: 0
+    disabledAt: null
+    loadLimitOnRandom: null
+    minSeeders: null
+    name: "The Pirate Bay"
+    password: null
+    customParameters: []
+    preselect: true
+    schedule: []
+    score: 0
+    searchModuleType: "TORZNAB"
+    showOnSearch: true
+    supportedSearchIds: []
+    supportedSearchTypes:
+      - "SEARCH"
+      - "AUDIO"
+      - "TVSEARCH"
+      - "MOVIE"
+      - "BOOK"
+    timeout: null
+    username: null
+    userAgent: null
+    vipExpirationDate: null
 main:
   configVersion: 19
   host: "0.0.0.0"
@@ -1138,58 +1138,58 @@ searching:
   maxAge: null
   minSeeders: null
   removeTrailing:
-  - ".mp4"
-  - ".mkv"
-  - ".subs"
-  - ".REPOST"
-  - "repost"
-  - "~DG~"
-  - ".DG"
-  - "-DG"
-  - "-1"
-  - ".1"
-  - "(1)"
-  - "ReUp"
-  - "ReUp2"
-  - "-RP"
-  - "-AsRequested"
-  - "-Obfuscated"
-  - "-Scrambled"
-  - "-Chamele0n"
-  - "-BUYMORE"
-  - "-[TRP]"
-  - "-DG"
-  - ".par2"
-  - ".part01"
-  - "part01.rar"
-  - ".part02.rar"
-  - ".jpg"
-  - "[rartv]"
-  - "[rarbg]"
-  - "[eztv]"
-  - "English"
-  - "Korean"
-  - "Spanish"
-  - "French"
-  - "German"
-  - "Italian"
-  - "Danish"
-  - "Dutch"
-  - "Japanese"
-  - "Cantonese"
-  - "Mandarin"
-  - "Russian"
-  - "Polish"
-  - "Vietnamese"
-  - "Swedish"
-  - "Norwegian"
-  - "Finnish"
-  - "Turkish"
-  - "Portuguese"
-  - "Flemish"
-  - "Greek"
-  - "Hungarian"
-  - "-xpost"
+    - ".mp4"
+    - ".mkv"
+    - ".subs"
+    - ".REPOST"
+    - "repost"
+    - "~DG~"
+    - ".DG"
+    - "-DG"
+    - "-1"
+    - ".1"
+    - "(1)"
+    - "ReUp"
+    - "ReUp2"
+    - "-RP"
+    - "-AsRequested"
+    - "-Obfuscated"
+    - "-Scrambled"
+    - "-Chamele0n"
+    - "-BUYMORE"
+    - "-[TRP]"
+    - "-DG"
+    - ".par2"
+    - ".part01"
+    - "part01.rar"
+    - ".part02.rar"
+    - ".jpg"
+    - "[rartv]"
+    - "[rarbg]"
+    - "[eztv]"
+    - "English"
+    - "Korean"
+    - "Spanish"
+    - "French"
+    - "German"
+    - "Italian"
+    - "Danish"
+    - "Dutch"
+    - "Japanese"
+    - "Cantonese"
+    - "Mandarin"
+    - "Russian"
+    - "Polish"
+    - "Vietnamese"
+    - "Swedish"
+    - "Norwegian"
+    - "Finnish"
+    - "Turkish"
+    - "Portuguese"
+    - "Flemish"
+    - "Greek"
+    - "Hungarian"
+    - "-xpost"
   replaceUmlauts: false
   requiredRegex: null
   requiredWords: []
@@ -1202,17 +1202,17 @@ searching:
   transformNewznabCategories: true
   userAgent: "NZBHydra2"
   userAgents:
-  - "Mozilla"
-  - "Sonarr"
-  - "Radarr"
-  - "CouchPotato"
-  - "LazyLibrarian"
-  - "Lidarr"
-  - "Mylar"
-  - "Readarr"
-  - "NZB360"
-  - "NZBGet"
-  - "sabNZBd"
+    - "Mozilla"
+    - "Sonarr"
+    - "Radarr"
+    - "CouchPotato"
+    - "LazyLibrarian"
+    - "Lidarr"
+    - "Mylar"
+    - "Readarr"
+    - "NZB360"
+    - "NZBGet"
+    - "sabNZBd"
   useOriginalCategories: false
   wrapApiErrors: false
 notificationConfig:
@@ -1225,6 +1225,6 @@ notificationConfig:
   filterOuts: []
 genericStorage:
   outdatedWrapperDetected: "false"
-  FirstStart: "\"2022-04-30T11:40:17.132354\""
+  FirstStart: '"2022-04-30T11:40:17.132354"'
   belowJava17: "false"
-  BackupData: "{\"lastBackup\":\"2023-04-23T19:26:23.251572\"}"
+  BackupData: '{"lastBackup":"2023-04-23T19:26:23.251572"}'
