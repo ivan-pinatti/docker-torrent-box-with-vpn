@@ -6,6 +6,8 @@
 - [ ] Mylar is not working to add HTTPS qBitorrent and Nzbget
 - [ ] Sonarr HTTPS
 - [ ] Lazylibrarian not working with qBittorrent on HTTPS
+- [ ] Fix pre-commit docker-compose hook
+- [ ] Fix python version w/ GHA 
 
 ### In Progress
 
