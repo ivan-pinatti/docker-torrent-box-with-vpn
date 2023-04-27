@@ -45,3 +45,4 @@ jobs:
           tag: ${{ needs.create_tag.outputs.new_tag }}
           name: Release ${{ needs.create_tag.outputs.new_tag }}
           body: ${{ needs.create_tag.outputs.changelog }}
+          generateReleaseNotes: true
