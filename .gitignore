@@ -23,8 +23,11 @@
 # dotenv ###
 .env
 
-# Backup Folder
-backup/**
-
 # Docker-compose dev file
-docker-compose.dev..yml
+docker-compose.dev.yml
+
+# Backup files
+certs.backup.**
+configs.backup.**
+.env.backup.**
+backup/**

@@ -1,0 +1,48 @@
+{
+  "name": "Ubuntu",
+  "image": "mcr.microsoft.com/devcontainers/base:jammy",
+  "features": {
+    "ghcr.io/devcontainers/features/python:1": {},
+    "ghcr.io/jungaretti/features/make:1": {},
+    "ghcr.io/devcontainers-contrib/features/pre-commit:2": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "adpyke.codesnap",
+        "alefragnani.Bookmarks",
+        "bierner.emojisense",
+        "codezombiech.gitignore",
+        "DavidAnson.vscode-markdownlint",
+        "donjayamanne.githistory",
+        "DotJoshJohnson.xml",
+        "elagil.pre-commit-helper",
+        "esbenp.prettier-vscode",
+        "mhutchie.git-graph",
+        "mikestead.dotenv",
+        "moshfeu.compare-folders",
+        "ms-azuretools.vscode-docker",
+        "ms-vscode-remote.remote-containers",
+        "naumovs.color-highlight",
+        "oderwat.indent-rainbow",
+        "PKief.material-icon-theme",
+        "qwtel.sqlite-viewer",
+        "redhat.vscode-yaml",
+        "streetsidesoftware.code-spell-checker",
+        "vscode-icons-team.vscode-icons",
+        "waderyan.gitblame",
+        "yzhang.markdown-all-in-one",
+        "ms-vscode.makefile-tools"
+      ]
+    }
+  },
+  "mounts": [
+    "source=${localEnv:HOME}/.bash_profile,target=/home/vscode/.bash_profile,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.bash_aliases,target=/home/vscode/.bash_aliases,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.bashrc,target=/home/vscode/.bashrc,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.ssh/,target=/home/vscode/.ssh/,type=bind,consistency=cached"
+  ]
+}

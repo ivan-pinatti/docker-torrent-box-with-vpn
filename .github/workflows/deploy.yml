@@ -1,0 +1,42 @@
+name: Merge
+on:
+  push:
+    branches:
+      - main
+
+env:
+  GITHUB_ACTION_CHECKOUT_VERSION: v3
+  GITHUB_ACTION_CREATE_RELEASE_VERSION: v1.12.0
+  GITHUB_ACTION_CREATE_TAG_VERSION: v5.5
+
+jobs:
+  create_tag:
+    name: Create Tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      previous_tag: ${{ steps.tag_version.outputs.previous_tag }}
+      previous_version: ${{ steps.tag_version.outputs.previous_version }}
+      new_tag: ${{ steps.tag_version.outputs.new_tag }}
+      new_version: ${{ steps.tag_version.outputs.new_version }}
+      changelog: ${{ steps.tag_version.outputs.changelog }}
+    steps:
+      - name: Checkout
+        id: checkout
+        uses: actions/checkout@${{ env.GITHUB_ACTION_CHECKOUT_VERSION }}
+
+      - name: Create Tag
+        id: tag_version
+        uses: mathieudutour/github-tag-action@${{ env.GITHUB_ACTION_CREATE_TAG_VERSION }}
+        with:
+          dry_run: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          release_branches: .*
+
+      - name: Create a GitHub release
+        id: create_release
+        uses: ncipollo/release-action@${{ env.GITHUB_ACTION_CREATE_RELEASE_VERSION }}
+        with:
+          tag: ${{ steps.tag_version.outputs.new_tag }}
+          name: Release ${{ steps.tag_version.outputs.new_tag }}
+          body: ${{ steps.tag_version.outputs.changelog }}

@@ -1,0 +1,20 @@
+name: PR Validation
+on:
+  pull_request:
+    branches:
+      - main
+
+env:
+  GITHUB_ACTION_CHECKOUT_VERSION: v3
+  GITHUB_ACTION_PYTHON_VERSION: v3
+  GITHUB_ACTION_PRE_COMMIT__VERSION: v3.0.0
+
+jobs:
+  pr_check:
+    name: Code Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@${{ env.GITHUB_ACTION_CHECKOUT_VERSION }}
+      - uses: actions/setup-python@${{ env.GITHUB_ACTION_PYTHON_VERSION }}
+      - uses: pre-commit/action@${{ env.GITHUB_ACTION_PRE_COMMIT__VERSION }}
