@@ -5,10 +5,18 @@ on:
       - main
 
 jobs:
+  checkout:
+    name: Checkout
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - uses: actions/checkout@v3
+
   create_tag:
     name: Create Tag
+    needs: [checkout]
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 3
     outputs:
       previous_tag: ${{ steps.tag_version.outputs.previous_tag }}
       previous_version: ${{ steps.tag_version.outputs.previous_version }}
@@ -16,12 +24,7 @@ jobs:
       new_version: ${{ steps.tag_version.outputs.new_version }}
       changelog: ${{ steps.tag_version.outputs.changelog }}
     steps:
-      - name: Checkout
-        id: checkout
-        uses: actions/checkout@v3
-
       - name: Create Tag
-        needs: [checkout]
         id: tag_version
         uses: mathieudutour/github-tag-action@v5.5
         with:
@@ -29,11 +32,16 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           release_branches: .*
 
+  create_release:
+    name: Create Release
+    needs: [create_tag]
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
       - name: Create a GitHub release
-        needs: [tag_version]
         id: create_release
         uses: ncipollo/release-action@v1.12.0
         with:
-          tag: ${{ steps.tag_version.outputs.new_tag }}
-          name: Release ${{ steps.tag_version.outputs.new_tag }}
-          body: ${{ steps.tag_version.outputs.changelog }}
+          tag: ${{ needs.tag_version.outputs.new_tag }}
+          name: Release ${{ needs.tag_version.outputs.new_tag }}
+          body: ${{ needs.tag_version.outputs.changelog }}
