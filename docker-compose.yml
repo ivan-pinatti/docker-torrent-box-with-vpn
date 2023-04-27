@@ -68,7 +68,7 @@ services:
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
     restart: unless-stopped
     env_file: [".env", "${CONFIG_FOLDER}/flaresolverr/.env"]
-    environment: ["TZ: ${TIMEZONE}"]
+    environment: ["TZ:${TIMEZONE}"]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/jackett/config:/config:z
@@ -177,6 +177,50 @@ services:
       - ${CERTIFICATES_FOLDER}:/certs:ro
       - ${CONFIG_FOLDER}/nginx/templates:/etc/nginx/templates:z
 
+  nordvpn:
+    image: ghcr.io/bubuntux/nordvpn:${NORDVPN_VERSION}
+    container_name: nordvpn
+    restart: unless-stopped
+    profiles: ["${NORDVPN_PROFILE}"]
+    env_file: [".env", "${CONFIG_FOLDER}/nordvpn/.env"]
+    cap_add: [NET_ADMIN, NET_RAW]
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - ${BAZARR_HTTP_PORT}:${BAZARR_HTTP_PORT} # bazarr-http
+      - ${CALIBRE_DESKTOP_HTTP_PORT}:${CALIBRE_DESKTOP_HTTP_PORT} # calibre-desktop-http
+      - ${CALIBRE_GUI_WEB_HTTP_PORT}:${CALIBRE_GUI_WEB_HTTP_PORT} # calibre-web-gui-http
+      - ${CALIBRE_DESKTOP_HTTPS_PORT}:${CALIBRE_DESKTOP_HTTPS_PORT} # calibre-desktop-https
+      - ${CALIBRE_WEB_CONTAINER_HTTP_PORT}:${CALIBRE_WEB_CONTAINER_HTTP_PORT} # calibre-web-http (from calibre-web container)
+      - ${CALIBRE_WEB_CONTAINER_HTTPS_PORT}:${CALIBRE_WEB_CONTAINER_HTTPS_PORT} # calibre-web-https (from calibre-web container)
+      - ${FLARESOLVERR_HTTP_PORT}:${FLARESOLVERR_HTTP_PORT} # flaresolverr-http
+      - ${JACKETT_HTTP_PORT}:${JACKETT_HTTP_PORT} # jackett-http
+      - ${LAZYLIBRARIAN_HTTP_PORT}:${LAZYLIBRARIAN_HTTP_PORT} # lazylibrarian-http
+      - ${LAZYLIBRARIAN_HTTPS_PORT}:${LAZYLIBRARIAN_HTTPS_PORT} # lazylibrarian-https
+      - ${LIDARR_HTTP_PORT}:${LIDARR_HTTP_PORT} # lidarr-http
+      - ${LIDARR_HTTPS_PORT}:${LIDARR_HTTPS_PORT} # lidarr-https
+      - ${MYLAR_HTTP_PORT}:${MYLAR_HTTP_PORT} # mylar-http
+      - ${MYLAR_HTTPS_PORT}:${MYLAR_HTTPS_PORT} # mylar-https
+      - ${NGINX_HTTP_PORT}:${NGINX_HTTP_PORT} # nginx-http
+      - ${NGINX_HTTPS_PORT}:${NGINX_HTTPS_PORT} # nginx-https
+      - ${NZBGET_HTTP_PORT}:${NZBGET_HTTP_PORT} # nzbget-http
+      - ${NZBGET_HTTPS_PORT}:${NZBGET_HTTPS_PORT} # nzbget-https
+      - ${NZBHYDRA2_HTTP_PORT}:${NZBHYDRA2_HTTP_PORT} # nzbhydra2-http
+      - ${NZBHYDRA2_HTTPS_PORT}:${NZBHYDRA2_HTTPS_PORT} # nzbhydra2-https
+      - ${PROWLARR_HTTP_PORT}:${PROWLARR_HTTP_PORT} # prowlarr-http
+      - ${PROWLARR_HTTPS_PORT}:${PROWLARR_HTTPS_PORT} # prowlarr-https
+      - ${QBITTORRENT_HTTP_PORT}:${QBITTORRENT_HTTP_PORT} # qbittorrent-http
+      - ${QBITTORRENT_HTTPS_PORT}:${QBITTORRENT_HTTPS_PORT} # qbittorrent-https
+      - ${QBITTORRENT_PORT}:${QBITTORRENT_PORT} # qbittorrent-torrent
+      - ${QBITTORRENT_PORT}:${QBITTORRENT_PORT}/udp # qbittorrent-torrent
+      - ${RADARR_HTTP_PORT}:${RADARR_HTTP_PORT} # radarr-http
+      - ${RADARR_HTTPS_PORT}:${RADARR_HTTPS_PORT} # radarr-https
+      - ${READARR_HTTP_PORT}:${READARR_HTTP_PORT} # readarr-http
+      - ${READARR_HTTPS_PORT}:${READARR_HTTPS_PORT} # readarr-https
+      - ${SONARR_HTTP_PORT}:${SONARR_HTTP_PORT} # sonarr-http
+      - ${SONARR_HTTPS_PORT}:${SONARR_HTTPS_PORT} # sonarr-https
+
   nzbget:
     image: linuxserver/nzbget:${NZBGET_VERSION}
     container_name: nzbget
@@ -222,10 +266,10 @@ services:
   plex:
     image: linuxserver/plex:${PLEX_VERSION}
     container_name: plex
-    depends_on: ["${VPN_PROVIDER}"]
+    # depends_on: ["${VPN_PROVIDER}"]
     profiles: ["${PLEX_PROFILE}"]
-    network_mode: service:${VPN_PROVIDER}
-    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
+    network_mode: host # change to service:${VPN_PROVIDER} if you want in the same network as others
+    # sysctls: ["net.ipv6.conf.all.disable_ipv6=1"] # uncomment if changed to service:${VPN_PROVIDER} in network_mode
     restart: unless-stopped
     # Leave commented unless your machine is capable of Hardware acceleration - Intel / Nvidia
     # More information at; https://github.com/linuxserver/docker-plex#hardware-acceleration
@@ -254,48 +298,38 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - /tmp:/tmp:z
     ports:
-      - ${BAZARR_HTTP_PORT}:${BAZARR_HTTP_PORT}                                   # bazarr-http
-      - ${CALIBRE_DESKTOP_HTTP_PORT}:${CALIBRE_DESKTOP_HTTP_PORT}                 # calibre-desktop-http
-      - ${CALIBRE_GUI_WEB_HTTP_PORT}:${CALIBRE_GUI_WEB_HTTP_PORT}                 # calibre-web-gui-http
-      - ${CALIBRE_DESKTOP_HTTPS_PORT}:${CALIBRE_DESKTOP_HTTPS_PORT}               # calibre-desktop-https
-      - ${CALIBRE_WEB_CONTAINER_HTTP_PORT}:${CALIBRE_WEB_CONTAINER_HTTP_PORT}     # calibre-web-http (from calibre-web container)
-      - ${CALIBRE_WEB_CONTAINER_HTTPS_PORT}:${CALIBRE_WEB_CONTAINER_HTTPS_PORT}   # calibre-web-https (from calibre-web container)
-      - ${FLARESOLVERR_HTTP_PORT}:${FLARESOLVERR_HTTP_PORT}                       # flaresolverr-http
-      - ${JACKETT_HTTP_PORT}:${JACKETT_HTTP_PORT}                                 # jackett-http
-      - ${LAZYLIBRARIAN_HTTP_PORT}:${LAZYLIBRARIAN_HTTP_PORT}                     # lazylibrarian-http
-      - ${LAZYLIBRARIAN_HTTPS_PORT}:${LAZYLIBRARIAN_HTTPS_PORT}                   # lazylibrarian-https
-      - ${LIDARR_HTTP_PORT}:${LIDARR_HTTP_PORT}                                   # lidarr-http
-      - ${LIDARR_HTTPS_PORT}:${LIDARR_HTTPS_PORT}                                 # lidarr-https
-      - ${MYLAR_HTTP_PORT}:${MYLAR_HTTP_PORT}                                     # mylar-http
-      - ${MYLAR_HTTPS_PORT}:${MYLAR_HTTPS_PORT}                                   # mylar-https
-      - ${NGINX_HTTP_PORT}:${NGINX_HTTP_PORT}                                     # nginx-http
-      - ${NGINX_HTTPS_PORT}:${NGINX_HTTPS_PORT}                                   # nginx-https
-      - ${NZBGET_HTTP_PORT}:${NZBGET_HTTP_PORT}                                   # nzbget-http
-      - ${NZBGET_HTTPS_PORT}:${NZBGET_HTTPS_PORT}                                 # nzbget-https
-      - ${NZBHYDRA2_HTTP_PORT}:${NZBHYDRA2_HTTP_PORT}                             # nzbhydra2-http
-      - ${NZBHYDRA2_HTTPS_PORT}:${NZBHYDRA2_HTTPS_PORT}                           # nzbhydra2-https
-      - ${PROWLARR_HTTP_PORT}:${PROWLARR_HTTP_PORT}                               # prowlarr-http
-      - ${PROWLARR_HTTPS_PORT}:${PROWLARR_HTTPS_PORT}                              # prowlarr-https
-      - ${QBITTORRENT_HTTP_PORT}:${QBITTORRENT_HTTP_PORT}                         # qbittorrent-http
-      - ${QBITTORRENT_HTTPS_PORT}:${QBITTORRENT_HTTPS_PORT}                       # qbittorrent-https
-      - ${QBITTORRENT_PORT}:${QBITTORRENT_PORT}                                   # qbittorrent-torrent
-      - ${QBITTORRENT_PORT}:${QBITTORRENT_PORT}/udp                               # qbittorrent-torrent
-      - ${RADARR_HTTP_PORT}:${RADARR_HTTP_PORT}                                   # radarr-http
-      - ${RADARR_HTTPS_PORT}:${RADARR_HTTPS_PORT}                                 # radarr-https
-      - ${READARR_HTTP_PORT}:${READARR_HTTP_PORT}                                 # readarr-http
-      - ${READARR_HTTPS_PORT}:${READARR_HTTPS_PORT}                               # readarr-https
-      - ${SONARR_HTTP_PORT}:${SONARR_HTTP_PORT}                                   # sonarr-http
-      - ${SONARR_HTTPS_PORT}:${SONARR_HTTPS_PORT}                                 # sonarr-https
-      - 1900:1900/udp                                                             # plex
-      - 3005:3005                                                                 # plex
-      - 32400:32400                                                               # plex
-      - 32410:32410/udp                                                           # plex
-      - 32412:32412/udp                                                           # plex
-      - 32413:32413/udp                                                           # plex
-      - 32414:32414/udp                                                           # plex
-      - 32469:32469                                                               # plex
-      - 8324:8324                                                                 # plex
-      # - 5353:5353/udp   # plex
+      - ${BAZARR_HTTP_PORT}:${BAZARR_HTTP_PORT} # bazarr-http
+      - ${CALIBRE_DESKTOP_HTTP_PORT}:${CALIBRE_DESKTOP_HTTP_PORT} # calibre-desktop-http
+      - ${CALIBRE_GUI_WEB_HTTP_PORT}:${CALIBRE_GUI_WEB_HTTP_PORT} # calibre-web-gui-http
+      - ${CALIBRE_DESKTOP_HTTPS_PORT}:${CALIBRE_DESKTOP_HTTPS_PORT} # calibre-desktop-https
+      - ${CALIBRE_WEB_CONTAINER_HTTP_PORT}:${CALIBRE_WEB_CONTAINER_HTTP_PORT} # calibre-web-http (from calibre-web container)
+      - ${CALIBRE_WEB_CONTAINER_HTTPS_PORT}:${CALIBRE_WEB_CONTAINER_HTTPS_PORT} # calibre-web-https (from calibre-web container)
+      - ${FLARESOLVERR_HTTP_PORT}:${FLARESOLVERR_HTTP_PORT} # flaresolverr-http
+      - ${JACKETT_HTTP_PORT}:${JACKETT_HTTP_PORT} # jackett-http
+      - ${LAZYLIBRARIAN_HTTP_PORT}:${LAZYLIBRARIAN_HTTP_PORT} # lazylibrarian-http
+      - ${LAZYLIBRARIAN_HTTPS_PORT}:${LAZYLIBRARIAN_HTTPS_PORT} # lazylibrarian-https
+      - ${LIDARR_HTTP_PORT}:${LIDARR_HTTP_PORT} # lidarr-http
+      - ${LIDARR_HTTPS_PORT}:${LIDARR_HTTPS_PORT} # lidarr-https
+      - ${MYLAR_HTTP_PORT}:${MYLAR_HTTP_PORT} # mylar-http
+      - ${MYLAR_HTTPS_PORT}:${MYLAR_HTTPS_PORT} # mylar-https
+      - ${NGINX_HTTP_PORT}:${NGINX_HTTP_PORT} # nginx-http
+      - ${NGINX_HTTPS_PORT}:${NGINX_HTTPS_PORT} # nginx-https
+      - ${NZBGET_HTTP_PORT}:${NZBGET_HTTP_PORT} # nzbget-http
+      - ${NZBGET_HTTPS_PORT}:${NZBGET_HTTPS_PORT} # nzbget-https
+      - ${NZBHYDRA2_HTTP_PORT}:${NZBHYDRA2_HTTP_PORT} # nzbhydra2-http
+      - ${NZBHYDRA2_HTTPS_PORT}:${NZBHYDRA2_HTTPS_PORT} # nzbhydra2-https
+      - ${PROWLARR_HTTP_PORT}:${PROWLARR_HTTP_PORT} # prowlarr-http
+      - ${PROWLARR_HTTPS_PORT}:${PROWLARR_HTTPS_PORT} # prowlarr-https
+      - ${QBITTORRENT_HTTP_PORT}:${QBITTORRENT_HTTP_PORT} # qbittorrent-http
+      - ${QBITTORRENT_HTTPS_PORT}:${QBITTORRENT_HTTPS_PORT} # qbittorrent-https
+      - ${QBITTORRENT_PORT}:${QBITTORRENT_PORT} # qbittorrent-torrent
+      - ${QBITTORRENT_PORT}:${QBITTORRENT_PORT}/udp # qbittorrent-torrent
+      - ${RADARR_HTTP_PORT}:${RADARR_HTTP_PORT} # radarr-http
+      - ${RADARR_HTTPS_PORT}:${RADARR_HTTPS_PORT} # radarr-https
+      - ${READARR_HTTP_PORT}:${READARR_HTTP_PORT} # readarr-http
+      - ${READARR_HTTPS_PORT}:${READARR_HTTPS_PORT} # readarr-https
+      - ${SONARR_HTTP_PORT}:${SONARR_HTTP_PORT} # sonarr-http
+      - ${SONARR_HTTPS_PORT}:${SONARR_HTTPS_PORT} # sonarr-https
 
   prowlarr:
     image: linuxserver/prowlarr:${PROWLARR_VERSION}

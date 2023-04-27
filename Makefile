@@ -7,6 +7,7 @@ all: generate_certificate update_images start
 backup:
 	@echo "Backing up config files..."
 	@cp --recursive configs configs.backup.`date +%Y-%m-%d-%H:%M:%S`
+	@cp --recursive certs certs.backup.`date +%Y-%m-%d-%H:%M:%S`
 	@cp .env .env.backup.`date +%Y-%m-%d-%H:%M:%S`
 	@echo ".OK!"
 
@@ -16,6 +17,10 @@ clean:
 
 	@echo "Reverting git files to orignal"
 	@sudo git clean -fdx
+
+	@echo -n "Cleaning Certs folders........."
+	@cd certs && find . ! -name '.gitignore' -type f -exec sudo rm -f {} + && cd ..
+	@echo ".OK!"
 
 	@echo -n "Cleaning Download folders........."
 	@cd shared && find . ! -name '.gitignore' -type f -exec sudo rm -f {} + && cd ..

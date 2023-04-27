@@ -1,17 +1,28 @@
 ### Todo
 
 - [ ] Enhance the library update process
-- [ ] Automate release generation
 - [ ] Research Dependabot/Renovate for Docker image versions
 - [ ] Lidarr is not configured for Indexers due to a restriction to add it
 - [ ] Mylar is not working to add HTTPS qBitorrent and Nzbget
 - [ ] Sonarr HTTPS
 - [ ] Lazylibrarian not working with qBittorrent on HTTPS
 
-
 ### In Progress
 
 ### Done ✓
+
+2.0.1
+
+- [x] Added backup entries to .gitignore
+- [x] Added certs to the backup
+- [x] Rearranging Github files
+- [x] Automate semantic versioning
+- [x] Automate release generation
+- [x] Adding devContainers to the repository to facilitate development
+- [x] Plex network changed to `host` for better performance
+- [x] Added support for NordVPN (untested)
+
+  2.0.0
 
 - [x] Augment the stack to use a reverse proxy w/ https
 - [x] Add Lazylibrarian to Prowlarr
