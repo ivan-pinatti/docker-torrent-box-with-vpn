@@ -13,6 +13,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
+      - name: Create .env file
+        shell: bash
+        run: cp .env.example .env
+
       - name: Python Setup
         uses: actions/setup-python@v4
         with:
