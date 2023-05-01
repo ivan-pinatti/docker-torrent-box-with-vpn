@@ -1,4 +1,4 @@
-# Torrent, Usenet, NZB, VPN (ProtonVPN) box by Docker Compose containers
+# Torrent, Usenet, NZB, VPN (ProtonVPN/NordVPN) box by Docker Compose containers
 
 ![GitHub issues](https://img.shields.io/github/issues-raw/ivan-pinatti/docker-torrent-box-with-vpn?logo=Github&style=for-the-badge)
 ![GitHub Sponsors](https://img.shields.io/github/sponsors/ivan-pinatti?logo=Github&style=for-the-badge)
