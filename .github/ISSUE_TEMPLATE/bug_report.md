@@ -27,7 +27,7 @@ Steps to reproduce the behavior:
 
 If applicable, add screenshots or logs to help explain your problem.
 
-## Environment (please complete the following information):
+## Environment (please complete the following information)
 
 Anything that will help us triage the bug will help. Here are some ideas:
 

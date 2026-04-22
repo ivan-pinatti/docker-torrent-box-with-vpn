@@ -1,22 +1,25 @@
 default: true
 
-# Existing project docs predate markdownlint; keep the hook focused on
-# structural problems that do not require a large documentation rewrite.
-MD013: false
-MD025: false
-MD026: false
-MD032: false
-MD034: false
-MD040: false
-MD041: false
-MD042: false
-MD045: false
-MD051: false
+# MD013: line length - match editorconfig max_line_length
+MD013:
+  line_length: 100
+  code_blocks: false
+  tables: false
 
+# MD024: siblings_only - allow repeated headings under different parent sections
+#         (e.g. "Static Reservations" under each VLAN section)
 MD024:
   siblings_only: true
 
+# MD033: allow inline HTML (useful in infra docs)
 MD033: false
+
+# MD036: allow bold text used as labeled sub-steps (e.g. **a. step**)
 MD036: false
+
+# MD031: blank lines around fenced code blocks - enabled; code blocks in lists
+#         must have surrounding blank lines for correct rendering
 MD031: true
+
+# MD060: table column separator style - enabled; separators must use at least 3 dashes
 MD060: true

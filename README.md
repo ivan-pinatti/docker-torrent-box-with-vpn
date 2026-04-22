@@ -3,57 +3,65 @@
 ![GitHub issues](https://img.shields.io/github/issues-raw/ivan-pinatti/docker-torrent-box-with-vpn?logo=Github&style=for-the-badge)
 ![GitHub Sponsors](https://img.shields.io/github/sponsors/ivan-pinatti?logo=Github&style=for-the-badge)
 
-The code on this repository is intended to be used to share media content with various networks such as Torrent and Usenet while protecting your privacy through a VPN. The main idea is to provide access where Internet censors and content restriction apply. I totally discourage using this code for any piracy reasons.
+The code on this repository is intended to be used to share media content with
+various networks such as Torrent and Usenet while protecting your privacy
+through a VPN. The main idea is to provide access where Internet censors and
+content restriction apply. I totally discourage using this code for any piracy
+reasons.
 
 The stack can be run in any Linux box.\
-Besides Plex transcoding, all other apps and functions are super light and a basic Raspberry Pi is able to handle the load.
+Besides Plex transcoding, all other apps and functions are super light and a
+basic Raspberry Pi is able to handle the load.
 
-All the apps are pre-configured and integrated. Therefore, with a few clicks you can start adding Indexers to the configurations and tinkering to your liking.
+All the apps are pre-configured and integrated. Therefore, with a few clicks you
+can start adding Indexers to the configurations and tinkering to your liking.
 
 **IMPORTANT:** I strongly recommend rotating all the API keys and changing all the passwords.
 
 ---
 
-# Requisites
+## Requisites
 
-|    **App**     | **Version** |                                       **Site**                                        |
-| :------------: | :---------: | :-----------------------------------------------------------------------------------: |
-|     Docker     |     any     |                    https://docs.docker.com/engine/install/ubuntu/                     |
-| Docker-Compose |    >2.4     |                        https://docs.docker.com/compose/install                        |
-|  Linux Kernel  |    >5.6     | More info at: https://github.com/tprasadtp/protonvpn-docker#linux-kernel-requirements |
-|    Makefile    |    >4.x     |                                           -                                           |
-
----
-
-# Apps Included
-
-| **App Name**  |                  **Docker Image**                  |                  **Function**                   | **Default** |
-| :-----------: | :------------------------------------------------: | :---------------------------------------------: | ----------- |
-|    Bazarr     |    https://hub.docker.com/r/linuxserver/bazarr     |            Subtitles Tracker/Manager            | enabled     |
-|    Calibre    |    https://hub.docker.com/r/linuxserver/calibre    |             eBooks Library Manager              | enabled     |
-|  Calibre-web  |  https://hub.docker.com/r/linuxserver/calibre-web  |             eBooks Library Manager              | enabled     |
-|    Jackett    |    https://hub.docker.com/r/linuxserver/jackett    |               Query Proxy Server                | enabled     |
-| Flaresolverr  | https://hub.docker.com/r/flaresolverr/flaresolverr |       Bypass to Cloudflare and DDoS-GUARD       | enabled     |
-| LazyLibrarian | https://hub.docker.com/r/linuxserver/lazylibrarian |              Books Tracker/Manager              | enabled     |
-|    Lidarr     |    https://hub.docker.com/r/linuxserver/lidarr     |              Music Tracker/Manager              | enabled     |
-|     Mylar     |    https://hub.docker.com/r/linuxserver/mylar3     |             Comics Tracker/Manager              | enabled     |
-|     Nginx     |           https://hub.docker.com/_/nginx           |         Reverse Proxy + Security Layer          | enabled     |
-|    NordVPN    |        https://github.com/bubuntux/nordvpn         |                   VPN Gateway                   | disabled    |
-|    NZBGet     |    https://hub.docker.com/r/linuxserver/nzbget     |                Usenet Downloader                | enabled     |
-|   NZBHydra2   |   https://hub.docker.com/r/linuxserver/nzbhydra2   |         Meta Searcher for NZB indexers          | enabled     |
-|     Plex      |     https://hub.docker.com/r/linuxserver/plex      | Movie/TV Shows/Music Library Manager and Player | enabled     |
-|   ProtonVPN   |   https://github.com/tprasadtp/protonvpn-docker    |                   VPN Gateway                   | enabled     |
-|   Prowlarr    |   https://hub.docker.com/r/linuxserver/prowlarr    |               Query Proxy Server                | disabled    |
-|  qBittorrent  |  https://hub.docker.com/r/linuxserver/qbittorrent  |               Torrent Downloader                | enabled     |
-|    Radarr     |    https://hub.docker.com/r/linuxserver/radarr     |             Movies Tracker/Manager              | enabled     |
-|    Readarr    |    https://hub.docker.com/r/linuxserver/readarr    |             eBooks Tracker/Manager              | enabled     |
-|    Sonarr     |    https://hub.docker.com/r/linuxserver/sonarr     |            TV Shows Tracker/Manager             | enabled     |
+| **App**               | **Version** | **Site**                                                                                |
+| --------------------- | ----------- | --------------------------------------------------------------------------------------- |
+| Docker                | >26.x       | <https://docs.docker.com/engine/install/ubuntu/>                                        |
+| Linux Kernel          | >5.6        | More info at: <https://github.com/tprasadtp/protonvpn-docker#linux-kernel-requirements> |
+| Makefile              | >4.x        | -                                                                                       |
+| Yq                    | >4.44.x     | <https://github.com/mikefarah/yq>                                                       |
+| Wireguard (ProtonVPN) | >1.x        | <https://github.com/WireGuard>                                                          |
+| XML starlet           | >1.6.x      | <https://xmlstar.sourceforge.net/doc/UG/xmlstarlet-ug.html>                             |
 
 ---
 
-# Table of Contents
+## Apps Included
 
-- [Torrent, Usenet, NZB, VPN (ProtonVPN) box by Docker Compose containers](#torrent-usenet-nzb-vpn-protonvpn-box-by-docker-compose-containers)
+| **App Name**  | **Docker Image**                                     | **Function**                                    | **Default** |
+| ------------- | ---------------------------------------------------- | ----------------------------------------------- | ----------- |
+| Bazarr        | <https://hub.docker.com/r/linuxserver/bazarr>        | Subtitles Tracker/Manager                       | enabled     |
+| Calibre       | <https://hub.docker.com/r/linuxserver/calibre>       | eBooks Library Manager                          | enabled     |
+| Calibre-web   | <https://hub.docker.com/r/linuxserver/calibre-web>   | eBooks Library Manager                          | enabled     |
+| Jackett       | <https://hub.docker.com/r/linuxserver/jackett>       | Query Proxy Server                              | enabled     |
+| Flaresolverr  | <https://hub.docker.com/r/flaresolverr/flaresolverr> | Bypass to Cloudflare and DDoS-GUARD             | enabled     |
+| LazyLibrarian | <https://hub.docker.com/r/linuxserver/lazylibrarian> | Books Tracker/Manager                           | enabled     |
+| Lidarr        | <https://hub.docker.com/r/linuxserver/lidarr>        | Music Tracker/Manager                           | enabled     |
+| Mylar         | <https://hub.docker.com/r/linuxserver/mylar3>        | Comics Tracker/Manager                          | enabled     |
+| Nginx         | <https://hub.docker.com/_/nginx>                     | Reverse Proxy + Security Layer                  | enabled     |
+| NordVPN       | <https://github.com/bubuntux/nordvpn>                | VPN Gateway                                     | disabled    |
+| NZBGet        | <https://hub.docker.com/r/linuxserver/nzbget>        | Usenet Downloader                               | enabled     |
+| NZBHydra2     | <https://hub.docker.com/r/linuxserver/nzbhydra2>     | Meta Searcher for NZB indexers                  | enabled     |
+| Plex          | <https://hub.docker.com/r/linuxserver/plex>          | Movie/TV Shows/Music Library Manager and Player | enabled     |
+| ProtonVPN     | <https://github.com/tprasadtp/protonvpn-docker>      | VPN Gateway                                     | enabled     |
+| Prowlarr      | <https://hub.docker.com/r/linuxserver/prowlarr>      | Query Proxy Server                              | disabled    |
+| qBittorrent   | <https://hub.docker.com/r/linuxserver/qbittorrent>   | Torrent Downloader                              | enabled     |
+| Radarr        | <https://hub.docker.com/r/linuxserver/radarr>        | Movies Tracker/Manager                          | enabled     |
+| Readarr       | <https://hub.docker.com/r/linuxserver/readarr>       | eBooks Tracker/Manager                          | enabled     |
+| Sonarr        | <https://hub.docker.com/r/linuxserver/sonarr>        | TV Shows Tracker/Manager                        | enabled     |
+
+---
+
+## Table of Contents
+
+- [Torrent, Usenet, NZB, VPN (ProtonVPN/NordVPN) box by Docker Compose containers](#torrent-usenet-nzb-vpn-protonvpnnordvpn-box-by-docker-compose-containers)
 - [Requisites](#requisites)
 - [Apps Included](#apps-included)
 - [Table of Contents](#table-of-contents)
@@ -94,9 +102,19 @@ All the apps are pre-configured and integrated. Therefore, with a few clicks you
 
 ---
 
-# Usage
+## Usage
 
-## 1. Check your parameters
+### 0. Requirements
+
+Check if you already have all the [requirements](#requisites) in your system.
+
+```shell
+make check_requirements
+```
+
+It will output all the versions for the requisites, if throws an error please install what is missing.
+
+### 1. Check your parameters
 
 It is necessary to set a few parameters to match your environment.
 Check your user id and gid. To get this info, go to your shell and run:
@@ -125,7 +143,7 @@ America/Toronto
 
 Save these values for later reference.
 
-## 2.Create dotenv (.env) file
+### 2.Create dotenv (.env) file
 
 Copy from the example and generate a new .env file.
 
@@ -133,17 +151,19 @@ Copy from the example and generate a new .env file.
 cp .env.example .env
 ```
 
-## 3. Edit dotenv (.env) file
+### 3. Edit dotenv (.env) file
 
-Edit the newly created .env file and change the `UID, GID, and TIMEZONE` parameters to the values you gathered from steps 1 and 2.
+Edit the newly created .env file and change the `UID`, `GID`, and `TIMEZONE`
+parameters to the values you gathered from steps 1 and 2.
 
 In addition, set the `DOMAIN` variable for the certificate generation and the reverse proxy configuration.
 
-Lastly, configure the `VPN_PROVIDER`, choose from `protonvpn` or `nordvpn` and fill the variables accordingly.
+Lastly, configure the `VPN_PROVIDER`, choose from `protonvpn` or `nordvpn`, and
+fill the variables accordingly.
 
 It will look something like this;
 
-```
+```dotenv
 # System Parameters
 UID=1000
 GID=1000
@@ -157,15 +177,17 @@ PROTONVPN_COUNTRY_AND_SERVER=nl-free-127.protonvpn.net
 PROTONVPN_KEY=KLjfIMiuxPskM4+DaSUDmL2uSIYKJ9Wap+CHvs0Lfkw=
 ```
 
-### 3.1. ProtonVPN
+#### 3.1. ProtonVPN
 
 You will need to log in to ProtonVPN portal to download your key, follow these steps;
 
 - Log in to ProtonVPN and go to Downloads → WireGuard configuration.
-- Enter a name for the key, and select features to enable like NetShield and VPN Accelerator & click create.
+- Enter a name for the key, select features to enable like NetShield and VPN
+  Accelerator, and click create.
 - Generated config might look something like below;
 
-```[Interface]
+```ini
+[Interface]
 # Key for <name>
 # VPN Accelerator = on
 PrivateKey = KLjfIMiuxPskM4+DaSUDmL2uSIYKJ9Wap+CHvs0Lfkw=
@@ -180,26 +202,36 @@ Endpoint = 91.229.23.180:51820
 ```
 
 - Only thing needed from the above config is PrivateKey.
-- See https://protonvpn.com/support/wireguard-configurations/ for more info.
+- See <https://protonvpn.com/support/wireguard-configurations/> for more info.
 
 With the values from the page, change the `PROTONVPN_KEY` and `PROTONVPN_COUNTRY_AND_SERVER`.
 
-**IMPORTANT:** To use a server that is best for you, please check the details in the ProtonVPN Docker page; https://github.com/tprasadtp/protonvpn-docker#protonvpn_server
+**IMPORTANT:** To use a server that is best for you, please check the details in
+the ProtonVPN Docker page:
+<https://github.com/tprasadtp/protonvpn-docker#protonvpn_server>
 
-### 3.2. NordVPN
+#### 3.2. NordVPN
 
-Please visit https://support.nordvpn.com/Connectivity/Linux/1905092252/How-to-log-in-to-NordVPN-on-Linux-with-a-token.htm for more instructions on how to get your token. And https://github.com/bubuntux/nordvpn for more configuration parameters for the NordVPN container.
+Please visit the NordVPN token instructions for more information on how to get
+your token:
+<https://support.nordvpn.com/Connectivity/Linux/1905092252/How-to-log-in-to-NordVPN-on-Linux-with-a-token.htm>
 
-NordVPN by default will pick the best server for you, otherwise, please add the value in the `NORDVPN_COUNTRY_AND_OR_SERVER` variable. There is a comprehensive list at https://nordvpn.com/servers/ .
+See <https://github.com/bubuntux/nordvpn> for more configuration parameters for
+the NordVPN container.
 
-## 4. Generate the certificate
+NordVPN by default will pick the best server for you. Otherwise, please add the
+value in the `NORDVPN_COUNTRY_AND_OR_SERVER` variable. There is a comprehensive
+list at <https://nordvpn.com/servers/>.
+
+### 4. Generate the certificate
 
 At this moment the stack only supports self-signed certificates.
 
-Go back to the `.env` file and look for the section about the certificate if you want to change any parameter.
+Go back to the `.env` file and look for the section about the certificate if you
+want to change any parameter.
 An example is like;
 
-```
+```dotenv
 # Certificate details
 CERT_COUNTRY=CS
 CERT_STATE=Classified
@@ -209,9 +241,10 @@ CERT_OU=Classified
 CERT_FQDN=${DOMAIN} # it will use the previously declared DOMAIN variable
 ```
 
-After you have configured the parameters in the `.env` file, you can generate a certificate by running the command;
+After you have configured the parameters in the `.env` file, you can generate a
+certificate by running the command:
 
-```
+```shell
 make generate_certificate
 ```
 
@@ -221,17 +254,20 @@ This will create the `server.key`, `server.crt`, and `server.pfx` in the `/certs
 
 If you have your own certificate, just copy them to the `/certs` folder using the exact names.
 
-Remember, the `server.key`, `server.crt`, and `server.pfx` have to match the `uid` and `gid`, and the permissions have to be `644` for the `.crt` and `600` for the `.key` and `.pfx`.
+Remember, the `server.key`, `server.crt`, and `server.pfx` have to match the
+`uid` and `gid`. The permissions have to be `644` for the `.crt` and `600` for
+the `.key` and `.pfx`.
 
-## 5. Enable / Disable Apps
+### 5. Enable / Disable Apps
 
-In the same `.env` file, edit the Docker container profile to enabled/disabled for the apps in the stack.
+In the same `.env` file, edit the Docker container profile to enabled/disabled
+for the apps in the stack.
 
 The only **REQUIRED** app is the `VPN_PROVIDER` as the stack is tightly coupled to it.
 
 It will look like this;
 
-```
+```dotenv
 # Default Apps' Profiles (enabled/disabled)
 BAZARR_PROFILE=disabled
 CALIBRE_PROFILE=disabled
@@ -256,12 +292,12 @@ NORDVPN_PROFILE=disabled
 PROWLARR_PROFILE=disabled
 ```
 
-## 6. Run the containers
+### 6. Run the containers
 
 Now that everything is set, please run the containers by using the command below;
 
 ```shell
-docker-compose --profile enabled up --detach
+docker compose --profile enabled up --detach
 ```
 
 **OR**
@@ -270,18 +306,19 @@ docker-compose --profile enabled up --detach
 make start
 ```
 
-## 7. Rotate your keys
+### 7. Rotate your keys
 
 All the services are pre-configured, therefore they already have API keys set.
 
 It is **strongly recommended rotating all of them** for the sake of security.
 
-## 8. Shutting it down
+### 8. Shutting it down
 
-Now that everything is working, if you need to bring it down to change parameters and make adjustments, please run the command below;
+Now that everything is working, if you need to bring it down to change parameters
+and make adjustments, please run the command below:
 
 ```shell
-docker-compose --profile enabled stop
+docker compose --profile enabled stop
 ```
 
 **OR**
@@ -290,9 +327,10 @@ docker-compose --profile enabled stop
 make stop
 ```
 
-## 9. Backup
+### 9. Backup
 
-Now that everything is **fully working**. Make sure you create a backup of your configurations and changes, in order to perform the backup operation, please run;
+Now that everything is **fully working**, make sure you create a backup of your
+configurations and changes. To perform the backup operation, please run:
 
 ```shell
 make backup
@@ -302,22 +340,22 @@ This command will generate a backup of all the config folders.
 
 ---
 
-# Folders
+## Folders
 
 The media type will be stored into the folders below;
 
-| **Media**  |    **Folder**    |
-| :--------: | :--------------: |
+| **Media**  | **Folder**       |
+| ---------- | ---------------- |
 | AudioBooks | media/AudioBooks |
-|   Comics   |   media/Comics   |
-|   eBooks   |   media/eBooks   |
-|   Movies   |   media/Movies   |
-|   Music    |   media/Music    |
-|   Series   |   media/Series   |
+| Comics     | media/Comics     |
+| eBooks     | media/eBooks     |
+| Movies     | media/Movies     |
+| Music      | media/Music      |
+| Series     | media/Series     |
 
 ---
 
-# App Links
+## App Links
 
 These tables list the apps, protocols (HTTP or HTTPS), ports, and credentials.
 
@@ -327,62 +365,62 @@ Not all apps are fully working through the reverse proxy (Nginx). I am still wor
 
 ## **HTTP**
 
-|   **App**    |        **Link**         | **User** | **Password** |
-| :----------: | :---------------------: | :------: | :----------: |
-|    Bazarr    | http://localhost:6767/  |  bazarr  |    bazarr    |
-|   Calibre    | http://localhost:8080/  | calibre  |    bazarr    |
-| FlareSolverr | http://localhost:8191/  |    -     |      -       |
-|   Jackett    | http://localhost:9117/  |    -     |   jackett    |
-|    Lidarr    | http://localhost:8686/  |  lidarr  |    lidarr    |
-|    Nginx     |  http://localhost:80/   |    -     |      -       |
-|    Nzbget    | http://localhost:6789/  |  nzbget  |    nzbget    |
-|     Plex     | http://localhost:32400/ |    -     |      -       |
-|   Prowlarr   | http://localhost:9696/  | prowlarr |   prowlarr   |
-|    Radarr    | http://localhost:7878/  |  radarr  |    radarr    |
-|   Readarr    | http://localhost:8787/  | readarr  |   readarr    |
-|    Sonarr    | http://localhost:8989/  |  sonarr  |    sonarr    |
+| **App**      | **Link**                  | **User** | **Password** |
+| ------------ | ------------------------- | -------- | ------------ |
+| Bazarr       | <http://localhost:6767/>  | bazarr   | bazarr       |
+| Calibre      | <http://localhost:8080/>  | calibre  | bazarr       |
+| FlareSolverr | <http://localhost:8191/>  | -        | -            |
+| Jackett      | <http://localhost:9117/>  | -        | jackett      |
+| Lidarr       | <http://localhost:8686/>  | lidarr   | lidarr       |
+| Nginx        | <http://localhost:80/>    | -        | -            |
+| Nzbget       | <http://localhost:6789/>  | nzbget   | nzbget       |
+| Plex         | <http://localhost:32400/> | -        | -            |
+| Prowlarr     | <http://localhost:9696/>  | prowlarr | prowlarr     |
+| Radarr       | <http://localhost:7878/>  | radarr   | radarr       |
+| Readarr      | <http://localhost:8787/>  | readarr  | readarr      |
+| Sonarr       | <http://localhost:8989/>  | sonarr   | sonarr       |
 
 ## **HTTPS**
 
-|    **App**    |               **Link**               |   **User**    | **Password**  |
-| :-----------: | :----------------------------------: | :-----------: | :-----------: |
-|    Calibre    |       https://localhost:8181/        |    calibre    |    calibre    |
-|  Calibre-Web  |       https://localhost:8084/        |    calibre    |    calibre    |
-| LazyLibrarian | https://localhost:5299/lazylibrarian | lazylibrarian | lazylibrarian |
-|    Lidarr     |       https://localhost:6868/        |    lidarr     |    lidarr     |
-|     Nginx     |        https://localhost:443/        |       -       |       -       |
-|     Mylar     |    https://localhost:8091/mylar/     |     mylar     |     mylar     |
-|    Nzbget     |       https://localhost:6791/        |    nzbget     |    nzbget     |
-|   NzbHydra2   |  https://localhost:5077/nzbhydra2/   |   nzbhydra2   |   nzbhydra2   |
-|   Prowlarr    |       https://localhost:6969/        |   prowlarr    |   prowlarr    |
-|  qBitTorrent  |       https://localhost:8085/        |  qbittorrent  |  qbittorrent  |
-|    Radarr     |       https://localhost:7879/        |    radarr     |    radarr     |
-|    Readarr    |       https://localhost:8788/        |    readarr    |    readarr    |
+| **App**       | **Link**                               | **User**      | **Password**  |
+| ------------- | -------------------------------------- | ------------- | ------------- |
+| Calibre       | <https://localhost:8181/>              | calibre       | calibre       |
+| Calibre-Web   | <https://localhost:8084/>              | calibre       | calibre       |
+| LazyLibrarian | <https://localhost:5299/lazylibrarian> | lazylibrarian | lazylibrarian |
+| Lidarr        | <https://localhost:6868/>              | lidarr        | lidarr        |
+| Nginx         | <https://localhost:443/>               | -             | -             |
+| Mylar         | <https://localhost:8091/mylar/>        | mylar         | mylar         |
+| Nzbget        | <https://localhost:6791/>              | nzbget        | nzbget        |
+| NzbHydra2     | <https://localhost:5077/nzbhydra2/>    | nzbhydra2     | nzbhydra2     |
+| Prowlarr      | <https://localhost:6969/>              | prowlarr      | prowlarr      |
+| qBitTorrent   | <https://localhost:8085/>              | qbittorrent   | qbittorrent   |
+| Radarr        | <https://localhost:7879/>              | radarr        | radarr        |
+| Readarr       | <https://localhost:8788/>              | readarr       | readarr       |
 
 ## **HTTPS through reverse proxy (Nginx)**
 
-|    **App**    |             **Link**             |   **User**    | **Password**  |
-| :-----------: | :------------------------------: | :-----------: | :-----------: |
-|    Bazarr     |    https://localhost/bazarr/     |    bazarr     |    bazarr     |
-|    Calibre    |    https://localhost/calibre/    |    calibre    |    calibre    |
-|  Calibre-Web  |  https://localhost/calibre_web/  |    calibre    |    calibre    |
-| FlareSolverr  |  http://localhost/flaresolverr/  |       -       |       -       |
-|    Jackett    |    http://localhost/jackett/     |       -       |    jackett    |
-| Lazylibrarian | https://localhost/lazylibrarian/ | lazylibrarian | lazylibrarian |
-|    Lidarr     |    https://localhost/lidarr/     |    lidarr     |    lidarr     |
-|     Mylar     |     https://localhost/mylar/     |     mylar     |     mylar     |
-|    Nzbget     |    https://localhost/nzbget/     |    nzbget     |    nzbget     |
-|   NzbHydra2   |   https://localhost/nzbhydra2/   |   nzbhydra2   |   nzbhydra2   |
-|   Prowlarr    |   https://localhost/prowlarr/    |   prowlarr    |   prowlarr    |
-|  qBitTorrent  |  https://localhost/qbittorrent/  |  qbittorrent  |  qbittorrent  |
-|    Radarr     |    https://localhost/radarr/     |    radarr     |    radarr     |
-|    Readarr    |    https://localhost/readarr/    |    readarr    |    readarr    |
+| **App**       | **Link**                           | **User**      | **Password**  |
+| ------------- | ---------------------------------- | ------------- | ------------- |
+| Bazarr        | <https://localhost/bazarr/>        | bazarr        | bazarr        |
+| Calibre       | <https://localhost/calibre/>       | calibre       | calibre       |
+| Calibre-Web   | <https://localhost/calibre_web/>   | calibre       | calibre       |
+| FlareSolverr  | <http://localhost/flaresolverr/>   | -             | -             |
+| Jackett       | <http://localhost/jackett/>        | -             | jackett       |
+| Lazylibrarian | <https://localhost/lazylibrarian/> | lazylibrarian | lazylibrarian |
+| Lidarr        | <https://localhost/lidarr/>        | lidarr        | lidarr        |
+| Mylar         | <https://localhost/mylar/>         | mylar         | mylar         |
+| Nzbget        | <https://localhost/nzbget/>        | nzbget        | nzbget        |
+| NzbHydra2     | <https://localhost/nzbhydra2/>     | nzbhydra2     | nzbhydra2     |
+| Prowlarr      | <https://localhost/prowlarr/>      | prowlarr      | prowlarr      |
+| qBitTorrent   | <https://localhost/qbittorrent/>   | qbittorrent   | qbittorrent   |
+| Radarr        | <https://localhost/radarr/>        | radarr        | radarr        |
+| Readarr       | <https://localhost/readarr/>       | readarr       | readarr       |
 
 ---
 
-# Indexers
+## Indexers
 
-## Torrent
+### Torrent
 
 LazyLibrarian ---> NzbHydra2 ---> Jackett ---> Flaresolverr\
 Lidarr ---> NzbHydra2 ---> Jackett ---> Flaresolverr\
@@ -391,7 +429,7 @@ Radarr ---> NzbHydra2 ---> Jackett ---> Flaresolverr\
 Readarr ---> NzbHydra2 ---> Jackett ---> Flaresolverr\
 Sonarr ---> NzbHydra2 ---> Jackett ---> Flaresolverr
 
-## Usenet
+### Usenet
 
 LazyLibrarian ---> NzbHydra2\
 Lidarr ---> NzbHydra2\
@@ -402,9 +440,9 @@ Sonarr ---> NzbHydra2
 
 ---
 
-# Downloaders
+## Downloaders
 
-## Torrent
+### Torrent
 
 LazyLibrarian ---> qBitTorrent\
 Lidarr ---> qBitTorrent\
@@ -413,7 +451,7 @@ Radarr ---> qBitTorrent\
 Readarr ---> qBitTorrent\
 Sonarr ---> qBitTorrent
 
-## Usenet
+### Usenet
 
 LazyLibrarian ---> NzbGet\
 Lidarr ---> NzbGet\
@@ -424,30 +462,31 @@ Sonarr ---> NzbGet
 
 ---
 
-# Library Managers
+## Library Managers
 
-## Movies / Series / Music
+### Movies / Series / Music
 
 Lidarr ---> Plex Media Server\
 Radarr ---> Plex Media Server\
 Sonarr ---> Plex Media Server
 
-## AudioBooks / eBooks / Comics
+### AudioBooks / eBooks / Comics
 
 LazyLibrarian ---> Calibre\
 Mylar ---> Calibre\
 Readarr ---> Calibre
 
-## Subtitles (Movies / TV Shows)
+### Subtitles (Movies / TV Shows)
 
 Bazarr ---> Sonarr\
 Bazarr ---> Radarr
 
 ---
 
-# Bandwith Control
+## Bandwith Control
 
-By default, both downloaders, qBitTorrent and NzbGet, are configured to limit from 8AM to 11:59PM to;
+By default, both downloaders, qBitTorrent and NzbGet, are configured to limit
+from 8AM to 11:59PM to:
 
 - **Download Rate** - 1 Gbps
 - **Upload Rate** - 30 Mbps (only applicable to qBitTorrent)
@@ -474,7 +513,8 @@ make clean
 3. Mylar doesn't work with qBittorrent and Nzbget using a self-signed certificate
 4. Lazylibarian doesn't work with qBittorrent using a self-signed certificate.
 
-If you can help working on any of these issues and require more information, please feel free to open a issue and reach out.
+If you can help working on any of these issues and require more information,
+please feel free to open a issue and reach out.
 
 ## Clean up everything (including media folder)
 
@@ -486,20 +526,28 @@ make clean_all
 
 ---
 
-# License
+## License
 
 [![license](https://img.shields.io/github/license/ivan-pinatti/docker-torrent-box?style=plastic)](https://github.com/ivan-pinatti/docker-torrent-box/blob/master/LICENSE)
 
 See [LICENSE](LICENSE) for full details.
 
-> `THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.`
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+> IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+> FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+> LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+> OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+> SOFTWARE.
 
 ---
 
-# Contribute / Donate
+## Contribute / Donate
 
-If you are using the code, entirelly or partially, forking the project, or getting inspired by it, consider becoming a sponsor, buying me a coffee, or maybe a beer, I would really appreciate it :smiley:
+If you are using the code, entirelly or partially, forking the project, or
+getting inspired by it, consider becoming a sponsor, buying me a coffee, or
+maybe a beer, I would really appreciate it :smiley:
 
-[![](https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub&color=%23fe8e86)](https://github.com/sponsors/ivan-pinatti)
+[![Sponsor](https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub&color=%23fe8e86)](https://github.com/sponsors/ivan-pinatti)
 
-<a href="https://www.buymeacoffee.com/ivan.pinatti" target="_blank"><img src="https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png" alt="Buy Me A Coffee" style="height: 41px !important;width: 174px !important;box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;-webkit-box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;" ></a>
+[![Buy Me A Coffee](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/ivan.pinatti)

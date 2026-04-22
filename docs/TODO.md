@@ -1,4 +1,4 @@
-### Todo
+# Todo
 
 - [ ] Enhance the library update process
 - [ ] Research Dependabot/Renovate for Docker image versions
@@ -8,15 +8,38 @@
 - [ ] Lazylibrarian not working with qBittorrent on HTTPS
 - [ ] Fix python version w/ GHA
 
-### In Progress
+## In Progress
 
-### Done ✓
+## Won't do
+
+- Containers running as non-root. Most services use s6-overlay and require to be ran as root.
+
+## Done
+
+2.1.x
+
+- [x] DOCS - Updated to add required binaries for xmlstarlet and yq
+- [x] DOCS - Wireguard is required in the host machine
+- [x] DOCS - Added the requirements section and the make check_requirements command
+- [x] MAKE - Improvement in generate_certificate, now it updates SSL keys in apps configurations
+- [x] MAKE - Added the check_requirements command
+- [x] Docker - All containers are now limited to 1 CPU and 1 GB memory
+- [x] Docker Compose - Version in docker-compose file is obsolete, removed
+- [x] All Services - All versions are now locked to the latest working
+- [x] All Services - Removed the general .env from the containers configuration,
+  only specific .env for each service now
+- [x] All Services - Removed secrets as new images don't have the option anymore
+- [x] ProtonVPN - Added the --p2p option to ProtonVPN container
+- [x] ProtonVPN - Moved the secret into the .secret file for improved security
+- [x] Whisparr - Added to the stack
+- [x] Jellyfin - Added to the stack
+- [x] Docker Compose - Switch from docker-compose to docker compose
 
 2.1.4
 
 - [x] Fix pre-commit docker-compose hook
 
-  2.0.1
+2.0.1
 
 - [x] Added backup entries to .gitignore
 - [x] Added certs to the backup
@@ -27,7 +50,7 @@
 - [x] Plex network changed to `host` for better performance
 - [x] Added support for NordVPN (untested)
 
-  2.0.0
+2.0.0
 
 - [x] Augment the stack to use a reverse proxy w/ https
 - [x] Add Lazylibrarian to Prowlarr

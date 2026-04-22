@@ -16,7 +16,9 @@ A clear and concise description of what you expected to happen.
 
 ## Use Case
 
-Is your feature request related to a problem/challenge you are trying to solve? Please provide some additional context of why this feature or capability will be valuable.
+Is your feature request related to a problem/challenge you are trying to solve?
+Please provide some additional context of why this feature or capability will be
+valuable.
 
 ## Describe Ideal Solution
 
