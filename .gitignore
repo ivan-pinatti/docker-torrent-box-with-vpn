@@ -19,15 +19,43 @@
 # Ignore all local history of files
 .history
 .ionide
+node_modules/
 
 # dotenv ###
 .env
+.env.*
+!.env.example
+.codex
+.codex/
+.local/
 
 # Docker-compose dev file
 docker-compose.dev.yml
+compose.override.yml
+docker-compose.override.yml
 
 # Backup files
 certs.backup.**
 configs.backup.**
 .env.backup.**
 backup/**
+
+# Generated local files
+*.db-shm
+*.db-wal
+*.sqlite-shm
+*.sqlite-wal
+*.log
+*.pid
+*.key
+*.pem
+*.p12
+*.pfx
+cache/
+logs/
+storage/
+configs/recyclarr/config/rep/
+configs/recyclarr/config/repositories/
+certs/server.key
+certs/server.crt
+certs/server.pfx

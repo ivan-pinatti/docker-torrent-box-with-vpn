@@ -1,0 +1,22 @@
+default: true
+
+# Existing project docs predate markdownlint; keep the hook focused on
+# structural problems that do not require a large documentation rewrite.
+MD013: false
+MD025: false
+MD026: false
+MD032: false
+MD034: false
+MD040: false
+MD041: false
+MD042: false
+MD045: false
+MD051: false
+
+MD024:
+  siblings_only: true
+
+MD033: false
+MD036: false
+MD031: true
+MD060: true

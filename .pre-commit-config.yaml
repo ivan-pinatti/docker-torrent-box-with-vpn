@@ -1,43 +1,76 @@
+---
+default_install_hook_types: [pre-commit, pre-push]
+minimum_pre_commit_version: 4.0.1
+
 repos:
-  # Detect Secrets
   - repo: https://github.com/Yelp/detect-secrets
-    rev: v1.4.0
+    rev: v1.5.0
     hooks:
       - id: detect-secrets
         args: ["--baseline", ".secrets.baseline"]
+        require_serial: true
 
-  # Prettier
-  - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: v3.0.0-alpha.9-for-vscode
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
     hooks:
-      - id: prettier
+      - id: gitleaks
+        exclude: &runtime_placeholders '^(configs/.*/\.env|configs/.*/config/|configs/recyclarr/config/.*\.yml|media/eBooks/metadata\.db|\.secrets\.baseline)$'
 
-  # pre-commit hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.4.0
+    rev: v6.0.0
     hooks:
       - id: check-added-large-files
+        args: ["--maxkb=1024"]
+        exclude: *runtime_placeholders
+      - id: check-case-conflict
+      - id: check-illegal-windows-names
       - id: check-json
+        exclude: *runtime_placeholders
+      - id: check-merge-conflict
       - id: check-symlinks
       - id: check-xml
+        exclude: *runtime_placeholders
       - id: check-yaml
+        exclude: *runtime_placeholders
+      - id: destroyed-symlinks
+      - id: detect-private-key
       - id: end-of-file-fixer
+        exclude: *runtime_placeholders
+      - id: mixed-line-ending
+        exclude: *runtime_placeholders
       - id: trailing-whitespace
+        args: ["--markdown-linebreak-ext=md"]
+        exclude: *runtime_placeholders
 
-  # Docker-Compose hooks
-  - repo: https://github.com/IamTheFij/docker-pre-commit
-    rev: v3.0.1
+  - repo: https://github.com/editorconfig-checker/editorconfig-checker.python
+    rev: 3.6.1
     hooks:
-      - id: docker-compose-check
+      - id: editorconfig-checker
 
-ci:
-  autofix_commit_msg: |
-    [pre-commit.ci] auto fixes from pre-commit.com hooks
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+        args: ["--severity=error"]
 
-    for more information, see https://pre-commit.ci
-  autofix_prs: true
-  autoupdate_branch: ""
-  autoupdate_commit_msg: "[pre-commit.ci] pre-commit autoupdate"
-  autoupdate_schedule: weekly
-  skip: []
-  submodules: false
+  - repo: https://github.com/jumanjihouse/pre-commit-hooks
+    rev: 3.0.0
+    hooks:
+      - id: shfmt
+        args: ["--indent", "2", "--list", "--write"]
+
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.38.0
+    hooks:
+      - id: yamllint
+        exclude: *runtime_placeholders
+
+  - repo: https://github.com/streetsidesoftware/cspell-cli
+    rev: v9.7.0
+    hooks:
+      - id: cspell
+
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.21.0
+    hooks:
+      - id: markdownlint-cli2

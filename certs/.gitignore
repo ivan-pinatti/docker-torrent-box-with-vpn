@@ -1,5 +1,7 @@
 # Ignore everything in this directory
 *
 
-# Except .gitignore and dotenv file
+# Except placeholders and examples
 !.gitignore
+!*.example
+!cert.conf.example
