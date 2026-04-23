@@ -31,13 +31,16 @@ welcome your pull requests:
    checks are enforced even if local hooks are not installed.
 6. Use `make sanity_fast` for the normal local check path and `make sanity_full`
    for the full repository check path.
-7. Adhere to the commit message guidelines as this repository uses
+7. Dependabot opens weekly pull requests for `.pre-commit-config.yaml` hook revs
+   and GitHub Action version bumps. Eligible patch and minor updates are
+   approved and marked for auto-merge once the required checks pass.
+8. Adhere to the commit message guidelines as this repository uses
    [semantic versioning](https://semver.org/). More info:
    <https://github.com/mathieudutour/github-tag-action#bumping>
-8. At the moment the repository doesn't have automated testing, therefore test
+9. At the moment the repository doesn't have automated testing, therefore test
    manually that your changes are not breaking anything.
-9. Update the documentation accordingly
-10. Issue the pull request!
+10. Update the documentation accordingly
+11. Issue the pull request!
 
 ## Any contributions you make will be under the MIT Software License
 
@@ -67,6 +70,8 @@ pull requests before sending changes upstream.
 - 2 spaces for indentation rather than tabs
 - Use `make sanity_fast` for the normal local validation path
 - Use `make sanity_full` when you need the full repository security/IaC pass
+- Dependabot handles weekly hook and workflow version bump PRs; major updates
+  are left for manual review
 
 ## License
 
