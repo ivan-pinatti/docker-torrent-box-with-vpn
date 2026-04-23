@@ -1,9 +1,17 @@
 ---
 ENABLE_LINTERS:
   - SPELL_LYCHEE
+  - REPOSITORY_CHECKOV
+  - REPOSITORY_TRIVY
 
-FILTER_REGEX_INCLUDE: (^README\.md$|^LICENSE\.md$|^docs/.*\.md$|^\.github/(ISSUE_TEMPLATE/.*\.md|PULL_REQUEST_TEMPLATE\.md)$)
 DISABLE_ERRORS: false
 FLAVOR_SUGGESTIONS: false
 SHOW_ELAPSED_TIME: true
-VALIDATE_ALL_CODEBASE: true
+VALIDATE_ALL_CODEBASE: false
+
+SPELL_LYCHEE_FILTER_REGEX_INCLUDE: (^README\.md$|^LICENSE\.md$|^docs/.*\.md$|^\.github/(ISSUE_TEMPLATE/.*\.md|PULL_REQUEST_TEMPLATE\.md)$)
+
+# Runtime state is intentionally tracked for some services, but it is not useful
+# input for repository-wide security/IaC scanners.
+REPOSITORY_TRIVY_FILTER_REGEX_EXCLUDE: (^configs/.*/\.env$|^configs/.*/config/|^configs/recyclarr/config/.*\.yml$|^media/eBooks/metadata\.db$|^\.secrets\.baseline$)
+REPOSITORY_CHECKOV_ARGUMENTS: --skip-framework secrets --skip-path configs --skip-path media/eBooks

@@ -70,6 +70,13 @@ repos:
     hooks:
       - id: cspell
 
+  - repo: https://github.com/oxsecurity/megalinter
+    rev: v9.4.0
+    hooks:
+      - id: megalinter-full
+        stages: [pre-push]
+        verbose: true
+
   - repo: https://github.com/DavidAnson/markdownlint-cli2
     rev: v0.21.0
     hooks:

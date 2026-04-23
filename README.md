@@ -220,8 +220,8 @@ See <https://github.com/bubuntux/nordvpn> for more configuration parameters for
 the NordVPN container.
 
 NordVPN by default will pick the best server for you. Otherwise, please add the
-value in the `NORDVPN_COUNTRY_AND_OR_SERVER` variable. There is a comprehensive
-list at <https://nordvpn.com/servers/>.
+value in the `NORDVPN_COUNTRY_AND_OR_SERVER` variable. Refer to the NordVPN
+support documentation above for the current server selection guidance.
 
 ### 4. Generate the certificate
 
@@ -528,7 +528,7 @@ make clean_all
 
 ## License
 
-[![license](https://img.shields.io/github/license/ivan-pinatti/docker-torrent-box?style=plastic)](https://github.com/ivan-pinatti/docker-torrent-box/blob/master/LICENSE)
+[![license](https://img.shields.io/github/license/ivan-pinatti/docker-torrent-box-with-vpn?style=plastic)](https://github.com/ivan-pinatti/docker-torrent-box-with-vpn/blob/main/LICENSE.md)
 
 See [LICENSE](LICENSE.md) for full details.
 

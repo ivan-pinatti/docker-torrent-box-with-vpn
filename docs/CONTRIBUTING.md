@@ -25,13 +25,17 @@ welcome your pull requests:
 2. If you don't have it yet, please install pre-commit. More info:
    <https://pre-commit.com/>
 3. After pre-commit is installed, add the hooks by running `pre-commit install`.
-4. Adhere to the commit message guidelines as this repository uses
+4. MegaLinter runs at `pre-push`, while the existing focused hooks still run at
+   `pre-commit`.
+5. For a full repository pass, run
+   `pre-commit run megalinter-full --hook-stage pre-push --all-files`.
+6. Adhere to the commit message guidelines as this repository uses
    [semantic versioning](https://semver.org/). More info:
    <https://github.com/mathieudutour/github-tag-action#bumping>
-5. At the moment the repository doesn't have automated testing, therefore test
+7. At the moment the repository doesn't have automated testing, therefore test
    manually that your changes are not breaking anything.
-6. Update the documentation accordingly
-7. Issue the pull request!
+8. Update the documentation accordingly
+9. Issue the pull request!
 
 ## Any contributions you make will be under the MIT Software License
 
@@ -55,10 +59,13 @@ app developer whom I greatly respect.
 ## Use a Consistent Coding Style
 
 The repository is already using some tools to help with that. Make sure you are
-running the pre-commit to lint all files, detect new secrets, etc.
+running the pre-commit hooks and the pre-push MegaLinter checks before sending
+changes upstream.
 
 - 2 spaces for indentation rather than tabs
 - You can try running `pre-commit run -a` for style unification
+- Use `pre-commit run megalinter-full --hook-stage pre-push --all-files` when
+  you need the full repository security/IaC pass locally
 
 ## License
 
