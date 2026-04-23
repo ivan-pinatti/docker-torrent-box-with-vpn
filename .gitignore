@@ -20,6 +20,7 @@
 .history
 .ionide
 node_modules/
+megalinter-reports/
 
 # dotenv ###
 .env

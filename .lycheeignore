@@ -1,0 +1,7 @@
+# Internal and local networks are unreachable from CI/external environments
+^https?://localhost(:[0-9]+)?(/.*)?$
+^https?://127\.0\.0\.1(:[0-9]+)?(/.*)?$
+^https?://.*\.internal(:[0-9]+)?(/.*)?$
+^https?://172\.16\..*(:[0-9]+)?(/.*)?$
+^https?://192\.168\..*(:[0-9]+)?(/.*)?$
+^https?://10\..*(:[0-9]+)?(/.*)?$

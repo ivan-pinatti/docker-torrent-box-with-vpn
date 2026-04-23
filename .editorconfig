@@ -1,8 +1,10 @@
 # EditorConfig is awesome: https://EditorConfig.org
 # Uses editorconfig to maintain consistent coding styles
 
+# top-most EditorConfig file
 root = true
 
+# Unix-style newlines with a newline ending every file
 [*]
 charset = utf-8
 end_of_line = lf
@@ -11,6 +13,10 @@ tab_width = 2
 trim_trailing_whitespace = true
 
 [*.{yml,yaml}]
+indent_style = space
+indent_size = 2
+
+[*.{tf,tfvars}]
 indent_style = space
 indent_size = 2
 
@@ -23,6 +29,11 @@ quote_type = ignore
 indent_style = space
 indent_size = 2
 quote_type = double
+
+[*.py]
+indent_style = space
+indent_size = 4
+max_line_length = 88
 
 [*.md]
 trim_trailing_whitespace = false

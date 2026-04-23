@@ -16,6 +16,3 @@ config/.config/calibre/*
 !config/.config/calibre/gui.py.json
 !config/.config/calibre/global.py.json
 !config/.config/calibre/dynamic.pickle.json
-!config/.config/calibre/conversion
-config/.config/calibre/conversion/*
-!config/.config/calibre/conversion/page_setup.py
