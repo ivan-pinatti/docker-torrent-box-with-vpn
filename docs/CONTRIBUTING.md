@@ -29,8 +29,8 @@ welcome your pull requests:
    `pre-push`, while the focused hooks still run directly in `pre-commit`.
 5. Pull requests also run the MegaLinter workflow in GitHub Actions, so the same
    checks are enforced even if local hooks are not installed.
-6. For a full repository pass, run
-   `pre-commit run megalinter-full --hook-stage pre-push --all-files`.
+6. Use `make sanity_fast` for the normal local check path and `make sanity_full`
+   for the full repository check path.
 7. Adhere to the commit message guidelines as this repository uses
    [semantic versioning](https://semver.org/). More info:
    <https://github.com/mathieudutour/github-tag-action#bumping>
@@ -65,9 +65,8 @@ running the pre-commit hooks and allowing MegaLinter to run both locally and in
 pull requests before sending changes upstream.
 
 - 2 spaces for indentation rather than tabs
-- You can try running `pre-commit run -a` for style unification
-- Use `pre-commit run megalinter-full --hook-stage pre-push --all-files` when
-  you need the full repository security/IaC pass locally
+- Use `make sanity_fast` for the normal local validation path
+- Use `make sanity_full` when you need the full repository security/IaC pass
 
 ## License
 

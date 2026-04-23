@@ -27,7 +27,5 @@ jobs:
 
       - name: Pre-commit Run
         uses: pre-commit/action@v3.0.0
-
-      - name: Pre-commit CI
-        uses: pre-commit-ci/lite-action@v1.0.1
-        if: always()
+        with:
+          extra_args: --all-files

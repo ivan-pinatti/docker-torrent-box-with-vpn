@@ -15,7 +15,7 @@ clean:
 	@echo "Stopping and removing containers (if they are running)..."
 	@docker-compose --profile enabled down
 
-	@echo "Reverting git files to orignal"
+	@echo "Reverting git files to original"
 	@sudo git clean -fdx
 
 	@echo -n "Cleaning Certs folders........."
@@ -50,6 +50,14 @@ generate_certificate:
 pre_commit:
 	@echo "Running pre-commit checks..."
 	@pre-commit run --all-files
+
+sanity_fast:
+	@echo "Running fast sanity checks..."
+	@pre-commit run --all-files
+
+sanity_full: sanity_fast
+	@echo "Running full MegaLinter push checks..."
+	@pre-commit run megalinter-full --hook-stage pre-push --all-files
 
 pull_docker_images:
 	@echo "Pulling Docker Images..."
