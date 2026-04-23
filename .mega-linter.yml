@@ -1,8 +1,18 @@
 ---
 ENABLE_LINTERS:
+  - ACTION_ACTIONLINT
+  - BASH_EXEC
+  - BASH_SHELLCHECK
+  - BASH_SHFMT
+  - EDITORCONFIG_EDITORCONFIG_CHECKER
+  - ENV_DOTENV_LINTER
+  - JSON_JSONLINT
+  - MARKDOWN_MARKDOWNLINT
+  - SPELL_CSPELL
   - SPELL_LYCHEE
   - REPOSITORY_CHECKOV
   - REPOSITORY_TRIVY
+  - YAML_YAMLLINT
 
 DISABLE_ERRORS: false
 FLAVOR_SUGGESTIONS: false
@@ -10,6 +20,8 @@ SHOW_ELAPSED_TIME: true
 VALIDATE_ALL_CODEBASE: false
 
 SPELL_LYCHEE_FILTER_REGEX_INCLUDE: (^README\.md$|^LICENSE\.md$|^docs/.*\.md$|^\.github/(ISSUE_TEMPLATE/.*\.md|PULL_REQUEST_TEMPLATE\.md)$)
+ENV_DOTENV_LINTER_FILTER_REGEX_INCLUDE: (^\.env\.example$)
+JSON_JSONLINT_FILTER_REGEX_INCLUDE: (^\.cspell\.json$|^\.devcontainer/.*\.json$)
 
 # Runtime state is intentionally tracked for some services, but it is not useful
 # input for repository-wide security/IaC scanners.

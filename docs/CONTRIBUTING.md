@@ -25,17 +25,19 @@ welcome your pull requests:
 2. If you don't have it yet, please install pre-commit. More info:
    <https://pre-commit.com/>
 3. After pre-commit is installed, add the hooks by running `pre-commit install`.
-4. MegaLinter runs at `pre-push`, while the existing focused hooks still run at
-   `pre-commit`.
-5. For a full repository pass, run
+4. MegaLinter runs incrementally at `pre-commit` and as a broader gate at
+   `pre-push`, while the focused hooks still run directly in `pre-commit`.
+5. Pull requests also run the MegaLinter workflow in GitHub Actions, so the same
+   checks are enforced even if local hooks are not installed.
+6. For a full repository pass, run
    `pre-commit run megalinter-full --hook-stage pre-push --all-files`.
-6. Adhere to the commit message guidelines as this repository uses
+7. Adhere to the commit message guidelines as this repository uses
    [semantic versioning](https://semver.org/). More info:
    <https://github.com/mathieudutour/github-tag-action#bumping>
-7. At the moment the repository doesn't have automated testing, therefore test
+8. At the moment the repository doesn't have automated testing, therefore test
    manually that your changes are not breaking anything.
-8. Update the documentation accordingly
-9. Issue the pull request!
+9. Update the documentation accordingly
+10. Issue the pull request!
 
 ## Any contributions you make will be under the MIT Software License
 
@@ -59,8 +61,8 @@ app developer whom I greatly respect.
 ## Use a Consistent Coding Style
 
 The repository is already using some tools to help with that. Make sure you are
-running the pre-commit hooks and the pre-push MegaLinter checks before sending
-changes upstream.
+running the pre-commit hooks and allowing MegaLinter to run both locally and in
+pull requests before sending changes upstream.
 
 - 2 spaces for indentation rather than tabs
 - You can try running `pre-commit run -a` for style unification
