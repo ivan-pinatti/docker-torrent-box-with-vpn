@@ -1,0 +1,29 @@
+cff-version: 1.2.0
+message: >
+  If you use this software, entirely or partially, directly or as inspiration,
+  please cite it using the metadata below and consider supporting the author.
+title: docker-torrent-box-with-vpn
+abstract: >
+  Compose-based torrent, Usenet, Servarr, media, observability, and VPN stack.
+  Routes selected services through a single Gluetun VPN gateway with a structural
+  network namespace killswitch and reverse proxy access through Nginx.
+authors:
+  - name: Ivan Pinatti
+    alias: ivan-pinatti
+    url: https://github.com/ivan-pinatti
+license: MIT
+repository-code: https://github.com/ivan-pinatti/docker-torrent-box-with-vpn
+url: https://github.com/ivan-pinatti/docker-torrent-box-with-vpn
+keywords:
+  - docker
+  - podman
+  - compose
+  - vpn
+  - gluetun
+  - wireguard
+  - bittorrent
+  - usenet
+  - servarr
+  - qbittorrent
+  - nginx
+date-released: "2026-04-26"

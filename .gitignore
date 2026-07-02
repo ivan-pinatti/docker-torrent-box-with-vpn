@@ -8,6 +8,7 @@
 .idea/
 .agents/
 .claude/settings.local
+CLAUDE.md
 
 # Local History for Visual Studio Code
 .history/
