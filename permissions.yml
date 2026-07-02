@@ -1,0 +1,493 @@
+version: 1
+
+runtime:
+  default: podman
+  rootless_user_namespace: true
+
+host_access:
+  enabled: true
+  identity: root
+  perms: rwx
+  default_perms: rwx
+
+identities:
+  qbittorrent: {uid: 1101, gid: 1101}
+  sabnzbd: {uid: 1102, gid: 1102}
+  jdownloader2: {uid: 1103, gid: 1103}
+  nzbhydra2: {uid: 1104, gid: 1104}
+  sonarr: {uid: 1201, gid: 1201}
+  radarr: {uid: 1202, gid: 1202}
+  lidarr: {uid: 1203, gid: 1203}
+  readarr: {uid: 1204, gid: 1204}
+  whisparr: {uid: 1205, gid: 1205}
+  bazarr: {uid: 1206, gid: 1206}
+  lazylibrarian: {uid: 1207, gid: 1207}
+  mylar: {uid: 1208, gid: 1208}
+  prowlarr: {uid: 1210, gid: 1210}
+  recyclarr: {uid: 1211, gid: 1211}
+  flaresolverr: {uid: 1212, gid: 1212}
+  jellyfin: {uid: 1301, gid: 1301}
+  audiobookshelf: {uid: 1302, gid: 1302}
+  calibre: {uid: 1303, gid: 1303}
+  calibre_web: {uid: 1304, gid: 1304}
+  korsync: {uid: 1305, gid: 1305}
+  homepage: {uid: 1401, gid: 1401}
+  nginx: {uid: 101, gid: 101}
+  log_rotator: {uid: 1504, gid: 1504}
+  prometheus: {uid: 65534, gid: 65534}
+  loki: {uid: 10001, gid: 10001}
+  grafana: {uid: 472, gid: 472}
+  alloy: {uid: 473, gid: 473}
+
+paths:
+  - path: data
+    owner: root
+    mode: "0755"
+
+  - path: data/torrents
+    owner: root
+    mode: "0755"
+  - path: data/torrents/tv
+    owner: qbittorrent
+    mode: "0750"
+    acl:
+      - {identity: qbittorrent, perms: rwx}
+      - {identity: sonarr, perms: rwx}
+    default_acl:
+      - {identity: qbittorrent, perms: rwx}
+      - {identity: sonarr, perms: rwx}
+  - path: data/torrents/movies
+    owner: qbittorrent
+    mode: "0750"
+    acl:
+      - {identity: qbittorrent, perms: rwx}
+      - {identity: radarr, perms: rwx}
+    default_acl:
+      - {identity: qbittorrent, perms: rwx}
+      - {identity: radarr, perms: rwx}
+  - path: data/torrents/music
+    owner: qbittorrent
+    mode: "0750"
+    acl:
+      - {identity: qbittorrent, perms: rwx}
+      - {identity: lidarr, perms: rwx}
+    default_acl:
+      - {identity: qbittorrent, perms: rwx}
+      - {identity: lidarr, perms: rwx}
+  - path: data/torrents/ebooks
+    owner: qbittorrent
+    mode: "0750"
+    acl:
+      - {identity: qbittorrent, perms: rwx}
+      - {identity: readarr, perms: rwx}
+      - {identity: lazylibrarian, perms: rwx}
+    default_acl:
+      - {identity: qbittorrent, perms: rwx}
+      - {identity: readarr, perms: rwx}
+      - {identity: lazylibrarian, perms: rwx}
+  - path: data/torrents/comics
+    owner: qbittorrent
+    mode: "0750"
+    acl:
+      - {identity: qbittorrent, perms: rwx}
+      - {identity: readarr, perms: rwx}
+      - {identity: mylar, perms: rwx}
+    default_acl:
+      - {identity: qbittorrent, perms: rwx}
+      - {identity: readarr, perms: rwx}
+      - {identity: mylar, perms: rwx}
+  - path: data/torrents/mature
+    owner: qbittorrent
+    mode: "0750"
+    acl:
+      - {identity: qbittorrent, perms: rwx}
+      - {identity: whisparr, perms: rwx}
+    default_acl:
+      - {identity: qbittorrent, perms: rwx}
+      - {identity: whisparr, perms: rwx}
+  - path: data/torrents/blackhole
+    owner: root
+    mode: "0770"
+    acl:
+      - {identity: nzbhydra2, perms: rwx}
+      - {identity: lazylibrarian, perms: rwx}
+      - {identity: mylar, perms: rwx}
+    default_acl:
+      - {identity: nzbhydra2, perms: rwx}
+      - {identity: lazylibrarian, perms: rwx}
+      - {identity: mylar, perms: rwx}
+
+  - path: data/usenet
+    owner: root
+    mode: "0755"
+  - path: data/usenet/incomplete
+    owner: sabnzbd
+    mode: "0750"
+  - path: data/usenet/complete
+    owner: root
+    mode: "0755"
+    acl:
+      - {identity: sabnzbd, perms: rwx}
+    default_acl:
+      - {identity: sabnzbd, perms: rwx}
+  - path: data/usenet/complete/tv
+    owner: sabnzbd
+    mode: "0750"
+    acl:
+      - {identity: sabnzbd, perms: rwx}
+      - {identity: sonarr, perms: rwx}
+    default_acl:
+      - {identity: sabnzbd, perms: rwx}
+      - {identity: sonarr, perms: rwx}
+  - path: data/usenet/complete/movies
+    owner: sabnzbd
+    mode: "0750"
+    acl:
+      - {identity: sabnzbd, perms: rwx}
+      - {identity: radarr, perms: rwx}
+    default_acl:
+      - {identity: sabnzbd, perms: rwx}
+      - {identity: radarr, perms: rwx}
+  - path: data/usenet/complete/music
+    owner: sabnzbd
+    mode: "0750"
+    acl:
+      - {identity: sabnzbd, perms: rwx}
+      - {identity: lidarr, perms: rwx}
+    default_acl:
+      - {identity: sabnzbd, perms: rwx}
+      - {identity: lidarr, perms: rwx}
+  - path: data/usenet/complete/ebooks
+    owner: sabnzbd
+    mode: "0750"
+    acl:
+      - {identity: sabnzbd, perms: rwx}
+      - {identity: readarr, perms: rwx}
+      - {identity: lazylibrarian, perms: rwx}
+    default_acl:
+      - {identity: sabnzbd, perms: rwx}
+      - {identity: readarr, perms: rwx}
+      - {identity: lazylibrarian, perms: rwx}
+  - path: data/usenet/complete/audiobooks
+    owner: sabnzbd
+    mode: "0750"
+    acl:
+      - {identity: sabnzbd, perms: rwx}
+      - {identity: readarr, perms: rwx}
+      - {identity: lazylibrarian, perms: rwx}
+    default_acl:
+      - {identity: sabnzbd, perms: rwx}
+      - {identity: readarr, perms: rwx}
+      - {identity: lazylibrarian, perms: rwx}
+  - path: data/usenet/complete/comics
+    owner: sabnzbd
+    mode: "0750"
+    acl:
+      - {identity: sabnzbd, perms: rwx}
+      - {identity: readarr, perms: rwx}
+      - {identity: mylar, perms: rwx}
+    default_acl:
+      - {identity: sabnzbd, perms: rwx}
+      - {identity: readarr, perms: rwx}
+      - {identity: mylar, perms: rwx}
+  - path: data/usenet/complete/mature
+    owner: sabnzbd
+    mode: "0750"
+    acl:
+      - {identity: sabnzbd, perms: rwx}
+      - {identity: whisparr, perms: rwx}
+    default_acl:
+      - {identity: sabnzbd, perms: rwx}
+      - {identity: whisparr, perms: rwx}
+  - path: data/usenet/blackhole
+    owner: root
+    mode: "0770"
+    acl:
+      - {identity: sabnzbd, perms: rwx}
+      - {identity: nzbhydra2, perms: rwx}
+      - {identity: lazylibrarian, perms: rwx}
+    default_acl:
+      - {identity: sabnzbd, perms: rwx}
+      - {identity: nzbhydra2, perms: rwx}
+      - {identity: lazylibrarian, perms: rwx}
+
+  - path: data/downloads
+    owner: jdownloader2
+    mode: "0750"
+    acl:
+      - {identity: jdownloader2, perms: rwx}
+      - {identity: lazylibrarian, perms: rwx}
+      - {identity: mylar, perms: rwx}
+    default_acl:
+      - {identity: jdownloader2, perms: rwx}
+      - {identity: lazylibrarian, perms: rwx}
+      - {identity: mylar, perms: rwx}
+  - path: data/downloads/comics
+    owner: jdownloader2
+    mode: "0750"
+    acl:
+      - {identity: jdownloader2, perms: rwx}
+      - {identity: mylar, perms: rwx}
+    default_acl:
+      - {identity: jdownloader2, perms: rwx}
+      - {identity: mylar, perms: rwx}
+
+  - path: data/media
+    owner: root
+    mode: "0755"
+  - path: data/media/tv
+    owner: sonarr
+    mode: "0750"
+    acl:
+      - {identity: bazarr, perms: rwx}
+      - {identity: jellyfin, perms: r-x}
+    default_acl:
+      - {identity: bazarr, perms: rwx}
+      - {identity: jellyfin, perms: r-x}
+  - path: data/media/movies
+    owner: radarr
+    mode: "0750"
+    acl:
+      - {identity: bazarr, perms: rwx}
+      - {identity: jellyfin, perms: r-x}
+    default_acl:
+      - {identity: bazarr, perms: rwx}
+      - {identity: jellyfin, perms: r-x}
+  - path: data/media/music
+    owner: lidarr
+    mode: "0750"
+    acl:
+      - {identity: jellyfin, perms: r-x}
+    default_acl:
+      - {identity: jellyfin, perms: r-x}
+  - path: data/media/musicVideos
+    owner: root
+    mode: "0750"
+    acl:
+      - {identity: jellyfin, perms: r-x}
+    default_acl:
+      - {identity: jellyfin, perms: r-x}
+  - path: data/media/ebooks
+    owner: readarr
+    mode: "0750"
+    acl:
+      - {identity: lazylibrarian, perms: rwx}
+      - {identity: audiobookshelf, perms: r-x}
+      - {identity: calibre, perms: rwx}
+    default_acl:
+      - {identity: lazylibrarian, perms: rwx}
+      - {identity: audiobookshelf, perms: r-x}
+      - {identity: calibre, perms: rwx}
+  - path: data/media/audiobooks
+    owner: readarr
+    mode: "0750"
+    acl:
+      - {identity: lazylibrarian, perms: rwx}
+      - {identity: audiobookshelf, perms: r-x}
+    default_acl:
+      - {identity: lazylibrarian, perms: rwx}
+      - {identity: audiobookshelf, perms: r-x}
+  - path: data/media/comics
+    owner: readarr
+    mode: "0750"
+    acl:
+      - {identity: mylar, perms: rwx}
+      - {identity: calibre, perms: r-x}
+    default_acl:
+      - {identity: mylar, perms: rwx}
+      - {identity: calibre, perms: r-x}
+  - path: data/media/mature
+    owner: whisparr
+    mode: "0750"
+    acl:
+      - {identity: jellyfin, perms: r-x}
+    default_acl:
+      - {identity: jellyfin, perms: r-x}
+  - path: data/media/podcasts
+    owner: root
+    mode: "0750"
+    acl: [{identity: audiobookshelf, perms: rwx}]
+    default_acl: [{identity: audiobookshelf, perms: rwx}]
+  - path: data/media/calibre-library
+    owner: calibre
+    mode: "0750"
+    chown_files: true
+    acl: [{identity: calibre_web, perms: r-x}]
+    default_acl: [{identity: calibre_web, perms: r-x}]
+
+  - path: data/recycle
+    owner: root
+    mode: "0755"
+  - path: data/recycle/tv
+    owner: sonarr
+    mode: "0750"
+  - path: data/recycle/movies
+    owner: radarr
+    mode: "0750"
+  - path: data/recycle/music
+    owner: lidarr
+    mode: "0750"
+  - path: data/recycle/ebooks
+    owner: readarr
+    mode: "0750"
+  - path: data/recycle/audiobooks
+    owner: readarr
+    mode: "0750"
+  - path: data/recycle/comics
+    owner: readarr
+    mode: "0750"
+  - path: data/recycle/mature
+    owner: whisparr
+    mode: "0750"
+
+  - path: media/Comics
+    owner: mylar
+    mode: "0750"
+  - path: media/eBooks
+    owner: calibre
+    mode: "0750"
+  - path: configs/qbittorrent/config
+    owner: qbittorrent
+    mode: "0750"
+    chown_files: true
+  - path: configs/jdownloader2/config
+    owner: jdownloader2
+    mode: "0750"
+    chown_files: true
+  - path: configs/sabnzbd/config
+    owner: sabnzbd
+    mode: "0750"
+    chown_files: true
+  - path: configs/nzbhydra2/config
+    owner: nzbhydra2
+    mode: "0750"
+    chown_files: true
+  - path: configs/bazarr/config
+    owner: bazarr
+    mode: "0750"
+    chown_files: true
+  - path: configs/lidarr/config
+    owner: lidarr
+    mode: "0750"
+    chown_files: true
+  - path: configs/prowlarr/config
+    owner: prowlarr
+    mode: "0750"
+    chown_files: true
+  - path: configs/radarr/config
+    owner: radarr
+    mode: "0750"
+    chown_files: true
+  - path: configs/readarr/config
+    owner: readarr
+    mode: "0750"
+    chown_files: true
+  - path: configs/recyclarr/config
+    owner: recyclarr
+    mode: "0750"
+    chown_files: true
+  - path: configs/sonarr/config
+    owner: sonarr
+    mode: "0750"
+    chown_files: true
+  - path: configs/flaresolverr/config
+    owner: flaresolverr
+    mode: "0750"
+    chown_files: true
+  - path: configs/whisparr/config
+    owner: whisparr
+    mode: "0750"
+    chown_files: true
+  - path: configs/lazylibrarian/config
+    owner: lazylibrarian
+    mode: "0750"
+    chown_files: true
+  - path: configs/mylar/config
+    owner: mylar
+    mode: "0750"
+    chown_files: true
+  - path: configs/jellyfin/config
+    owner: jellyfin
+    mode: "0750"
+    chown_files: true
+  - path: configs/audiobookshelf/config
+    owner: audiobookshelf
+    mode: "0750"
+    chown_files: true
+  - path: configs/audiobookshelf/metadata
+    owner: audiobookshelf
+    mode: "0750"
+    chown_files: true
+  - path: configs/calibre/config
+    owner: calibre
+    mode: "0750"
+    chown_files: true
+  - path: configs/calibre-web/config
+    owner: calibre_web
+    mode: "0750"
+    chown_files: true
+  - path: configs/korsync/data
+    owner: korsync
+    mode: "0750"
+    chown_files: true
+  - path: configs/homepage/config
+    owner: homepage
+    mode: "0750"
+    chown_files: true
+  - path: cache/nginx
+    owner: root
+    mode: "0750"
+    acl:
+      - {identity: root, perms: rwx}
+      - {identity: nginx, perms: rwx}
+    default_acl:
+      - {identity: root, perms: rwx}
+      - {identity: nginx, perms: rwx}
+  - path: logs/nginx
+    owner: log_rotator
+    mode: "0750"
+    acl:
+      - {identity: root, perms: rwx}
+      - {identity: nginx, perms: rwx}
+    default_acl:
+      - {identity: root, perms: rwx}
+      - {identity: nginx, perms: rwx}
+  - path: storage/alloy/data
+    owner: alloy
+    mode: "0750"
+    chown_files: true
+  - path: storage/prometheus/data
+    owner: prometheus
+    mode: "0750"
+    chown_files: true
+  - path: storage/loki/data
+    owner: loki
+    mode: "0750"
+    chown_files: true
+  - path: storage/grafana/data
+    owner: grafana
+    mode: "0750"
+    chown_files: true
+
+smoke_tests:
+  hardlinks:
+    - name: torrent_tv_to_media_tv
+      source_dir: data/torrents/tv
+      target_dir: data/media/tv
+      user: sonarr
+    - name: torrent_movies_to_media_movies
+      source_dir: data/torrents/movies
+      target_dir: data/media/movies
+      user: radarr
+    - name: torrent_music_to_media_music
+      source_dir: data/torrents/music
+      target_dir: data/media/music
+      user: lidarr
+    - name: torrent_ebooks_to_media_ebooks
+      source_dir: data/torrents/ebooks
+      target_dir: data/media/ebooks
+      user: readarr
+    - name: usenet_tv_to_media_tv
+      source_dir: data/usenet/complete/tv
+      target_dir: data/media/tv
+      user: sonarr
