@@ -1,0 +1,55 @@
+"""Container health: all enabled services must be running with no restart loops."""
+
+import pytest
+
+from conftest import SERVICES, skip_if_disabled, skip_if_not_running
+
+pytestmark = pytest.mark.containers
+
+
+@pytest.mark.parametrize("service_name", list(SERVICES.keys()))
+def test_container_running(service_name, running_containers):
+    skip_if_disabled(service_name)
+    skip_if_not_running(service_name, running_containers)
+    container = running_containers[service_name]
+    assert container.status == "running", (
+        f"Container '{service_name}' status is '{container.status}', expected 'running'"
+    )
+
+
+@pytest.mark.parametrize("service_name", list(SERVICES.keys()))
+def test_container_healthy(service_name, running_containers):
+    skip_if_disabled(service_name)
+    skip_if_not_running(service_name, running_containers)
+    container = running_containers[service_name]
+    health = container.attrs.get("State", {}).get("Health")
+    if health is None:
+        pytest.skip(f"Container '{service_name}' has no healthcheck defined")
+    status = health.get("Status")
+    assert status == "healthy", (
+        f"Container '{service_name}' health is '{status}' (last log: {health.get('Log', [{}])[-1].get('Output', '')})"
+    )
+
+
+@pytest.mark.parametrize("service_name", list(SERVICES.keys()))
+def test_no_restart_loop(service_name, running_containers):
+    skip_if_disabled(service_name)
+    skip_if_not_running(service_name, running_containers)
+    container = running_containers[service_name]
+    restart_count = container.attrs.get("RestartCount", 0)
+    assert restart_count <= 2, (
+        f"Container '{service_name}' has restarted {restart_count} times — possible crash loop"
+    )
+
+
+def test_vpn_container_running(running_containers):
+    """VPN container must be running when its profile is enabled."""
+    from conftest import env
+
+    vpn_provider = env("VPN_PROVIDER", "gluetun")
+    vpn_profile = f"{vpn_provider.upper()}_PROFILE"
+    if env(vpn_profile, "disabled").lower() != "enabled":
+        pytest.skip(f"{vpn_profile} is not enabled")
+    skip_if_not_running(vpn_provider, running_containers)
+    container = running_containers[vpn_provider]
+    assert container.status == "running"

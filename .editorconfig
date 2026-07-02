@@ -33,7 +33,7 @@ quote_type = double
 [*.py]
 indent_style = space
 indent_size = 4
-max_line_length = 88
+max_line_length = off
 
 [*.md]
 trim_trailing_whitespace = false

@@ -1,0 +1,182 @@
+import subprocess
+import tarfile
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).parent.parent
+MAKEFILE = REPO_ROOT / "Makefile"
+
+
+def _write(path: Path, content: str = "x") -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+
+
+def _fixture(root: Path) -> None:
+    _write(root / ".env", "APP_ENV=fixture\n")
+    _write(root / "certs/cert.conf", "CERT_FQDN=fixture.local\n")
+    _write(root / "certs/server.crt", "certificate\n")
+    _write(root / "certs/server.key", "private-key\n")
+
+    _write(root / "configs/lidarr/config/config.xml", "<Config />\n")
+    _write(root / "configs/lidarr/config/lidarr.db", "primary database\n")
+    _write(root / "configs/lidarr/config/lidarr.db-wal", "wal\n")
+    _write(root / "configs/lidarr/config/lidarr.db-shm", "shm\n")
+    _write(root / "configs/lidarr/config/logs.db", "log database\n")
+    _write(root / "configs/lidarr/config/logs/lidarr.log", "log\n")
+    _write(root / "configs/lidarr/config/asp/key.xml", "data protection key\n")
+    _write(root / "configs/lidarr/config/MediaCover/1/poster.jpg", "artwork\n")
+    _write(root / "configs/lidarr/config/Backups/scheduled/backup.zip", "zip\n")
+    _write(root / "configs/lidarr/config/Sentry/event.json", "{}\n")
+    _write(root / "configs/whisparr/config.bak/asp/key.xml", "legacy key\n")
+    _write(root / "configs/whisparr/config.v2.bak/asp/key.xml", "legacy key\n")
+
+    _write(root / "configs/jellyfin/config/network.xml", "<NetworkConfiguration />\n")
+    _write(
+        root / "configs/jellyfin/config/.aspnet/DataProtection-Keys/key.xml", "key\n"
+    )
+    _write(root / "configs/jellyfin/config/metadata/People/A/person.jpg", "person\n")
+    _write(root / "configs/jellyfin/config/cache/transcodes/file", "cache\n")
+    _write(root / "configs/audiobookshelf/metadata/backups/abs.zip", "backup\n")
+    _write(root / "configs/recyclarr/config/recyclarr.yml", "sonarr: {}\n")
+    _write(
+        root / "configs/recyclarr/config/resources/trash-guides/git/official/.git/HEAD",
+        "ref\n",
+    )
+
+    _write(root / ".git/config", "[core]\n")
+    _write(root / "tests/test_placeholder.py", "def test_placeholder(): pass\n")
+    _write(root / "megalinter-reports/report.txt", "report\n")
+    _write(root / "data/torrents/file", "download\n")
+    _write(root / "media/Movies/movie.mkv", "media\n")
+
+
+def _make(root: Path, target: str, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["make", "--no-print-directory", "-f", str(MAKEFILE), target, *args],
+        cwd=root,
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+
+
+def _archive_names(archive: Path) -> set[str]:
+    with tarfile.open(archive, "r:gz") as tar:
+        return set(tar.getnames())
+
+
+def test_backup_configs_creates_lean_archive(tmp_path):
+    _fixture(tmp_path)
+
+    result = _make(tmp_path, "backup-configs", "BACKUP_TIMESTAMP=2026-04-27-101112")
+
+    assert "For a FULL backup, run: make backup-full" in result.stdout
+    archive = tmp_path / "backup/configs-2026-04-27-101112.tar.gz"
+    names = _archive_names(archive)
+
+    assert ".env" in names
+    assert "certs/cert.conf" in names
+    assert "configs/lidarr/config/config.xml" in names
+    assert "configs/lidarr/config/lidarr.db" in names
+    assert "configs/jellyfin/config/network.xml" in names
+    assert "configs/audiobookshelf/metadata/backups/abs.zip" in names
+    assert "configs/recyclarr/config/recyclarr.yml" in names
+
+    assert "configs/lidarr/config/MediaCover/1/poster.jpg" not in names
+    assert "configs/lidarr/config/Backups/scheduled/backup.zip" not in names
+    assert "configs/lidarr/config/Sentry/event.json" not in names
+    assert "configs/lidarr/config/logs/lidarr.log" not in names
+    assert "configs/lidarr/config/asp/key.xml" not in names
+    assert "configs/lidarr/config/logs.db" not in names
+    assert "configs/lidarr/config/lidarr.db-wal" not in names
+    assert "configs/lidarr/config/lidarr.db-shm" not in names
+    assert "configs/whisparr/config.bak/asp/key.xml" not in names
+    assert "configs/whisparr/config.v2.bak/asp/key.xml" not in names
+    assert "configs/jellyfin/config/metadata/People/A/person.jpg" not in names
+    assert "configs/jellyfin/config/cache/transcodes/file" not in names
+    assert "configs/jellyfin/config/.aspnet/DataProtection-Keys/key.xml" not in names
+    assert (
+        "configs/recyclarr/config/resources/trash-guides/git/official/.git/HEAD"
+        not in names
+    )
+
+
+def test_backup_full_keeps_app_artwork_but_not_repo_or_media_state(tmp_path):
+    _fixture(tmp_path)
+
+    _make(tmp_path, "backup-full", "BACKUP_TIMESTAMP=2026-04-27-121314")
+
+    names = _archive_names(tmp_path / "backup/full-2026-04-27-121314.tar.gz")
+
+    assert ".env" in names
+    assert "certs/server.key" in names
+    assert "configs/lidarr/config/MediaCover/1/poster.jpg" in names
+    assert "configs/jellyfin/config/metadata/People/A/person.jpg" in names
+    assert "configs/audiobookshelf/metadata/backups/abs.zip" in names
+
+    assert "configs/lidarr/config/asp/key.xml" not in names
+    assert "configs/jellyfin/config/.aspnet/DataProtection-Keys/key.xml" not in names
+    assert ".git/config" not in names
+    assert "tests/test_placeholder.py" not in names
+    assert "megalinter-reports/report.txt" not in names
+    assert "data/torrents/file" not in names
+    assert "media/Movies/movie.mkv" not in names
+
+
+def test_restore_requires_explicit_existing_backup(tmp_path):
+    _fixture(tmp_path)
+
+    missing = subprocess.run(
+        ["make", "--no-print-directory", "-f", str(MAKEFILE), "restore-configs"],
+        cwd=tmp_path,
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+    assert missing.returncode != 0
+    assert "BACKUP=/path/to/archive.tar.gz is required" in missing.stdout
+
+    missing_file = subprocess.run(
+        [
+            "make",
+            "--no-print-directory",
+            "-f",
+            str(MAKEFILE),
+            "restore-configs",
+            "BACKUP=backup/missing.tar.gz",
+        ],
+        cwd=tmp_path,
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+    assert missing_file.returncode != 0
+    assert "backup archive not found" in missing_file.stdout
+
+
+def test_restore_replaces_state_and_creates_safety_archive(tmp_path):
+    _fixture(tmp_path)
+    _make(tmp_path, "backup-configs", "BACKUP_TIMESTAMP=2026-04-27-151617")
+    archive = tmp_path / "backup/configs-2026-04-27-151617.tar.gz"
+
+    _write(tmp_path / ".env", "APP_ENV=changed\n")
+    _write(tmp_path / "certs/cert.conf", "CERT_FQDN=changed.local\n")
+    _write(tmp_path / "configs/lidarr/config/config.xml", "<Changed />\n")
+    _write(tmp_path / "configs/lidarr/config/stale.txt", "must be removed\n")
+
+    _make(
+        tmp_path,
+        "restore-configs",
+        f"BACKUP={archive}",
+        "BACKUP_TIMESTAMP=2026-04-27-181920",
+    )
+
+    assert (tmp_path / ".env").read_text(encoding="utf-8") == "APP_ENV=fixture\n"
+    assert (tmp_path / "certs/cert.conf").read_text(
+        encoding="utf-8"
+    ) == "CERT_FQDN=fixture.local\n"
+    assert (tmp_path / "configs/lidarr/config/config.xml").read_text(
+        encoding="utf-8"
+    ) == "<Config />\n"
+    assert not (tmp_path / "configs/lidarr/config/stale.txt").exists()
+    assert (tmp_path / "backup/pre-restore-2026-04-27-181920.tar.gz").is_file()

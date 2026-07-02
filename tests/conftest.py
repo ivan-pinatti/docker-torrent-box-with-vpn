@@ -1,0 +1,312 @@
+import configparser
+import os
+import shutil
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+import docker
+import pytest
+import yaml
+from dotenv import dotenv_values
+
+REPO_ROOT = Path(__file__).parent.parent
+ENV = dotenv_values(REPO_ROOT / ".env")
+
+# Service registry — each entry drives parametrize across all test layers.
+# api_key_source:
+# ("xml", rel_path, tag) | ("yaml", rel_path, *keys) |
+# ("ini", rel_path, section, key) | None
+SERVICES = {
+    "sonarr": {
+        "profile_var": "SONARR_PROFILE",
+        "http_port_var": "SONARR_HTTP_PORT",
+        "https_port_var": "SONARR_HTTPS_PORT",
+        "proxy_path": "/sonarr",
+        "api_health_path": "/sonarr/api/v3/health",
+        "api_key_source": ("xml", "configs/sonarr/config/config.xml", "ApiKey"),
+        "password_var": "SONARR_PASSWORD",  # pragma: allowlist secret
+    },
+    "radarr": {
+        "profile_var": "RADARR_PROFILE",
+        "http_port_var": "RADARR_HTTP_PORT",
+        "https_port_var": "RADARR_HTTPS_PORT",
+        "proxy_path": "/radarr",
+        "api_health_path": "/radarr/api/v3/health",
+        "api_key_source": ("xml", "configs/radarr/config/config.xml", "ApiKey"),
+        "password_var": "RADARR_PASSWORD",  # pragma: allowlist secret
+    },
+    "prowlarr": {
+        "profile_var": "PROWLARR_PROFILE",
+        "http_port_var": "PROWLARR_HTTP_PORT",
+        "https_port_var": "PROWLARR_HTTPS_PORT",
+        "proxy_path": "/prowlarr",
+        "api_health_path": "/prowlarr/api/v1/health",
+        "api_key_source": ("xml", "configs/prowlarr/config/config.xml", "ApiKey"),
+        "password_var": "PROWLARR_PASSWORD",  # pragma: allowlist secret
+    },
+    "readarr": {
+        "profile_var": "READARR_PROFILE",
+        "http_port_var": "READARR_HTTP_PORT",
+        "https_port_var": "READARR_HTTPS_PORT",
+        "proxy_path": "/readarr",
+        "api_health_path": "/readarr/api/v1/health",
+        "api_key_source": ("xml", "configs/readarr/config/config.xml", "ApiKey"),
+        "password_var": "READARR_PASSWORD",  # pragma: allowlist secret
+    },
+    "bazarr": {
+        "profile_var": "BAZARR_PROFILE",
+        "http_port_var": "BAZARR_HTTP_PORT",
+        "proxy_path": "/bazarr",
+        "api_health_path": "/bazarr/api/system/health",
+        "api_key_source": (
+            "yaml",
+            "configs/bazarr/config/config/config.yaml",
+            "auth",
+            "apikey",
+        ),
+        "password_var": "BAZARR_PASSWORD",  # pragma: allowlist secret
+    },
+    "qbittorrent": {
+        "profile_var": "QBITTORRENT_PROFILE",
+        "http_port_var": "QBITTORRENT_HTTP_PORT",
+        "https_port_var": "QBITTORRENT_HTTPS_PORT",
+        "proxy_path": "/qbittorrent",
+        "api_health_path": None,  # /api/v2/app/version requires authentication in qBittorrent v5+
+        "api_key_source": None,
+        "password_var": "QBITTORRENT_PASSWORD",  # pragma: allowlist secret
+        "username": "qbittorrent",
+    },
+    "nzbget": {
+        "profile_var": "NZBGET_PROFILE",
+        "http_port_var": "NZBGET_HTTP_PORT",
+        "https_port_var": "NZBGET_HTTPS_PORT",
+        "proxy_path": "/nzbget",
+        "api_health_path": None,
+        "api_key_source": None,
+        "password_var": "NZBGET_PASSWORD",  # pragma: allowlist secret
+        "username": "nzbget",
+    },
+    "sabnzbd": {
+        "profile_var": "SABNZBD_PROFILE",
+        "http_port_var": "SABNZBD_HTTP_PORT",
+        "https_port_var": "SABNZBD_HTTPS_PORT",
+        "proxy_path": "/sabnzbd",
+        "api_health_path": "/sabnzbd/api",
+        "api_key_source": (
+            "ini",
+            "configs/sabnzbd/config/sabnzbd.ini",
+            "misc",
+            "api_key",
+        ),
+        "password_var": "SABNZBD_PASSWORD",  # pragma: allowlist secret
+        "username": "sabnzbd",
+    },
+    "jellyfin": {
+        "profile_var": "JELLYFIN_PROFILE",
+        "http_port_var": "JELLYFIN_HTTP_PORT",
+        "https_port_var": "JELLYFIN_HTTPS_PORT",
+        "proxy_path": "/jellyfin",
+        "api_health_path": "/health",
+        # Jellyfin is not proxied through nginx; use its direct port for API tests
+        "api_base_url_override": "http://localhost:{JELLYFIN_HTTP_PORT}",
+        "api_key_source": None,
+        "password_var": None,
+    },
+    "flaresolverr": {
+        "profile_var": "FLARESOLVERR_PROFILE",
+        "http_port_var": "FLARESOLVERR_HTTP_PORT",
+        "proxy_path": "/flaresolverr",
+        # nginx strips /flaresolverr/ prefix (trailing slash on proxy_pass), so / reaches the root
+        "api_health_path": "/flaresolverr/",
+        "api_key_source": None,
+        "password_var": None,
+    },
+    "lidarr": {
+        "profile_var": "LIDARR_PROFILE",
+        "http_port_var": "LIDARR_HTTP_PORT",
+        "https_port_var": "LIDARR_HTTPS_PORT",
+        "proxy_path": "/lidarr",
+        "api_health_path": "/lidarr/api/v1/health",
+        "api_key_source": ("xml", "configs/lidarr/config/config.xml", "ApiKey"),
+        "password_var": "LIDARR_PASSWORD",  # pragma: allowlist secret
+    },
+    "whisparr": {
+        "profile_var": "WHISPARR_PROFILE",
+        "http_port_var": "WHISPARR_HTTP_PORT",
+        "https_port_var": "WHISPARR_HTTPS_PORT",
+        "proxy_path": "/whisparr",
+        "api_health_path": "/whisparr/api/v3/health",
+        "api_key_source": ("xml", "configs/whisparr/config/config.xml", "ApiKey"),
+        "password_var": "WHISPARR_PASSWORD",  # pragma: allowlist secret
+    },
+    "recyclarr": {
+        "profile_var": "RECYCLARR_PROFILE",
+        "api_health_path": None,
+        "api_key_source": None,
+        "password_var": None,
+    },
+    # Observability stack
+    "grafana": {
+        "profile_var": "GRAFANA_PROFILE",
+        "proxy_path": "/admin/grafana",
+        "api_health_path": "/admin/grafana/api/health",
+        "api_key_source": None,
+        "password_var": None,
+    },
+    "prometheus": {
+        "profile_var": "PROMETHEUS_PROFILE",
+        "proxy_path": "/admin/prometheus",
+        "api_health_path": "/admin/prometheus/api/v1/query?query=up",
+        "api_key_source": None,
+        "password_var": None,
+    },
+    "node_exporter": {
+        "profile_var": "NODE_EXPORTER_PROFILE",
+        "proxy_path": "/admin/node_exporter",
+        "api_health_path": "/admin/node_exporter/metrics",
+        "api_key_source": None,
+        "password_var": None,
+    },
+    "podman_exporter": {
+        "profile_var": "PODMAN_EXPORTER_PROFILE",
+        "api_health_path": None,
+        "api_key_source": None,
+        "password_var": None,
+    },
+    "qbittorrent_exporter": {
+        "profile_var": "QBITTORRENT_EXPORTER_PROFILE",
+        "api_health_path": None,
+        "api_key_source": None,
+        "password_var": None,
+    },
+    "sabnzbd_exporter": {
+        "profile_var": "SABNZBD_EXPORTER_PROFILE",
+        "api_health_path": None,
+        "api_key_source": None,
+        "password_var": None,
+    },
+}
+
+# Services that run in the Gluetun network namespace by default.
+VPN_NETWORKED = {
+    "qbittorrent",
+    "nzbget",
+    "sabnzbd",
+}
+
+
+def env(key: str, default: str = "") -> str:
+    return ENV.get(key, default) or default
+
+
+def is_enabled(service_name: str) -> bool:
+    cfg = SERVICES.get(service_name, {})
+    pvar = cfg.get("profile_var")
+    return env(pvar, "disabled").lower() == "enabled"
+
+
+def enabled_services():
+    return [name for name in SERVICES if is_enabled(name)]
+
+
+def port(service_name: str, kind: str = "http") -> int:
+    key = "http_port_var" if kind == "http" else "https_port_var"
+    var = SERVICES[service_name].get(key)
+    return int(env(var, "0")) if var else 0
+
+
+def base_url(https: bool = True) -> str:
+    domain = env("DOMAIN", "localhost")
+    scheme = "https" if https else "http"
+    return f"{scheme}://{domain}"
+
+
+def service_base_url(service_name: str) -> str:
+    """Return the base URL for a service's API calls.
+
+    Services that are not proxied through nginx (e.g. jellyfin) specify an
+    api_base_url_override that uses their direct port. Port variable names in
+    the override are resolved from ENV.
+    """
+    override = SERVICES[service_name].get("api_base_url_override")
+    if override:
+        # Resolve {VAR_NAME} placeholders from ENV
+        import re
+
+        def _resolve(m):
+            return env(m.group(1), m.group(1))
+
+        return re.sub(r"\{([A-Z0-9_]+)\}", _resolve, override)
+    return base_url(https=True)
+
+
+def read_api_key(service_name: str):
+    src = SERVICES[service_name].get("api_key_source")
+    if src is None:
+        return None
+    kind = src[0]
+    if kind == "xml":
+        _, rel_path, tag = src
+        path = REPO_ROOT / rel_path
+        if not path.exists():
+            return None
+        tree = ET.parse(path)
+        elem = tree.find(tag)
+        return elem.text if elem is not None else None
+    if kind == "yaml":
+        rel_path = src[1]
+        keys = src[2:]
+        path = REPO_ROOT / rel_path
+        if not path.exists():
+            return None
+        with open(path) as f:
+            data = yaml.safe_load(f)
+        for k in keys:
+            if not isinstance(data, dict):
+                return None
+            data = data.get(k)
+        return data if isinstance(data, str) else None
+    if kind == "ini":
+        _, rel_path, section, key = src
+        path = REPO_ROOT / rel_path
+        if not path.exists():
+            return None
+        if rel_path.endswith("sabnzbd.ini"):
+            for line in path.read_text().splitlines():
+                if line.strip().startswith(f"{key} ="):
+                    return line.split("=", 1)[1].strip()
+        parser = configparser.ConfigParser()
+        parser.read(path)
+        return parser.get(section, key, fallback=None)
+    return None
+
+
+@pytest.fixture(scope="session")
+def docker_client():
+    uid = os.getuid()
+    if shutil.which("podman"):
+        sock = f"unix:///run/user/{uid}/podman/podman.sock"
+        return docker.DockerClient(base_url=sock)
+    return docker.from_env()
+
+
+@pytest.fixture(scope="session")
+def running_containers(docker_client):
+    try:
+        return {c.name: c for c in docker_client.containers.list()}
+    except Exception:
+        return {}
+
+
+def container_running(name: str, running_containers: dict) -> bool:
+    return name in running_containers
+
+
+def skip_if_not_running(name: str, running_containers: dict):
+    if not container_running(name, running_containers):
+        pytest.skip(f"container '{name}' is not running")
+
+
+def skip_if_disabled(name: str):
+    if not is_enabled(name):
+        pytest.skip(f"service '{name}' profile is disabled")
