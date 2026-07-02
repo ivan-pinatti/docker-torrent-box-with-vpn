@@ -23,3 +23,7 @@ MD031: true
 
 # MD060: table column separator style - enabled; separators must use at least 3 dashes
 MD060: true
+
+# MD045: images should have alt text - disabled; QR code donation images are decorative
+#         and have adjacent code labels that describe them
+MD045: false
