@@ -1,448 +1,635 @@
-version: "3.8"
-services:
-  bazarr:
-    image: linuxserver/bazarr:${BAZARR_VERSION}
-    container_name: bazarr
-    depends_on: ["${VPN_PROVIDER}"]
-    profiles: ["${BAZARR_PROFILE}"]
-    network_mode: service:${VPN_PROVIDER}
-    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
-    restart: unless-stopped
-    env_file: [".env", "${CONFIG_FOLDER}/bazarr/.env"]
-    environment:
-      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ${CERTIFICATES_FOLDER}:/certs:ro
-      - ${CONFIG_FOLDER}/bazarr/config:/config:z
-      - ${RECYCLE_FOLDER}/bazarr:/recycle:z
-      - ${USENET_BLACKHOLE_FOLDER}:/blackhole:z
-      - ${USENET_DOWNLOADS_FOLDER}:/downloads:z
-      - ${MEDIA_FOLDER}/Movies:/movies:z
-      - ${MEDIA_FOLDER}/Series:/series:z
+networks:
+  edge:
+    driver: bridge
 
-  calibre:
-    image: lscr.io/linuxserver/calibre:${CALIBRE_VERSION}
-    container_name: calibre
-    depends_on: ["${VPN_PROVIDER}"]
-    profiles: ["${CALIBRE_PROFILE}"]
-    network_mode: service:${VPN_PROVIDER}
-    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
-    security_opt: ["seccomp=unconfined"]
-    restart: unless-stopped
-    env_file: [".env", "${CONFIG_FOLDER}/calibre/.env"]
-    environment:
-      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ${CONFIG_FOLDER}/calibre/config:/config:z
-      - ${MEDIA_FOLDER}/AudioBooks:/audiobooks:z
-      - ${MEDIA_FOLDER}/Comics:/comics:z
-      - ${MEDIA_FOLDER}/eBooks:/ebooks:z
+  wan:
+    driver: bridge
 
-  calibre-web:
-    image: linuxserver/calibre-web:${CALIBREWEB_VERSION}
-    container_name: calibre-web
-    depends_on: ["${VPN_PROVIDER}"]
-    profiles: ["${CALIBREWEB_PROFILE}"]
-    network_mode: service:${VPN_PROVIDER}
-    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
-    restart: unless-stopped
-    env_file: [".env", "${CONFIG_FOLDER}/calibre-web/.env"]
-    environment:
-      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ${CERTIFICATES_FOLDER}:/certs:ro
-      - ${CONFIG_FOLDER}/calibre-web/config:/config:z
-      - ${MEDIA_FOLDER}/AudioBooks:/audiobooks:z
-      - ${MEDIA_FOLDER}/Comics:/comics:z
-      - ${MEDIA_FOLDER}/eBooks:/ebooks:z
+  apps:
+    driver: bridge
 
-  flaresolverr:
-    image: flaresolverr/flaresolverr:${FLARESOLVERR_VERSION}
-    container_name: flaresolverr
-    depends_on: ["${VPN_PROVIDER}"]
-    profiles: ["${FLARESOLVERR_PROFILE}"]
-    network_mode: service:${VPN_PROVIDER}
-    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
-    restart: unless-stopped
-    env_file: [".env", "${CONFIG_FOLDER}/flaresolverr/.env"]
-    environment: ["TZ:${TIMEZONE}"]
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ${CONFIG_FOLDER}/jackett/config:/config:z
+  services:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: ${SERVICES_SUBNET}
 
-  jackett:
-    image: linuxserver/jackett:${JACKETT_VERSION}
-    container_name: jackett
-    depends_on: ["${VPN_PROVIDER}"]
-    profiles: ["${JACKETT_PROFILE}"]
-    network_mode: service:${VPN_PROVIDER}
-    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
-    restart: unless-stopped
-    env_file: [".env", "${CONFIG_FOLDER}/jackett/.env"]
-    environment:
-      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ${CONFIG_FOLDER}/jackett/config:/config:z
-      - ${TORRENT_BLACKHOLE_FOLDER}:/blackhole:z
+  media:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${MEDIA_SUBNET}
 
-  lazylibrarian:
-    image: linuxserver/lazylibrarian:${LAZYLIBRARIAN_VERSION}
-    container_name: lazylibrarian
-    depends_on: ["${VPN_PROVIDER}"]
-    profiles: ["${LAZYLIBRARIAN_PROFILE}"]
-    network_mode: service:${VPN_PROVIDER}
-    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
-    restart: unless-stopped
-    env_file: [".env", "${CONFIG_FOLDER}/lazylibrarian/.env"]
-    environment:
-      PUID: ${UID}
-      PGID: ${GID}
-      UMASK: ${UMASK}
-      TZ: ${TIMEZONE}
-      DOCKER_MODS: ghcr.io/linuxserver/mods:universal-calibre|linuxserver/mods:lazylibrarian-ffmpeg #needed for calibredb
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ${CERTIFICATES_FOLDER}:/certs:ro
-      - ${CONFIG_FOLDER}/lazylibrarian/config:/config:z
-      - ${TORRENT_BLACKHOLE_FOLDER}:/torrent/blackhole:z
-      - ${TORRENT_DOWNLOADS_FOLDER}:/downloads/torrent:z
-      - ${TORRENT_DOWNLOADS_FOLDER}/completed/eBooks:/downloads/completed/eBooks:z
-      - ${USENET_BLACKHOLE_FOLDER}:/usenet/blackhole:z
-      - ${USENET_DOWNLOADS_FOLDER}:/downloads/usenet:z
-      - ${MEDIA_FOLDER}/AudioBooks:/audiobooks:z
-      - ${MEDIA_FOLDER}/Comics:/comics:z
-      - ${MEDIA_FOLDER}/eBooks:/ebooks:z
+  observability:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: ${OBSERVABILITY_SUBNET}
 
-  lidarr:
-    image: linuxserver/lidarr:${LIDARR_VERSION}
-    container_name: lidarr
-    depends_on: ["${VPN_PROVIDER}"]
-    profiles: ["${LIDARR_PROFILE}"]
-    network_mode: service:${VPN_PROVIDER}
-    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
-    restart: unless-stopped
-    env_file: [".env", "${CONFIG_FOLDER}/lidarr/.env"]
-    environment:
-      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ${CERTIFICATES_FOLDER}:/certs:ro
-      - ${CONFIG_FOLDER}/lidarr/config:/config:z
-      - ${RECYCLE_FOLDER}/lidarr:/recycle:z
-      - ${TORRENT_DOWNLOADS_FOLDER}:/downloads/torrent:z
-      - ${TORRENT_DOWNLOADS_FOLDER}/completed/Lidarr:/downloads/completed/Lidarr:z
-      - ${USENET_DOWNLOADS_FOLDER}:/downloads/usenet:z
-      - ${USENET_DOWNLOADS_FOLDER}/completed/Music:/downloads/completed/Music:z
-      - ${MEDIA_FOLDER}/Music:/music:z
+include:
+  - docker-compose-media-library.yml
+  - docker-compose-nzb.yml
+  - docker-compose-observability.yml
+  - docker-compose-proxy.yml
+  - docker-compose-servarr.yml
+  - docker-compose-torrent.yml
+  - docker-compose-vpn.yml
 
-  mylar:
-    image: linuxserver/mylar3:${MYLAR_VERSION}
-    container_name: mylar
-    depends_on: ["${VPN_PROVIDER}"]
-    profiles: ["${MYLAR_PROFILE}"]
-    network_mode: service:${VPN_PROVIDER}
-    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
-    restart: unless-stopped
-    env_file: [".env", "${CONFIG_FOLDER}/mylar/.env"]
-    environment:
-      PUID: ${UID}
-      PGID: ${GID}
-      UMASK: ${UMASK}
-      TZ: ${TIMEZONE}
-      DOCKER_MODS: linuxserver/mods:universal-package-install
-      INSTALL_PIP_PACKAGES: pyOpenSSL
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ${CERTIFICATES_FOLDER}:/certs:ro
-      - ${CONFIG_FOLDER}/mylar/config:/config:z
-      - ${TORRENT_DOWNLOADS_FOLDER}:/downloads/torrent:z
-      - ${USENET_DOWNLOADS_FOLDER}:/downloads/usenet:z
-      - ${MEDIA_FOLDER}/Comics:/comics:z
+# services:
+########################################################################################################
+# *arr apps
+########################################################################################################
+  # bazarr:
+  #   image: docker.io/linuxserver/bazarr:${BAZARR_VERSION}
+  #   container_name: bazarr
+  #   depends_on: ["${VPN_PROVIDER}"]
+  #   profiles: ["${BAZARR_PROFILE}"]
+  #   network_mode: service:${VPN_PROVIDER}
+  #   sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
+  #   restart: unless-stopped
+  #   env_file: ["${CONFIG_FOLDER}/bazarr/.env"]
+  #   environment:
+  #     # ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+  #     # rootless Docker, please uncomment below
+  #     ["PGID=0", "PUID=0", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+  #   volumes:
+  #     - /etc/localtime:/etc/localtime:ro
+  #     - ${CERTIFICATES_FOLDER}:/certs:ro
+  #     - ${CONFIG_FOLDER}/bazarr/config:/config:z
+  #     - ${DATA_FOLDER}:/data:z
+  #   # deploy:
+  #   #   resources:
+  #   #     limits:
+  #   #       memory: 1gb
+  #   #       cpus: '1'
+  #   # memswap_limit: 1gb
 
-  nginx:
-    image: nginx:${NGINX_VERSION}
-    container_name: nginx
-    depends_on: ["${VPN_PROVIDER}"]
-    profiles: ["${NGINX_PROFILE}"]
-    network_mode: service:${VPN_PROVIDER}
-    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
-    restart: unless-stopped
-    env_file: [".env", "${CONFIG_FOLDER}/nginx/.env"]
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ${CERTIFICATES_FOLDER}:/certs:ro
-      - ${CONFIG_FOLDER}/nginx/templates:/etc/nginx/templates:z
+  # lidarr:
+  #   image: docker.io/linuxserver/lidarr:${LIDARR_VERSION}
+  #   container_name: lidarr
+  #   depends_on: ["${VPN_PROVIDER}"]
+  #   profiles: ["${LIDARR_PROFILE}"]
+  #   network_mode: service:${VPN_PROVIDER}
+  #   sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
+  #   restart: unless-stopped
+  #   env_file: ["${CONFIG_FOLDER}/lidarr/.env"]
+  #   environment:
+  #     # ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+  #     # rootless Docker, please uncomment below
+  #     ["PGID=0", "PUID=0", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+  #   volumes:
+  #     - /etc/localtime:/etc/localtime:ro
+  #     - ${CERTIFICATES_FOLDER}:/certs:ro
+  #     - ${CONFIG_FOLDER}/lidarr/config:/config:z
+  #     - ${DATA_FOLDER}:/data:z
+  #   # deploy:
+  #   #   resources:
+  #   #     limits:
+  #   #       memory: 1gb
+  #   #       cpus: '1'
+  #   # memswap_limit: 1gb
 
-  nordvpn:
-    image: ghcr.io/bubuntux/nordvpn:${NORDVPN_VERSION}
-    container_name: nordvpn
-    restart: unless-stopped
-    profiles: ["${NORDVPN_PROFILE}"]
-    env_file: [".env", "${CONFIG_FOLDER}/nordvpn/.env"]
-    cap_add: [NET_ADMIN, NET_RAW]
-    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-    ports:
-      - ${BAZARR_HTTP_PORT}:${BAZARR_HTTP_PORT} # bazarr-http
-      - ${CALIBRE_DESKTOP_HTTP_PORT}:${CALIBRE_DESKTOP_HTTP_PORT} # calibre-desktop-http
-      - ${CALIBRE_GUI_WEB_HTTP_PORT}:${CALIBRE_GUI_WEB_HTTP_PORT} # calibre-web-gui-http
-      - ${CALIBRE_DESKTOP_HTTPS_PORT}:${CALIBRE_DESKTOP_HTTPS_PORT} # calibre-desktop-https
-      - ${CALIBRE_WEB_CONTAINER_HTTP_PORT}:${CALIBRE_WEB_CONTAINER_HTTP_PORT} # calibre-web-http (from calibre-web container)
-      - ${CALIBRE_WEB_CONTAINER_HTTPS_PORT}:${CALIBRE_WEB_CONTAINER_HTTPS_PORT} # calibre-web-https (from calibre-web container)
-      - ${FLARESOLVERR_HTTP_PORT}:${FLARESOLVERR_HTTP_PORT} # flaresolverr-http
-      - ${JACKETT_HTTP_PORT}:${JACKETT_HTTP_PORT} # jackett-http
-      - ${LAZYLIBRARIAN_HTTP_PORT}:${LAZYLIBRARIAN_HTTP_PORT} # lazylibrarian-http
-      - ${LAZYLIBRARIAN_HTTPS_PORT}:${LAZYLIBRARIAN_HTTPS_PORT} # lazylibrarian-https
-      - ${LIDARR_HTTP_PORT}:${LIDARR_HTTP_PORT} # lidarr-http
-      - ${LIDARR_HTTPS_PORT}:${LIDARR_HTTPS_PORT} # lidarr-https
-      - ${MYLAR_HTTP_PORT}:${MYLAR_HTTP_PORT} # mylar-http
-      - ${MYLAR_HTTPS_PORT}:${MYLAR_HTTPS_PORT} # mylar-https
-      - ${NGINX_HTTP_PORT}:${NGINX_HTTP_PORT} # nginx-http
-      - ${NGINX_HTTPS_PORT}:${NGINX_HTTPS_PORT} # nginx-https
-      - ${NZBGET_HTTP_PORT}:${NZBGET_HTTP_PORT} # nzbget-http
-      - ${NZBGET_HTTPS_PORT}:${NZBGET_HTTPS_PORT} # nzbget-https
-      - ${NZBHYDRA2_HTTP_PORT}:${NZBHYDRA2_HTTP_PORT} # nzbhydra2-http
-      - ${NZBHYDRA2_HTTPS_PORT}:${NZBHYDRA2_HTTPS_PORT} # nzbhydra2-https
-      - ${PROWLARR_HTTP_PORT}:${PROWLARR_HTTP_PORT} # prowlarr-http
-      - ${PROWLARR_HTTPS_PORT}:${PROWLARR_HTTPS_PORT} # prowlarr-https
-      - ${QBITTORRENT_HTTP_PORT}:${QBITTORRENT_HTTP_PORT} # qbittorrent-http
-      - ${QBITTORRENT_HTTPS_PORT}:${QBITTORRENT_HTTPS_PORT} # qbittorrent-https
-      - ${QBITTORRENT_PORT}:${QBITTORRENT_PORT} # qbittorrent-torrent
-      - ${QBITTORRENT_PORT}:${QBITTORRENT_PORT}/udp # qbittorrent-torrent
-      - ${RADARR_HTTP_PORT}:${RADARR_HTTP_PORT} # radarr-http
-      - ${RADARR_HTTPS_PORT}:${RADARR_HTTPS_PORT} # radarr-https
-      - ${READARR_HTTP_PORT}:${READARR_HTTP_PORT} # readarr-http
-      - ${READARR_HTTPS_PORT}:${READARR_HTTPS_PORT} # readarr-https
-      - ${SONARR_HTTP_PORT}:${SONARR_HTTP_PORT} # sonarr-http
-      - ${SONARR_HTTPS_PORT}:${SONARR_HTTPS_PORT} # sonarr-https
+  # prowlarr:
+  #   image: docker.io/linuxserver/prowlarr:${PROWLARR_VERSION}
+  #   container_name: prowlarr
+  #   depends_on: ["${VPN_PROVIDER}"]
+  #   profiles: ["${PROWLARR_PROFILE}"]
+  #   network_mode: service:${VPN_PROVIDER}
+  #   sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
+  #   restart: unless-stopped
+  #   env_file: ["${CONFIG_FOLDER}/prowlarr/.env"]
+  #   environment:
+  #     # ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+  #     # rootless Docker, please uncomment below
+  #     ["PGID=0", "PUID=0", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+  #   volumes:
+  #     - /etc/localtime:/etc/localtime:ro
+  #     - ${CERTIFICATES_FOLDER}:/certs:ro
+  #     - ${CONFIG_FOLDER}/prowlarr/config:/config:z
+  #   # deploy:
+  #   #   resources:
+  #   #     limits:
+  #   #       memory: 1gb
+  #   #       cpus: '1'
+  #   # memswap_limit: 1gb
 
-  nzbget:
-    image: linuxserver/nzbget:${NZBGET_VERSION}
-    container_name: nzbget
-    depends_on: ["${VPN_PROVIDER}"]
-    profiles: ["${NZBGET_PROFILE}"]
-    network_mode: service:${VPN_PROVIDER}
-    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
-    restart: unless-stopped
-    env_file: [".env", "${CONFIG_FOLDER}/nzbget/.env"]
-    environment:
-      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ${CERTIFICATES_FOLDER}:/certs:ro
-      - ${CONFIG_FOLDER}/nzbget/config:/config:z
-      - ${USENET_BLACKHOLE_FOLDER}:/blackhole:z
-      - ${USENET_DOWNLOADS_FOLDER}:/downloads:z
-      - ${MEDIA_FOLDER}/AudioBooks:/audiobooks:z
-      - ${MEDIA_FOLDER}/Comics:/comics:z
-      - ${MEDIA_FOLDER}/eBooks:/ebooks:z
-      - ${MEDIA_FOLDER}/Movies:/movies:z
-      - ${MEDIA_FOLDER}/Music:/music:z
-      - ${MEDIA_FOLDER}/Series:/series:z
+  # radarr:
+  #   image: docker.io/linuxserver/radarr:${RADARR_VERSION}
+  #   container_name: radarr
+  #   depends_on: ["${VPN_PROVIDER}"]
+  #   profiles: ["${RADARR_PROFILE}"]
+  #   network_mode: service:${VPN_PROVIDER}
+  #   sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
+  #   restart: unless-stopped
+  #   env_file: ["${CONFIG_FOLDER}/radarr/.env"]
+  #   environment:
+  #     # ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+  #     # rootless Docker, please uncomment below
+  #     ["PGID=0", "PUID=0", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+  #   volumes:
+  #     - /etc/localtime:/etc/localtime:ro
+  #     - ${CERTIFICATES_FOLDER}:/certs:ro
+  #     - ${CONFIG_FOLDER}/radarr/config:/config:z
+  #     - ${DATA_FOLDER}:/data:z
+  #   # deploy:
+  #   #   resources:
+  #   #     limits:
+  #   #       memory: 1gb
+  #   #       cpus: '1'
+  #   # memswap_limit: 1gb
 
-  nzbhydra2:
-    image: linuxserver/nzbhydra2:${NZBHYDRA2_VERSION}
-    container_name: nzbhydra2
-    depends_on: ["${VPN_PROVIDER}"]
-    profiles: ["${NZBHYDRA2_PROFILE}"]
-    network_mode: service:${VPN_PROVIDER}
-    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
-    restart: unless-stopped
-    env_file: [".env", "${CONFIG_FOLDER}/nzbhydra2/.env"]
-    environment:
-      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ${CERTIFICATES_FOLDER}:/certs:ro
-      - ${CONFIG_FOLDER}/nzbhydra2/config:/config:z
-      - ${TORRENT_BLACKHOLE_FOLDER}:/downloads/torrent/blackhole:z
-      - ${USENET_BLACKHOLE_FOLDER}:/downloads/usenet/blackhole:z
+  # readarr:
+  #   image: docker.io/linuxserver/readarr:${READARR_VERSION}
+  #   container_name: readarr
+  #   depends_on: ["${VPN_PROVIDER}"]
+  #   profiles: ["${READARR_PROFILE}"]
+  #   network_mode: service:${VPN_PROVIDER}
+  #   sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
+  #   restart: unless-stopped
+  #   env_file: ["${CONFIG_FOLDER}/readarr/.env"]
+  #   environment:
+  #     # ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+  #     # rootless Docker, please uncomment below
+  #     ["PGID=0", "PUID=0", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+  #   volumes:
+  #     - /etc/localtime:/etc/localtime:ro
+  #     - ${CERTIFICATES_FOLDER}:/certs:ro
+  #     - ${CONFIG_FOLDER}/readarr/config:/config:z
+  #     - ${DATA_FOLDER}:/data:z
+  #   # deploy:
+  #   #   resources:
+  #   #     limits:
+  #   #       memory: 1gb
+  #   #       cpus: '1'
+  #   # memswap_limit: 1gb
 
-  plex:
-    image: linuxserver/plex:${PLEX_VERSION}
-    container_name: plex
-    # depends_on: ["${VPN_PROVIDER}"]
-    profiles: ["${PLEX_PROFILE}"]
-    network_mode: host # change to service:${VPN_PROVIDER} if you want in the same network as others
-    # sysctls: ["net.ipv6.conf.all.disable_ipv6=1"] # uncomment if changed to service:${VPN_PROVIDER} in network_mode
-    restart: unless-stopped
-    # Leave commented unless your machine is capable of Hardware acceleration - Intel / Nvidia
-    # More information at; https://github.com/linuxserver/docker-plex#hardware-acceleration
-    # devices: [ "/dev/dri:/dev/dri" ] # Intel QuickSync
-    env_file: [".env", "${CONFIG_FOLDER}/plex/.env"]
-    environment:
-      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ${CONFIG_FOLDER}/plex/config:/config:z
-      - ${CONFIG_FOLDER}/plex/transcode:/transcode:z
-      - ${MEDIA_FOLDER}/Series:/data/Series:z
-      - ${MEDIA_FOLDER}/Movies:/data/Movies:z
-      - ${MEDIA_FOLDER}/Music:/data/Music:z
+  # recyclarr:
+  #   image: ghcr.io/recyclarr/recyclarr:${RECYCLARR_VERSION}
+  #   container_name: recyclarr
+  #   depends_on: ["${VPN_PROVIDER}"]
+  #   profiles: ["${RECYCLARR_PROFILE}"]
+  #   network_mode: service:${VPN_PROVIDER}
+  #   sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
+  #   restart: unless-stopped
+  #   # user: ${UID}:${GID}
+  #   # rootless Docker, please uncomment below
+  #   user: 0:0
+  #   env_file: ["${CONFIG_FOLDER}/recyclarr/.env"]
+  #   environment:
+  #     ["TZ=${TIMEZONE}"]
+  #   volumes:
+  #     - /etc/localtime:/etc/localtime:ro
+  #     - ${CERTIFICATES_FOLDER}:/certs:ro
+  #     - ${CONFIG_FOLDER}/recyclarr/config:/config:z
+  #   # deploy:
+  #   #   resources:
+  #   #     limits:
+  #   #       memory: 1gb
+  #   #       cpus: '1'
+  #   # memswap_limit: 1gb
 
-  protonvpn:
-    image: ghcr.io/tprasadtp/protonwire:${PROTONVPN_VERSION}
-    container_name: protonvpn
-    restart: unless-stopped
-    profiles: ["${PROTONVPN_PROFILE}"]
-    env_file: [".env", "${CONFIG_FOLDER}/protonvpn/.env"]
-    cap_add: [NET_ADMIN]
-    sysctls:
-      ["net.ipv6.conf.all.disable_ipv6=1", "net.ipv4.conf.all.rp_filter=2"]
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - /tmp:/tmp:z
-    ports:
-      - ${BAZARR_HTTP_PORT}:${BAZARR_HTTP_PORT} # bazarr-http
-      - ${CALIBRE_DESKTOP_HTTP_PORT}:${CALIBRE_DESKTOP_HTTP_PORT} # calibre-desktop-http
-      - ${CALIBRE_GUI_WEB_HTTP_PORT}:${CALIBRE_GUI_WEB_HTTP_PORT} # calibre-web-gui-http
-      - ${CALIBRE_DESKTOP_HTTPS_PORT}:${CALIBRE_DESKTOP_HTTPS_PORT} # calibre-desktop-https
-      - ${CALIBRE_WEB_CONTAINER_HTTP_PORT}:${CALIBRE_WEB_CONTAINER_HTTP_PORT} # calibre-web-http (from calibre-web container)
-      - ${CALIBRE_WEB_CONTAINER_HTTPS_PORT}:${CALIBRE_WEB_CONTAINER_HTTPS_PORT} # calibre-web-https (from calibre-web container)
-      - ${FLARESOLVERR_HTTP_PORT}:${FLARESOLVERR_HTTP_PORT} # flaresolverr-http
-      - ${JACKETT_HTTP_PORT}:${JACKETT_HTTP_PORT} # jackett-http
-      - ${LAZYLIBRARIAN_HTTP_PORT}:${LAZYLIBRARIAN_HTTP_PORT} # lazylibrarian-http
-      - ${LAZYLIBRARIAN_HTTPS_PORT}:${LAZYLIBRARIAN_HTTPS_PORT} # lazylibrarian-https
-      - ${LIDARR_HTTP_PORT}:${LIDARR_HTTP_PORT} # lidarr-http
-      - ${LIDARR_HTTPS_PORT}:${LIDARR_HTTPS_PORT} # lidarr-https
-      - ${MYLAR_HTTP_PORT}:${MYLAR_HTTP_PORT} # mylar-http
-      - ${MYLAR_HTTPS_PORT}:${MYLAR_HTTPS_PORT} # mylar-https
-      - ${NGINX_HTTP_PORT}:${NGINX_HTTP_PORT} # nginx-http
-      - ${NGINX_HTTPS_PORT}:${NGINX_HTTPS_PORT} # nginx-https
-      - ${NZBGET_HTTP_PORT}:${NZBGET_HTTP_PORT} # nzbget-http
-      - ${NZBGET_HTTPS_PORT}:${NZBGET_HTTPS_PORT} # nzbget-https
-      - ${NZBHYDRA2_HTTP_PORT}:${NZBHYDRA2_HTTP_PORT} # nzbhydra2-http
-      - ${NZBHYDRA2_HTTPS_PORT}:${NZBHYDRA2_HTTPS_PORT} # nzbhydra2-https
-      - ${PROWLARR_HTTP_PORT}:${PROWLARR_HTTP_PORT} # prowlarr-http
-      - ${PROWLARR_HTTPS_PORT}:${PROWLARR_HTTPS_PORT} # prowlarr-https
-      - ${QBITTORRENT_HTTP_PORT}:${QBITTORRENT_HTTP_PORT} # qbittorrent-http
-      - ${QBITTORRENT_HTTPS_PORT}:${QBITTORRENT_HTTPS_PORT} # qbittorrent-https
-      - ${QBITTORRENT_PORT}:${QBITTORRENT_PORT} # qbittorrent-torrent
-      - ${QBITTORRENT_PORT}:${QBITTORRENT_PORT}/udp # qbittorrent-torrent
-      - ${RADARR_HTTP_PORT}:${RADARR_HTTP_PORT} # radarr-http
-      - ${RADARR_HTTPS_PORT}:${RADARR_HTTPS_PORT} # radarr-https
-      - ${READARR_HTTP_PORT}:${READARR_HTTP_PORT} # readarr-http
-      - ${READARR_HTTPS_PORT}:${READARR_HTTPS_PORT} # readarr-https
-      - ${SONARR_HTTP_PORT}:${SONARR_HTTP_PORT} # sonarr-http
-      - ${SONARR_HTTPS_PORT}:${SONARR_HTTPS_PORT} # sonarr-https
+  # sonarr:
+  #   image: docker.io/linuxserver/sonarr:${SONARR_VERSION}
+  #   container_name: sonarr
+  #   depends_on: ["${VPN_PROVIDER}"]
+  #   profiles: ["${SONARR_PROFILE}"]
+  #   network_mode: service:${VPN_PROVIDER}
+  #   sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
+  #   restart: unless-stopped
+  #   env_file: ["${CONFIG_FOLDER}/sonarr/.env"]
+  #   environment:
+  #     # ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+  #     # rootless Docker, please uncomment below
+  #     ["PGID=0", "PUID=0", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+  #   volumes:
+  #     - /etc/localtime:/etc/localtime:ro
+  #     - ${CERTIFICATES_FOLDER}:/certs:ro
+  #     - ${CONFIG_FOLDER}/sonarr/config:/config:z
+  #     - ${DATA_FOLDER}:/data:z
+  #   healthcheck:
+  #     test: curl --fail --insecure https://127.0.0.1:${SONARR_HTTPS_PORT} || exit 1
+  #     interval: 60s
+  #     retries: 5
+  #     start_period: 30s
+  #     timeout: 10s
+  #   # deploy:
+  #   #   resources:
+  #   #     limits:
+  #   #       memory: 1gb
+  #   #       cpus: '1'
+  #   # memswap_limit: 1gb
 
-  prowlarr:
-    image: linuxserver/prowlarr:${PROWLARR_VERSION}
-    container_name: prowlarr
-    depends_on: ["${VPN_PROVIDER}"]
-    profiles: ["${PROWLARR_PROFILE}"]
-    network_mode: service:${VPN_PROVIDER}
-    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
-    restart: unless-stopped
-    env_file: [".env", "${CONFIG_FOLDER}/prowlarr/.env"]
-    environment:
-      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ${CERTIFICATES_FOLDER}:/certs:ro
-      - ${CONFIG_FOLDER}/prowlarr/config:/config:z
-      - ${RECYCLE_FOLDER}/prowlarr:/recycle:z
-      - ${USENET_BLACKHOLE_FOLDER}:/blackhole:z
-      - ${USENET_DOWNLOADS_FOLDER}:/downloads:z
-      - ${MEDIA_FOLDER}/AudioBooks:/audiobooks:z
-      - ${MEDIA_FOLDER}/Comics:/comics:z
-      - ${MEDIA_FOLDER}/eBooks:/ebooks:z
-      - ${MEDIA_FOLDER}/Movies:/movies:z
-      - ${MEDIA_FOLDER}/Music:/music:z
-      - ${MEDIA_FOLDER}/Series:/series:z
+########################################################################################################
+# vpn / network / proxy
+########################################################################################################
 
-  qbittorrent:
-    image: linuxserver/qbittorrent:${QBITTORRENT_VERSION}
-    container_name: qbittorrent
-    depends_on: ["${VPN_PROVIDER}"]
-    profiles: ["${QBITTORRENT_PROFILE}"]
-    network_mode: service:${VPN_PROVIDER}
-    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
-    restart: unless-stopped
-    env_file: [".env", "${CONFIG_FOLDER}/qbittorrent/.env"]
-    environment:
-      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ${CERTIFICATES_FOLDER}:/certs:ro
-      - ${CONFIG_FOLDER}/qbittorrent/config:/config:z
-      - ${TORRENT_BLACKHOLE_FOLDER}:/blackhole:z
-      - ${TORRENT_DOWNLOADS_FOLDER}:/downloads:z
-      - ${MEDIA_FOLDER}/AudioBooks:/audiobooks:z
-      - ${MEDIA_FOLDER}/eBooks:/books:z
-      - ${MEDIA_FOLDER}/Movies:/movies:z
-      - ${MEDIA_FOLDER}/Music:/music:z
-      - ${MEDIA_FOLDER}/Series:/tv:z
+  # flaresolverr:
+  #   image: docker.io/flaresolverr/flaresolverr:${FLARESOLVERR_VERSION}
+  #   container_name: flaresolverr
+  #   depends_on: ["${VPN_PROVIDER}"]
+  #   profiles: ["${FLARESOLVERR_PROFILE}"]
+  #   network_mode: service:${VPN_PROVIDER}
+  #   sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
+  #   restart: unless-stopped
+  #   env_file: ["${CONFIG_FOLDER}/flaresolverr/.env"]
+  #   environment: ["TZ:${TIMEZONE}"]
+  #   volumes:
+  #     - /etc/localtime:/etc/localtime:ro
+  #     - ${CONFIG_FOLDER}/flaresolverr/config:/config:z
+  #   # deploy:
+  #   #   resources:
+  #   #     limits:
+  #   #       memory: 1gb
+  #   #       cpus: '1'
+  #   # memswap_limit: 1gb
 
-  radarr:
-    image: linuxserver/radarr:${RADARR_VERSION}
-    container_name: radarr
-    depends_on: ["${VPN_PROVIDER}"]
-    profiles: ["${RADARR_PROFILE}"]
-    network_mode: service:${VPN_PROVIDER}
-    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
-    restart: unless-stopped
-    env_file: [".env", "${CONFIG_FOLDER}/radarr/.env"]
-    environment:
-      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ${CERTIFICATES_FOLDER}:/certs:ro
-      - ${CONFIG_FOLDER}/radarr/config:/config:z
-      - ${RECYCLE_FOLDER}/radarr:/recycle:z
-      - ${TORRENT_DOWNLOADS_FOLDER}:/downloads/torrent:z
-      - ${TORRENT_DOWNLOADS_FOLDER}/completed/Radarr:/downloads/completed/Radarr:z
-      - ${USENET_DOWNLOADS_FOLDER}:/downloads/usenet:z
-      - ${USENET_DOWNLOADS_FOLDER}/completed/Movies:/downloads/completed/Movies:z
-      - ${MEDIA_FOLDER}/Movies:/movies:z
+  # nginx:
+  #   image: docker.io/nginx:${NGINX_VERSION}
+  #   container_name: nginx
+  #   depends_on: ["${VPN_PROVIDER}"]
+  #   profiles: ["${NGINX_PROFILE}"]
+  #   network_mode: service:${VPN_PROVIDER}
+  #   sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
+  #   restart: unless-stopped
+  #   env_file: [".env", "${CONFIG_FOLDER}/nginx/.env"]
+  #   volumes:
+  #     - /etc/localtime:/etc/localtime:ro
+  #     - ${CACHE_FOLDER}/nginx:/var/cache/nginx:z
+  #     - ${CERTIFICATES_FOLDER}:/certs:ro
+  #     - ${CONFIG_FOLDER}/nginx/nginx.conf:/etc/nginx/nginx.conf:z
+  #     - ${CONFIG_FOLDER}/nginx/default.conf.template:/etc/nginx/templates/default.conf.template:z
+  #     - ${CONFIG_FOLDER}/nginx/.htpasswd:/etc/nginx/.htpasswd:ro
+  #     - ${LOGS_FOLDER}/nginx:/var/log/nginx/services:z
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 1gb
+    #       cpus: '1'
+    # memswap_limit: 1gb
 
-  readarr:
-    image: linuxserver/readarr:${READARR_VERSION}
-    container_name: readarr
-    depends_on: ["${VPN_PROVIDER}"]
-    profiles: ["${READARR_PROFILE}"]
-    network_mode: service:${VPN_PROVIDER}
-    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
-    restart: unless-stopped
-    env_file: [".env", "${CONFIG_FOLDER}/readarr/.env"]
-    environment:
-      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ${CERTIFICATES_FOLDER}:/certs:ro
-      - ${CONFIG_FOLDER}/readarr/config:/config:z
-      - ${RECYCLE_FOLDER}/readarr:/recycle:z
-      - ${TORRENT_DOWNLOADS_FOLDER}:/downloads/torrent:z
-      - ${TORRENT_DOWNLOADS_FOLDER}/completed/Readarr:/downloads/completed/Readarr:z
-      - ${USENET_DOWNLOADS_FOLDER}:/downloads/usenet:z
-      - ${USENET_DOWNLOADS_FOLDER}/completed/Readarr:/downloads/completed/eBooks:z
-      - ${MEDIA_FOLDER}/AudioBooks:/audiobooks:z
-      - ${MEDIA_FOLDER}/Comics:/comics:z
-      - ${MEDIA_FOLDER}/eBooks:/books:z
+########################################################################################################
+# newznab / usenet / torrent
+########################################################################################################
+  # nzbget:
+  #   image: docker.io/linuxserver/nzbget:${NZBGET_VERSION}
+  #   container_name: nzbget
+  #   depends_on: ["${VPN_PROVIDER}"]
+  #   profiles: ["${NZBGET_PROFILE}"]
+  #   network_mode: service:${VPN_PROVIDER}
+  #   sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
+  #   restart: unless-stopped
+  #   env_file: ["${CONFIG_FOLDER}/nzbget/.env"]
+  #   environment:
+  #     # ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+  #     # rootless Docker, please uncomment below
+  #     ["PGID=0", "PUID=0", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+  #   volumes:
+  #     - /etc/localtime:/etc/localtime:ro
+  #     - ${CERTIFICATES_FOLDER}:/certs:ro
+  #     - ${CONFIG_FOLDER}/nzbget/config:/config:z
+  #     - ${USENET_FOLDER}:/data/usenet:z
+  #   # deploy:
+  #   #   resources:
+  #   #     limits:
+  #   #       memory: 1gb
+  #   #       cpus: '1'
+  #   # memswap_limit: 1gb
 
-  sonarr:
-    image: linuxserver/sonarr:${SONARR_VERSION}
-    container_name: sonarr
-    depends_on: ["${VPN_PROVIDER}"]
-    profiles: ["${SONARR_PROFILE}"]
-    network_mode: service:${VPN_PROVIDER}
-    sysctls: ["net.ipv6.conf.all.disable_ipv6=1"]
-    restart: unless-stopped
-    env_file: [".env", "${CONFIG_FOLDER}/sonarr/.env"]
-    environment:
-      ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ${CERTIFICATES_FOLDER}:/certs:ro
-      - ${CONFIG_FOLDER}/sonarr/config:/config:z
-      - ${RECYCLE_FOLDER}/sonarr:/recycle:z
-      - ${TORRENT_DOWNLOADS_FOLDER}/completed/Sonarr:/downloads/completed/Sonarr:z
-      - ${TORRENT_DOWNLOADS_FOLDER}:/downloads/torrent:z
-      - ${USENET_DOWNLOADS_FOLDER}:/downloads/usenet:z
-      - ${USENET_DOWNLOADS_FOLDER}/completed/Series:/downloads/completed/Series:z
-      - ${MEDIA_FOLDER}/Series:/series:z
+  # qbittorrent:
+  #   image: docker.io/linuxserver/qbittorrent:${QBITTORRENT_VERSION}
+  #   container_name: qbittorrent
+  #   # depends_on:
+  #   #   vpn_helper:
+  #   #     condition: service_completed_successfully
+  #   #     restart: true
+  #   profiles: ["${QBITTORRENT_PROFILE}"]
+  #   network_mode: service:${VPN_PROVIDER}
+  #   sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
+  #   restart: unless-stopped
+  #   env_file: ["${CONFIG_FOLDER}/qbittorrent/.env"]
+  #   environment:
+  #     # ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+  #     # rootless Docker, please uncomment below
+  #     ["PGID=0", "PUID=0", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+  #   volumes:
+  #     - /etc/localtime:/etc/localtime:ro
+  #     - ${CERTIFICATES_FOLDER}:/certs:ro
+  #     - ${CONFIG_FOLDER}/qbittorrent/config:/config:z
+  #     - ${TORRENTS_FOLDER}:/data/torrents:z
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 2gb
+  #         cpus: '1'
+  #   memswap_limit: 2gb
+
+########################################################################################################
+# media
+########################################################################################################
+  # jellyfin:
+  #   image: docker.io/jellyfin/jellyfin:${JELLYFIN_VERSION}
+  #   container_name: jellyfin
+  #   depends_on: ["${VPN_PROVIDER}"]
+  #   profiles: ["${JELLYFIN_PROFILE}"]
+  #   # network_mode: host # change to service:${VPN_PROVIDER} if you want in the same network as others
+  #   network_mode: service:${VPN_PROVIDER}
+  #   sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
+  #   restart: unless-stopped
+  #   # Leave commented unless your machine is capable of Hardware acceleration - Intel / Nvidia
+  #   # More information at; https://jellyfin.org/docs/general/installation/container#with-hardware-acceleration
+  #   devices: [ "/dev/dri:/dev/dri" ] # Intel QuickSync
+  #   # user: ${UID}:${GID}
+  #   # rootless Docker, please uncomment below
+  #   user: 0:0
+  #   env_file: ["${CONFIG_FOLDER}/jellyfin/.env"]
+  #   # Optional - alternative address used for autodiscovery
+  #   environment:
+  #     - JELLYFIN_PublishedServerUrl=http://localhost
+  #   # Optional - may be necessary for docker healthcheck to pass if running in host network mode
+  #   # extra_hosts:
+  #   #   - 'host.docker.internal:host-gateway'
+  #   volumes:
+  #     - ${CERTIFICATES_FOLDER}:/certs:ro
+  #     - ${CONFIG_FOLDER}/jellyfin/config:/config:z
+  #     - ${CONFIG_FOLDER}/jellyfin/cache:/cache:z
+  #     - ${DATA_FOLDER}:/data:z
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 2gb
+    #       cpus: '3'
+    # memswap_limit: 2gb
+
+# #######################################################################################################
+# # monitoring
+#   cadvisor:
+#     image: gcr.io/cadvisor/cadvisor:${CADVISOR_VERSION}
+#     container_name: cadvisor
+#     depends_on: ["${VPN_PROVIDER}"]
+#     profiles: ["${CADVISOR_PROFILE}"]
+#     # network_mode: host # change to service:${VPN_PROVIDER} if you want in the same network as others
+#     network_mode: service:${VPN_PROVIDER}
+#     sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
+#     restart: unless-stopped
+#     env_file: ["${CONFIG_FOLDER}/cadvisor/.env"]
+#     volumes:
+#       - /:/rootfs:ro
+#       - /run/user/${UID}/docker.sock:/var/run/docker.sock:ro
+#       - /sys:/sys:ro
+#       - /var/lib/docker:/var/lib/docker:ro
+#     # deploy:
+#     #   resources:
+#     #     limits:
+#     #       memory: 1gb
+#     #       cpus: '1'
+#     # memswap_limit: 1gb
+
+#   node_exporter:
+#     image: docker.io/prom/node-exporter:${NODE_EXPORTER_VERSION}
+#     container_name: node_exporter
+#     depends_on: ["${VPN_PROVIDER}"]
+#     profiles: ["${NODE_EXPORTER_PROFILE}"]
+#     # network_mode: host # change to service:${VPN_PROVIDER} if you want in the same network as others
+#     network_mode: service:${VPN_PROVIDER}
+#     sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
+#     restart: unless-stopped
+#     env_file: ["${CONFIG_FOLDER}/node_exporter/.env"]
+#     volumes:
+#       - /proc:/host/proc:ro
+#       - /sys:/host/sys:ro
+#       - /:/rootfs:ro
+#     command:
+#       - '--path.procfs=/host/proc'
+#       - '--path.rootfs=/rootfs'
+#       - '--path.sysfs=/host/sys'
+#       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+#     # deploy:
+#     #   resources:
+#     #     limits:
+#     #       memory: 1gb
+#     #       cpus: '1'
+#     # memswap_limit: 1gb
+
+#   promtail:
+#     image: docker.io/grafana/promtail:${PROMTAIL_VERSION}
+#     container_name: promtail
+#     depends_on: ["${VPN_PROVIDER}"]
+#     profiles: ["${PROMTAIL_PROFILE}"]
+#     # network_mode: host # change to service:${VPN_PROVIDER} if you want in the same network as others
+#     network_mode: service:${VPN_PROVIDER}
+#     sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
+#     restart: unless-stopped
+#     env_file: ["${CONFIG_FOLDER}/promtail/.env"]
+#     volumes:
+#       - /var/log:/var/log:ro
+#       - ${CONFIG_FOLDER}/promtail/config/promtail.yml:/etc/promtail/promtail.yml:ro
+#     command: [ '-config.file=/etc/promtail/promtail.yml' ]
+#     # deploy:
+#     #   resources:
+#     #     limits:
+#     #       memory: 1gb
+#     #       cpus: '1'
+#     # memswap_limit: 1gb
+
+#   prometheus:
+#     image: docker.io/prom/prometheus:${PROMETHEUS_VERSION}
+#     container_name: prometheus
+#     depends_on: ["${VPN_PROVIDER}"]
+#     profiles: ["${PROMETHEUS_PROFILE}"]
+#     # network_mode: host # change to service:${VPN_PROVIDER} if you want in the same network as others
+#     network_mode: service:${VPN_PROVIDER}
+#     sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
+#     restart: unless-stopped
+#     # user: ${UID}:${GID}
+#     # rootless Docker, please uncomment below
+#     user: 0:0
+#     env_file: ["${CONFIG_FOLDER}/prometheus/.env"]
+#     volumes:
+#       - /etc/localtime:/etc/localtime:ro
+#       - ${CONFIG_FOLDER}/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+#       - ${STORAGE_FOLDER}/prometheus/data:/prometheus:z
+#     # deploy:
+#     #   resources:
+#     #     limits:
+#     #       memory: 1gb
+#     #       cpus: '1'
+#     # memswap_limit: 1gb
+
+#   grafana:
+#     image: docker.io/grafana/grafana-oss:${GRAFANA_VERSION}
+#     container_name: grafana
+#     depends_on: ["${VPN_PROVIDER}"]
+#     profiles: ["${GRAFANA_PROFILE}"]
+#     # network_mode: host # change to service:${VPN_PROVIDER} if you want in the same network as others
+#     network_mode: service:${VPN_PROVIDER}
+#     sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
+#     restart: unless-stopped
+#     env_file: ["${CONFIG_FOLDER}/grafana/.env"]
+#     volumes:
+#       - /etc/localtime:/etc/localtime:ro
+#       # - ${CONFIG_FOLDER}/grafana/config/grafana.ini:/etc/grafana/grafana.ini:z
+#       - ${CONFIG_FOLDER}/grafana/config/provisioning/dashboards:/etc/grafana/provisioning/dashboards:z
+#       - ${CONFIG_FOLDER}/grafana/config/provisioning/datasources:/etc/grafana/provisioning/datasources:z
+#       - ${STORAGE_FOLDER}/grafana/data:/var/lib/grafana:z
+#     environment:
+#       - GF_SECURITY_ADMIN_USER=${ADMIN_USER:-admin}
+#       - GF_SECURITY_ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
+#       - GF_USERS_ALLOW_SIGN_UP=false
+#     # deploy:
+#     #   resources:
+#     #     limits:
+#     #       memory: 1gb
+#     #       cpus: '1'
+#     # memswap_limit: 1gb
+
+########################################################################################################
+# NOT Default Apps
+########################################################################################################
+  # caddy:
+  #   image: docker.io/caddy:${CADDY_VERSION}
+  #   container_name: caddy
+  #   depends_on: ["${VPN_PROVIDER}"]
+  #   profiles: ["${CADDY_PROFILE}"]
+  #   network_mode: service:${VPN_PROVIDER}
+  #   sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
+  #   restart: unless-stopped
+  #   env_file: [".env", "${CONFIG_FOLDER}/caddy/.env"]
+  #   # volumes:
+  #     # - ${CONFIG_FOLDER}/caddy/Caddyfile:/etc/caddy/Caddyfile:z
+  #     # - ${CONFIG_FOLDER}/caddy/config:/config:z
+  #     # - ${CONFIG_FOLDER}/caddy/data:/data:z
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 1gb
+  #         cpus: '1'
+  #   memswap_limit: 1gb
+
+
+  # deluge:
+  #   image: docker.io/linuxserver/deluge:${DELUGE_VERSION}
+  #   container_name: deluge
+  #   depends_on: ["${VPN_PROVIDER}"]
+  #   profiles: ["${DELUGE_PROFILE}"]
+  #   network_mode: service:${VPN_PROVIDER}
+  #   sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
+  #   restart: unless-stopped
+  #   env_file: ["${CONFIG_FOLDER}/deluge/.env"]
+  #   environment:
+  #     # ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+  #     # rootless Docker, please uncomment below
+  #     ["PGID=0", "PUID=0", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+  #   volumes:
+  #     - /etc/localtime:/etc/localtime:ro
+  #     - ${CERTIFICATES_FOLDER}:/certs:ro
+  #     - ${CONFIG_FOLDER}/deluge/config:/config:z
+  #     - ${TORRENTS_FOLDER}:/data/torrents:z
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 1gb
+  #         cpus: '0.5'
+  #   memswap_limit: 1gb
+
+  # Legacy app: Jackett is retained for existing setups only and is not covered
+  # by Renovate or pytest service layers.
+  # jackett:
+  #   image: docker.io/linuxserver/jackett:${JACKETT_VERSION}
+  #   container_name: jackett
+  #   depends_on: ["${VPN_PROVIDER}"]
+  #   profiles: ["${JACKETT_PROFILE}"]
+  #   network_mode: service:${VPN_PROVIDER}
+  #   sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
+  #   restart: unless-stopped
+  #   env_file: ["${CONFIG_FOLDER}/jackett/.env"]
+  #   environment:
+  #     ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+  #   volumes:
+  #     - /etc/localtime:/etc/localtime:ro
+  #     - ${CONFIG_FOLDER}/jackett/config:/config:z
+  #     - ${TORRENT_BLACKHOLE_FOLDER}:/blackhole:z
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 1gb
+  #         cpus: '1'
+  #   memswap_limit: 1gb
+
+
+  # nzbhydra2:
+  #   image: docker.io/linuxserver/nzbhydra2:${NZBHYDRA2_VERSION}
+  #   container_name: nzbhydra2
+  #   depends_on: ["${VPN_PROVIDER}"]
+  #   profiles: ["${NZBHYDRA2_PROFILE}"]
+  #   network_mode: service:${VPN_PROVIDER}
+  #   sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
+  #   restart: unless-stopped
+  #   env_file: ["${CONFIG_FOLDER}/nzbhydra2/.env"]
+  #   environment:
+  #     # ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+  #     # rootless Docker, please uncomment below
+  #     ["PGID=0", "PUID=0", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+  #   volumes:
+  #     - /etc/localtime:/etc/localtime:ro
+  #     - ${CERTIFICATES_FOLDER}:/certs:ro
+  #     - ${CONFIG_FOLDER}/nzbhydra2/config:/config:z
+  #     - ${TORRENT_BLACKHOLE_FOLDER}:/downloads/torrent/blackhole:z
+  #     - ${USENET_BLACKHOLE_FOLDER}:/downloads/usenet/blackhole:z
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 1gb
+  #         cpus: '1'
+  #   memswap_limit: 1gb
+
+  # whisparr:
+  #   image: docker.io/hotio/whisparr:${WHISPARR_VERSION}
+  #   container_name: whisparr
+  #   depends_on: ["${VPN_PROVIDER}"]
+  #   profiles: ["${WHISPARR_PROFILE}"]
+  #   network_mode: service:${VPN_PROVIDER}
+  #   sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
+  #   restart: unless-stopped
+  #   env_file: ["${CONFIG_FOLDER}/whisparr/.env"]
+  #   environment:
+  #     # ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+  #     # rootless Docker, please uncomment below
+  #     ["PGID=0", "PUID=0", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+  #   volumes:
+  #     - /etc/localtime:/etc/localtime:ro
+  #     - ${CERTIFICATES_FOLDER}:/certs:ro
+  #     - ${CONFIG_FOLDER}/whisparr/config:/config:z
+  #     - ${RECYCLE_FOLDER}/whisparr:/recycle:z
+  #     - ${TORRENT_DOWNLOADS_FOLDER}/unprocessed/whisparr:/downloads/unprocessed/whisparr:z
+  #     - ${MEDIA_FOLDER}/Series:/series:z
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 1gb
+  #         cpus: '1'
+  #   memswap_limit: 1gb
+
+  # notifiarr:
+  #   image: ghcr.io/notifiarr/notifiarr:${NOTIFIARR_VERSION}
+  #   container_name: notifiarr
+  #   depends_on: ["${VPN_PROVIDER}"]
+  #   profiles: ["${NOTIFIARR_PROFILE}"]
+  #   network_mode: service:${VPN_PROVIDER}
+  #   sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
+  #   restart: unless-stopped
+  #   env_file: ["${CONFIG_FOLDER}/notifiarr/.env"]
+  #   volumes:
+  #     - /etc/localtime:/etc/localtime:ro
+  #     - ${CERTIFICATES_FOLDER}:/certs:ro
+  #     - ${CONFIG_FOLDER}/notifiarr/config:/config:z
+  #     - ${RECYCLE_FOLDER}/notifiarr:/recycle:z
+  #     - /var/run/utmp:/var/run/utmp
+  #     - /etc/machine-id:/etc/machine-id
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 1gb
+  #         cpus: '1'
+  #   memswap_limit: 1gb
