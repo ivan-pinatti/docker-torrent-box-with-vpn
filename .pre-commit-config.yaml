@@ -41,6 +41,12 @@ repos:
       - id: trailing-whitespace
         args: ["--markdown-linebreak-ext=md"]
         exclude: *runtime_placeholders
+      - id: check-ast
+        files: ^tests/
+      - id: debug-statements
+        files: ^tests/
+      - id: requirements-txt-fixer
+        files: ^tests/requirements\.txt$
 
   - repo: https://github.com/editorconfig-checker/editorconfig-checker.python
     rev: 3.6.1
@@ -69,6 +75,15 @@ repos:
     rev: v9.7.0
     hooks:
       - id: cspell
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.6
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+        files: ^tests/
+      - id: ruff-format
+        files: ^tests/
 
   - repo: https://github.com/oxsecurity/megalinter
     rev: v9.4.0

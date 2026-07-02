@@ -6,6 +6,8 @@
 !.vscode/extensions.json
 !.vscode/*.code-snippets
 .idea/
+.agents/
+.claude/settings.local
 
 # Local History for Visual Studio Code
 .history/
@@ -74,6 +76,8 @@ kubeconfig
 *.kubeconfig
 __pycache__/
 *.py[cod]
+.pytest_cache/
+.ruff_cache/
 cache/
 logs/
 storage/
@@ -84,3 +88,31 @@ configs/recyclarr/config/repositories/
 certs/server.key
 certs/server.crt
 certs/server.pfx
+
+# Test virtual environment
+tests/.venv/
+
+# Download/media data directories — keep structure, ignore contents
+data/torrents/**
+!data/torrents/.gitkeep
+!data/torrents/*/
+!data/torrents/*/.gitkeep
+data/usenet/**
+!data/usenet/.gitkeep
+!data/usenet/*/
+!data/usenet/*/.gitkeep
+data/media/**
+!data/media/*/
+!data/media/*/.gitkeep
+data/recycle/**
+!data/recycle/*/
+!data/recycle/*/.gitkeep
+
+# Observability storage — keep structure, ignore runtime data
+storage/prometheus/data/*
+storage/grafana/data/*
+!storage/prometheus/data/.gitkeep
+!storage/grafana/data/.gitkeep
+
+# Calibre managed library database, owned by the calibre container
+media/eBooks/metadata.db
