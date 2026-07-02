@@ -1,0 +1,225 @@
+name: media-library
+
+x-healthcheck-defaults: &healthcheck-defaults
+  interval: 60s
+  retries: 5
+  start_period: 30s
+  timeout: 10s
+
+x-limit-audiobookshelf: &limit-audiobookshelf
+  deploy:
+    resources:
+      limits:
+        memory: ${AUDIOBOOKSHELF_MEMORY}
+        cpus: "${AUDIOBOOKSHELF_CPUS}"
+  memswap_limit: ${AUDIOBOOKSHELF_MEMSWAP}
+
+x-limit-calibre: &limit-calibre
+  deploy:
+    resources:
+      limits:
+        memory: ${CALIBRE_MEMORY}
+        cpus: "${CALIBRE_CPUS}"
+  memswap_limit: ${CALIBRE_MEMSWAP}
+
+x-limit-calibreweb: &limit-calibreweb
+  deploy:
+    resources:
+      limits:
+        memory: ${CALIBREWEB_MEMORY}
+        cpus: "${CALIBREWEB_CPUS}"
+  memswap_limit: ${CALIBREWEB_MEMSWAP}
+
+x-limit-jellyfin: &limit-jellyfin
+  deploy:
+    resources:
+      limits:
+        memory: ${JELLYFIN_MEMORY}
+        cpus: "${JELLYFIN_CPUS}"
+  memswap_limit: ${JELLYFIN_MEMSWAP}
+
+x-limit-korsync: &limit-korsync
+  deploy:
+    resources:
+      limits:
+        memory: ${KORSYNC_MEMORY}
+        cpus: "${KORSYNC_CPUS}"
+  memswap_limit: ${KORSYNC_MEMSWAP}
+
+services:
+  jellyfin:
+    <<: *limit-jellyfin
+    image: docker.io/linuxserver/jellyfin:${JELLYFIN_VERSION}
+    container_name: jellyfin
+    profiles: ["${JELLYFIN_PROFILE}"]
+    networks:
+      - media
+    restart: unless-stopped
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
+      - net.ipv6.conf.default.disable_ipv6=1
+      - net.ipv6.conf.lo.disable_ipv6=1
+    security_opt:
+      - no-new-privileges:true
+    # Leave commented unless your machine is capable of Hardware acceleration - Intel / Nvidia
+    # More information at; https://jellyfin.org/docs/general/installation/container#with-hardware-acceleration
+    devices: ["/dev/dri:/dev/dri"] # Intel QuickSync
+    env_file: ["${CONFIG_FOLDER}/jellyfin/.env"]
+    environment:
+      PGID: "${JELLYFIN_GID}"
+      PUID: "${JELLYFIN_UID}"
+      UMASK: "${UMASK}"
+      TZ: "${TIMEZONE}"
+      JELLYFIN_PublishedServerUrl: "http://${LAN_IP}"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CONFIG_FOLDER}/jellyfin/config:/config:z
+      - ${DATA_FOLDER}:/data:z
+    ports:
+      - ${JELLYFIN_HTTP_PORT}:8096
+      - ${JELLYFIN_HTTPS_PORT}:8920
+      - ${JELLYFIN_UDP_PORT_1}:${JELLYFIN_UDP_PORT_1}/udp
+      - ${JELLYFIN_UDP_PORT_2}:${JELLYFIN_UDP_PORT_2}/udp
+    healthcheck:
+      interval: 60s
+      retries: 5
+      start_period: 30s
+      timeout: 10s
+      test: curl --fail http://127.0.0.1:8096/health || exit 1
+
+  audiobookshelf:
+    <<: *limit-audiobookshelf
+    image: ghcr.io/advplyr/audiobookshelf:${AUDIOBOOKSHELF_VERSION}
+    container_name: audiobookshelf
+    profiles: ["${AUDIOBOOKSHELF_PROFILE}"]
+    networks:
+      media:
+        aliases: [audiobookshelf-http]
+    restart: unless-stopped
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
+      - net.ipv6.conf.default.disable_ipv6=1
+      - net.ipv6.conf.lo.disable_ipv6=1
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    user: "${AUDIOBOOKSHELF_UID}:${AUDIOBOOKSHELF_GID}"
+    env_file: ["${CONFIG_FOLDER}/audiobookshelf/.env"]
+    environment:
+      AUDIOBOOKSHELF_UID: "${AUDIOBOOKSHELF_UID}"
+      AUDIOBOOKSHELF_GID: "${AUDIOBOOKSHELF_GID}"
+      TZ: "${TIMEZONE}"
+      PORT: "${AUDIOBOOKSHELF_HTTP_PORT}"
+      SERVER_ROOT_PATH: /audiobookshelf
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CONFIG_FOLDER}/audiobookshelf/config:/config:z
+      - ${CONFIG_FOLDER}/audiobookshelf/metadata:/metadata:z
+      - ${DATA_FOLDER}:/data:z
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: wget -q -O /dev/null http://127.0.0.1:${AUDIOBOOKSHELF_HTTP_PORT}/ping || exit 1
+
+  calibre:
+    <<: *limit-calibre
+    image: lscr.io/linuxserver/calibre:${CALIBRE_VERSION}
+    container_name: calibre
+    profiles: ["${CALIBRE_PROFILE}"]
+    networks:
+      media:
+        aliases: [calibre-https]
+      # Expose content server (port 8081) to servarr apps so Readarr and
+      # LazyLibrarian can reach it at http://calibre-http:8081.
+      apps:
+        aliases: [calibre-http]
+      services: {}
+    restart: unless-stopped
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
+      - net.ipv6.conf.default.disable_ipv6=1
+      - net.ipv6.conf.lo.disable_ipv6=1
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=unconfined
+    env_file: ["${CONFIG_FOLDER}/calibre/.env"]
+    environment:
+      PGID: "${CALIBRE_GID}"
+      PUID: "${CALIBRE_UID}"
+      UMASK: "${UMASK}"
+      TZ: "${TIMEZONE}"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CONFIG_FOLDER}/calibre/config:/config:z
+      - ${CONFIG_FOLDER}/calibre/custom-cont-init.d:/custom-cont-init.d:z
+      - ${DATA_FOLDER}:/data:z
+    ports:
+      - ${CALIBRE_WIRELESS_PORT}:${CALIBRE_WIRELESS_PORT}
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: curl --fail http://127.0.0.1:${CALIBRE_DESKTOP_HTTP_PORT}/ || exit 1
+
+  calibre-web:
+    <<: *limit-calibreweb
+    image: docker.io/linuxserver/calibre-web:${CALIBREWEB_VERSION}
+    container_name: calibre-web
+    profiles: ["${CALIBREWEB_PROFILE}"]
+    networks:
+      media:
+        aliases: [calibre-web-https]
+      apps:
+        aliases: [calibre-web-http]
+      services: {}
+    restart: unless-stopped
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
+      - net.ipv6.conf.default.disable_ipv6=1
+      - net.ipv6.conf.lo.disable_ipv6=1
+    security_opt:
+      - no-new-privileges:true
+    env_file: ["${CONFIG_FOLDER}/calibre-web/.env"]
+    environment:
+      PGID: "${CALIBREWEB_GID}"
+      PUID: "${CALIBREWEB_UID}"
+      UMASK: "${UMASK}"
+      TZ: "${TIMEZONE}"
+      DOCKER_MODS: linuxserver/mods:universal-calibre
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CONFIG_FOLDER}/calibre-web/config:/config:z
+      - ${DATA_FOLDER}:/data:z
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: curl --fail --insecure https://127.0.0.1:${CALIBRE_WEB_CONTAINER_HTTPS_PORT}/ || exit 1
+
+  korsync:
+    <<: *limit-korsync
+    image: ghcr.io/nperez0111/koreader-sync:${KORSYNC_VERSION}
+    container_name: korsync
+    profiles: ["${KORSYNC_PROFILE}"]
+    networks:
+      media:
+        aliases: [korsync-http]
+    restart: unless-stopped
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
+      - net.ipv6.conf.default.disable_ipv6=1
+      - net.ipv6.conf.lo.disable_ipv6=1
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    user: "${KORSYNC_UID}:${KORSYNC_GID}"
+    env_file: ["${CONFIG_FOLDER}/korsync/.env"]
+    environment:
+      TZ: "${TIMEZONE}"
+      PORT: "${KORSYNC_HTTP_PORT}"
+      HOST: "0.0.0.0"
+      NODE_ENV: production
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CONFIG_FOLDER}/korsync/data:/app/data:z
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: wget -q -O /dev/null http://127.0.0.1:${KORSYNC_HTTP_PORT}/health || exit 1

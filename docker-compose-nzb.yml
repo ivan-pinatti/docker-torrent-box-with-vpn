@@ -1,0 +1,117 @@
+name: nzb
+
+x-limit-downloaders: &limit-downloaders
+  deploy:
+    resources:
+      limits:
+        memory: ${DOWNLOADERS_MEMORY}
+        cpus: "${DOWNLOADERS_CPUS}"
+  memswap_limit: ${DOWNLOADERS_MEMSWAP}
+
+x-limit-nzbhydra2: &limit-nzbhydra2
+  deploy:
+    resources:
+      limits:
+        memory: ${NZBHYDRA2_MEMORY}
+        cpus: "${NZBHYDRA2_CPUS}"
+  memswap_limit: ${NZBHYDRA2_MEMSWAP}
+
+x-healthcheck-defaults: &healthcheck-defaults
+  interval: 60s
+  retries: 5
+  start_period: 30s
+  timeout: 10s
+
+services:
+  sabnzbd:
+    <<: *limit-downloaders
+    image: docker.io/linuxserver/sabnzbd:${SABNZBD_VERSION}
+    container_name: sabnzbd
+    depends_on: ["${VPN_PROVIDER}"]
+    profiles: ["${SABNZBD_PROFILE}"]
+    network_mode: container:${VPN_PROVIDER}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    env_file: ["${CONFIG_FOLDER}/sabnzbd/.env"]
+    environment:
+      [
+        "PGID=${SABNZBD_GID}",
+        "PUID=${SABNZBD_UID}",
+        "UMASK=${UMASK}",
+        "TZ=${TIMEZONE}",
+        "HAS_IPV6=false",
+      ]
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CONFIG_FOLDER}/sabnzbd/config:/config:z
+      - ${USENET_FOLDER}:/data/usenet:z
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: >
+        http_status=$$(curl --silent --output /dev/null --write-out '%{http_code}'
+        http://127.0.0.1:${SABNZBD_HTTP_PORT}/sabnzbd/) &&
+        https_status=$$(curl --silent --output /dev/null --write-out '%{http_code}' --insecure
+        https://127.0.0.1:${SABNZBD_HTTPS_PORT}/sabnzbd/) &&
+        test "$$http_status" = "200" -o "$$http_status" = "303" &&
+        test "$$https_status" = "200" -o "$$https_status" = "303"
+
+  # Legacy Usenet client retained for existing setups. New installs use SABnzbd.
+  nzbget:
+    <<: *limit-downloaders
+    image: docker.io/linuxserver/nzbget:${NZBGET_VERSION}
+    container_name: nzbget
+    depends_on: ["${VPN_PROVIDER}"]
+    profiles: ["${NZBGET_PROFILE}"]
+    network_mode: container:${VPN_PROVIDER}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    env_file: ["${CONFIG_FOLDER}/nzbget/.env"]
+    environment:
+      ["PGID=${SABNZBD_GID}", "PUID=${SABNZBD_UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CONFIG_FOLDER}/nzbget/config:/config:z
+      - ${USENET_FOLDER}:/data/usenet:z
+  nzbhydra2:
+    <<: *limit-nzbhydra2
+    image: docker.io/linuxserver/nzbhydra2:${NZBHYDRA2_VERSION}
+    container_name: nzbhydra2
+    profiles: ["${NZBHYDRA2_PROFILE}"]
+    networks:
+      apps:
+        aliases: [nzbhydra2-https]
+      services: {}
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    env_file: ["${CONFIG_FOLDER}/nzbhydra2/.env"]
+    environment:
+      ["PGID=${NZBHYDRA2_GID}", "PUID=${NZBHYDRA2_UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}", "HAS_IPV6=false"]
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CONFIG_FOLDER}/nzbhydra2/config:/config:z
+      - ${TORRENT_BLACKHOLE_FOLDER}:/downloads/torrents/blackhole:z
+      - ${USENET_BLACKHOLE_FOLDER}:/downloads/usenet/blackhole:z
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: >
+        http_status=$$(curl --silent --output /dev/null --write-out '%{http_code}'
+        http://127.0.0.1:${NZBHYDRA2_HTTP_PORT}/nzbhydra2/ || true) &&
+        https_status=$$(curl --silent --output /dev/null --write-out '%{http_code}' --insecure
+        https://127.0.0.1:${NZBHYDRA2_HTTPS_PORT}/nzbhydra2/) &&
+        test "$$http_status" = "000" -o "$$http_status" = "200" -o "$$http_status" = "302" &&
+        test "$$https_status" = "200" -o "$$https_status" = "302"
+
+networks:
+  apps:
+    external: true
+    name: docker-torrent-box-with-vpn_apps
+  services:
+    external: true
+    name: docker-torrent-box-with-vpn_services
