@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(podman logs *)",
+      "Bash(podman ps *)",
+      "Bash(podman inspect *)",
+      "Bash(podman stop *)",
+      "Bash(podman images *)",
+      "Bash(podman top *)",
+      "Bash(podman stats *)",
+      "Bash(podman version *)",
+      "Bash(podman info *)",
+      "Bash(docker ps *)",
+      "Bash(docker logs *)",
+      "Bash(docker inspect *)",
+      "Bash(docker images *)",
+      "Bash(docker top *)",
+      "Bash(docker stats *)",
+      "Bash(docker version *)",
+      "Bash(docker info *)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(ps *)",
+      "Bash(df *)",
+      "Bash(du *)",
+      "Bash(uname *)",
+      "Bash(whoami)",
+      "Bash(id *)",
+      "Bash(uptime)",
+      "Bash(asdf list *)",
+      "Bash(asdf current *)",
+      "Bash(asdf where *)",
+      "Bash(asdf which *)"
+    ]
+  }
+}
