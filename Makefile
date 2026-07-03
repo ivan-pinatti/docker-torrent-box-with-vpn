@@ -30,7 +30,7 @@ PODMAN_DOWN_TIMEOUT ?= 60
 
 .PHONY: backup backup-configs backup-full bootstrap clean clean_all check_requirements \
 	configure_jellyfin_network \
-	detect_secrets_create_baseline down generate_certificate \
+	detect_secrets_create_baseline down generate_certificate rotate_certificate \
 	disk_status permissions_check permissions_repair permissions_smoke permissions_host_smoke prune_cache rotate_nginx_logs \
 	install_requirements pull_docker_images pre_commit \
 	restore-configs restore-full \
@@ -236,6 +236,9 @@ generate_certificate:
 	@echo -n "Whisparr...		";	xmlstarlet --quiet ed --inplace --update '/Config/SslCertPassword' --value "${CERT_PASSWORD}" "configs/whisparr/config/config.xml"; 		echo OK!  # pragma: allowlist secret
 	@echo -n "Jellyfin...		";	xmlstarlet --quiet ed --inplace --update '/NetworkConfiguration/CertificatePassword' --value "${CERT_PASSWORD}" "configs/jellyfin/config/network.xml"; echo OK!  # pragma: allowlist secret
 	@echo -n "NZBHydra...		"; 	sslKey="${CERT_PASSWORD}" yq -i '(.main.sslKeyStorePassword) = strenv(sslKey)' "configs/nzbhydra2/config/nzbhydra.yml"; 	echo OK!
+
+rotate_certificate:
+	@./scripts/rotate-certificate.sh
 
 install_requirements:
 	@echo "Installing requirements..."

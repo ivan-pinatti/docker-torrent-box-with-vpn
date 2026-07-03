@@ -12,7 +12,6 @@ x-limit-audiobookshelf: &limit-audiobookshelf
       limits:
         memory: ${AUDIOBOOKSHELF_MEMORY}
         cpus: "${AUDIOBOOKSHELF_CPUS}"
-  memswap_limit: ${AUDIOBOOKSHELF_MEMSWAP}
 
 x-limit-calibre: &limit-calibre
   deploy:
@@ -20,7 +19,6 @@ x-limit-calibre: &limit-calibre
       limits:
         memory: ${CALIBRE_MEMORY}
         cpus: "${CALIBRE_CPUS}"
-  memswap_limit: ${CALIBRE_MEMSWAP}
 
 x-limit-calibreweb: &limit-calibreweb
   deploy:
@@ -28,7 +26,6 @@ x-limit-calibreweb: &limit-calibreweb
       limits:
         memory: ${CALIBREWEB_MEMORY}
         cpus: "${CALIBREWEB_CPUS}"
-  memswap_limit: ${CALIBREWEB_MEMSWAP}
 
 x-limit-jellyfin: &limit-jellyfin
   deploy:
@@ -36,7 +33,6 @@ x-limit-jellyfin: &limit-jellyfin
       limits:
         memory: ${JELLYFIN_MEMORY}
         cpus: "${JELLYFIN_CPUS}"
-  memswap_limit: ${JELLYFIN_MEMSWAP}
 
 x-limit-korsync: &limit-korsync
   deploy:
@@ -44,7 +40,6 @@ x-limit-korsync: &limit-korsync
       limits:
         memory: ${KORSYNC_MEMORY}
         cpus: "${KORSYNC_CPUS}"
-  memswap_limit: ${KORSYNC_MEMSWAP}
 
 services:
   jellyfin:

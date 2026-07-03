@@ -1,0 +1,88 @@
+name: vpn
+
+x-limit-gluetun: &limit-gluetun
+  deploy:
+    resources:
+      limits:
+        memory: ${GLUETUN_MEMORY}
+        cpus: "${GLUETUN_CPUS}"
+
+services:
+  gluetun:
+    <<: *limit-gluetun
+    image: ghcr.io/qdm12/gluetun:${GLUETUN_VERSION}
+    container_name: gluetun
+    restart: unless-stopped
+    profiles: ["${GLUETUN_PROFILE}"]
+    cap_add: [NET_ADMIN, NET_RAW]
+    security_opt:
+      - label=disable
+    # IPv6 is NOT disabled here - gluetun's DNS server binds to [::]:53 for dual-stack.
+    # IPv6 leaks are prevented by: (a) no IPv6 addresses assigned to any interface,
+    # (b) gluetun's ip6tables rules. Disabling IPv6 via sysctl also disables the DNS
+    # server and breaks name resolution for all containers in this namespace.
+    env_file: [".env", "${CONFIG_FOLDER}/gluetun/.env"]
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /dev/net/tun:/dev/net/tun
+      - ${CONFIG_FOLDER}/gluetun:/gluetun:z
+    healthcheck:
+      test: wget -q -O /dev/null http://127.0.0.1:9999/ || exit 1
+      interval: 30s
+      retries: 3
+      start_period: 30s
+      timeout: 5s
+    ports:
+      ### DISABLED Ports - Enable to DEBUG
+      # - ${BAZARR_HTTP_PORT}:${BAZARR_HTTP_PORT} # bazarr-http
+      # - ${CADDY_HTTP_PORT}:${CADDY_HTTP_PORT} # caddy-http
+      # - ${CADDY_HTTPS_PORT}:${CADDY_HTTPS_PORT} # caddy-https
+      # - ${CADVISOR_HTTP_PORT}:8080 # cadvisor-http
+      # - ${CALIBRE_DESKTOP_HTTP_PORT}:${CALIBRE_DESKTOP_HTTP_PORT} # calibre-desktop-http
+      # - ${CALIBRE_DESKTOP_HTTPS_PORT}:${CALIBRE_DESKTOP_HTTPS_PORT} # calibre-desktop-https
+      # - ${CALIBRE_GUI_WEB_HTTP_PORT}:${CALIBRE_GUI_WEB_HTTP_PORT} # calibre-web-gui-http
+      # - ${CALIBRE_WEB_CONTAINER_HTTP_PORT}:${CALIBRE_WEB_CONTAINER_HTTP_PORT} # calibre-web-http (from calibre-web container)
+      # - ${CALIBRE_WEB_CONTAINER_HTTPS_PORT}:${CALIBRE_WEB_CONTAINER_HTTPS_PORT} # calibre-web-https (from calibre-web container)
+      # - ${DELUGE_HTTP_PORT}:${DELUGE_HTTP_PORT} # deluge-http
+      # - ${DELUGE_HTTPS_PORT}:${DELUGE_HTTPS_PORT} # deluge-http
+      # - ${FLARESOLVERR_HTTP_PORT}:${FLARESOLVERR_HTTP_PORT} # flaresolverr-http
+      # - ${JACKETT_HTTP_PORT}:${JACKETT_HTTP_PORT} # jackett-http (legacy)
+      # - ${JELLYFIN_HTTP_PORT}:${JELLYFIN_HTTP_PORT} # jellyfin-http
+      # - ${JELLYFIN_HTTPS_PORT}:${JELLYFIN_HTTPS_PORT} # jellyfin-https
+      # - ${JELLYFIN_UDP_PORT_1}:${JELLYFIN_UDP_PORT_1} # jellyfin-udp-port-1
+      # - ${JELLYFIN_UDP_PORT_2}:${JELLYFIN_UDP_PORT_2} # jellyfin-udp-port-2
+      # - ${LAZYLIBRARIAN_HTTP_PORT}:${LAZYLIBRARIAN_HTTP_PORT} # lazylibrarian-http
+      # - ${LAZYLIBRARIAN_HTTPS_PORT}:${LAZYLIBRARIAN_HTTPS_PORT} # lazylibrarian-https
+      # - ${LIDARR_HTTP_PORT}:${LIDARR_HTTP_PORT} # lidarr-http
+      # - ${LIDARR_HTTPS_PORT}:${LIDARR_HTTPS_PORT} # lidarr-https
+      # - ${MYLAR_HTTP_PORT}:${MYLAR_HTTP_PORT} # mylar-http
+      # - ${MYLAR_HTTPS_PORT}:${MYLAR_HTTPS_PORT} # mylar-https
+      # - ${NODE_EXPORTER_HTTP_PORT}:9100 # node-exporter-http
+      # - ${NZBGET_HTTP_PORT}:${NZBGET_HTTP_PORT} # nzbget-http
+      # - ${NZBGET_HTTPS_PORT}:${NZBGET_HTTPS_PORT} # nzbget-https
+      # - ${SABNZBD_HTTP_PORT}:${SABNZBD_HTTP_PORT} # sabnzbd-http
+      # - ${SABNZBD_HTTPS_PORT}:${SABNZBD_HTTPS_PORT} # sabnzbd-https
+      # - ${NZBHYDRA2_HTTP_PORT}:${NZBHYDRA2_HTTP_PORT} # nzbhydra2-http
+      # - ${NZBHYDRA2_HTTPS_PORT}:${NZBHYDRA2_HTTPS_PORT} # nzbhydra2-https
+      # - ${PROMETHEUS_HTTP_PORT}:9090 # prometheus-http
+      # - ${PROMTAIL_HTTP_PORT}:9080 # promtail-http
+      # - ${PROWLARR_HTTP_PORT}:${PROWLARR_HTTP_PORT} # prowlarr-http
+      # - ${PROWLARR_HTTPS_PORT}:${PROWLARR_HTTPS_PORT} # prowlarr-https
+      # - ${QBITTORRENT_HTTP_PORT}:${QBITTORRENT_HTTP_PORT} # qbittorrent-http
+      # - ${QBITTORRENT_HTTPS_PORT}:${QBITTORRENT_HTTPS_PORT} # qbittorrent-https
+      # - ${QBITTORRENT_PORT}:${QBITTORRENT_PORT} # qbittorrent-torrent
+      # - ${QBITTORRENT_PORT}:${QBITTORRENT_PORT}/udp # qbittorrent-torrent
+      # - ${RADARR_HTTP_PORT}:${RADARR_HTTP_PORT} # radarr-http
+      # - ${RADARR_HTTPS_PORT}:${RADARR_HTTPS_PORT} # radarr-https
+      # - ${READARR_HTTP_PORT}:${READARR_HTTP_PORT} # readarr-http
+      # - ${READARR_HTTPS_PORT}:${READARR_HTTPS_PORT} # readarr-https
+      # - ${SONARR_HTTP_PORT}:${SONARR_HTTP_PORT} # sonarr-http
+      # - ${SONARR_HTTPS_PORT}:${SONARR_HTTPS_PORT} # sonarr-https
+      # - ${WHISPARR_HTTP_PORT}:${WHISPARR_HTTP_PORT} # whisparr-http
+      # - ${WHISPARR_HTTPS_PORT}:${WHISPARR_HTTPS_PORT} # whisparr-https
+    networks:
+      wan: {}
+      services:
+        ipv4_address: ${GLUETUN_SERVICES_IP}
+      observability:
+        ipv4_address: ${GLUETUN_OBSERVABILITY_IP}

@@ -6,7 +6,6 @@ x-limit-downloaders: &limit-downloaders
       limits:
         memory: ${DOWNLOADERS_MEMORY}
         cpus: "${DOWNLOADERS_CPUS}"
-  memswap_limit: ${DOWNLOADERS_MEMSWAP}
 
 x-limit-nzbhydra2: &limit-nzbhydra2
   deploy:
@@ -14,7 +13,6 @@ x-limit-nzbhydra2: &limit-nzbhydra2
       limits:
         memory: ${NZBHYDRA2_MEMORY}
         cpus: "${NZBHYDRA2_CPUS}"
-  memswap_limit: ${NZBHYDRA2_MEMSWAP}
 
 x-healthcheck-defaults: &healthcheck-defaults
   interval: 60s

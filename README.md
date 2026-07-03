@@ -574,11 +574,11 @@ are not available in the INTERVAL context.
 
 ### 5.1. Container limits
 
-Container CPU, memory, and memory-swap limits are configured in `.env` and
-applied through Compose resource groups. CPU values are quotas, not reserved
-cores. Memory values are RAM ceilings. See
-[docs/CONTAINER_LIMITS.md](docs/CONTAINER_LIMITS.md) for the default groups,
-corner cases, and swap details.
+Container CPU and memory limits are configured in `.env` and applied through
+Compose resource groups. CPU values are quotas, not reserved cores. Memory
+values are RAM ceilings. See
+[docs/CONTAINER_LIMITS.md](docs/CONTAINER_LIMITS.md) for the default groups
+and corner cases.
 
 ### 6. Bootstrap directory ownership
 

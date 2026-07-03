@@ -1,0 +1,163 @@
+name: proxy
+
+x-healthcheck-defaults: &healthcheck-defaults
+  interval: 60s
+  retries: 5
+  start_period: 30s
+  timeout: 10s
+
+x-limit-nginx: &limit-nginx
+  deploy:
+    resources:
+      limits:
+        memory: ${NGINX_MEMORY}
+        cpus: "${NGINX_CPUS}"
+
+x-limit-homepage: &limit-homepage
+  deploy:
+    resources:
+      limits:
+        memory: ${HOMEPAGE_MEMORY}
+        cpus: "${HOMEPAGE_CPUS}"
+
+services:
+  nginx:
+    <<: *limit-nginx
+    image: docker.io/nginx:${NGINX_VERSION}
+    container_name: nginx
+    profiles: ["${NGINX_PROFILE}"]
+    networks:
+      edge: {}
+      apps: {}
+      services: {}
+      observability: {}
+      media:
+        ipv4_address: ${NGINX_MEDIA_IP}
+    ports:
+      - ${NGINX_HTTP_PORT}:${NGINX_HTTP_PORT}
+      - ${NGINX_HTTPS_PORT}:${NGINX_HTTPS_PORT}
+    sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
+    restart: unless-stopped
+    stop_signal: SIGTERM
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: >
+        curl --fail http://127.0.0.1:${NGINX_HTTP_PORT}/stub_status &&
+        curl --fail --insecure https://127.0.0.1:${NGINX_HTTPS_PORT}/stub_status ||
+        exit 1
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETUID, SETGID, NET_BIND_SERVICE]
+    env_file: [".env", "${CONFIG_FOLDER}/nginx/.env"]
+    environment:
+      BAZARR_UPSTREAM_SCHEME: http
+      BAZARR_UPSTREAM_HOST: bazarr-http
+      BAZARR_UPSTREAM_PORT: "${BAZARR_HTTP_PORT}"
+      FLARESOLVERR_UPSTREAM_SCHEME: http
+      FLARESOLVERR_UPSTREAM_HOST: flaresolverr-http
+      FLARESOLVERR_UPSTREAM_PORT: "${FLARESOLVERR_HTTP_PORT}"
+      LIDARR_UPSTREAM_SCHEME: https
+      LIDARR_UPSTREAM_HOST: lidarr-https
+      LIDARR_UPSTREAM_PORT: "${LIDARR_HTTPS_PORT}"
+      PROWLARR_UPSTREAM_SCHEME: https
+      PROWLARR_UPSTREAM_HOST: prowlarr-https
+      PROWLARR_UPSTREAM_PORT: "${PROWLARR_HTTPS_PORT}"
+      RADARR_UPSTREAM_SCHEME: https
+      RADARR_UPSTREAM_HOST: radarr-https
+      RADARR_UPSTREAM_PORT: "${RADARR_HTTPS_PORT}"
+      READARR_UPSTREAM_SCHEME: https
+      READARR_UPSTREAM_HOST: readarr-https
+      READARR_UPSTREAM_PORT: "${READARR_HTTPS_PORT}"
+      NZBHYDRA2_UPSTREAM_SCHEME: https
+      NZBHYDRA2_UPSTREAM_HOST: nzbhydra2-https
+      NZBHYDRA2_UPSTREAM_PORT: "${NZBHYDRA2_HTTPS_PORT}"
+      SABNZBD_UPSTREAM_SCHEME: https
+      SABNZBD_UPSTREAM_HOST: "${GLUETUN_SERVICES_IP}"
+      SABNZBD_UPSTREAM_PORT: "${SABNZBD_HTTPS_PORT}"
+      SONARR_UPSTREAM_SCHEME: http
+      SONARR_UPSTREAM_HOST: sonarr-http
+      SONARR_UPSTREAM_PORT: "${SONARR_HTTP_PORT}"
+      WHISPARR_UPSTREAM_SCHEME: https
+      WHISPARR_UPSTREAM_HOST: whisparr-https
+      WHISPARR_UPSTREAM_PORT: "${WHISPARR_HTTPS_PORT}"
+      AUDIOBOOKSHELF_UPSTREAM_SCHEME: http
+      AUDIOBOOKSHELF_UPSTREAM_HOST: audiobookshelf-http
+      AUDIOBOOKSHELF_UPSTREAM_PORT: "${AUDIOBOOKSHELF_HTTP_PORT}"
+      KORSYNC_UPSTREAM_SCHEME: http
+      KORSYNC_UPSTREAM_HOST: korsync-http
+      KORSYNC_UPSTREAM_PORT: "${KORSYNC_HTTP_PORT}"
+      CALIBRE_UPSTREAM_SCHEME: https
+      CALIBRE_UPSTREAM_HOST: calibre-https
+      CALIBRE_UPSTREAM_PORT: "${CALIBRE_DESKTOP_HTTPS_PORT}"
+      CALIBRE_CONTENT_UPSTREAM_SCHEME: http
+      CALIBRE_CONTENT_UPSTREAM_HOST: calibre-http
+      CALIBRE_CONTENT_UPSTREAM_PORT: "${CALIBRE_GUI_WEB_HTTP_PORT}"
+      CALIBREWEB_UPSTREAM_SCHEME: https
+      CALIBREWEB_UPSTREAM_HOST: calibre-web-https
+      CALIBREWEB_UPSTREAM_PORT: "${CALIBRE_WEB_CONTAINER_HTTPS_PORT}"
+      LAZYLIBRARIAN_UPSTREAM_SCHEME: https
+      LAZYLIBRARIAN_UPSTREAM_HOST: lazylibrarian-http
+      LAZYLIBRARIAN_UPSTREAM_PORT: "${LAZYLIBRARIAN_HTTP_PORT}"
+      MYLAR_UPSTREAM_SCHEME: https
+      MYLAR_UPSTREAM_HOST: mylar-https
+      MYLAR_UPSTREAM_PORT: "${MYLAR_HTTPS_PORT}"
+      JELLYFIN_UPSTREAM_PORT: "${JELLYFIN_UPSTREAM_PORT:-8096}"
+      GLUETUN_SERVICES_IP: "${GLUETUN_SERVICES_IP}"
+      HOMEPAGE_HTTP_PORT: "${HOMEPAGE_HTTP_PORT}"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CACHE_FOLDER}/nginx:/var/cache/nginx:z
+      - ${CERTIFICATES_FOLDER}:/certs:ro,z
+      - ${CONFIG_FOLDER}/nginx/nginx.conf:/etc/nginx/nginx.conf:ro,z
+      - ${CONFIG_FOLDER}/nginx/templates:/etc/nginx/templates:ro,z
+      - ${CONFIG_FOLDER}/nginx/.htpasswd:/etc/nginx/.htpasswd:ro
+      - ${LOGS_FOLDER}/nginx:/var/log/nginx/services:z
+
+  homepage:
+    <<: *limit-homepage
+    image: ghcr.io/gethomepage/homepage:${HOMEPAGE_VERSION}
+    container_name: homepage
+    profiles: ["${HOMEPAGE_PROFILE}"]
+    networks:
+      apps:
+        aliases: [homepage-http]
+      services: {}
+      media: {}
+      observability: {}
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
+      - net.ipv6.conf.default.disable_ipv6=1
+      - net.ipv6.conf.lo.disable_ipv6=1
+    restart: unless-stopped
+    user: "${HOMEPAGE_UID}:${HOMEPAGE_GID}"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    env_file: ["${CONFIG_FOLDER}/homepage/.env"]
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CONFIG_FOLDER}/homepage/config:/app/config:z
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: wget -q -O /dev/null http://127.0.0.1:${HOMEPAGE_HTTP_PORT}/ || exit 1
+
+  # caddy:
+  #   image: docker.io/caddy:${CADDY_VERSION}
+  #   container_name: caddy
+  #   depends_on: ["${VPN_PROVIDER}"]
+  #   profiles: ["${CADDY_PROFILE}"]
+  #   network_mode: service:${VPN_PROVIDER}
+  #   sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
+  #   restart: unless-stopped
+  #   env_file: [".env", "${CONFIG_FOLDER}/caddy/.env"]
+  #   # volumes:
+  #     # - ${CONFIG_FOLDER}/caddy/Caddyfile:/etc/caddy/Caddyfile:z
+  #     # - ${CONFIG_FOLDER}/caddy/config:/config:z
+  #     # - ${CONFIG_FOLDER}/caddy/data:/data:z
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 1gb
+  #         cpus: '1'
+  #   memswap_limit: 1gb

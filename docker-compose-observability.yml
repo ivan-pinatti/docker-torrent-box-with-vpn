@@ -12,7 +12,6 @@ x-limit-grafana: &limit-grafana
       limits:
         memory: ${GRAFANA_MEMORY}
         cpus: "${GRAFANA_CPUS}"
-  memswap_limit: ${GRAFANA_MEMSWAP}
 
 x-limit-telemetry: &limit-telemetry
   deploy:
@@ -20,7 +19,6 @@ x-limit-telemetry: &limit-telemetry
       limits:
         memory: ${TELEMETRY_MEMORY}
         cpus: "${TELEMETRY_CPUS}"
-  memswap_limit: ${TELEMETRY_MEMSWAP}
 
 x-limit-log-rotator: &limit-log-rotator
   deploy:
@@ -28,7 +26,6 @@ x-limit-log-rotator: &limit-log-rotator
       limits:
         memory: ${LOG_ROTATOR_MEMORY}
         cpus: "${LOG_ROTATOR_CPUS}"
-  memswap_limit: ${LOG_ROTATOR_MEMSWAP}
 
 services:
   cadvisor:
@@ -128,7 +125,6 @@ services:
         limits:
           memory: ${ALLOY_MEMORY}
           cpus: "${TELEMETRY_CPUS}"
-    memswap_limit: ${ALLOY_MEMSWAP}
     image: docker.io/grafana/alloy:${ALLOY_VERSION}
     container_name: alloy
     profiles: ["${ALLOY_PROFILE}"]

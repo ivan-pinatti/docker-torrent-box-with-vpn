@@ -1,0 +1,363 @@
+name: servarr
+
+x-servarr-common: &servarr-common
+  restart: unless-stopped
+  networks: [apps, services]
+  sysctls:
+    - net.ipv6.conf.all.disable_ipv6=1
+    - net.ipv6.conf.default.disable_ipv6=1
+    - net.ipv6.conf.lo.disable_ipv6=1
+  security_opt:
+    - no-new-privileges:true
+  environment: &servarr-env
+    UMASK: "${UMASK}"
+    TZ: "${TIMEZONE}"
+  volumes: &servarr-volumes
+    - /etc/localtime:/etc/localtime:ro
+    - ${CERTIFICATES_FOLDER}:/certs:ro
+    - ${DATA_FOLDER}:/data:z
+
+x-healthcheck-defaults: &healthcheck-defaults
+  interval: 60s
+  retries: 5
+  start_period: 30s
+  timeout: 10s
+
+x-limit-servarr: &limit-servarr
+  deploy:
+    resources:
+      limits:
+        memory: ${SERVARR_MEMORY}
+        cpus: "${SERVARR_CPUS}"
+  pids_limit: ${SERVARR_PIDS}
+
+x-limit-flaresolverr: &limit-flaresolverr
+  deploy:
+    resources:
+      limits:
+        memory: ${FLARESOLVERR_MEMORY}
+        cpus: "${FLARESOLVERR_CPUS}"
+
+services:
+  bazarr:
+    <<: [*servarr-common, *limit-servarr]
+    image: docker.io/linuxserver/bazarr:${BAZARR_VERSION}
+    container_name: bazarr
+    profiles: ["${BAZARR_PROFILE}"]
+    networks:
+      apps:
+        aliases: [bazarr-http]
+      services: {}
+    env_file: ["${CONFIG_FOLDER}/bazarr/.env"]
+    environment:
+      <<: *servarr-env
+      PGID: "${BAZARR_GID}"
+      PUID: "${BAZARR_UID}"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CONFIG_FOLDER}/bazarr/config:/config:z
+      - ${DATA_FOLDER}:/data:z
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: curl --fail http://127.0.0.1:${BAZARR_HTTP_PORT}/bazarr/ || exit 1
+
+  lidarr:
+    <<: [*servarr-common, *limit-servarr]
+    image: docker.io/linuxserver/lidarr:${LIDARR_VERSION}
+    container_name: lidarr
+    profiles: ["${LIDARR_PROFILE}"]
+    networks:
+      apps:
+        aliases: [lidarr-https]
+      services: {}
+    env_file: ["${CONFIG_FOLDER}/lidarr/.env"]
+    environment:
+      <<: *servarr-env
+      PGID: "${LIDARR_GID}"
+      PUID: "${LIDARR_UID}"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CONFIG_FOLDER}/lidarr/config:/config:z
+      - ${CONFIG_FOLDER}/lidarr/custom-cont-init.d:/custom-cont-init.d:z
+      - ${CONFIG_FOLDER}/lidarr/custom-services.d:/custom-services.d:z
+      - ${DATA_FOLDER}:/data:z
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: >
+        curl --fail http://127.0.0.1:${LIDARR_HTTP_PORT}/lidarr/ &&
+        curl --fail --insecure https://127.0.0.1:${LIDARR_HTTPS_PORT}/lidarr/ ||
+        exit 1
+
+  prowlarr:
+    <<: [*servarr-common, *limit-servarr]
+    image: docker.io/linuxserver/prowlarr:${PROWLARR_VERSION}
+    container_name: prowlarr
+    profiles: ["${PROWLARR_PROFILE}"]
+    networks:
+      apps:
+        aliases: [prowlarr-https]
+      services: {}
+    env_file: ["${CONFIG_FOLDER}/prowlarr/.env"]
+    environment:
+      <<: *servarr-env
+      PGID: "${PROWLARR_GID}"
+      PUID: "${PROWLARR_UID}"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CONFIG_FOLDER}/prowlarr/config:/config:z
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: >
+        curl --fail http://127.0.0.1:${PROWLARR_HTTP_PORT}/prowlarr/ &&
+        curl --fail --insecure https://127.0.0.1:${PROWLARR_HTTPS_PORT}/prowlarr/ ||
+        exit 1
+
+  radarr:
+    <<: [*servarr-common, *limit-servarr]
+    image: docker.io/linuxserver/radarr:${RADARR_VERSION}
+    container_name: radarr
+    profiles: ["${RADARR_PROFILE}"]
+    networks:
+      apps:
+        aliases: [radarr-https]
+      services: {}
+    env_file: ["${CONFIG_FOLDER}/radarr/.env"]
+    environment:
+      <<: *servarr-env
+      PGID: "${RADARR_GID}"
+      PUID: "${RADARR_UID}"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CONFIG_FOLDER}/radarr/config:/config:z
+      - ${DATA_FOLDER}:/data:z
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: >
+        curl --fail http://127.0.0.1:${RADARR_HTTP_PORT}/radarr/ &&
+        curl --fail --insecure https://127.0.0.1:${RADARR_HTTPS_PORT}/radarr/ ||
+        exit 1
+
+  readarr:
+    <<: [*servarr-common, *limit-servarr]
+    image: docker.io/linuxserver/readarr:${READARR_VERSION}
+    container_name: readarr
+    profiles: ["${READARR_PROFILE}"]
+    networks:
+      apps:
+        aliases: [readarr-https]
+      services: {}
+    env_file: ["${CONFIG_FOLDER}/readarr/.env"]
+    environment:
+      <<: *servarr-env
+      PGID: "${READARR_GID}"
+      PUID: "${READARR_UID}"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CONFIG_FOLDER}/readarr/config:/config:z
+      - ${DATA_FOLDER}:/data:z
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: >
+        curl --fail http://127.0.0.1:${READARR_HTTP_PORT}/readarr/ &&
+        curl --fail --insecure https://127.0.0.1:${READARR_HTTPS_PORT}/readarr/ ||
+        exit 1
+
+  recyclarr:
+    <<: *limit-servarr
+    restart: unless-stopped
+    image: ghcr.io/recyclarr/recyclarr:${RECYCLARR_VERSION}
+    container_name: recyclarr
+    profiles: ["${RECYCLARR_PROFILE}"]
+    networks: [apps, services]
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
+      - net.ipv6.conf.default.disable_ipv6=1
+      - net.ipv6.conf.lo.disable_ipv6=1
+    user: "${RECYCLARR_UID}:${RECYCLARR_GID}"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    env_file: ["${CONFIG_FOLDER}/recyclarr/.env"]
+    environment:
+      TZ: "${TIMEZONE}"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CONFIG_FOLDER}/recyclarr/config:/config:z
+
+  sonarr:
+    <<: [*servarr-common, *limit-servarr]
+    image: docker.io/linuxserver/sonarr:${SONARR_VERSION}
+    container_name: sonarr
+    profiles: ["${SONARR_PROFILE}"]
+    networks:
+      apps:
+        aliases: [sonarr-http]
+      services: {}
+    env_file: ["${CONFIG_FOLDER}/sonarr/.env"]
+    environment:
+      <<: *servarr-env
+      PGID: "${SONARR_GID}"
+      PUID: "${SONARR_UID}"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CONFIG_FOLDER}/sonarr/config:/config:z
+      - ${DATA_FOLDER}:/data:z
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: >
+        curl --fail http://127.0.0.1:${SONARR_HTTP_PORT}/sonarr/ &&
+        curl --fail --insecure https://127.0.0.1:${SONARR_HTTPS_PORT} ||
+        exit 1
+
+  flaresolverr:
+    <<: *limit-flaresolverr
+    restart: unless-stopped
+    image: docker.io/flaresolverr/flaresolverr:${FLARESOLVERR_VERSION}
+    container_name: flaresolverr
+    profiles: ["${FLARESOLVERR_PROFILE}"]
+    security_opt:
+      - no-new-privileges:true
+    user: "${FLARESOLVERR_UID}:${FLARESOLVERR_GID}"
+    cap_drop: [ALL]
+    networks:
+      apps:
+        aliases: [flaresolverr-http]
+      services: {}
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
+      - net.ipv6.conf.default.disable_ipv6=1
+      - net.ipv6.conf.lo.disable_ipv6=1
+    env_file: ["${CONFIG_FOLDER}/flaresolverr/.env"]
+    environment:
+      HOME: /config
+      TZ: "${TIMEZONE}"
+      XDG_CACHE_HOME: /config/.cache
+      XDG_DATA_HOME: /config/.local/share
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CONFIG_FOLDER}/flaresolverr/config:/config:z
+      - ${CONFIG_FOLDER}/flaresolverr/config/chromedriver:/app/chromedriver:z
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: curl --fail http://127.0.0.1:${FLARESOLVERR_HTTP_PORT}/ || exit 1
+
+  whisparr:
+    <<: [*servarr-common, *limit-servarr]
+    image: ghcr.io/hotio/whisparr:${WHISPARR_VERSION}
+    container_name: whisparr
+    profiles: ["${WHISPARR_PROFILE}"]
+    networks:
+      apps:
+        aliases: [whisparr-https]
+      services: {}
+    env_file: ["${CONFIG_FOLDER}/whisparr/.env"]
+    environment:
+      <<: *servarr-env
+      PGID: "${WHISPARR_GID}"
+      PUID: "${WHISPARR_UID}"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CONFIG_FOLDER}/whisparr/config:/config:z
+      - ${DATA_FOLDER}:/data:z
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: >
+        http_status=$$(curl --silent --output /dev/null --write-out '%{http_code}'
+        http://127.0.0.1:${WHISPARR_HTTP_PORT}/whisparr/) &&
+        https_status=$$(curl --silent --output /dev/null --write-out '%{http_code}' --insecure
+        https://127.0.0.1:${WHISPARR_HTTPS_PORT}/whisparr/) &&
+        test "$$http_status" = "200" -o "$$http_status" = "401" &&
+        test "$$https_status" = "200" -o "$$https_status" = "401"
+
+  lazylibrarian:
+    <<: [*servarr-common, *limit-servarr]
+    image: lazylibrarian-calibre:${LAZYLIBRARIAN_VERSION}
+    build:
+      context: ./build/lazylibrarian
+      args:
+        BASE_VERSION: ${LAZYLIBRARIAN_VERSION}
+    container_name: lazylibrarian
+    profiles: ["${LAZYLIBRARIAN_PROFILE}"]
+    networks:
+      apps:
+        aliases: [lazylibrarian-http]
+      services: {}
+    env_file: ["${CONFIG_FOLDER}/lazylibrarian/.env"]
+    environment:
+      <<: *servarr-env
+      PGID: "${LAZYLIBRARIAN_GID}"
+      PUID: "${LAZYLIBRARIAN_UID}"
+      CALIBRE_CONFIG_DIRECTORY: /config/.calibre
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CONFIG_FOLDER}/lazylibrarian/config:/config:z
+      - ./patches/lazylibrarian/lazylibrarian/configdefs.py:/app/lazylibrarian/lazylibrarian/configdefs.py:ro,z
+      - ./patches/lazylibrarian/lazylibrarian/qbittorrent.py:/app/lazylibrarian/lazylibrarian/qbittorrent.py:ro,z
+      - ./patches/lazylibrarian/data/interfaces/bookstrap/config.html:/app/lazylibrarian/data/interfaces/bookstrap/config.html:ro,z
+      - ./patches/lazylibrarian/data/interfaces/bookstrap/config_functions.js:/app/lazylibrarian/data/interfaces/bookstrap/config_functions.js:ro,z
+      - ./patches/lazylibrarian/lazylibrarian/webServe.py:/app/lazylibrarian/lazylibrarian/webServe.py:ro,z
+      - ${DATA_FOLDER}:/data:z
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: curl --fail --insecure https://127.0.0.1:${LAZYLIBRARIAN_HTTP_PORT}/lazylibrarian/ || exit 1
+
+  mylar:
+    <<: [*servarr-common, *limit-servarr]
+    image: mylar-pyopenssl:${MYLAR_VERSION}
+    build:
+      context: ./build/mylar
+      args:
+        BASE_VERSION: ${MYLAR_VERSION}
+    container_name: mylar
+    profiles: ["${MYLAR_PROFILE}"]
+    networks:
+      apps:
+        aliases: [mylar-https]
+      services: {}
+    env_file: ["${CONFIG_FOLDER}/mylar/.env"]
+    environment:
+      <<: *servarr-env
+      PGID: "${MYLAR_GID}"
+      PUID: "${MYLAR_UID}"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CONFIG_FOLDER}/mylar/config:/config:z
+      - ${DATA_FOLDER}:/data:z
+      - ${MEDIA_FOLDER}/Comics:/comics:z
+      - ./patches/mylar/lib/qbittorrent/client.py:/app/mylar3/lib/qbittorrent/client.py:ro,z
+      - ./patches/mylar/mylar/torrent/clients/qbittorrent.py:/app/mylar3/mylar/torrent/clients/qbittorrent.py:ro,z
+      - ./patches/mylar/mylar/config.py:/app/mylar3/mylar/config.py:ro,z
+      - ./patches/mylar/data/interfaces/default/config.html:/app/mylar3/data/interfaces/default/config.html:ro,z
+      - ./patches/mylar/mylar/webserve.py:/app/mylar3/mylar/webserve.py:ro,z
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: >
+        status=$$(curl --silent --output /dev/null --write-out '%{http_code}' --insecure
+        https://127.0.0.1:${MYLAR_HTTPS_PORT}/mylar/) &&
+        test "$$status" = "200" -o "$$status" = "303" -o "$$status" = "401"
+
+  # notifiarr:
+  #   image: ghcr.io/notifiarr/notifiarr:${NOTIFIARR_VERSION}
+  #   container_name: notifiarr
+  #   profiles: ["${NOTIFIARR_PROFILE}"]
+  #   networks: [apps, services]
+  #   sysctls:
+  #     - net.ipv6.conf.all.disable_ipv6=1
+  #     - net.ipv6.conf.default.disable_ipv6=1
+  #     - net.ipv6.conf.lo.disable_ipv6=1
+  #   restart: unless-stopped
+  #   env_file: ["${CONFIG_FOLDER}/notifiarr/.env"]
+  #   volumes:
+  #     - /etc/localtime:/etc/localtime:ro
+  #     - ${CERTIFICATES_FOLDER}:/certs:ro
+  #     - ${CONFIG_FOLDER}/notifiarr/config:/config:z

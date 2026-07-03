@@ -8,6 +8,8 @@ ENABLE_LINTERS:
   - ENV_DOTENV_LINTER
   - JSON_JSONLINT
   - MARKDOWN_MARKDOWNLINT
+  - PYTHON_BANDIT
+  - PYTHON_RUFF
   - SPELL_CSPELL
   - SPELL_LYCHEE
   - REPOSITORY_CHECKOV
@@ -27,3 +29,7 @@ JSON_JSONLINT_FILTER_REGEX_INCLUDE: (^\.cspell\.json$|^\.devcontainer/.*\.json$)
 # input for repository-wide security/IaC scanners.
 REPOSITORY_TRIVY_FILTER_REGEX_EXCLUDE: (^configs/.*/\.env$|^configs/.*/config/|^configs/recyclarr/config/.*\.yml$|^media/eBooks/metadata\.db$|^\.secrets\.baseline$)
 REPOSITORY_CHECKOV_ARGUMENTS: --skip-framework secrets --skip-path configs --skip-path media/eBooks
+PYTHON_RUFF_FILTER_REGEX_INCLUDE: (^tests/)
+PYTHON_BANDIT_FILTER_REGEX_INCLUDE: (^tests/)
+PYTHON_BANDIT_FILTER_REGEX_EXCLUDE: (tests/\.venv/)
+PYTHON_BANDIT_ARGUMENTS: "--skip B101,B105,B314,B404,B405,B501,B603"
