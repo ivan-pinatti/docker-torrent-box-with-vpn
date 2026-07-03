@@ -1,0 +1,95 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+
+  // Dependabot handles pre-commit hooks and GitHub Actions — see dependabot.yml.
+  // Renovate handles Docker image versions pinned in .env via # renovate: annotations.
+  extends: ["config:recommended"],
+
+  timezone: "America/Toronto",
+  schedule: ["before 7am on Monday"],
+
+  labels: ["dependencies", "docker"],
+  commitMessagePrefix: "chore:",
+
+  // Keep PR volume manageable so CI is not overwhelmed.
+  prConcurrentLimit: 5,
+  prHourlyLimit: 2,
+  automerge: false,
+
+  packageRules: [
+    // *arr suite — group together as they share config and often release together.
+    {
+      matchDatasources: ["docker"],
+      matchPackageNames: [
+        "linuxserver/bazarr",
+        "linuxserver/lidarr",
+        "linuxserver/prowlarr",
+        "linuxserver/radarr",
+        "linuxserver/readarr",
+        "linuxserver/sonarr",
+        "ghcr.io/recyclarr/recyclarr",
+      ],
+      groupName: "arr suite",
+      groupSlug: "arr-suite",
+    },
+    // VPN and bypass tools — kept separate because they affect the kill-switch test.
+    {
+      matchDatasources: ["docker"],
+      matchPackageNames: [
+        "ghcr.io/qdm12/gluetun",
+        "ghcr.io/tprasadtp/protonwire",
+        "docker.io/flaresolverr/flaresolverr",
+      ],
+      groupName: "vpn and network tools",
+      groupSlug: "vpn-network",
+    },
+    // Observability stack — disabled by default, group for tidiness.
+    {
+      matchDatasources: ["docker"],
+      matchPackageNames: [
+        "grafana/grafana-oss",
+        "prom/prometheus",
+        "grafana/promtail",
+        "gcr.io/cadvisor/cadvisor",
+        "prom/node-exporter",
+      ],
+      groupName: "observability stack",
+      groupSlug: "observability",
+    },
+    // Remaining linuxserver images (downloaders, library tools).
+    {
+      matchDatasources: ["docker"],
+      matchPackagePatterns: ["^linuxserver/"],
+      excludePackageNames: [
+        "linuxserver/bazarr",
+        "linuxserver/lidarr",
+        "linuxserver/prowlarr",
+        "linuxserver/radarr",
+        "linuxserver/readarr",
+        "linuxserver/sonarr",
+      ],
+      groupName: "linuxserver images",
+      groupSlug: "linuxserver",
+    },
+    // Media library servers.
+    {
+      matchDatasources: ["docker"],
+      matchPackageNames: ["ghcr.io/advplyr/audiobookshelf"],
+      groupName: "media library servers",
+      groupSlug: "media-library",
+    },
+  ],
+
+  regexManagers: [
+    {
+      // Matches the pattern:
+      //   # renovate: depName=<image> [versioning=<scheme>]
+      //   VAR_VERSION=<currentValue>
+      fileMatch: ["^\\.env\\.example$"],
+      matchStrings: [
+        "# renovate: depName=(?<depName>[^\\s\\n]+)(?:\\s+versioning=(?<versioning>[^\\s\\n]+))?\\n[A-Z0-9_]+=(?<currentValue>[^\\n]+)",
+      ],
+      datasourceTemplate: "docker",
+    },
+  ],
+}

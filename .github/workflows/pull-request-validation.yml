@@ -29,3 +29,85 @@ jobs:
         uses: pre-commit/action@v3.0.0
         with:
           extra_args: --all-files
+
+  prerequisites:
+    name: Prerequisite Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create .env file
+        shell: bash
+        run: cp .env.example .env
+
+      - name: Python Setup
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11.3
+
+      - name: Create test venv and run prerequisite tests
+        run: make test_prerequisites
+
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: pr_check
+    env:
+      PROTONVPN_PRIVATE_KEY: ${{ secrets.PROTONVPN_PRIVATE_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create .env file (VPN disabled — no key in CI)
+        shell: bash
+        run: |
+          cp .env.example .env
+          # Disable VPN profile so containers that depend on it can start without a real key
+          sed -i 's/^GLUETUN_PROFILE=enabled/GLUETUN_PROFILE=disabled/' .env
+
+      - name: Inject VPN key if secret is available
+        if: ${{ env.PROTONVPN_PRIVATE_KEY != '' }}
+        shell: bash
+        run: |
+          sed -i 's/^GLUETUN_PROFILE=disabled/GLUETUN_PROFILE=enabled/' .env
+          echo "${{ env.PROTONVPN_PRIVATE_KEY }}" > configs/gluetun/.secret
+
+      - name: Python Setup
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11.3
+
+      - name: Generate self-signed certificate
+        run: make generate_certificate
+
+      - name: Start stack
+        run: make start
+
+      - name: Wait for containers to be ready
+        shell: bash
+        run: |
+          timeout 120 bash -c '
+            until docker compose ps --format json 2>/dev/null | \
+              python3 -c "
+          import sys, json
+          containers = [json.loads(l) for l in sys.stdin if l.strip()]
+          starting = [c[\"Name\"] for c in containers if c.get(\"Health\") == \"starting\"]
+          print(starting); sys.exit(0 if not starting else 1)
+          "; do sleep 5; done
+          '
+
+      - name: Run integration tests (skip VPN kill-switch without key)
+        shell: bash
+        run: |
+          SKIP_MARKERS=""
+          if [ -z "${{ env.PROTONVPN_PRIVATE_KEY }}" ]; then
+            SKIP_MARKERS="-m 'not killswitch'"
+          fi
+          make test PYTEST_ARGS="$SKIP_MARKERS"
+
+      - name: Tear down
+        if: always()
+        run: make stop_all
