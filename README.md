@@ -368,7 +368,10 @@ make start VPN_ON="sonarr,radarr"
 make start VPN_ON="servarr"        # all Servarr apps behind Gluetun
 ```
 
-Use the same `VPN_ON` value when stopping or restarting a routed variant.
+`make start` remembers the `VPN_ON` it used, so `make down`, `make stop`, and
+`make restart` reapply the same routing automatically without repeating
+`VPN_ON`. Pass `VPN_ON` explicitly on any of those commands to override the
+remembered value.
 
 **Step 1 — Get your WireGuard private key from Proton VPN:**
 

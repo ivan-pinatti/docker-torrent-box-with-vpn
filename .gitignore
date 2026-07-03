@@ -48,6 +48,9 @@ docker-compose.dev.yml
 compose.override.yml
 docker-compose.override.yml
 
+# Make target state (remembers the last `make start` VPN_ON for down/stop/restart)
+.vpn_on.state
+
 # Backup files
 certs.backup.**
 configs.backup.**

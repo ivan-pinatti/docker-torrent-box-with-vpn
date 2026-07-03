@@ -22,11 +22,30 @@ space := $(empty) $(empty)
 VPN_ON ?=
 VPN_ON_LIST := $(strip $(subst $(comma),$(space),$(VPN_ON)))
 VPN_ROUTE_SERVICES := bazarr flaresolverr lazylibrarian lidarr mylar prowlarr radarr readarr recyclarr sonarr whisparr
+VPN_VALID_TOKENS := servarr $(VPN_ROUTE_SERVICES)
+VPN_UNKNOWN_TOKENS := $(filter-out $(VPN_VALID_TOKENS),$(VPN_ON_LIST))
+ifneq ($(VPN_UNKNOWN_TOKENS),)
+$(error Unknown VPN_ON service(s): $(VPN_UNKNOWN_TOKENS). Valid values: $(VPN_VALID_TOKENS))
+endif
 VPN_ROUTE_FILES := $(if $(filter servarr,$(VPN_ON_LIST)),docker-compose.routes/servarr-vpn.yml,$(foreach service,$(VPN_ROUTE_SERVICES),$(if $(filter $(service),$(VPN_ON_LIST)),docker-compose.routes/$(service)-vpn.yml)))
 ROUTE_FILES ?= $(VPN_ROUTE_FILES)
 COMPOSE_FILES := --file docker-compose.yml $(foreach route_file,$(ROUTE_FILES),--file $(route_file))
 COMPOSE_PROJECT_NAME ?= $(notdir $(CURDIR))
 PODMAN_DOWN_TIMEOUT ?= 60
+
+# Remembers the VPN_ON used by the last successful `make start`, so down/stop/restart
+# match a running stack even when VPN_ON isn't repeated on the command line. An
+# explicit VPN_ON on the command line always wins over the remembered value.
+VPN_STATE_FILE := .vpn_on.state
+LAST_VPN_ON := $(shell cat $(VPN_STATE_FILE) 2>/dev/null)
+ifeq ($(origin VPN_ON),command line)
+STOP_VPN_ON := $(VPN_ON)
+else
+STOP_VPN_ON := $(if $(LAST_VPN_ON),$(LAST_VPN_ON),$(VPN_ON))
+endif
+STOP_VPN_ON_LIST := $(strip $(subst $(comma),$(space),$(STOP_VPN_ON)))
+STOP_ROUTE_FILES := $(if $(filter servarr,$(STOP_VPN_ON_LIST)),docker-compose.routes/servarr-vpn.yml,$(foreach service,$(VPN_ROUTE_SERVICES),$(if $(filter $(service),$(STOP_VPN_ON_LIST)),docker-compose.routes/$(service)-vpn.yml)))
+STOP_COMPOSE_FILES := --file docker-compose.yml $(foreach route_file,$(STOP_ROUTE_FILES),--file $(route_file))
 
 .PHONY: backup backup-configs backup-full bootstrap clean clean_all check_requirements \
 	configure_jellyfin_network \
@@ -206,8 +225,9 @@ down:
 			done; \
 		fi; \
 	else \
-		$(COMPOSE) $(COMPOSE_FILES) --profile enabled down --timeout 60; \
+		$(COMPOSE) $(STOP_COMPOSE_FILES) --profile enabled down --timeout 60; \
 	fi
+	@rm -f $(VPN_STATE_FILE)
 
 configure_jellyfin_network:
 	@echo "Configuring Jellyfin network settings..."
@@ -294,7 +314,7 @@ pull_docker_images:
 
 restart:
 	@echo "Re-starting containers..."
-	@$(COMPOSE) $(COMPOSE_FILES) --profile enabled restart
+	@$(COMPOSE) $(STOP_COMPOSE_FILES) --profile enabled restart
 
 rotate_passwords:
 	@BAZARR_PASSWORD="$(echo "bazarr${RANDOM})"; yq --in-place '(.auth.apikey) = strenv(BAZARR_PASSWORD)' "configs/bazarr/config/config/config.yaml"
@@ -321,6 +341,7 @@ start:
 	@timeout 120 sh -c 'until $(RUNTIME) inspect gluetun --format "{{.State.Health.Status}}" 2>/dev/null | grep -q healthy; do sleep 5; done' || (echo "ERROR: gluetun did not become healthy in time"; exit 1)
 	@echo "Starting all containers..."
 	@$(COMPOSE) $(COMPOSE_FILES) --profile enabled up --detach --no-recreate
+	@echo "$(VPN_ON)" > $(VPN_STATE_FILE)
 
 start_library:
 	@echo "Starting Media Library containers..."
@@ -340,11 +361,11 @@ stop: stop_all
 
 stop_all:
 	@echo "Stopping containers (if they are running)..."
-	@$(COMPOSE) $(COMPOSE_FILES) --profile enabled stop
+	@$(COMPOSE) $(STOP_COMPOSE_FILES) --profile enabled stop
 
 update_containers:
 	@echo "Stopping containers..."
-	@$(COMPOSE) $(COMPOSE_FILES) --profile enabled stop
+	@$(COMPOSE) $(STOP_COMPOSE_FILES) --profile enabled stop
 
 	@echo "Ensuring required networks exist..."
 	@$(RUNTIME) network exists docker-torrent-box-with-vpn_apps || $(RUNTIME) network create docker-torrent-box-with-vpn_apps
