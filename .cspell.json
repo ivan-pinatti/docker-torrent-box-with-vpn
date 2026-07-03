@@ -41,6 +41,7 @@
   "language": "en",
   "version": "0.2",
   "words": [
+    "absdatabase",
     "Achar",
     "addext",
     "addopts",
@@ -124,6 +125,7 @@
     "consolelevel",
     "cookieheader",
     "cpus",
+    "creds",
     "cspell",
     "cvapi",
     "cvinfo",
