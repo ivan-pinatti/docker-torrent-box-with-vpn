@@ -1,0 +1,13 @@
+services:
+  readarr:
+    depends_on:
+      "${VPN_PROVIDER}":
+        condition: service_healthy
+        restart: true
+    network_mode: container:${VPN_PROVIDER}
+    networks: !reset []
+
+  gluetun:
+    networks:
+      services:
+        aliases: [readarr, readarr-https]

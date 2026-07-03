@@ -31,7 +31,10 @@ repos:
       - id: check-xml
         exclude: *runtime_placeholders
       - id: check-yaml
-        exclude: *runtime_placeholders
+        # docker-compose.routes/*.yml use Compose's `!reset` merge tag, which
+        # PyYAML (this hook's parser) doesn't recognize as a constructor.
+        # yamllint still validates their structure and style.
+        exclude: '^(docker-compose\.routes/.*\.ya?ml|configs/.*/\.env|configs/.*/config/|configs/recyclarr/config/.*\.yml|media/eBooks/metadata\.db|\.secrets\.baseline)$'
       - id: destroyed-symlinks
       - id: detect-private-key
       - id: end-of-file-fixer
