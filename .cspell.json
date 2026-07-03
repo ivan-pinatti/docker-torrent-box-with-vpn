@@ -459,6 +459,7 @@
     "sysctls",
     "sysfs",
     "systray",
+    "tablelibgen",
     "testinfra",
     "testpaths",
     "tfvars",
@@ -515,6 +516,7 @@
     "Xvid",
     "XVID",
     "yadif",
-    "yamllint"
+    "yamllint",
+    "yourpassword"
   ]
 }
