@@ -1,0 +1,138 @@
+# Monitoring
+
+The observability stack collects container and host metrics with Prometheus, ships logs via
+Grafana Alloy to Loki, and surfaces everything in Grafana.
+
+## Services
+
+| Service                | Role                                                                                    | Profile                          |
+| ---------------------- | --------------------------------------------------------------------------------------- | -------------------------------- |
+| podman_exporter        | Per-container metrics from the Podman socket                                            | `PODMAN_EXPORTER_PROFILE`        |
+| podman_limits_exporter | Per-container CPU/memory limits from the Podman socket                                  | `PODMAN_LIMITS_EXPORTER_PROFILE` |
+| node_exporter          | Host OS and hardware metrics                                                            | `NODE_EXPORTER_PROFILE`          |
+| nginx_exporter         | Nginx stub_status metrics                                                               | `NGINX_EXPORTER_PROFILE`         |
+| qbittorrent_exporter   | qBittorrent-specific metrics (free disk, etc.)                                          | `QBITTORRENT_EXPORTER_PROFILE`   |
+| sabnzbd_exporter       | SABnzbd queue, status, and downloader metrics                                           | `SABNZBD_EXPORTER_PROFILE`       |
+| cAdvisor               | Root-cgroup metrics (limited under rootless Podman)                                     | `CADVISOR_PROFILE`               |
+| Prometheus             | Scrapes and stores time-series data                                                     | `PROMETHEUS_PROFILE`             |
+| Alloy                  | Log shipper: tails nginx, SABnzbd, qBittorrent, and jDownloader2 logs, forwards to Loki | `ALLOY_PROFILE`                  |
+| Loki                   | Log storage and query backend                                                           | `LOKI_PROFILE`                   |
+| Grafana                | Dashboards and alerting UI                                                              | `GRAFANA_PROFILE`                |
+
+> **cAdvisor in rootless Podman:** cAdvisor only exposes the root cgroup (`id="/"`) when running
+> under rootless Podman. It cannot provide per-container CPU or memory breakdowns. Use
+> `podman_exporter` for per-container metrics and join with `podman_container_info` for
+> human-readable names:
+>
+> ```promql
+> rate(podman_container_cpu_seconds_total[5m]) * on(id) group_left(name) podman_container_info
+> ```
+
+## Enabling
+
+Set the following in `.env`:
+
+```dotenv
+PODMAN_EXPORTER_PROFILE=enabled
+PODMAN_LIMITS_EXPORTER_PROFILE=enabled
+NODE_EXPORTER_PROFILE=enabled
+NGINX_EXPORTER_PROFILE=enabled
+QBITTORRENT_EXPORTER_PROFILE=enabled
+SABNZBD_EXPORTER_PROFILE=enabled
+CADVISOR_PROFILE=enabled
+PROMETHEUS_PROFILE=enabled
+ALLOY_PROFILE=enabled
+LOKI_PROFILE=enabled
+GRAFANA_PROFILE=enabled
+```
+
+Then restart the stack:
+
+```shell
+make down && make start
+```
+
+## Network Architecture
+
+```text
+[Browser]
+    │ HTTPS (nginx on port 443)
+    ▼
+nginx ── (apps + observability networks)
+    │
+    │ observability bridge (internal: true)
+    ├──▶ prometheus:9090    /admin/prometheus/
+    └──▶ grafana:3000       /admin/grafana/
+              ▲                    │ apps network (internet)
+              │ scrapes            │ (for SMTP and Telegram alerts)
+         cadvisor
+         podman_exporter
+         podman_limits_exporter
+         node_exporter
+         nginx_exporter
+         qbittorrent_exporter
+         sabnzbd_exporter
+```
+
+The `observability` bridge is `internal: true`; containers on it cannot route to the internet.
+Grafana is also attached to the `apps` network (non-internal) so it can reach AWS SES and Telegram
+for alert delivery.
+
+## Accessing the UIs
+
+| Service    | URL                                |
+| ---------- | ---------------------------------- |
+| Grafana    | `https://<host>/admin/grafana/`    |
+| Prometheus | `https://<host>/admin/prometheus/` |
+
+## Prometheus
+
+Scrape config: `configs/prometheus/prometheus.yml`
+
+Active scrape jobs (the `job` name is the Prometheus job label, not the container name):
+
+| Job                      | Endpoint                                         |
+| ------------------------ | ------------------------------------------------ |
+| `cadvisor`               | `cadvisor:8080/admin/cadvisor/metrics`           |
+| `podman`                 | `podman_exporter:9882/metrics`                   |
+| `podman_limits_exporter` | `podman_limits_exporter:9889/metrics`            |
+| `node_exporter`          | `node_exporter:9100/admin/node_exporter/metrics` |
+| `qbittorrent`            | `qbittorrent_exporter:17871/metrics`             |
+| `sabnzbd`                | `sabnzbd_exporter:9387/metrics`                  |
+| `nginx`                  | `nginx_exporter:9113/metrics`                    |
+| `prometheus`             | Self-metrics                                     |
+
+Retention is configured via `PROMETHEUS_RETENTION_TIME` and `PROMETHEUS_RETENTION_SIZE` in `.env`.
+Persistent data lives in `storage/prometheus/data/` (gitignored).
+
+## Loki and Alloy
+
+Alloy tails nginx access/error logs from `${LOGS_FOLDER}/nginx/`, SABnzbd application logs
+from `configs/sabnzbd/config/logs/`, qBittorrent application logs from
+`configs/qbittorrent/config/qBittorrent/logs/`, and jDownloader2 application logs from
+`configs/jdownloader2/config/log/`, then forwards them to Loki. Configuration:
+`configs/alloy/config/config.alloy`.
+
+Loki stores logs in `storage/loki/data/` (gitignored).
+Configuration: `configs/loki/config/loki.yml`.
+
+## Grafana
+
+Default credentials: `admin` / `admin` (change on first login).
+
+Configuration: `configs/grafana/config/grafana.ini`. Key settings:
+
+- `protocol = http`: Grafana serves plain HTTP; nginx handles TLS termination
+- `root_url = %(protocol)s://%(domain)s/admin/grafana/`: required for correct asset paths
+  behind the subpath proxy
+- `serve_from_sub_path = true`: required for subpath proxy
+
+Provisioning files (datasources, dashboards, alerting) live under
+`configs/grafana/config/provisioning/`.
+
+The bundled SABnzbd dashboard is provisioned from
+`configs/grafana/config/provisioning/dashboards/downloaders/sabnzbd.json`. Alerting includes
+SABnzbd exporter-down and stalled-queue rules in
+`configs/grafana/config/provisioning/alerting/rules.yaml`.
+
+Persistent data is stored in `storage/grafana/data/` (gitignored).
