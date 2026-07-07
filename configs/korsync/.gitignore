@@ -1,0 +1,11 @@
+# Ignore everything in this directory
+*
+
+# Except .gitignore and dotenv file
+!.gitignore
+!.env
+
+# data file
+!data/
+data/*
+!data/koreader-sync.db

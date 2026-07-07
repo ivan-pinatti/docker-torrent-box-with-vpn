@@ -1,0 +1,19 @@
+# Ignore everything in this directory
+*
+
+# Except .gitignore and dotenv file
+!.gitignore
+!.env
+
+# config files
+!config/
+config/*
+!config/bookmarks.yaml
+!config/docker.yaml
+!config/kubernetes.yaml
+!config/proxmox.yaml
+!config/settings.yaml
+!config/widgets.yaml
+!config/services.yaml
+!config/custom.js
+!config/custom.css
