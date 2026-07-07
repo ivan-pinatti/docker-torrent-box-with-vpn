@@ -1,20 +1,96 @@
 # Todo
 
+## General / Security
+
 - [ ] Enhance the library update process
-- [ ] Research Dependabot/Renovate for Docker image versions
-- [ ] Lidarr is not configured for Indexers due to a restriction to add it
-- [ ] Mylar is not working to add HTTPS qBitorrent and Nzbget
-- [ ] Sonarr HTTPS
-- [ ] Lazylibrarian not working with qBittorrent on HTTPS
+- [ ] Research Dependabot/Renovate for Docker image versions; docker-compose
+  image versions should be managed by Renovate rather than living in the
+  compose file
 - [ ] Fix python version w/ GHA
+- [ ] Rotate passwords, including working out the KDF the apps use so
+  rotated passwords can be generated with OpenSSL, see
+  [Lidarr's UserService.cs](https://github.com/Lidarr/Lidarr/blob/6ec298ed2a9653863b8cea33e7174d50d37b5fcc/src/NzbDrone.Core/Authentication/UserService.cs#L22)
+- [ ] Strip API key secrets from nginx logs, see
+  [Jellyfin's nginx docs](https://jellyfin.org/docs/general/networking/nginx/#censor-sensitive-information-in-logs)
+- [ ] Rotate API keys (all services, including Jackett)
+- [ ] Move certificate info to a dedicated folder
+- [ ] Add k6 load testing
+- [ ] Disable automatic Docker image updates in all containers
+- [ ] Add a VPN provider affiliate link
+- [ ] Set up a firewall
+- [ ] Find and inventory existing backups
+- [ ] Automate backups
+- [ ] Close remaining HTTP ports, allow access only through nginx
+
+## Gluetun
+
+- [ ] Verify IPv6 address handling and how to disable it
+
+## qBittorrent
+
+- [ ] Set up an nginx reverse proxy for the WebUI, see
+  [qBittorrent's NGINX reverse proxy wiki page](https://github.com/qbittorrent/qBittorrent/wiki/NGINX-Reverse-Proxy-for-Web-UI)
+- [ ] Review and set upload/download speed limits
+
+Needs review (flagged instead of carried as firm todos: qBittorrent already
+runs inside gluetun's namespace with a structural VPN killswitch, so it's
+unclear whether these still add value; couldn't confirm against trash-guides
+recommendations):
+
+- [ ] Enable Anonymous Mode
+- [ ] Disable Local Peer Discovery
+- [ ] Disable the rate limit exemption for LAN peers
+
+## Jackett
+
+- [ ] Add an OMDb key
+
+## Sonarr
+
+- [ ] Sonarr HTTPS
+- [ ] Investigate database corruption
+
+## NZBHydra2
+
+- [ ] Restrict access for unlogged-in users
+- [ ] Set cookie expiry to 1 day
+- [ ] Add notifications (Apprise?)
+- [ ] Fix failure adding to Lidarr, see
+  [SSL verification errors wiki page](https://github.com/theotherp/nzbhydra2/wiki/SSL-verification-errors)
+
+## Lidarr
+
+- [ ] Lidarr is not configured for Indexers due to a restriction to add it
+
+## Prowlarr
+
+- [ ] Flaresolverr
+- [ ] Indexers
+- [ ] Auto config arrs
+
+## Mylar
+
+- [ ] Mylar + NZBget HTTPS. The qBittorrent side is already fixed via a
+  local patch (`patches/mylar/`); upstream PR
+  [MylarComics/mylar3#23](https://github.com/MylarComics/mylar3/pull/23) is
+  still open
+
+## Whisparr
+
+- [ ] Re-enable the password once the upstream bug is fixed
 
 ## In Progress
 
 ## Won't do
 
-- Containers running as non-root. Most services use s6-overlay and require to be ran as root.
-
 ## Done
+
+2.2.x
+
+- [x] Containers run as non-root (PUID=${UID}/PGID=${GID}). s6-overlay starts as root to
+  drop privileges; the app process runs as the configured user.
+- [x] All containers hardened with no-new-privileges and cap_drop: ALL. Exceptions: gluetun
+  (needs NET_ADMIN/NET_RAW), cadvisor (needs privileged), podman_exporter (uses userns_mode).
 
 2.1.x
 
