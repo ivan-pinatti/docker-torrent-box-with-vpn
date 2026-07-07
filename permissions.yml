@@ -231,6 +231,20 @@ paths:
     default_acl:
       - {identity: jdownloader2, perms: rwx}
       - {identity: mylar, perms: rwx}
+  - path: data/downloads/mature
+    owner: jdownloader2
+    mode: "0750"
+    acl:
+      - {identity: jdownloader2, perms: rwx}
+    default_acl:
+      - {identity: jdownloader2, perms: rwx}
+  - path: data/downloads/musicVideos
+    owner: jdownloader2
+    mode: "0750"
+    acl:
+      - {identity: jdownloader2, perms: rwx}
+    default_acl:
+      - {identity: jdownloader2, perms: rwx}
 
   - path: data/media
     owner: root

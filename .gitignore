@@ -97,6 +97,10 @@ certs/server.pfx
 tests/.venv/
 
 # Download/media data directories — keep structure, ignore contents
+data/downloads/**
+!data/downloads/.gitkeep
+!data/downloads/*/
+!data/downloads/*/.gitkeep
 data/torrents/**
 !data/torrents/.gitkeep
 !data/torrents/*/
@@ -105,6 +109,8 @@ data/usenet/**
 !data/usenet/.gitkeep
 !data/usenet/*/
 !data/usenet/*/.gitkeep
+!data/usenet/complete/*/
+!data/usenet/complete/*/.gitkeep
 data/media/**
 !data/media/*/
 !data/media/*/.gitkeep

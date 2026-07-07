@@ -54,6 +54,10 @@ Downloaders own their own incoming areas:
 | `data/usenet/complete/mature` | `sabnzbd` | `whisparr` |
 | `data/usenet/complete` | `root` | `sabnzbd` |
 | `data/usenet/blackhole` | `root` | `sabnzbd`, `nzbhydra2`, `lazylibrarian` |
+| `data/downloads` | `jdownloader2` | `lazylibrarian`, `mylar` |
+| `data/downloads/comics` | `jdownloader2` | `mylar` |
+| `data/downloads/mature` | `jdownloader2` | none |
+| `data/downloads/musicVideos` | `jdownloader2` | none |
 
 Importers own only their target libraries and recycle folders:
 
