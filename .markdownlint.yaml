@@ -1,29 +1,39 @@
 default: true
 
 # MD013: line length - match editorconfig max_line_length
+
 MD013:
   line_length: 100
   code_blocks: false
   tables: false
 
 # MD024: siblings_only - allow repeated headings under different parent sections
-#         (e.g. "Static Reservations" under each VLAN section)
+
+# (e.g. "Static Reservations" under each VLAN section)
+
 MD024:
   siblings_only: true
 
 # MD033: allow inline HTML (useful in infra docs)
+
 MD033: false
 
 # MD036: allow bold text used as labeled sub-steps (e.g. **a. step**)
+
 MD036: false
 
 # MD031: blank lines around fenced code blocks - enabled; code blocks in lists
-#         must have surrounding blank lines for correct rendering
+
+# must have surrounding blank lines for correct rendering
+
 MD031: true
 
 # MD060: table column separator style - enabled; separators must use at least 3 dashes
+
 MD060: true
 
 # MD045: images should have alt text - disabled; QR code donation images are decorative
-#         and have adjacent code labels that describe them
+
+# and have adjacent code labels that describe them
+
 MD045: false
