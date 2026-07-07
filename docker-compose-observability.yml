@@ -37,6 +37,7 @@ services:
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
     restart: unless-stopped
     privileged: true
+    env_file: ["${CONFIG_FOLDER}/cadvisor/.env"]
     devices:
       - /dev/kmsg
     volumes:
@@ -66,6 +67,7 @@ services:
     userns_mode: "keep-id:uid=65534,gid=65534"
     security_opt:
       - label=disable
+    env_file: ["${CONFIG_FOLDER}/podman_exporter/.env"]
     volumes:
       - /run/user/${UID}/podman/podman.sock:/var/run/podman/podman.sock:ro
     environment:
@@ -85,6 +87,7 @@ services:
     userns_mode: "keep-id:uid=0,gid=0"
     security_opt:
       - label=disable
+    env_file: ["${CONFIG_FOLDER}/podman_limits_exporter/.env"]
     volumes:
       - /run/user/${UID}/podman/podman.sock:/var/run/podman/podman.sock:ro
       - ${CONFIG_FOLDER}/../scripts/podman-limits-exporter.py:/exporter.py:ro
@@ -137,6 +140,7 @@ services:
     user: "${ALLOY_UID}:${ALLOY_GID}"
     cap_drop: [ALL]
     cap_add: [DAC_READ_SEARCH]
+    env_file: ["${CONFIG_FOLDER}/alloy/.env"]
     volumes:
       - ${LOGS_FOLDER}/nginx:/nginxlogs:ro
       - ${CONFIG_FOLDER}/sabnzbd/config/logs:/sabnzbdlogs:ro
@@ -270,6 +274,7 @@ services:
     security_opt:
       - no-new-privileges:true
     cap_drop: [ALL]
+    env_file: ["${CONFIG_FOLDER}/nginx_exporter/.env"]
     command: ["--nginx.scrape-uri=http://nginx/stub_status"]
     healthcheck:
       <<: *healthcheck-defaults
