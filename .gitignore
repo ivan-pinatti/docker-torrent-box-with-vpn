@@ -84,7 +84,6 @@ __pycache__/
 .ruff_cache/
 cache/
 logs/
-storage/
 tmp/
 temp/
 configs/recyclarr/config/rep/
@@ -119,9 +118,13 @@ data/recycle/**
 !data/recycle/*/.gitkeep
 
 # Observability storage — keep structure, ignore runtime data
+storage/alloy/data/*
 storage/prometheus/data/*
+storage/loki/data/*
 storage/grafana/data/*
+!storage/alloy/data/.gitkeep
 !storage/prometheus/data/.gitkeep
+!storage/loki/data/.gitkeep
 !storage/grafana/data/.gitkeep
 
 # Calibre managed library database, owned by the calibre container

@@ -1,0 +1,10 @@
+# Ignore everything in this directory
+*
+
+# Except .gitignore and dotenv file
+!.gitignore
+
+# everything except the folder
+data/**
+!data/
+!data/.gitkeep
