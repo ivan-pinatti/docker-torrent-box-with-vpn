@@ -49,11 +49,16 @@ services:
     profiles: ["${JELLYFIN_PROFILE}"]
     networks:
       - media
-    restart: unless-stopped
+    ports:
+      - ${JELLYFIN_HTTP_PORT}:8096
+      - ${JELLYFIN_HTTPS_PORT}:8920
+      - ${JELLYFIN_UDP_PORT_1}:${JELLYFIN_UDP_PORT_1}/udp
+      - ${JELLYFIN_UDP_PORT_2}:${JELLYFIN_UDP_PORT_2}/udp
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
       - net.ipv6.conf.default.disable_ipv6=1
       - net.ipv6.conf.lo.disable_ipv6=1
+    restart: unless-stopped
     security_opt:
       - no-new-privileges:true
     # Leave commented unless your machine is capable of Hardware acceleration - Intel / Nvidia
@@ -71,11 +76,6 @@ services:
       - ${CERTIFICATES_FOLDER}:/certs:ro
       - ${CONFIG_FOLDER}/jellyfin/config:/config:z
       - ${DATA_FOLDER}:/data:z
-    ports:
-      - ${JELLYFIN_HTTP_PORT}:8096
-      - ${JELLYFIN_HTTPS_PORT}:8920
-      - ${JELLYFIN_UDP_PORT_1}:${JELLYFIN_UDP_PORT_1}/udp
-      - ${JELLYFIN_UDP_PORT_2}:${JELLYFIN_UDP_PORT_2}/udp
     healthcheck:
       interval: 60s
       retries: 5
@@ -91,11 +91,11 @@ services:
     networks:
       media:
         aliases: [audiobookshelf-http]
-    restart: unless-stopped
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
       - net.ipv6.conf.default.disable_ipv6=1
       - net.ipv6.conf.lo.disable_ipv6=1
+    restart: unless-stopped
     security_opt:
       - no-new-privileges:true
     cap_drop: [ALL]
@@ -129,11 +129,13 @@ services:
       apps:
         aliases: [calibre-http]
       services: {}
-    restart: unless-stopped
+    ports:
+      - ${CALIBRE_WIRELESS_PORT}:${CALIBRE_WIRELESS_PORT}
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
       - net.ipv6.conf.default.disable_ipv6=1
       - net.ipv6.conf.lo.disable_ipv6=1
+    restart: unless-stopped
     security_opt:
       - no-new-privileges:true
       - seccomp=unconfined
@@ -149,8 +151,6 @@ services:
       - ${CONFIG_FOLDER}/calibre/config:/config:z
       - ${CONFIG_FOLDER}/calibre/custom-cont-init.d:/custom-cont-init.d:z
       - ${DATA_FOLDER}:/data:z
-    ports:
-      - ${CALIBRE_WIRELESS_PORT}:${CALIBRE_WIRELESS_PORT}
     healthcheck:
       <<: *healthcheck-defaults
       test: curl --fail http://127.0.0.1:${CALIBRE_DESKTOP_HTTP_PORT}/ || exit 1
@@ -166,11 +166,11 @@ services:
       apps:
         aliases: [calibre-web-http]
       services: {}
-    restart: unless-stopped
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
       - net.ipv6.conf.default.disable_ipv6=1
       - net.ipv6.conf.lo.disable_ipv6=1
+    restart: unless-stopped
     security_opt:
       - no-new-privileges:true
     env_file: ["${CONFIG_FOLDER}/calibre-web/.env"]
@@ -197,11 +197,11 @@ services:
     networks:
       media:
         aliases: [korsync-http]
-    restart: unless-stopped
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
       - net.ipv6.conf.default.disable_ipv6=1
       - net.ipv6.conf.lo.disable_ipv6=1
+    restart: unless-stopped
     security_opt:
       - no-new-privileges:true
     cap_drop: [ALL]

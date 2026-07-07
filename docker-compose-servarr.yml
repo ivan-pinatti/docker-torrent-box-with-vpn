@@ -1,12 +1,12 @@
 name: servarr
 
 x-servarr-common: &servarr-common
-  restart: unless-stopped
   networks: [apps, services]
   sysctls:
     - net.ipv6.conf.all.disable_ipv6=1
     - net.ipv6.conf.default.disable_ipv6=1
     - net.ipv6.conf.lo.disable_ipv6=1
+  restart: unless-stopped
   security_opt:
     - no-new-privileges:true
   environment: &servarr-env
@@ -169,7 +169,6 @@ services:
 
   recyclarr:
     <<: *limit-servarr
-    restart: unless-stopped
     image: ghcr.io/recyclarr/recyclarr:${RECYCLARR_VERSION}
     container_name: recyclarr
     profiles: ["${RECYCLARR_PROFILE}"]
@@ -178,6 +177,7 @@ services:
       - net.ipv6.conf.all.disable_ipv6=1
       - net.ipv6.conf.default.disable_ipv6=1
       - net.ipv6.conf.lo.disable_ipv6=1
+    restart: unless-stopped
     user: "${RECYCLARR_UID}:${RECYCLARR_GID}"
     security_opt:
       - no-new-privileges:true
@@ -218,14 +218,9 @@ services:
 
   flaresolverr:
     <<: *limit-flaresolverr
-    restart: unless-stopped
     image: docker.io/flaresolverr/flaresolverr:${FLARESOLVERR_VERSION}
     container_name: flaresolverr
     profiles: ["${FLARESOLVERR_PROFILE}"]
-    security_opt:
-      - no-new-privileges:true
-    user: "${FLARESOLVERR_UID}:${FLARESOLVERR_GID}"
-    cap_drop: [ALL]
     networks:
       apps:
         aliases: [flaresolverr-http]
@@ -234,6 +229,11 @@ services:
       - net.ipv6.conf.all.disable_ipv6=1
       - net.ipv6.conf.default.disable_ipv6=1
       - net.ipv6.conf.lo.disable_ipv6=1
+    restart: unless-stopped
+    user: "${FLARESOLVERR_UID}:${FLARESOLVERR_GID}"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
     env_file: ["${CONFIG_FOLDER}/flaresolverr/.env"]
     environment:
       HOME: /config

@@ -12,26 +12,13 @@ services:
     <<: *limit-gluetun
     image: ghcr.io/qdm12/gluetun:${GLUETUN_VERSION}
     container_name: gluetun
-    restart: unless-stopped
     profiles: ["${GLUETUN_PROFILE}"]
-    cap_add: [NET_ADMIN, NET_RAW]
-    security_opt:
-      - label=disable
-    # IPv6 is NOT disabled here - gluetun's DNS server binds to [::]:53 for dual-stack.
-    # IPv6 leaks are prevented by: (a) no IPv6 addresses assigned to any interface,
-    # (b) gluetun's ip6tables rules. Disabling IPv6 via sysctl also disables the DNS
-    # server and breaks name resolution for all containers in this namespace.
-    env_file: [".env", "${CONFIG_FOLDER}/gluetun/.env"]
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - /dev/net/tun:/dev/net/tun
-      - ${CONFIG_FOLDER}/gluetun:/gluetun:z
-    healthcheck:
-      test: wget -q -O /dev/null http://127.0.0.1:9999/ || exit 1
-      interval: 30s
-      retries: 3
-      start_period: 30s
-      timeout: 5s
+    networks:
+      wan: {}
+      services:
+        ipv4_address: ${GLUETUN_SERVICES_IP}
+      observability:
+        ipv4_address: ${GLUETUN_OBSERVABILITY_IP}
     ports:
       ### DISABLED Ports - Enable to DEBUG
       # - ${BAZARR_HTTP_PORT}:${BAZARR_HTTP_PORT} # bazarr-http
@@ -80,9 +67,22 @@ services:
       # - ${SONARR_HTTPS_PORT}:${SONARR_HTTPS_PORT} # sonarr-https
       # - ${WHISPARR_HTTP_PORT}:${WHISPARR_HTTP_PORT} # whisparr-http
       # - ${WHISPARR_HTTPS_PORT}:${WHISPARR_HTTPS_PORT} # whisparr-https
-    networks:
-      wan: {}
-      services:
-        ipv4_address: ${GLUETUN_SERVICES_IP}
-      observability:
-        ipv4_address: ${GLUETUN_OBSERVABILITY_IP}
+    restart: unless-stopped
+    security_opt:
+      - label=disable
+    cap_add: [NET_ADMIN, NET_RAW]
+    # IPv6 is NOT disabled here - gluetun's DNS server binds to [::]:53 for dual-stack.
+    # IPv6 leaks are prevented by: (a) no IPv6 addresses assigned to any interface,
+    # (b) gluetun's ip6tables rules. Disabling IPv6 via sysctl also disables the DNS
+    # server and breaks name resolution for all containers in this namespace.
+    env_file: [".env", "${CONFIG_FOLDER}/gluetun/.env"]
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /dev/net/tun:/dev/net/tun
+      - ${CONFIG_FOLDER}/gluetun:/gluetun:z
+    healthcheck:
+      test: wget -q -O /dev/null http://127.0.0.1:9999/ || exit 1
+      interval: 30s
+      retries: 3
+      start_period: 30s
+      timeout: 5s

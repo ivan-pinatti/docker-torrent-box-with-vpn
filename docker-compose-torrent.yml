@@ -68,6 +68,12 @@ services:
       test: curl --fail --silent http://127.0.0.1:${JDOWNLOADER2_HTTP_PORT}/ || exit 1
 
   # deluge:
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 1gb
+  #         cpus: '0.5'
+  #   memswap_limit: 1gb
   #   image: docker.io/linuxserver/deluge:${DELUGE_VERSION}
   #   container_name: deluge
   #   depends_on: ["${VPN_PROVIDER}"]
@@ -83,9 +89,3 @@ services:
   #     - ${CERTIFICATES_FOLDER}:/certs:ro
   #     - ${CONFIG_FOLDER}/deluge/config:/config:z
   #     - ${TORRENTS_FOLDER}:/data/torrents:z
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         memory: 1gb
-  #         cpus: '0.5'
-  #   memswap_limit: 1gb

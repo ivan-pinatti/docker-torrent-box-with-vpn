@@ -37,22 +37,22 @@ services:
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
     restart: unless-stopped
     privileged: true
-    env_file: ["${CONFIG_FOLDER}/cadvisor/.env"]
     devices:
       - /dev/kmsg
+    command:
+      - '--url_base_prefix=/admin/cadvisor'
+      - '--port=${CADVISOR_HTTP_PORT}'
+      - '--docker_only=true'
+      - '--podman=unix:///var/run/podman/podman.sock'
+    env_file: ["${CONFIG_FOLDER}/cadvisor/.env"]
+    environment:
+      - CADVISOR_HEALTHCHECK_URL=http://localhost:${CADVISOR_HTTP_PORT}/admin/cadvisor/healthz
     volumes:
       - /:/rootfs:ro
       - /run/user/${UID}/podman/podman.sock:/var/run/docker.sock:ro
       - /run/user/${UID}/podman/podman.sock:/var/run/podman/podman.sock:ro
       - /sys:/sys:ro
       - /sys/fs/cgroup:/cgroup:ro
-    environment:
-      - CADVISOR_HEALTHCHECK_URL=http://localhost:${CADVISOR_HTTP_PORT}/admin/cadvisor/healthz
-    command:
-      - '--url_base_prefix=/admin/cadvisor'
-      - '--port=${CADVISOR_HTTP_PORT}'
-      - '--docker_only=true'
-      - '--podman=unix:///var/run/podman/podman.sock'
     healthcheck:
       <<: *healthcheck-defaults
       test: wget -q -O /dev/null http://127.0.0.1:${CADVISOR_HTTP_PORT}/admin/cadvisor/healthz || exit 1
@@ -67,12 +67,12 @@ services:
     userns_mode: "keep-id:uid=65534,gid=65534"
     security_opt:
       - label=disable
+    command: ["--collector.enable-all", "--collector.enhance-metrics"]
     env_file: ["${CONFIG_FOLDER}/podman_exporter/.env"]
-    volumes:
-      - /run/user/${UID}/podman/podman.sock:/var/run/podman/podman.sock:ro
     environment:
       - CONTAINER_HOST=unix:///var/run/podman/podman.sock
-    command: ["--collector.enable-all", "--collector.enhance-metrics"]
+    volumes:
+      - /run/user/${UID}/podman/podman.sock:/var/run/podman/podman.sock:ro
     healthcheck:
       <<: *healthcheck-defaults
       test: wget -q -O /dev/null http://127.0.0.1:9882/metrics || exit 1
@@ -87,11 +87,11 @@ services:
     userns_mode: "keep-id:uid=0,gid=0"
     security_opt:
       - label=disable
+    command: ["python3", "/exporter.py"]
     env_file: ["${CONFIG_FOLDER}/podman_limits_exporter/.env"]
     volumes:
       - /run/user/${UID}/podman/podman.sock:/var/run/podman/podman.sock:ro
       - ${CONFIG_FOLDER}/../scripts/podman-limits-exporter.py:/exporter.py:ro
-    command: ["python3", "/exporter.py"]
     healthcheck:
       <<: *healthcheck-defaults
       test: wget -q -O /dev/null http://127.0.0.1:9889/metrics || exit 1
@@ -101,26 +101,26 @@ services:
     container_name: node_exporter
     profiles: ["${NODE_EXPORTER_PROFILE}"]
     networks: ["observability"]
+    # ports:
+    #   - ${NODE_EXPORTER_HTTP_PORT}:9100 # node-exporter-http
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
     cap_drop: [ALL]
-    env_file: ["${CONFIG_FOLDER}/node_exporter/.env"]
-    volumes:
-      - /sys:/host/sys:ro
-      - /:/rootfs:ro
     command:
       - '--path.rootfs=/rootfs'
       - '--path.sysfs=/host/sys'
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
       - '--collector.hwmon.chip-exclude=platform_asus_nb_wmi'
       - '--web.telemetry-path=/admin/node_exporter/metrics'
+    env_file: ["${CONFIG_FOLDER}/node_exporter/.env"]
+    volumes:
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
     healthcheck:
       <<: *healthcheck-defaults
       test: wget -q -O /dev/null http://127.0.0.1:${NODE_EXPORTER_HTTP_PORT}/admin/node_exporter/metrics || exit 1
-    # ports:
-    #   - ${NODE_EXPORTER_HTTP_PORT}:9100 # node-exporter-http
   alloy:
     <<: *limit-telemetry
     deploy:
@@ -135,11 +135,12 @@ services:
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
     restart: unless-stopped
     stop_grace_period: 30s
+    user: "${ALLOY_UID}:${ALLOY_GID}"
     security_opt:
       - no-new-privileges:true
-    user: "${ALLOY_UID}:${ALLOY_GID}"
     cap_drop: [ALL]
     cap_add: [DAC_READ_SEARCH]
+    command: ["run", "--server.http.listen-addr=0.0.0.0:${ALLOY_HTTP_PORT}", "--storage.path=/alloy-data", "/etc/alloy/config.alloy"]
     env_file: ["${CONFIG_FOLDER}/alloy/.env"]
     volumes:
       - ${LOGS_FOLDER}/nginx:/nginxlogs:ro
@@ -148,7 +149,6 @@ services:
       - ${CONFIG_FOLDER}/jdownloader2/config/log:/jdownloader2logs:ro
       - ${CONFIG_FOLDER}/alloy/config/config.alloy:/etc/alloy/config.alloy:ro,z
       - ${STORAGE_FOLDER}/alloy/data:/alloy-data:z
-    command: ["run", "--server.http.listen-addr=0.0.0.0:${ALLOY_HTTP_PORT}", "--storage.path=/alloy-data", "/etc/alloy/config.alloy"]
     healthcheck:
       <<: *healthcheck-defaults
       test: ["CMD", "/usr/bin/alloy", "--version"]
@@ -162,12 +162,6 @@ services:
     security_opt:
       - no-new-privileges:true
     cap_drop: [ALL]
-    env_file: [".env"]
-    environment:
-      LOGS_FOLDER: /logs
-    volumes:
-      - ${LOGS_FOLDER}/nginx:/logs/nginx:z
-      - ./scripts/rotate-nginx-logs.sh:/scripts/rotate-nginx-logs.sh:ro,z
     command:
       - /bin/sh
       - -c
@@ -179,12 +173,20 @@ services:
           sleep_pid=$$!
           wait "$$sleep_pid"
         done
+    env_file: [".env"]
+    environment:
+      LOGS_FOLDER: /logs
+    volumes:
+      - ${LOGS_FOLDER}/nginx:/logs/nginx:z
+      - ./scripts/rotate-nginx-logs.sh:/scripts/rotate-nginx-logs.sh:ro,z
   prometheus:
     <<: *limit-telemetry
     image: docker.io/prom/prometheus:${PROMETHEUS_VERSION}
     container_name: prometheus
     profiles: ["${PROMETHEUS_PROFILE}"]
     networks: ["observability"]
+    # ports:
+    #   - ${PROMETHEUS_HTTP_PORT}:9090 # prometheus-http
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
     restart: unless-stopped
     stop_grace_period: 30s
@@ -192,11 +194,6 @@ services:
     security_opt:
       - no-new-privileges:true
     cap_drop: [ALL]
-    env_file: ["${CONFIG_FOLDER}/prometheus/.env"]
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ${CONFIG_FOLDER}/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro,z
-      - ${STORAGE_FOLDER}/prometheus/data:/prometheus:z
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
@@ -206,11 +203,14 @@ services:
       - '--web.console.templates=/usr/share/prometheus/consoles'
       - '--web.external-url=/admin/prometheus/'
       - '--web.route-prefix=/admin/prometheus/'
+    env_file: ["${CONFIG_FOLDER}/prometheus/.env"]
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CONFIG_FOLDER}/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro,z
+      - ${STORAGE_FOLDER}/prometheus/data:/prometheus:z
     healthcheck:
       <<: *healthcheck-defaults
       test: wget -q -O /dev/null http://127.0.0.1:${PROMETHEUS_HTTP_PORT}/admin/prometheus/-/healthy || exit 1
-    # ports:
-    #   - ${PROMETHEUS_HTTP_PORT}:9090 # prometheus-http
   loki:
     <<: *limit-telemetry
     image: docker.io/grafana/loki:${LOKI_VERSION}
@@ -223,12 +223,12 @@ services:
     security_opt:
       - no-new-privileges:true
     cap_drop: [ALL]
+    command: ["-config.file=/etc/loki/loki.yml", "-config.expand-env=true"]
     env_file: [".env"]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/loki/config/loki.yml:/etc/loki/loki.yml:ro,z
       - ${STORAGE_FOLDER}/loki/data:/loki:z
-    command: ["-config.file=/etc/loki/loki.yml", "-config.expand-env=true"]
     healthcheck:
       <<: *healthcheck-defaults
       test: ["CMD", "/usr/bin/loki", "-version"]
@@ -238,6 +238,8 @@ services:
     container_name: grafana
     profiles: ["${GRAFANA_PROFILE}"]
     networks: ["observability", "apps"]
+    # ports:
+    #   - ${GRAFANA_HTTP_PORT}:3000 # grafana-http (disabled: access via nginx /admin/grafana/)
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
     restart: unless-stopped
     user: "${GRAFANA_UID}:${GRAFANA_GID}"
@@ -245,6 +247,11 @@ services:
       - no-new-privileges:true
     cap_drop: [ALL]
     env_file: ["${CONFIG_FOLDER}/grafana/.env"]
+    # environment:
+      # - GF_SECURITY_ADMIN_USER=${ADMIN_USER:-admin}
+      # - GF_SECURITY_ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
+      # - GF_USERS_ALLOW_SIGN_UP=false
+      # - GF_SERVER_ROOT_URL=https://172.16.15.30/admin/grafana
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CERTIFICATES_FOLDER}:/certs:ro
@@ -256,13 +263,6 @@ services:
     healthcheck:
       <<: *healthcheck-defaults
       test: curl --fail http://127.0.0.1:${GRAFANA_HTTP_PORT}/api/health || exit 1
-    # environment:
-      # - GF_SECURITY_ADMIN_USER=${ADMIN_USER:-admin}
-      # - GF_SECURITY_ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
-      # - GF_USERS_ALLOW_SIGN_UP=false
-      # - GF_SERVER_ROOT_URL=https://172.16.15.30/admin/grafana
-    # ports:
-    #   - ${GRAFANA_HTTP_PORT}:3000 # grafana-http (disabled: access via nginx /admin/grafana/)
   nginx_exporter:
     <<: *limit-telemetry
     image: docker.io/nginx/nginx-prometheus-exporter:${NGINX_EXPORTER_VERSION}
@@ -274,8 +274,8 @@ services:
     security_opt:
       - no-new-privileges:true
     cap_drop: [ALL]
-    env_file: ["${CONFIG_FOLDER}/nginx_exporter/.env"]
     command: ["--nginx.scrape-uri=http://nginx/stub_status"]
+    env_file: ["${CONFIG_FOLDER}/nginx_exporter/.env"]
     healthcheck:
       <<: *healthcheck-defaults
       test: ["CMD", "/usr/bin/nginx-prometheus-exporter", "--version"]
@@ -289,12 +289,12 @@ services:
     security_opt:
       - no-new-privileges:true
     cap_drop: [ALL]
+    entrypoint: ["python"]
+    command: ["/app/exporter_extended.py"]
     env_file: ["${CONFIG_FOLDER}/qbittorrent_exporter/.env"]
     environment:
       - QBITTORRENT_PORT=${QBITTORRENT_HTTPS_PORT}
       - QBITTORRENT_HOST=${GLUETUN_SERVICES_IP}
-    entrypoint: ["python"]
-    command: ["/app/exporter_extended.py"]
     volumes:
       - ${CONFIG_FOLDER}/qbittorrent_exporter/exporter_extended.py:/app/exporter_extended.py:ro,z
     healthcheck:

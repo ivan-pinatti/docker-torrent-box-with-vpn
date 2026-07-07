@@ -39,12 +39,6 @@ services:
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
     restart: unless-stopped
     stop_signal: SIGTERM
-    healthcheck:
-      <<: *healthcheck-defaults
-      test: >
-        curl --fail http://127.0.0.1:${NGINX_HTTP_PORT}/stub_status &&
-        curl --fail --insecure https://127.0.0.1:${NGINX_HTTPS_PORT}/stub_status ||
-        exit 1
     security_opt:
       - no-new-privileges:true
     cap_drop: [ALL]
@@ -113,6 +107,12 @@ services:
       - ${CONFIG_FOLDER}/nginx/templates:/etc/nginx/templates:ro,z
       - ${CONFIG_FOLDER}/nginx/.htpasswd:/etc/nginx/.htpasswd:ro
       - ${LOGS_FOLDER}/nginx:/var/log/nginx/services:z
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: >
+        curl --fail http://127.0.0.1:${NGINX_HTTP_PORT}/stub_status &&
+        curl --fail --insecure https://127.0.0.1:${NGINX_HTTPS_PORT}/stub_status ||
+        exit 1
 
   homepage:
     <<: *limit-homepage
@@ -143,6 +143,12 @@ services:
       test: wget -q -O /dev/null http://127.0.0.1:${HOMEPAGE_HTTP_PORT}/ || exit 1
 
   # caddy:
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 1gb
+  #         cpus: '1'
+  #   memswap_limit: 1gb
   #   image: docker.io/caddy:${CADDY_VERSION}
   #   container_name: caddy
   #   depends_on: ["${VPN_PROVIDER}"]
@@ -155,9 +161,3 @@ services:
   #     # - ${CONFIG_FOLDER}/caddy/Caddyfile:/etc/caddy/Caddyfile:z
   #     # - ${CONFIG_FOLDER}/caddy/config:/config:z
   #     # - ${CONFIG_FOLDER}/caddy/data:/data:z
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         memory: 1gb
-  #         cpus: '1'
-  #   memswap_limit: 1gb

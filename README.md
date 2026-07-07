@@ -239,6 +239,7 @@ service health layers.
     - [4.1. Use your own certificate](#41-use-your-own-certificate)
   - [5. Enable / Disable Apps](#5-enable--disable-apps)
     - [5.1. Container limits](#51-container-limits)
+    - [5.2. Compose file conventions](#52-compose-file-conventions)
   - [6. Bootstrap directory ownership](#6-bootstrap-directory-ownership)
     - [6.1. Build custom images](#61-build-custom-images)
   - [7. Run the containers](#7-run-the-containers)
@@ -582,6 +583,14 @@ Compose resource groups. CPU values are quotas, not reserved cores. Memory
 values are RAM ceilings. See
 [docs/CONTAINER_LIMITS.md](docs/CONTAINER_LIMITS.md) for the default groups
 and corner cases.
+
+### 5.2. Compose file conventions
+
+Service blocks in the `docker-compose-*.yml` files follow a fixed key order
+(image, container_name, profiles, networks, environment, volumes,
+healthcheck, etc.) so any service reads the same way regardless of which file
+it's in. See [docs/COMPOSE_CONVENTIONS.md](docs/COMPOSE_CONVENTIONS.md) for
+the full order and reasoning.
 
 ### 6. Bootstrap directory ownership
 
