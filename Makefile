@@ -319,11 +319,7 @@ restart:
 rotate_passwords:
 	@BAZARR_PASSWORD="$(echo "bazarr${RANDOM})"; yq --in-place '(.auth.apikey) = strenv(BAZARR_PASSWORD)' "configs/bazarr/config/config/config.yaml"
 
-repair_permissions:
-	@echo "Repairing managed data/config ownership and ACLs..."
-	@./scripts/permissions.py repair --runtime $(RUNTIME) --recursive
-
-start:
+start: permissions_repair
 	@if [ "$(RUNTIME)" = "podman" ]; then \
 		stopping=$$(podman ps -a --format "{{.ID}} {{.State}}" | awk '/stopping/{print $$1}'); \
 		if [ -n "$$stopping" ]; then \
@@ -343,14 +339,14 @@ start:
 	@$(COMPOSE) $(COMPOSE_FILES) --profile enabled up --detach --no-recreate
 	@echo "$(VPN_ON)" > $(VPN_STATE_FILE)
 
-start_library:
+start_library: permissions_repair
 	@echo "Starting Media Library containers..."
 	@$(RUNTIME) network exists docker-torrent-box-with-vpn_apps || $(RUNTIME) network create docker-torrent-box-with-vpn_apps
 	@$(RUNTIME) network exists docker-torrent-box-with-vpn_services || $(RUNTIME) network create --internal --subnet ${SERVICES_SUBNET} docker-torrent-box-with-vpn_services
 	@$(RUNTIME) network exists docker-torrent-box-with-vpn_media || $(RUNTIME) network create --subnet ${MEDIA_SUBNET} docker-torrent-box-with-vpn_media
 	@$(COMPOSE) --file docker-compose.yml --file docker-compose-media-library.yml --profile enabled up --detach --no-recreate
 
-start_observability:
+start_observability: permissions_repair
 	@echo "Starting Observability containers..."
 	@$(RUNTIME) network exists docker-torrent-box-with-vpn_apps || $(RUNTIME) network create docker-torrent-box-with-vpn_apps
 	@$(RUNTIME) network exists docker-torrent-box-with-vpn_services || $(RUNTIME) network create --internal --subnet ${SERVICES_SUBNET} docker-torrent-box-with-vpn_services

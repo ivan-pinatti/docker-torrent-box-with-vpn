@@ -13,9 +13,11 @@ make permissions_smoke
 make permissions_host_smoke
 ```
 
-`make start` runs the same recursive repair before containers start. With
-rootless Podman, host uid 1000 maps to uid 0 inside the container namespace, so
-repair commands must run through `podman unshare`.
+`make start`, `make start_library`, and `make start_observability` all depend
+on `permissions_repair`, so the recursive repair runs before any of those
+targets start containers. With rootless Podman, host uid 1000 maps to uid 0
+inside the container namespace, so repair commands must run through
+`podman unshare`.
 
 `make permissions_host_smoke` verifies that the host operator can create, edit,
 move, and delete files under manifest-managed directories without `sudo`.
