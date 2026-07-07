@@ -1,0 +1,174 @@
+// Nginx access logs
+local.file_match "nginx_access" {
+  path_targets = [{"__path__" = "/nginxlogs/*-access.log"}]
+}
+
+loki.source.file "nginx_access" {
+  targets    = local.file_match.nginx_access.targets
+  forward_to = [loki.process.nginx_access.receiver]
+}
+
+loki.process "nginx_access" {
+  forward_to = [loki.write.default.receiver]
+
+  stage.static_labels {
+    values = {
+      job = "nginx-access",
+    }
+  }
+
+  stage.regex {
+    source     = "filename"
+    expression = `.*\/(?P<service>[^/]+)-access\.log`
+  }
+
+  stage.labels {
+    values = {
+      service = "",
+    }
+  }
+
+  stage.regex {
+    expression = `^(?P<remote_addr>\S+) \S+ - \S+ \[[^\]]+\] "[^"]*" (?P<status>\d+)`
+  }
+
+  stage.labels {
+    values = {
+      status = "",
+    }
+  }
+
+  stage.regex {
+    expression = `(?P<cache_status>HIT|MISS|BYPASS|EXPIRED|STALE|UPDATING|REVALIDATED|-) "`
+  }
+
+  stage.labels {
+    values = {
+      cache_status = "",
+    }
+  }
+}
+
+// Nginx error logs
+local.file_match "nginx_error" {
+  path_targets = [{"__path__" = "/nginxlogs/*-error.log"}]
+}
+
+loki.source.file "nginx_error" {
+  targets    = local.file_match.nginx_error.targets
+  forward_to = [loki.process.nginx_error.receiver]
+}
+
+loki.process "nginx_error" {
+  forward_to = [loki.write.default.receiver]
+
+  stage.static_labels {
+    values = {
+      job = "nginx-error",
+    }
+  }
+
+  stage.regex {
+    source     = "filename"
+    expression = `.*\/(?P<service>[^/]+)-error\.log`
+  }
+
+  stage.labels {
+    values = {
+      service = "",
+    }
+  }
+}
+
+// SABnzbd application logs
+local.file_match "sabnzbd" {
+  path_targets = [{"__path__" = "/sabnzbdlogs/*.log"}]
+}
+
+loki.source.file "sabnzbd" {
+  targets    = local.file_match.sabnzbd.targets
+  forward_to = [loki.process.sabnzbd.receiver]
+}
+
+loki.process "sabnzbd" {
+  forward_to = [loki.write.default.receiver]
+
+  stage.static_labels {
+    values = {
+      job     = "sabnzbd",
+      service = "sabnzbd",
+    }
+  }
+
+  stage.regex {
+    source     = "filename"
+    expression = `.*\/(?P<logfile>[^/]+)\.log`
+  }
+
+  stage.labels {
+    values = {
+      logfile = "",
+    }
+  }
+}
+
+// qBittorrent application logs
+local.file_match "qbittorrent" {
+  path_targets = [{"__path__" = "/qbittorrentlogs/*.log"}]
+}
+
+loki.source.file "qbittorrent" {
+  targets    = local.file_match.qbittorrent.targets
+  forward_to = [loki.process.qbittorrent.receiver]
+}
+
+loki.process "qbittorrent" {
+  forward_to = [loki.write.default.receiver]
+
+  stage.static_labels {
+    values = {
+      job     = "qbittorrent",
+      service = "qbittorrent",
+    }
+  }
+}
+
+// JDownloader2 application logs
+local.file_match "jdownloader2" {
+  path_targets = [{"__path__" = "/jdownloader2logs/*.log"}]
+}
+
+loki.source.file "jdownloader2" {
+  targets    = local.file_match.jdownloader2.targets
+  forward_to = [loki.process.jdownloader2.receiver]
+}
+
+loki.process "jdownloader2" {
+  forward_to = [loki.write.default.receiver]
+
+  stage.static_labels {
+    values = {
+      job     = "jdownloader2",
+      service = "jdownloader2",
+    }
+  }
+
+  stage.regex {
+    source     = "filename"
+    expression = `.*\/(?P<logfile>[^/]+)\.log`
+  }
+
+  stage.labels {
+    values = {
+      logfile = "",
+    }
+  }
+}
+
+// Write to Loki
+loki.write "default" {
+  endpoint {
+    url       = "http://loki:3100/loki/api/v1/push"
+    tenant_id = "docker"
+  }
+}

@@ -262,6 +262,7 @@
     "localtime",
     "locmove",
     "logdir",
+    "logfile",
     "logfilelevel",
     "logfiles",
     "loggable",
