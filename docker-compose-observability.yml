@@ -291,7 +291,7 @@ services:
     cap_drop: [ALL]
     entrypoint: ["python"]
     command: ["/app/exporter_extended.py"]
-    env_file: ["${CONFIG_FOLDER}/qbittorrent_exporter/.env"]
+    env_file: ["${CONFIG_FOLDER}/qbittorrent_exporter/.env", "${CONFIG_FOLDER}/qbittorrent_exporter/.env.secrets"]
     environment:
       - QBITTORRENT_PORT=${QBITTORRENT_HTTPS_PORT}
       - QBITTORRENT_HOST=${GLUETUN_SERVICES_IP}

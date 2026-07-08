@@ -1,0 +1,8 @@
+# # Ignore everything in this directory
+*
+
+# # Except
+!.gitignore
+!.env
+!.env.secrets.example
+!exporter_extended.py
