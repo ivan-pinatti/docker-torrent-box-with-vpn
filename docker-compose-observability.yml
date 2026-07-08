@@ -246,7 +246,7 @@ services:
     security_opt:
       - no-new-privileges:true
     cap_drop: [ALL]
-    env_file: ["${CONFIG_FOLDER}/grafana/.env"]
+    env_file: ["${CONFIG_FOLDER}/grafana/.env", "${CONFIG_FOLDER}/grafana/.env.secrets"]
     # environment:
       # - GF_SECURITY_ADMIN_USER=${ADMIN_USER:-admin}
       # - GF_SECURITY_ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}

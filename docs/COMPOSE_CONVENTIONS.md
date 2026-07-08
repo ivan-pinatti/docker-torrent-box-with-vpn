@@ -81,6 +81,33 @@ sonarr:
     test: curl --fail http://127.0.0.1:${SONARR_HTTP_PORT}/sonarr/ || exit 1
 ```
 
+## Secrets override pattern
+
+Most services keep a single, committed `configs/<service>/.env` file (empty or
+holding non-sensitive defaults). For a service whose `.env` needs to carry
+real secrets (API keys, SMTP passwords, tokens), split it into two files
+instead of committing the secret:
+
+- `configs/<service>/.env`, a committed template with realistic but fake
+  placeholder values, so the format stays self-documenting.
+- `configs/<service>/.env.secrets`, real values, gitignored, never
+  committed. Seeded on first `make bootstrap` from a committed
+  `configs/<service>/.env.secrets.example` stub if it doesn't already exist,
+  so `env_file` always resolves to a real path on a fresh clone.
+
+Wire both into `env_file` as a two-item list, template first so the secrets
+file overrides it (Compose merges `env_file` entries in order; later files
+win on duplicate keys):
+
+```yaml
+env_file: ["${CONFIG_FOLDER}/grafana/.env", "${CONFIG_FOLDER}/grafana/.env.secrets"]
+```
+
+The service's `.gitignore` should except `.env` and `.env.secrets.example`,
+but never `.env.secrets`. It stays caught by the blanket `*` rule (and the
+root `.gitignore`'s `.env.*` pattern as a backstop). See `configs/grafana/`
+for a working example.
+
 ## Shared anchors
 
 `docker-compose-servarr.yml`'s `x-servarr-common` anchor bundles the keys

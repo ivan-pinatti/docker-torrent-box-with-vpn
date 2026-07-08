@@ -118,6 +118,7 @@ bootstrap:
 		storage/prometheus/data \
 		storage/grafana/data
 	@touch data/torrents/blackhole/.gitkeep data/usenet/blackhole/.gitkeep
+	@test -f configs/grafana/.env.secrets || cp configs/grafana/.env.secrets.example configs/grafana/.env.secrets
 	@./scripts/permissions.py repair --runtime $(RUNTIME) --recursive
 	@$(MAKE) --no-print-directory configure_jellyfin_network
 	@echo "Bootstrap complete. You can now run: make start"
