@@ -36,7 +36,7 @@ fi
 
 rotate_one() {
   log_file="$1"
-  [ -s "$log_file" ] || return
+  [ -s "$log_file" ] || return 0
 
   rotated="${log_file}-${timestamp}"
   cp -p "$log_file" "$rotated"
