@@ -2,7 +2,12 @@
 set -euo pipefail
 
 # Usage: ./scripts/rotate-passwords.sh [sonarr|radarr|lidarr|readarr|whisparr|prowlarr|bazarr|qbittorrent|sabnzbd|all]
-# Must be run from repo root.
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+readonly REPO_ROOT
+cd "$REPO_ROOT"
 
 readonly USAGE="Usage: $0 [sonarr|radarr|lidarr|readarr|whisparr|prowlarr|bazarr|qbittorrent|sabnzbd|all]"
 
@@ -300,7 +305,9 @@ PYEOF
     "https://127.0.0.1:${QBITTORRENT_HTTPS_PORT}/api/v2/app/setPreferences" \
     >/dev/null
 
-  rm -f /tmp/qbt_cookies.txt
+  # The cookie file lives inside the container (curl ran via podman exec),
+  # so it must be removed there, not on the host.
+  podman exec qbittorrent rm -f /tmp/qbt_cookies.txt
 
   echo "[Sonarr DB] Updating qBittorrent password in DownloadClients..."
   update_arr_qbt_password "$SONARR_DB" "$new_password"

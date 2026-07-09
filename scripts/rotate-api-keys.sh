@@ -2,7 +2,12 @@
 set -euo pipefail
 
 # Usage: ./scripts/rotate-api-keys.sh [sonarr|radarr|lidarr|readarr|whisparr|prowlarr|bazarr|all]
-# Must be run from repo root.
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+readonly REPO_ROOT
+cd "$REPO_ROOT"
 
 readonly USAGE="Usage: $0 [sonarr|radarr|lidarr|readarr|whisparr|prowlarr|bazarr|all]"
 
@@ -60,6 +65,11 @@ readonly PROWLARR_APP_ID_WHISPARR=7
 
 gen_key() {
   openssl rand -hex 16
+}
+
+mask() {
+  local val="$1"
+  echo "${val:0:4}****"
 }
 
 # Update a HOMEPAGE_VAR_* entry in configs/homepage/.env.
@@ -336,15 +346,15 @@ fi
 
 echo ""
 echo "======================================================================"
-echo " API key rotation summary"
+echo " API key rotation summary  (shown as: first4****)"
 echo "======================================================================"
-printf "%-12s  %-34s  %-34s\n" "Service" "Old key" "New key"
+printf "%-12s  %-12s  %-12s\n" "Service" "Old key" "New key"
 echo "----------------------------------------------------------------------"
 
 print_row() {
   local svc="$1" old="$2" new="$3"
   if [[ -n "$old" ]]; then
-    printf "%-12s  %-34s  %-34s\n" "$svc" "$old" "$new"
+    printf "%-12s  %-12s  %-12s\n" "$svc" "$(mask "$old")" "$(mask "$new")"
   fi
 }
 
