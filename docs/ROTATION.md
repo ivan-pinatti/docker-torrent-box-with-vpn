@@ -88,10 +88,11 @@ consumer:
 - `sslKeyStorePassword` in NZBHydra2's `nzbhydra.yml`.
 
 The new password is stored in `certs/cert.conf`, which is gitignored. File
-permissions are enforced after generation: `600` for `server.key` and
-`server.pfx`, `644` for `server.crt`. The script prints the recreate command
-for the affected containers at the end; run it for the new certificate to
-take effect.
+permissions are normalized to `644` after generation: the certificate files
+are read by many services running as distinct non-root container UIDs under
+rootless Podman, so they must stay world-readable. The script prints the
+recreate command for the affected containers at the end; run it for the new
+certificate to take effect.
 
 Subject and SAN fields come from `certs/cert.conf` and `.env`
 (`JELLYFIN_PROXY_DOMAIN`, `LAN_IP`, `GLUETUN_SERVICES_IP`,

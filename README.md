@@ -486,8 +486,10 @@ This will create the `server.key`, `server.crt`, and `server.pfx` in the `/certs
 If you have your own certificate, just copy them to the `/certs` folder using the exact names.
 
 Remember, the `server.key`, `server.crt`, and `server.pfx` have to match the
-`uid` and `gid`. The permissions have to be `644` for the `.crt` and `600` for
-the `.key` and `.pfx`.
+`uid` and `gid`. The permissions have to be `644` for all three files: the
+certificate is read by many services running as distinct non-root container
+UIDs under rootless Podman, so the files must stay world-readable. The pfx
+private key is protected by the PKCS#12 password.
 
 ### 5. Enable / Disable Apps
 
@@ -936,7 +938,11 @@ services, dashboards, and alert rules.
 ## Known Issues and future improvements
 
 1. Lidarr is not pre-configured for the indexers because it didn't allow to add for a category issue
-2. Sonarr is not configured yet on HTTPS, it requires more tweaking
+2. Sonarr ships without HTTPS enabled. To enable it, add `SslCertPath`
+   (`/certs/server.pfx`) and `SslCertPassword` elements to
+   `configs/sonarr/config/config.xml`, set `EnableSsl` to `True`, and restart
+   Sonarr. Once the elements exist, `make generate_certificate` and
+   `make rotate_certificate` keep the password in sync like the other apps.
 3. Mylar doesn't work with qBittorrent using a self-signed certificate out of the box. A patch adds
    an "Ignore SSL warnings" toggle in Settings; see
    [MylarComics/mylar3#23](https://github.com/MylarComics/mylar3/pull/23) for the upstream PR.
