@@ -134,7 +134,11 @@ services:
     security_opt:
       - no-new-privileges:true
     cap_drop: [ALL]
-    env_file: ["${CONFIG_FOLDER}/homepage/.env"]
+    env_file:
+      [
+        "${CONFIG_FOLDER}/homepage/.env",
+        "${CONFIG_FOLDER}/homepage/.env.secrets",
+      ]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/homepage/config:/app/config:z

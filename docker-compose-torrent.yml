@@ -27,13 +27,18 @@ services:
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
-    env_file: ["${CONFIG_FOLDER}/qbittorrent/.env"]
+    env_file:
+      [
+        "${CONFIG_FOLDER}/qbittorrent/.env",
+        "${CONFIG_FOLDER}/qbittorrent/.env.secrets",
+      ]
     environment:
       [
         "PGID=${QBITTORRENT_GID}",
         "PUID=${QBITTORRENT_UID}",
         "UMASK=${UMASK}",
         "TZ=${TIMEZONE}",
+        "WEBUI_PORT=${QBITTORRENT_HTTPS_PORT}",
       ]
     volumes:
       - /etc/localtime:/etc/localtime:ro

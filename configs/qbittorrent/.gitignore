@@ -4,6 +4,7 @@
 # # Except
 !.gitignore
 !.env
+!.env.secrets.example
 
 # config file
 !config/

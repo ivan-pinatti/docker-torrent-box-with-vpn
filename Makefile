@@ -118,8 +118,11 @@ bootstrap:
 		storage/prometheus/data \
 		storage/grafana/data
 	@touch data/torrents/blackhole/.gitkeep data/usenet/blackhole/.gitkeep
-	@test -f configs/grafana/.env.secrets || cp configs/grafana/.env.secrets.example configs/grafana/.env.secrets
-	@test -f configs/qbittorrent_exporter/.env.secrets || cp configs/qbittorrent_exporter/.env.secrets.example configs/qbittorrent_exporter/.env.secrets
+	@./scripts/seed-secrets.sh configs/grafana
+	@./scripts/seed-secrets.sh configs/qbittorrent
+	@./scripts/seed-secrets.sh configs/qbittorrent_exporter
+	@./scripts/seed-secrets.sh configs/homepage
+	@./scripts/seed-secrets.sh configs/sabnzbd
 	@./scripts/permissions.py repair --runtime $(RUNTIME) --recursive
 	@$(MAKE) --no-print-directory configure_jellyfin_network
 	@echo "Bootstrap complete. You can now run: make start"

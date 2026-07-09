@@ -9,6 +9,7 @@ repos:
       - id: detect-secrets
         args: ["--baseline", ".secrets.baseline"]
         require_serial: true
+        exclude: '^(configs/.*/\.env\.secrets\.example|\.secrets\.baseline)$'
 
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.30.1

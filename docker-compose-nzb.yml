@@ -31,7 +31,11 @@ services:
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
-    env_file: ["${CONFIG_FOLDER}/sabnzbd/.env"]
+    env_file:
+      [
+        "${CONFIG_FOLDER}/sabnzbd/.env",
+        "${CONFIG_FOLDER}/sabnzbd/.env.secrets",
+      ]
     environment:
       [
         "PGID=${SABNZBD_GID}",
