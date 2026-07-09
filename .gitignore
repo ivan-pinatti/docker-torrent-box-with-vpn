@@ -59,6 +59,11 @@ backup/**
 
 # Generated local files
 # cspell:ignore kubeconfig pycache
+# Runtime application databases hold live personal state and must never be
+# committed. A curated baseline config for fresh clones is planned instead
+# (see docs/TODO.md).
+configs/**/*.db
+configs/**/*.sqlite
 *.db-shm
 *.db-wal
 *.sqlite-shm

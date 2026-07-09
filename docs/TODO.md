@@ -2,6 +2,16 @@
 
 ## General / Security
 
+- [ ] Replace tracked live configs with a curated basic setup for fresh
+  clones. The runtime SQLite databases were untracked and gitignored on
+  2026-07-09: pre-commit's stash cycle rewrote them mid-commit on 2026-07-07
+  while services were running, corrupting the sonarr, radarr, lidarr, and
+  readarr databases (recovered from app backups; corrupt copies preserved
+  under `backup/db-corruption-20260709-150443/`). Old database contents are
+  still in git history; purging them requires a history rewrite
+  (`git filter-repo`) plus a force push. Until the baseline config exists,
+  live configs stay uncommitted and commits should be avoided while the
+  stack is running
 - [ ] Enhance the library update process
 - [ ] Research Dependabot/Renovate for Docker image versions; docker-compose
   image versions should be managed by Renovate rather than living in the
@@ -56,8 +66,12 @@ recommendations):
 
 ## Sonarr
 
-- [ ] Sonarr HTTPS
-- [ ] Investigate database corruption
+- [ ] Sonarr HTTPS: working setup steps are documented in the README known
+  issues section (SslCertPath/SslCertPassword in config.xml plus EnableSsl);
+  fold them into the future baseline config
+- [x] Investigate database corruption: caused by pre-commit stashing the
+  tracked live database during a commit while Sonarr was running, see the
+  runtime configs entry under General / Security
 
 ## NZBHydra2
 
