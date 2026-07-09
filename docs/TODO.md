@@ -26,6 +26,13 @@
 
 - [ ] Verify IPv6 address handling and how to disable it
 
+## Nginx
+
+- [ ] Investigate `NGINX_HOST=${DOMAIN}` in `configs/nginx/.env`: `DOMAIN` was
+  undefined in root `.env` (now added), but it's unconfirmed whether any
+  nginx config/template in this repo actually reads `NGINX_HOST` at all, or
+  if it's dead config left over like the removed *arr `PASSWORD` vars
+
 ## qBittorrent
 
 - [ ] Set up an nginx reverse proxy for the WebUI, see
