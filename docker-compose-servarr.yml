@@ -300,11 +300,6 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ${CERTIFICATES_FOLDER}:/certs:ro
       - ${CONFIG_FOLDER}/lazylibrarian/config:/config:z
-      - ./patches/lazylibrarian/lazylibrarian/configdefs.py:/app/lazylibrarian/lazylibrarian/configdefs.py:ro,z
-      - ./patches/lazylibrarian/lazylibrarian/qbittorrent.py:/app/lazylibrarian/lazylibrarian/qbittorrent.py:ro,z
-      - ./patches/lazylibrarian/data/interfaces/bookstrap/config.html:/app/lazylibrarian/data/interfaces/bookstrap/config.html:ro,z
-      - ./patches/lazylibrarian/data/interfaces/bookstrap/config_functions.js:/app/lazylibrarian/data/interfaces/bookstrap/config_functions.js:ro,z
-      - ./patches/lazylibrarian/lazylibrarian/webServe.py:/app/lazylibrarian/lazylibrarian/webServe.py:ro,z
       - ${DATA_FOLDER}:/data:z
     healthcheck:
       <<: *healthcheck-defaults
