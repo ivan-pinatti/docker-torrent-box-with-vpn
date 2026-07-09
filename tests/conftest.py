@@ -1,6 +1,8 @@
 import configparser
 import os
 import shutil
+import subprocess
+import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -310,3 +312,74 @@ def skip_if_not_running(name: str, running_containers: dict):
 def skip_if_disabled(name: str):
     if not is_enabled(name):
         pytest.skip(f"service '{name}' profile is disabled")
+
+
+# ---------------------------------------------------------------------------
+# In-container HTTP helpers
+#
+# App ports are not published to the host (access goes through nginx only), so
+# API calls in tests run curl inside the target container against its own
+# loopback address, exactly like the rotation scripts do.
+# ---------------------------------------------------------------------------
+
+
+def container_http(
+    container: str,
+    url: str,
+    *,
+    headers: dict | None = None,
+    method: str | None = None,
+    data: str | None = None,
+    extra_args: list | None = None,
+    timeout: int = 30,
+) -> tuple[int, str]:
+    """Run curl inside a container; return (status_code, body)."""
+    cmd = [
+        "podman",
+        "exec",
+        "-i",
+        container,
+        "curl",
+        "-sk",
+        "--max-time",
+        str(timeout),
+        "-w",
+        "\n%{http_code}",
+    ]
+    if method:
+        cmd += ["-X", method]
+    for key, value in (headers or {}).items():
+        cmd += ["-H", f"{key}: {value}"]
+    if data is not None:
+        cmd += ["-d", "@-"]
+    cmd += extra_args or []
+    cmd.append(url)
+    result = subprocess.run(
+        cmd, input=data, capture_output=True, text=True, timeout=timeout + 30
+    )
+    if result.returncode != 0:
+        return 0, result.stderr
+    body, _, status = result.stdout.rpartition("\n")
+    return int(status or 0), body
+
+
+def wait_for_healthy(container: str, timeout: int = 120) -> bool:
+    """Poll podman health status until healthy or timeout."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        result = subprocess.run(
+            [
+                "podman",
+                "inspect",
+                container,
+                "--format",
+                "{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        status = result.stdout.strip()
+        if status in ("healthy", "running"):
+            return True
+        time.sleep(3)
+    return False
