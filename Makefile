@@ -122,6 +122,8 @@ bootstrap:
 	@./scripts/seed-secrets.sh configs/qbittorrent
 	@./scripts/seed-secrets.sh configs/qbittorrent_exporter
 	@./scripts/seed-secrets.sh configs/homepage
+	@./scripts/seed-secrets.sh configs/calibre
+	@./scripts/seed-secrets.sh configs/nzbget
 	@./scripts/seed-secrets.sh configs/sabnzbd
 	@./scripts/permissions.py repair --runtime $(RUNTIME) --recursive
 	@$(MAKE) --no-print-directory configure_jellyfin_network

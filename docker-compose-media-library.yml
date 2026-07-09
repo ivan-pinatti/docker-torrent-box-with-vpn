@@ -139,7 +139,11 @@ services:
     security_opt:
       - no-new-privileges:true
       - seccomp=unconfined
-    env_file: ["${CONFIG_FOLDER}/calibre/.env"]
+    env_file:
+      [
+        "${CONFIG_FOLDER}/calibre/.env",
+        "${CONFIG_FOLDER}/calibre/.env.secrets",
+      ]
     environment:
       PGID: "${CALIBRE_GID}"
       PUID: "${CALIBRE_UID}"

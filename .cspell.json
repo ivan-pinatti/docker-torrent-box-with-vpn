@@ -492,6 +492,7 @@
     "sysfs",
     "systray",
     "tablelibgen",
+    "tegbzn",
     "testinfra",
     "testpaths",
     "tfvars",

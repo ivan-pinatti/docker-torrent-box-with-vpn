@@ -70,7 +70,11 @@ services:
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
-    env_file: ["${CONFIG_FOLDER}/nzbget/.env"]
+    env_file:
+      [
+        "${CONFIG_FOLDER}/nzbget/.env",
+        "${CONFIG_FOLDER}/nzbget/.env.secrets",
+      ]
     environment:
       ["PGID=${SABNZBD_GID}", "PUID=${SABNZBD_UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
     volumes:

@@ -4,4 +4,5 @@
 # Except .gitignore and dotenv file
 !.gitignore
 !.env
+!.env.secrets.example
 !prometheus.yml
