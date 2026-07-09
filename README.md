@@ -662,9 +662,20 @@ crontab -e
 
 ### 8. Rotate your keys
 
-All the services are pre-configured, therefore they already have API keys set.
+All the services are pre-configured, therefore they already have API keys and
+passwords set. It is **strongly recommended rotating all of them** for the sake
+of security. With the stack running:
 
-It is **strongly recommended rotating all of them** for the sake of security.
+```shell
+make rotate_all                   # rotate API keys and passwords everywhere
+make rotate_all SERVICE=sonarr    # or limit to one service
+make rotate_certificate          # regenerate the self-signed certificate
+```
+
+Each rotation also updates every consumer of the credential (Prowlarr, Bazarr,
+Recyclarr, Homepage, download client settings, and so on). See
+[docs/ROTATION.md](docs/ROTATION.md) for the full reference, including what
+each script touches and which keys remain manual.
 
 ### 9. Shutting it down
 

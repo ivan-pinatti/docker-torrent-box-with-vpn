@@ -73,6 +73,26 @@ pull requests before sending changes upstream.
 - Dependabot handles weekly hook and workflow version bump PRs; major updates
   are left for manual review
 
+## Scripts
+
+Helper scripts live in a flat `scripts/` directory (no subfolders) and follow
+these conventions:
+
+- Kebab-case, verb-first names: `rotate-api-keys.sh`, `prune-nginx-cache.sh`,
+  `seed-secrets.sh`.
+- `.sh` for shell and `.py` for Python. Shell scripts use
+  `#!/usr/bin/env bash` with `set -euo pipefail`, or `#!/bin/sh` with
+  `set -eu` when no bash features are needed.
+- Scripts resolve the repository root from their own location and `cd` there,
+  so they work from any directory.
+- Each user-facing script has a Makefile wrapper whose target name is the
+  snake_case mirror of the script name, for example `rotate_nginx_logs` runs
+  `scripts/rotate-nginx-logs.sh`.
+- Never hardcode secrets. Secret values are written only to gitignored files
+  (`.env.secrets`, `certs/cert.conf`), secrets printed to the terminal are
+  masked, and lines that trip secret scanners on variable names carry a
+  `# pragma: allowlist secret` comment.
+
 ## License
 
 By contributing, you agree that your contributions will be licensed under its MIT License.

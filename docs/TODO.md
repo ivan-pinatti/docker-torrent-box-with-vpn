@@ -7,12 +7,14 @@
   image versions should be managed by Renovate rather than living in the
   compose file
 - [ ] Fix python version w/ GHA
-- [ ] Rotate passwords, including working out the KDF the apps use so
-  rotated passwords can be generated with OpenSSL, see
-  [Lidarr's UserService.cs](https://github.com/Lidarr/Lidarr/blob/6ec298ed2a9653863b8cea33e7174d50d37b5fcc/src/NzbDrone.Core/Authentication/UserService.cs#L22)
+- [x] Rotate passwords, implemented by `scripts/rotate-passwords.sh` through
+  each app's host config API, which hashes them internally, so no local KDF
+  work is needed. See [ROTATION.md](ROTATION.md)
 - [ ] Strip API key secrets from nginx logs, see
   [Jellyfin's nginx docs](https://jellyfin.org/docs/general/networking/nginx/#censor-sensitive-information-in-logs)
-- [ ] Rotate API keys (all services, including Jackett)
+- [x] Rotate API keys, implemented by `scripts/rotate-api-keys.sh` for the
+  Servarr apps and Bazarr. Jackett is legacy and stays out of scope. See
+  [ROTATION.md](ROTATION.md)
 - [ ] Move certificate info to a dedicated folder
 - [ ] Add k6 load testing
 - [ ] Disable automatic Docker image updates in all containers

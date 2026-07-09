@@ -240,4 +240,5 @@ rotates. Jellyfin and Audiobookshelf keys are out of scope for the rotation scri
 must be managed manually.)
 
 **Note:** The `<SslCertPassword>` field present in each arr `config.xml` is managed
-exclusively by `make generate_certificate` and must not be touched by any rotation script.
+exclusively by `make generate_certificate` and `scripts/rotate-certificate.sh`. The API
+key and password rotation scripts must not touch it.
