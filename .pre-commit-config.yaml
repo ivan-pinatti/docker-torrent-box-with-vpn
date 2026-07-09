@@ -9,7 +9,7 @@ repos:
       - id: detect-secrets
         args: ["--baseline", ".secrets.baseline"]
         require_serial: true
-        exclude: '^(configs/.*/\.env\.secrets\.example|\.secrets\.baseline)$'
+        exclude: '^(configs/.*/\.env\.secrets\.example|\.secrets\.baseline)$|^patches/'
 
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.30.1
@@ -39,12 +39,12 @@ repos:
       - id: destroyed-symlinks
       - id: detect-private-key
       - id: end-of-file-fixer
-        exclude: *runtime_placeholders
+        exclude: '^(configs/.*/\.env|configs/.*/config/|configs/recyclarr/config/.*\.yml|media/eBooks/metadata\.db|\.secrets\.baseline)$|^patches/'
       - id: mixed-line-ending
-        exclude: *runtime_placeholders
+        exclude: '^(configs/.*/\.env|configs/.*/config/|configs/recyclarr/config/.*\.yml|media/eBooks/metadata\.db|\.secrets\.baseline)$|^patches/'
       - id: trailing-whitespace
         args: ["--markdown-linebreak-ext=md"]
-        exclude: *runtime_placeholders
+        exclude: '^(configs/.*/\.env|configs/.*/config/|configs/recyclarr/config/.*\.yml|media/eBooks/metadata\.db|\.secrets\.baseline)$|^patches/'
       - id: check-ast
         files: ^tests/
       - id: debug-statements
