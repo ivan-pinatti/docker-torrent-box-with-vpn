@@ -52,13 +52,6 @@ readonly BAZARR_CONFIG="configs/bazarr/config/config/config.yaml"
 readonly RECYCLARR_SECRETS="configs/recyclarr/config/secrets.yml" # pragma: allowlist secret
 readonly HOMEPAGE_ENV="configs/homepage/.env.secrets"
 
-# Prowlarr application IDs
-readonly PROWLARR_APP_ID_LIDARR=1
-readonly PROWLARR_APP_ID_READARR=2
-readonly PROWLARR_APP_ID_SONARR=3
-readonly PROWLARR_APP_ID_RADARR=5
-readonly PROWLARR_APP_ID_WHISPARR=7
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -122,29 +115,42 @@ rotate_arr_apikey() {
 }
 
 # Update one application entry in Prowlarr with a new downstream API key.
-# Args: prowlarr_key app_id app_name new_downstream_key
+# The entry is looked up by name; apps without a Prowlarr application entry
+# are skipped.
+# Args: prowlarr_key app_name new_downstream_key
 update_prowlarr_application() {
   local prowlarr_key="$1"
-  local app_id="$2"
-  local app_name="$3"
-  local new_key="$4"
-
-  echo "[Prowlarr] Updating application '${app_name}' (id=${app_id}) with new key..."
+  local app_name="$2"
+  local new_key="$3"
 
   local app_json
   app_json=$(container_curl prowlarr -sk \
     -H "X-Api-Key: $prowlarr_key" \
-    "https://127.0.0.1:${PROWLARR_HTTPS_PORT}/prowlarr/api/v1/applications/${app_id}")
+    "https://127.0.0.1:${PROWLARR_HTTPS_PORT}/prowlarr/api/v1/applications" |
+    jq --arg name "$app_name" 'map(select(.name == $name)) | first')
+
+  if [[ -z "$app_json" || "$app_json" == "null" ]]; then
+    echo "[Prowlarr] No application entry named '${app_name}', skipping."
+    return 0
+  fi
+
+  local app_id
+  app_id=$(echo "$app_json" | jq -r '.id')
+  echo "[Prowlarr] Updating application '${app_name}' (id=${app_id}) with new key..."
 
   local updated
   updated=$(echo "$app_json" | jq --arg key "$new_key" \
     '.fields[] |= if .name == "apiKey" then .value = $key else . end')
 
-  container_curl prowlarr -sk -X PUT \
+  # forceSave skips Prowlarr's connection validation: the downstream app has
+  # not been restarted with the new key yet at this point (restarts happen at
+  # the end), so a validated PUT would always fail with a 401 from the app.
+  # --fail surfaces any real API error instead of silently discarding it.
+  container_curl prowlarr -sk --fail -X PUT \
     -H "X-Api-Key: $prowlarr_key" \
     -H "Content-Type: application/json" \
     -d "$updated" \
-    "https://127.0.0.1:${PROWLARR_HTTPS_PORT}/prowlarr/api/v1/applications/${app_id}" \
+    "https://127.0.0.1:${PROWLARR_HTTPS_PORT}/prowlarr/api/v1/applications/${app_id}?forceSave=true" \
     >/dev/null
 }
 
@@ -161,7 +167,7 @@ rotate_sonarr() {
 
   local prowlarr_key
   prowlarr_key=$(get_xml_apikey "$PROWLARR_XML")
-  update_prowlarr_application "$prowlarr_key" "$PROWLARR_APP_ID_SONARR" "Sonarr" "$new_key"
+  update_prowlarr_application "$prowlarr_key" "Sonarr" "$new_key"
 
   echo "[Bazarr] Updating sonarr.apikey in config.yaml..."
   yq -i ".sonarr.apikey = \"$new_key\"" "$BAZARR_CONFIG"
@@ -184,7 +190,7 @@ rotate_radarr() {
 
   local prowlarr_key
   prowlarr_key=$(get_xml_apikey "$PROWLARR_XML")
-  update_prowlarr_application "$prowlarr_key" "$PROWLARR_APP_ID_RADARR" "Radarr" "$new_key"
+  update_prowlarr_application "$prowlarr_key" "Radarr" "$new_key"
 
   echo "[Bazarr] Updating radarr.apikey in config.yaml..."
   yq -i ".radarr.apikey = \"$new_key\"" "$BAZARR_CONFIG"
@@ -207,7 +213,7 @@ rotate_lidarr() {
 
   local prowlarr_key
   prowlarr_key=$(get_xml_apikey "$PROWLARR_XML")
-  update_prowlarr_application "$prowlarr_key" "$PROWLARR_APP_ID_LIDARR" "Lidarr" "$new_key"
+  update_prowlarr_application "$prowlarr_key" "Lidarr" "$new_key"
 
   update_homepage_env "HOMEPAGE_VAR_LIDARR_API_KEY" "$new_key"
 
@@ -224,7 +230,7 @@ rotate_readarr() {
 
   local prowlarr_key
   prowlarr_key=$(get_xml_apikey "$PROWLARR_XML")
-  update_prowlarr_application "$prowlarr_key" "$PROWLARR_APP_ID_READARR" "Readarr" "$new_key"
+  update_prowlarr_application "$prowlarr_key" "Readarr" "$new_key"
 
   update_homepage_env "HOMEPAGE_VAR_READARR_API_KEY" "$new_key"
 
@@ -241,7 +247,7 @@ rotate_whisparr() {
 
   local prowlarr_key
   prowlarr_key=$(get_xml_apikey "$PROWLARR_XML")
-  update_prowlarr_application "$prowlarr_key" "$PROWLARR_APP_ID_WHISPARR" "Whisparr" "$new_key"
+  update_prowlarr_application "$prowlarr_key" "Whisparr" "$new_key"
 
   update_homepage_env "HOMEPAGE_VAR_WHISPARR_API_KEY" "$new_key"
 

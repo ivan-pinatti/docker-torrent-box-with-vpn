@@ -25,15 +25,18 @@ env_value() {
   grep -m1 "^${key}=" .env | cut -d= -f2-
 }
 
-SONARR_HTTPS_PORT="$(env_value SONARR_HTTPS_PORT)"
+SONARR_HTTP_PORT="$(env_value SONARR_HTTP_PORT)"
 RADARR_HTTPS_PORT="$(env_value RADARR_HTTPS_PORT)"
 LIDARR_HTTPS_PORT="$(env_value LIDARR_HTTPS_PORT)"
 READARR_HTTPS_PORT="$(env_value READARR_HTTPS_PORT)"
 WHISPARR_HTTPS_PORT="$(env_value WHISPARR_HTTPS_PORT)"
 PROWLARR_HTTPS_PORT="$(env_value PROWLARR_HTTPS_PORT)"
 QBITTORRENT_HTTPS_PORT="$(env_value QBITTORRENT_HTTPS_PORT)"
-readonly SONARR_HTTPS_PORT RADARR_HTTPS_PORT LIDARR_HTTPS_PORT READARR_HTTPS_PORT \
-  WHISPARR_HTTPS_PORT PROWLARR_HTTPS_PORT QBITTORRENT_HTTPS_PORT
+# qBittorrent's WebUI binds to the Gluetun services IP (WebUI\Address in
+# qBittorrent.conf), not loopback, so in-container curl must target it.
+GLUETUN_SERVICES_IP="$(env_value GLUETUN_SERVICES_IP)"
+readonly SONARR_HTTP_PORT RADARR_HTTPS_PORT LIDARR_HTTPS_PORT READARR_HTTPS_PORT \
+  WHISPARR_HTTPS_PORT PROWLARR_HTTPS_PORT QBITTORRENT_HTTPS_PORT GLUETUN_SERVICES_IP
 
 # ---------------------------------------------------------------------------
 # Config file paths
@@ -95,7 +98,9 @@ container_curl() {
 
 # Rotate login password for an arr app via its host config API endpoint.
 # The app hashes the plain text password internally upon receiving the PUT.
-# Args: app_name container_name api_key port url_base api_version new_password
+# Args: app_name container_name api_key port url_base api_version new_password [scheme]
+# scheme defaults to https; Sonarr passes http because its SSL listener is not
+# configured (see the known issues section in the README).
 rotate_arr_password() {
   local app_name="$1"
   local container_name="$2"
@@ -104,11 +109,12 @@ rotate_arr_password() {
   local url_base="$5"
   local api_ver="$6"
   local new_password="$7"
+  local scheme="${8:-https}"
 
   echo "[$app_name] Fetching current host config..."
   local config
   config=$(container_curl "$container_name" -sk -H "X-Api-Key: $api_key" \
-    "https://127.0.0.1:${port}/${url_base}/api/${api_ver}/config/host")
+    "${scheme}://127.0.0.1:${port}/${url_base}/api/${api_ver}/config/host")
 
   echo "[$app_name] Setting new password..."
   local updated
@@ -120,7 +126,7 @@ rotate_arr_password() {
     -H "X-Api-Key: $api_key" \
     -H "Content-Type: application/json" \
     -d "$updated" \
-    "https://127.0.0.1:${port}/${url_base}/api/${api_ver}/config/host" \
+    "${scheme}://127.0.0.1:${port}/${url_base}/api/${api_ver}/config/host" \
     >/dev/null
 }
 
@@ -201,7 +207,7 @@ rotate_sonarr() {
   new_password=$(gen_password)
   local api_key
   api_key=$(get_xml_apikey "$SONARR_XML")
-  rotate_arr_password "Sonarr" "sonarr" "$api_key" "$SONARR_HTTPS_PORT" "sonarr" "v3" "$new_password"
+  rotate_arr_password "Sonarr" "sonarr" "$api_key" "$SONARR_HTTP_PORT" "sonarr" "v3" "$new_password" "http"
   SUMMARY_SONARR_OLD="sonarr"
   SUMMARY_SONARR_NEW="$new_password"
 }
@@ -296,13 +302,13 @@ PYEOF
   echo "[qBittorrent] Logging in with current password..."
   container_curl qbittorrent -sk -c /tmp/qbt_cookies.txt \
     -d "username=qbittorrent&password=${current_password}" \
-    "https://127.0.0.1:${QBITTORRENT_HTTPS_PORT}/api/v2/auth/login" \
+    "https://${GLUETUN_SERVICES_IP}:${QBITTORRENT_HTTPS_PORT}/api/v2/auth/login" \
     >/dev/null
 
   echo "[qBittorrent] Setting new WebUI password..."
   container_curl qbittorrent -sk -b /tmp/qbt_cookies.txt \
     --data-urlencode "json={\"web_ui_password\":\"${new_password}\"}" \
-    "https://127.0.0.1:${QBITTORRENT_HTTPS_PORT}/api/v2/app/setPreferences" \
+    "https://${GLUETUN_SERVICES_IP}:${QBITTORRENT_HTTPS_PORT}/api/v2/app/setPreferences" \
     >/dev/null
 
   # The cookie file lives inside the container (curl ran via podman exec),

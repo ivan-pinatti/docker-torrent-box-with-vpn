@@ -53,8 +53,12 @@ openssl req -new -newkey rsa:4096 -days 3650 -nodes -x509 \
 openssl pkcs12 -export -out certs/server.pfx -inkey certs/server.key -in certs/server.crt \
   -password "pass:${NEW_CERT_PASSWORD}"
 
-chmod 600 certs/server.key certs/server.pfx
-chmod 644 certs/server.crt
+# The certificate files are read by many services running as distinct
+# non-root container UIDs (nginx, qBittorrent, SABnzbd, Grafana, the arr
+# apps, Jellyfin), so under rootless Podman they must stay world-readable.
+# The host repo directory restricts outside access; the pfx additionally
+# protects its private key with the PKCS#12 password.
+chmod 644 certs/server.key certs/server.crt certs/server.pfx
 
 echo "Hash for the new certificate is..."
 openssl x509 -noout -fingerprint -sha256 -inform pem -in certs/server.crt
