@@ -45,6 +45,9 @@ services:
     cap_add: [CHOWN, SETUID, SETGID, NET_BIND_SERVICE]
     env_file: [".env", "${CONFIG_FOLDER}/nginx/.env"]
     environment:
+      # Opt in to the image's 15-local-resolvers.envsh so it exports
+      # NGINX_LOCAL_RESOLVERS for templates/resolver.conf.template.
+      NGINX_ENTRYPOINT_LOCAL_RESOLVERS: "true"
       BAZARR_UPSTREAM_SCHEME: http
       BAZARR_UPSTREAM_HOST: bazarr-http
       BAZARR_UPSTREAM_PORT: "${BAZARR_HTTP_PORT}"
