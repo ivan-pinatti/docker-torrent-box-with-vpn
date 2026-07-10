@@ -157,7 +157,10 @@ services:
       - ${DATA_FOLDER}:/data:z
     healthcheck:
       <<: *healthcheck-defaults
-      test: curl --fail http://127.0.0.1:${CALIBRE_DESKTOP_HTTP_PORT}/ || exit 1
+      # No --fail on purpose: the GUI answers 401 when web authentication is
+      # enabled, which still proves liveness. Only a failed connection (curl
+      # exit code) marks the container unhealthy; no credentials needed.
+      test: curl --silent --output /dev/null http://127.0.0.1:${CALIBRE_DESKTOP_HTTP_PORT}/ || exit 1
 
   calibre-web:
     <<: *limit-calibreweb
