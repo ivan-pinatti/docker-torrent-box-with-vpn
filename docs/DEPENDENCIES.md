@@ -235,9 +235,10 @@ Grafana              |          |        |           |         |         |      
 | Grafana       | admin password            | `configs/grafana/config/grafana.ini` (`admin_password`)         | plain text INI value                                |
 | Homepage      | Grafana Basic auth header | `configs/homepage/.env` (`HOMEPAGE_VAR_GRAFANA_AUTH`)           | plain text env value                                |
 
-**Homepage** (`rotate-api-keys.sh` auto-updates `HOMEPAGE_VAR_*` for all services it
-rotates. Jellyfin and Audiobookshelf keys are out of scope for the rotation script and
-must be managed manually.)
+**Homepage** (`rotate-api-keys.sh` and `rotate-passwords.sh` auto-update
+`HOMEPAGE_VAR_*` for all services they rotate, including Jellyfin, Grafana, and
+Calibre-Web. Only the Audiobookshelf token remains manual: it is a per-user JWT
+issued by Audiobookshelf itself.)
 
 **Note:** The `<SslCertPassword>` field present in each arr `config.xml` is managed
 exclusively by `make generate_certificate` and `scripts/rotate-certificate.sh`. The API

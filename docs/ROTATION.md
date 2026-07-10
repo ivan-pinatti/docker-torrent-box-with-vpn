@@ -31,7 +31,8 @@ container). Certificate and log rotation work on files only.
 ## API Keys (`rotate-api-keys.sh`)
 
 Valid targets: `sonarr`, `radarr`, `lidarr`, `readarr`, `whisparr`,
-`prowlarr`, `bazarr`, `all`.
+`prowlarr`, `bazarr`, `lazylibrarian`, `mylar`, `nzbhydra2`, `jellyfin`,
+`all`.
 
 For each Servarr app the script writes a new `ApiKey` into the app's
 `config.xml` (the apps ignore key changes sent over their API), then updates
@@ -45,30 +46,59 @@ every consumer of that key:
 - Homepage's `HOMEPAGE_VAR_*_API_KEY` entries in
   `configs/homepage/.env.secrets`.
 
-Apps whose key was rewritten on disk are recreated automatically at the end
-(`podman-compose up -d --force-recreate`) so they load the new key. The
-summary table masks the keys (`first4****`).
+The non-Servarr targets:
+
+- **LazyLibrarian** and **Mylar** keep their key in `config.ini` and persist
+  their in-memory config on shutdown, so the script stops the container,
+  edits the file, and starts it again. Their Prowlarr application entries
+  (and Homepage for Mylar) are updated too.
+- **NZBHydra2** gets a new `main.apiKey` in `nzbhydra.yml` (written in plain
+  text; NZBHydra re-obfuscates it on its next save). Consumers updated: the
+  `Indexers` tables of all five Servarr databases, LazyLibrarian's Newznab
+  and Torznab entries, and Mylar's `extra_newznabs`/`extra_torznabs` lines.
+- **Jellyfin** keys cannot be chosen, so the script creates a new key over
+  the Jellyfin API, stores it for Homepage, and revokes the old one.
+
+Apps whose key was rewritten on disk are restarted or recreated
+automatically so they load the new key, and Homepage is recreated to pick up
+the new env values. The summary table masks the keys (`first4****`); the
+actual values live in the respective config files.
 
 ## Passwords (`rotate-passwords.sh`)
 
-Valid targets: the API key list plus `qbittorrent` and `sabnzbd`.
+Valid targets: `sonarr`, `radarr`, `lidarr`, `readarr`, `whisparr`,
+`prowlarr`, `bazarr`, `qbittorrent`, `sabnzbd`, `lazylibrarian`, `mylar`,
+`calibreweb`, `grafana`, `nzbhydra2`, `all`.
 
 - **Servarr apps**: the new login password is set through each app's host
   config API, which hashes it internally.
 - **Bazarr**: writes the MD5 hash of the new password to `config.yaml`
   (Bazarr stores MD5 by design).
 - **qBittorrent**: logs into the WebUI API with the current password (read
-  from Sonarr's download client settings), sets the new one, then updates the
-  `DownloadClients` tables of Sonarr, Radarr, Lidarr, Readarr, and Whisparr,
-  plus `configs/qbittorrent/.env.secrets` and
-  `configs/qbittorrent_exporter/.env.secrets`.
+  from Sonarr's download client settings), sets the new one, then updates
+  every consumer: the `DownloadClients` tables of all five Servarr apps,
+  LazyLibrarian's and Mylar's download client settings,
+  `configs/qbittorrent/.env.secrets`,
+  `configs/qbittorrent_exporter/.env.secrets`, and Homepage.
 - **SABnzbd**: rotates the password, API key, and NZB key together. Updates
   `configs/sabnzbd/config/sabnzbd.ini`, `.env` and
   `configs/sabnzbd/.env.secrets`, the Servarr `DownloadClients` tables,
-  LazyLibrarian, Mylar, and Notifiarr.
+  LazyLibrarian, Mylar, Notifiarr, and Homepage.
+- **LazyLibrarian** and **Mylar**: WebUI passwords in their `config.ini`.
+- **Calibre-Web**: writes a new password hash for the `calibre` user
+  directly to `app.db` (no API exists) and updates Homepage.
+- **Grafana**: changes the admin password over Grafana's API, then keeps
+  `grafana.ini` and Homepage's Basic auth header in sync.
+- **NZBHydra2**: writes a new bcrypt hash to `nzbhydra.yml`.
 
-Passwords are only ever printed masked (`first4****`). Some apps cache
-credentials in memory; run `make restart` if a login fails after rotation.
+Apps that persist their config on shutdown (LazyLibrarian, Mylar, SABnzbd,
+NZBHydra2) are stopped before their files are edited and started again
+afterwards, otherwise their shutdown flush would clobber the change.
+
+The summary table prints the new passwords **in full**: the apps store only
+hashes, so the table is the single opportunity to record them. Save them in
+your password manager immediately. Some apps cache credentials in memory;
+run `make restart` if a login fails after rotation.
 
 ## Combined (`rotate-all.sh`)
 
@@ -110,8 +140,11 @@ truncates the original, then compresses rotated files older than
 
 ## Out of Scope
 
-- **Jellyfin and Audiobookshelf API keys** used by Homepage must be rotated
-  manually; see [DEPENDENCIES.md](DEPENDENCIES.md).
+- **Audiobookshelf's token** used by Homepage is a per-user JWT that must be
+  rotated manually in the Audiobookshelf UI; see
+  [DEPENDENCIES.md](DEPENDENCIES.md).
+- **Calibre's desktop content server** credentials are managed in Calibre's
+  own user database.
 - **Jackett** is legacy and not covered by any rotation script.
 - **Gluetun's WireGuard private key** lives in `configs/gluetun/.secret`;
   rotate it by generating a new config with your VPN provider.

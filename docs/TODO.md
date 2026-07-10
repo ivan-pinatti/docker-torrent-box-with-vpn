@@ -90,6 +90,12 @@ recommendations):
 - [ ] Flaresolverr
 - [ ] Indexers
 - [ ] Auto config arrs
+- [ ] Decide how Prowlarr should trust the self-signed certificate for the
+  LazyLibrarian and Mylar HTTPS application entries. Prowlarr validates
+  certificates for DNS-name hosts, so sync tests to those two apps fail TLS
+  and their rotation updates use forceSave. Options: set Prowlarr's
+  CertificateValidation to Disabled (everything is on internal networks), or
+  issue a certificate with SANs for the service aliases
 
 ## Mylar
 
