@@ -18,10 +18,6 @@ fi
 
 readonly TARGET="$1"
 
-# Container names that need a restart at the end for a rewritten ApiKey to
-# take effect (populated by rotate_arr_apikey).
-RESTART_NEEDED=()
-
 # Read the network and port variables we need from .env without sourcing it
 # (.env defines UID, which is a readonly bash builtin, so `source .env` fails).
 env_value() {
@@ -31,7 +27,18 @@ env_value() {
 
 PROWLARR_HTTPS_PORT="$(env_value PROWLARR_HTTPS_PORT)"
 JELLYFIN_HTTP_PORT="$(env_value JELLYFIN_HTTP_PORT)"
-readonly PROWLARR_HTTPS_PORT JELLYFIN_HTTP_PORT
+SONARR_HTTP_PORT="$(env_value SONARR_HTTP_PORT)"
+RADARR_HTTPS_PORT="$(env_value RADARR_HTTPS_PORT)"
+LIDARR_HTTPS_PORT="$(env_value LIDARR_HTTPS_PORT)"
+READARR_HTTPS_PORT="$(env_value READARR_HTTPS_PORT)"
+WHISPARR_HTTPS_PORT="$(env_value WHISPARR_HTTPS_PORT)"
+BAZARR_HTTP_PORT="$(env_value BAZARR_HTTP_PORT)"
+LAZYLIBRARIAN_HTTP_PORT="$(env_value LAZYLIBRARIAN_HTTP_PORT)"
+MYLAR_HTTPS_PORT="$(env_value MYLAR_HTTPS_PORT)"
+NZBHYDRA2_HTTPS_PORT="$(env_value NZBHYDRA2_HTTPS_PORT)"
+readonly PROWLARR_HTTPS_PORT JELLYFIN_HTTP_PORT SONARR_HTTP_PORT \
+  RADARR_HTTPS_PORT LIDARR_HTTPS_PORT READARR_HTTPS_PORT WHISPARR_HTTPS_PORT \
+  BAZARR_HTTP_PORT LAZYLIBRARIAN_HTTP_PORT MYLAR_HTTPS_PORT NZBHYDRA2_HTTPS_PORT
 
 # ---------------------------------------------------------------------------
 # Current (old) API keys — read from config.xml at rotation time
@@ -88,6 +95,40 @@ container_curl() {
   podman exec "$container_name" curl "$@"
 }
 
+# Stop the listed containers if they exist, remembering which ones were
+# stopped so start_stopped() can bring exactly those back.
+STOPPED_CONTAINERS=()
+stop_existing() {
+  STOPPED_CONTAINERS=()
+  local c
+  for c in "$@"; do
+    if podman container exists "$c" 2>/dev/null; then
+      podman stop "$c" >/dev/null
+      STOPPED_CONTAINERS+=("$c")
+    fi
+  done
+}
+
+start_stopped() {
+  if [[ ${#STOPPED_CONTAINERS[@]} -gt 0 ]]; then
+    podman start "${STOPPED_CONTAINERS[@]}" >/dev/null
+  fi
+}
+
+# Retry a command every 5 seconds until it succeeds or timeout (in seconds).
+retry() {
+  local timeout="$1"
+  shift
+  local elapsed=0
+  until "$@" >/dev/null 2>&1; do
+    sleep 5
+    elapsed=$((elapsed + 5))
+    if [[ $elapsed -ge $timeout ]]; then
+      return 1
+    fi
+  done
+}
+
 # *arr apps silently ignore apiKey changes sent through the config/host API
 # endpoint (it's treated as self-protecting, read-only over that route) — a
 # PUT returns 202 but echoes back the unchanged old key. The only way to
@@ -101,7 +142,11 @@ rotate_arr_apikey() {
   local new_key
   new_key=$(gen_key)
 
-  echo "[$app_name] Writing new ApiKey to $xml_path..." >&2
+  # The apps read config.xml only at startup and can rewrite it on state
+  # changes, so the edit happens while the container is stopped.
+  echo "[$app_name] Stopping container and writing new ApiKey to $xml_path..." >&2
+  podman stop "$container_name" >/dev/null
+
   xmlstarlet --quiet ed --inplace --update '/Config/ApiKey' \
     --value "$new_key" "$xml_path" # pragma: allowlist secret
 
@@ -109,12 +154,11 @@ rotate_arr_apikey() {
   written=$(get_xml_apikey "$xml_path")
   if [[ "$written" != "$new_key" ]]; then
     echo "[$app_name] ERROR: ApiKey did not update as expected in $xml_path" >&2
+    podman start "$container_name" >/dev/null
     return 1
   fi
 
-  # NOTE: RESTART_NEEDED can't be appended here — this function's output is
-  # captured via $(...), which runs it in a subshell, so array mutations here
-  # would be lost. Callers append container_name to RESTART_NEEDED themselves.
+  podman start "$container_name" >/dev/null
   echo "$new_key"
 }
 
@@ -167,7 +211,6 @@ rotate_sonarr() {
   old_key=$(get_xml_apikey "$SONARR_XML")
   local new_key
   new_key=$(rotate_arr_apikey "Sonarr" "sonarr" "$SONARR_XML")
-  RESTART_NEEDED+=("sonarr")
 
   local prowlarr_key
   prowlarr_key=$(get_xml_apikey "$PROWLARR_XML")
@@ -190,7 +233,6 @@ rotate_radarr() {
   old_key=$(get_xml_apikey "$RADARR_XML")
   local new_key
   new_key=$(rotate_arr_apikey "Radarr" "radarr" "$RADARR_XML")
-  RESTART_NEEDED+=("radarr")
 
   local prowlarr_key
   prowlarr_key=$(get_xml_apikey "$PROWLARR_XML")
@@ -213,7 +255,6 @@ rotate_lidarr() {
   old_key=$(get_xml_apikey "$LIDARR_XML")
   local new_key
   new_key=$(rotate_arr_apikey "Lidarr" "lidarr" "$LIDARR_XML")
-  RESTART_NEEDED+=("lidarr")
 
   local prowlarr_key
   prowlarr_key=$(get_xml_apikey "$PROWLARR_XML")
@@ -230,7 +271,6 @@ rotate_readarr() {
   old_key=$(get_xml_apikey "$READARR_XML")
   local new_key
   new_key=$(rotate_arr_apikey "Readarr" "readarr" "$READARR_XML")
-  RESTART_NEEDED+=("readarr")
 
   local prowlarr_key
   prowlarr_key=$(get_xml_apikey "$PROWLARR_XML")
@@ -247,7 +287,6 @@ rotate_whisparr() {
   old_key=$(get_xml_apikey "$WHISPARR_XML")
   local new_key
   new_key=$(rotate_arr_apikey "Whisparr" "whisparr" "$WHISPARR_XML")
-  RESTART_NEEDED+=("whisparr")
 
   local prowlarr_key
   prowlarr_key=$(get_xml_apikey "$PROWLARR_XML")
@@ -264,7 +303,6 @@ rotate_prowlarr() {
   old_key=$(get_xml_apikey "$PROWLARR_XML")
   local new_key
   new_key=$(rotate_arr_apikey "Prowlarr" "prowlarr" "$PROWLARR_XML")
-  RESTART_NEEDED+=("prowlarr")
 
   update_homepage_env "HOMEPAGE_VAR_PROWLARR_API_KEY" "$new_key"
 
@@ -280,9 +318,11 @@ rotate_bazarr() {
   local new_key
   new_key=$(gen_key)
 
-  echo "[Bazarr] Updating auth.apikey in config.yaml..."
+  # Bazarr reads config.yaml at startup; edit it while stopped.
+  echo "[Bazarr] Stopping container and updating auth.apikey in config.yaml..."
+  podman stop bazarr >/dev/null
   yq -i ".auth.apikey = \"$new_key\"" "$BAZARR_CONFIG"
-  RESTART_NEEDED+=("bazarr")
+  podman start bazarr >/dev/null
 
   update_homepage_env "HOMEPAGE_VAR_BAZARR_API_KEY" "$new_key"
 
@@ -346,10 +386,11 @@ rotate_nzbhydra2() {
   old_key=$(grep -oPm1 '(?<=^api = ).*' "$LAZYLIBRARIAN_INI")
   new_key=$(gen_key)
 
-  # NZBHydra2, LazyLibrarian, and Mylar all persist their configs on
-  # shutdown, so they must be stopped before their files are edited.
-  echo "[NZBHydra2] Stopping nzbhydra2, lazylibrarian, and mylar for config edits..."
-  podman stop nzbhydra2 lazylibrarian mylar >/dev/null
+  # NZBHydra2, LazyLibrarian, and Mylar persist their configs on shutdown,
+  # and the arr apps' Indexers tables are edited on disk, so everything in
+  # the blast radius is stopped for the duration of the edits.
+  echo "[NZBHydra2] Stopping consumers for config and database edits..."
+  stop_existing nzbhydra2 lazylibrarian mylar sonarr radarr lidarr readarr whisparr
 
   echo "[NZBHydra2] Writing new main.apiKey to $NZBHYDRA_YML..."
   apiKey="$new_key" yq -i '(.main.apiKey) = strenv(apiKey)' "$NZBHYDRA_YML"
@@ -413,7 +454,7 @@ text = re.sub(
 my.write_text(text)
 PYEOF
 
-  podman start nzbhydra2 lazylibrarian mylar >/dev/null
+  start_stopped
 
   SUMMARY_NZBHYDRA2_OLD="$old_key"
   SUMMARY_NZBHYDRA2_NEW="$new_key"
@@ -516,22 +557,15 @@ all)
 esac
 
 # ---------------------------------------------------------------------------
-# Restart apps whose ApiKey was rewritten on disk, so they pick it up.
 # Homepage reads HOMEPAGE_VAR_* env values only at container creation, so it
-# must be recreated too or its widgets keep authenticating with stale keys.
+# must be recreated or its widgets keep authenticating with stale keys.
 # ---------------------------------------------------------------------------
 
 if podman container exists homepage 2>/dev/null; then
-  RESTART_NEEDED+=("homepage")
-fi
-
-if [[ ${#RESTART_NEEDED[@]} -gt 0 ]]; then
   echo ""
-  echo "======================================================================"
-  echo " Recreating containers to apply the new keys: ${RESTART_NEEDED[*]}"
-  echo "======================================================================"
+  echo "Recreating homepage to load the new keys..."
   podman-compose --file docker-compose.yml --profile enabled up -d --force-recreate \
-    "${RESTART_NEEDED[@]}"
+    homepage >/dev/null
 fi
 
 # ---------------------------------------------------------------------------
@@ -573,3 +607,81 @@ print_row "nzbhydra2" "$SUMMARY_NZBHYDRA2_OLD" "$SUMMARY_NZBHYDRA2_NEW"
 print_row "jellyfin" "$SUMMARY_JELLYFIN_OLD" "$SUMMARY_JELLYFIN_NEW"
 
 echo "======================================================================"
+# ---------------------------------------------------------------------------
+# Validation: prove each rotated API key is accepted by its service. Each
+# check retries while the restarted container comes back up.
+# ---------------------------------------------------------------------------
+
+arr_key_ok() {
+  local container="$1" scheme="$2" port="$3" base="$4" api_ver="$5" key="$6"
+  container_curl "$container" -sk --fail -o /dev/null -H "X-Api-Key: ${key}" \
+    "${scheme}://127.0.0.1:${port}/${base}/api/${api_ver}/health"
+}
+
+bazarr_key_ok() {
+  container_curl bazarr -s --fail -o /dev/null -H "X-API-KEY: $1" \
+    "http://127.0.0.1:${BAZARR_HTTP_PORT}/bazarr/api/system/status"
+}
+
+lazylibrarian_key_ok() {
+  local body
+  # LazyLibrarian serves HTTPS on its port when https_enabled is set
+  body=$(container_curl lazylibrarian -sk \
+    "https://127.0.0.1:${LAZYLIBRARIAN_HTTP_PORT}/lazylibrarian/api?cmd=getVersion&apikey=$1")
+  [[ -n "$body" && "$body" != *"Incorrect API key"* ]]
+}
+
+mylar_key_ok() {
+  local body
+  body=$(container_curl mylar -sk \
+    "https://127.0.0.1:${MYLAR_HTTPS_PORT}/mylar/api?cmd=getVersion&apikey=$1")
+  [[ -n "$body" && "$body" != *"Incorrect API key"* && "$body" != *"Invalid apikey"* ]]
+}
+
+nzbhydra_key_ok() {
+  local body
+  body=$(container_curl nzbhydra2 -sk \
+    "https://127.0.0.1:${NZBHYDRA2_HTTPS_PORT}/nzbhydra2/api?t=caps&apikey=$1")
+  [[ -n "$body" && "$body" != *"<error"* ]]
+}
+
+jellyfin_key_ok() {
+  container_curl jellyfin -s --fail -o /dev/null \
+    -H "Authorization: MediaBrowser Token=\"$1\"" \
+    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}/jellyfin/Auth/Keys"
+}
+
+VALIDATION_FAILURES=()
+validate() {
+  local name="$1" timeout="$2"
+  shift 2
+  if retry "$timeout" "$@"; then
+    printf "%-14s  OK\n" "$name"
+  else
+    printf "%-14s  FAILED\n" "$name"
+    VALIDATION_FAILURES+=("$name")
+  fi
+}
+
+echo ""
+echo "======================================================================"
+echo " Validating rotated API keys"
+echo "======================================================================"
+[[ -n "$SUMMARY_SONARR_NEW" ]] && validate sonarr 180 arr_key_ok sonarr http "$SONARR_HTTP_PORT" sonarr v3 "$SUMMARY_SONARR_NEW"
+[[ -n "$SUMMARY_RADARR_NEW" ]] && validate radarr 180 arr_key_ok radarr https "$RADARR_HTTPS_PORT" radarr v3 "$SUMMARY_RADARR_NEW"
+[[ -n "$SUMMARY_LIDARR_NEW" ]] && validate lidarr 180 arr_key_ok lidarr https "$LIDARR_HTTPS_PORT" lidarr v1 "$SUMMARY_LIDARR_NEW"
+[[ -n "$SUMMARY_READARR_NEW" ]] && validate readarr 180 arr_key_ok readarr https "$READARR_HTTPS_PORT" readarr v1 "$SUMMARY_READARR_NEW"
+[[ -n "$SUMMARY_WHISPARR_NEW" ]] && validate whisparr 180 arr_key_ok whisparr https "$WHISPARR_HTTPS_PORT" whisparr v3 "$SUMMARY_WHISPARR_NEW"
+[[ -n "$SUMMARY_PROWLARR_NEW" ]] && validate prowlarr 180 arr_key_ok prowlarr https "$PROWLARR_HTTPS_PORT" prowlarr v1 "$SUMMARY_PROWLARR_NEW"
+[[ -n "$SUMMARY_BAZARR_NEW" ]] && validate bazarr 180 bazarr_key_ok "$SUMMARY_BAZARR_NEW"
+[[ -n "$SUMMARY_LAZYLIBRARIAN_NEW" ]] && validate lazylibrarian 180 lazylibrarian_key_ok "$SUMMARY_LAZYLIBRARIAN_NEW"
+[[ -n "$SUMMARY_MYLAR_NEW" ]] && validate mylar 180 mylar_key_ok "$SUMMARY_MYLAR_NEW"
+[[ -n "$SUMMARY_NZBHYDRA2_NEW" ]] && validate nzbhydra2 240 nzbhydra_key_ok "$SUMMARY_NZBHYDRA2_NEW"
+[[ -n "$SUMMARY_JELLYFIN_NEW" ]] && validate jellyfin 120 jellyfin_key_ok "$SUMMARY_JELLYFIN_NEW"
+echo "======================================================================"
+
+if [[ ${#VALIDATION_FAILURES[@]} -gt 0 ]]; then
+  echo ""
+  echo "ERROR: validation failed for: ${VALIDATION_FAILURES[*]}" >&2
+  exit 1
+fi

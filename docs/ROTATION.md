@@ -91,9 +91,12 @@ Valid targets: `sonarr`, `radarr`, `lidarr`, `readarr`, `whisparr`,
   `grafana.ini` and Homepage's Basic auth header in sync.
 - **NZBHydra2**: writes a new bcrypt hash to `nzbhydra.yml`.
 
-Apps that persist their config on shutdown (LazyLibrarian, Mylar, SABnzbd,
-NZBHydra2) are stopped before their files are edited and started again
-afterwards, otherwise their shutdown flush would clobber the change.
+Every file or database edit follows the stop, edit, start pattern: apps read
+their config only at startup and persist in-memory state on shutdown, which
+would clobber a live edit. Only changes made through an app's own API happen
+while it runs. Both scripts end with a validation phase that proves each
+rotated credential is accepted by its service (login or API probe, with
+retries while containers come back up) and exit nonzero if any check fails.
 
 The summary table prints the new passwords **in full**: the apps store only
 hashes, so the table is the single opportunity to record them. Save them in

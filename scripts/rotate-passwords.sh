@@ -35,8 +35,16 @@ QBITTORRENT_HTTPS_PORT="$(env_value QBITTORRENT_HTTPS_PORT)"
 # qBittorrent's WebUI binds to the Gluetun services IP (WebUI\Address in
 # qBittorrent.conf), not loopback, so in-container curl must target it.
 GLUETUN_SERVICES_IP="$(env_value GLUETUN_SERVICES_IP)"
+SABNZBD_HTTPS_PORT="$(env_value SABNZBD_HTTPS_PORT)"
+BAZARR_HTTP_PORT="$(env_value BAZARR_HTTP_PORT)"
+LAZYLIBRARIAN_HTTP_PORT="$(env_value LAZYLIBRARIAN_HTTP_PORT)"
+MYLAR_HTTPS_PORT="$(env_value MYLAR_HTTPS_PORT)"
+CALIBRE_WEB_CONTAINER_HTTPS_PORT="$(env_value CALIBRE_WEB_CONTAINER_HTTPS_PORT)"
+NZBHYDRA2_HTTPS_PORT="$(env_value NZBHYDRA2_HTTPS_PORT)"
 readonly SONARR_HTTP_PORT RADARR_HTTPS_PORT LIDARR_HTTPS_PORT READARR_HTTPS_PORT \
-  WHISPARR_HTTPS_PORT PROWLARR_HTTPS_PORT QBITTORRENT_HTTPS_PORT GLUETUN_SERVICES_IP
+  WHISPARR_HTTPS_PORT PROWLARR_HTTPS_PORT QBITTORRENT_HTTPS_PORT GLUETUN_SERVICES_IP \
+  SABNZBD_HTTPS_PORT LAZYLIBRARIAN_HTTP_PORT MYLAR_HTTPS_PORT \
+  CALIBRE_WEB_CONTAINER_HTTPS_PORT NZBHYDRA2_HTTPS_PORT BAZARR_HTTP_PORT
 
 # ---------------------------------------------------------------------------
 # Config file paths
@@ -103,6 +111,40 @@ container_curl() {
   local container_name="$1"
   shift
   podman exec "$container_name" curl "$@"
+}
+
+# Stop the listed containers if they exist, remembering which ones were
+# stopped so start_stopped() can bring exactly those back.
+STOPPED_CONTAINERS=()
+stop_existing() {
+  STOPPED_CONTAINERS=()
+  local c
+  for c in "$@"; do
+    if podman container exists "$c" 2>/dev/null; then
+      podman stop "$c" >/dev/null
+      STOPPED_CONTAINERS+=("$c")
+    fi
+  done
+}
+
+start_stopped() {
+  if [[ ${#STOPPED_CONTAINERS[@]} -gt 0 ]]; then
+    podman start "${STOPPED_CONTAINERS[@]}" >/dev/null
+  fi
+}
+
+# Retry a command every 5 seconds until it succeeds or timeout (in seconds).
+retry() {
+  local timeout="$1"
+  shift
+  local elapsed=0
+  until "$@" >/dev/null 2>&1; do
+    sleep 5
+    elapsed=$((elapsed + 5))
+    if [[ $elapsed -ge $timeout ]]; then
+      return 1
+    fi
+  done
 }
 
 # Rotate login password for an arr app via its host config API endpoint.
@@ -216,6 +258,7 @@ SUMMARY_GRAFANA_OLD=""
 SUMMARY_GRAFANA_NEW=""
 SUMMARY_NZBHYDRA2_OLD=""
 SUMMARY_NZBHYDRA2_NEW=""
+VERIFY_SABNZBD_KEY=""
 
 # ---------------------------------------------------------------------------
 # Per-app rotation functions
@@ -287,8 +330,11 @@ rotate_bazarr() {
   # Bazarr stores its login password as an MD5 hash (no salt, by design).
   local new_md5
   new_md5=$(echo -n "$new_password" | md5sum | cut -d' ' -f1)
-  echo "[Bazarr] Writing MD5-hashed password to config.yaml..."
+  # Bazarr reads config.yaml at startup and can rewrite it; edit stopped.
+  echo "[Bazarr] Stopping container and writing MD5-hashed password to config.yaml..."
+  podman stop bazarr >/dev/null
   yq -i ".auth.password = \"$new_md5\"" "$BAZARR_CONFIG"
+  podman start bazarr >/dev/null
   SUMMARY_BAZARR_OLD="bazarr"
   SUMMARY_BAZARR_NEW="$new_password"
 }
@@ -334,6 +380,12 @@ PYEOF
   # so it must be removed there, not on the host.
   podman exec qbittorrent rm -f /tmp/qbt_cookies.txt
 
+  # The arr apps' DownloadClients tables, and LazyLibrarian's and Mylar's
+  # config files, are edited on disk; stop everything in the blast radius so
+  # nothing rewrites the files mid-edit or reloads stale state.
+  echo "[qBittorrent] Stopping consumers for config and database edits..."
+  stop_existing sonarr radarr lidarr readarr whisparr lazylibrarian mylar
+
   echo "[Sonarr DB] Updating qBittorrent password in DownloadClients..."
   update_arr_qbt_password "$SONARR_DB" "$new_password"
 
@@ -348,11 +400,6 @@ PYEOF
 
   echo "[Whisparr DB] Updating qBittorrent password in DownloadClients..."
   update_arr_qbt_password "$WHISPARR_DB" "$new_password"
-
-  # LazyLibrarian and Mylar persist their configs on shutdown; stop them
-  # before rewriting their qBittorrent credentials.
-  echo "[Config] Stopping lazylibrarian and mylar for config edits..."
-  podman stop lazylibrarian mylar >/dev/null
 
   echo "[Config] Updating qBittorrent password in .env.secrets files..."
   python3 - <<PYEOF
@@ -390,7 +437,7 @@ set_ini_line('$LAZYLIBRARIAN_CONFIG', 'qbittorrent_pass', new_password)
 set_ini_line('$MYLAR_CONFIG', 'qbittorrent_password', new_password)
 PYEOF
 
-  podman start lazylibrarian mylar >/dev/null
+  start_stopped
 
   SUMMARY_QBITTORRENT_OLD="${current_password}"
   SUMMARY_QBITTORRENT_NEW="$new_password"
@@ -543,10 +590,11 @@ else:
 PYEOF
   )
 
-  # SABnzbd, LazyLibrarian, and Mylar persist their configs on shutdown;
-  # stop them before their files are edited so the edits survive.
-  echo "[SABnzbd] Stopping sabnzbd, lazylibrarian, and mylar for config edits..."
-  podman stop sabnzbd lazylibrarian mylar >/dev/null
+  # SABnzbd, LazyLibrarian, and Mylar persist their configs on shutdown, and
+  # the arr apps' DownloadClients tables are edited on disk; stop everything
+  # in the blast radius for the duration of the edits.
+  echo "[SABnzbd] Stopping consumers for config and database edits..."
+  stop_existing sabnzbd lazylibrarian mylar sonarr radarr lidarr readarr whisparr
 
   echo "[SABnzbd] Updating config and root env credentials..."
   python3 - <<PYEOF
@@ -646,10 +694,11 @@ PYEOF
   echo "[Whisparr DB] Updating SABnzbd credentials in DownloadClients..."
   update_arr_sabnzbd_credentials "$WHISPARR_DB" "$new_password" "$new_api_key"
 
-  podman start sabnzbd lazylibrarian mylar >/dev/null
+  start_stopped
 
   SUMMARY_SABNZBD_OLD="$current_password"
   SUMMARY_SABNZBD_NEW="$new_password"
+  VERIFY_SABNZBD_KEY="$new_api_key"
 }
 
 # ---------------------------------------------------------------------------
@@ -786,3 +835,105 @@ echo "NOTE: Some apps cache credentials in memory. Restart containers if"
 echo "      login fails after rotation:"
 echo "        make restart"
 echo "      or restart individual services as needed."
+# ---------------------------------------------------------------------------
+# Validation: prove each rotated credential is accepted by its service. Each
+# check retries while the restarted container comes back up.
+# ---------------------------------------------------------------------------
+
+arr_login_ok() {
+  local app="$1" scheme="$2" port="$3" base="$4" password="$5"
+  local code
+  code=$(container_curl "$app" -sk -o /dev/null -w '%{http_code}' \
+    -d "username=${app}&password=${password}" \
+    "${scheme}://127.0.0.1:${port}/${base}/login")
+  [[ "$code" == "302" || "$code" == "303" ]]
+}
+
+bazarr_login_ok() {
+  local code
+  code=$(container_curl bazarr -s -o /dev/null -w '%{http_code}' \
+    -d "username=bazarr&password=$1" \
+    "http://127.0.0.1:${BAZARR_HTTP_PORT}/bazarr/login")
+  [[ "$code" == "200" || "$code" == "204" || "$code" == "302" ]]
+}
+
+qbittorrent_api_ok() {
+  local code
+  code=$(container_curl qbittorrent -sk -o /dev/null -w '%{http_code}' \
+    "https://${GLUETUN_SERVICES_IP}:${QBITTORRENT_HTTPS_PORT}/api/v2/auth/login" \
+    -d "username=qbittorrent&password=$1")
+  [[ "$code" == "200" ]]
+}
+
+sabnzbd_key_ok() {
+  local body
+  body=$(container_curl sabnzbd -sk \
+    "https://127.0.0.1:${SABNZBD_HTTPS_PORT}/sabnzbd/api?mode=queue&output=json&apikey=$1")
+  [[ "$body" == *'"queue"'* ]]
+}
+
+service_up_ok() {
+  local container="$1" url="$2"
+  local code
+  code=$(container_curl "$container" -sk -o /dev/null -w '%{http_code}' "$url")
+  [[ "$code" == "200" ]]
+}
+
+calibreweb_login_ok() {
+  local code
+  code=$(container_curl calibre-web -sk -o /dev/null -w '%{http_code}' \
+    -u "${CALIBREWEB_USER}:$1" \
+    "https://127.0.0.1:${CALIBRE_WEB_CONTAINER_HTTPS_PORT}/opds/stats")
+  [[ "$code" == "200" ]]
+}
+
+grafana_login_ok() {
+  container_curl grafana -s --fail -o /dev/null -u "admin:$1" \
+    http://127.0.0.1:3000/api/user
+}
+
+nzbhydra_login_ok() {
+  local out
+  out=$(container_curl nzbhydra2 -sk -o /dev/null -w '%{http_code} %{redirect_url}' \
+    -d "username=nzbhydra2&password=$1" \
+    "https://127.0.0.1:${NZBHYDRA2_HTTPS_PORT}/nzbhydra2/login")
+  [[ "$out" == 302* && "$out" != *"login?error"* ]]
+}
+
+VALIDATION_FAILURES=()
+validate() {
+  local name="$1" timeout="$2"
+  shift 2
+  if retry "$timeout" "$@"; then
+    printf "%-14s  OK\n" "$name"
+  else
+    printf "%-14s  FAILED\n" "$name"
+    VALIDATION_FAILURES+=("$name")
+  fi
+}
+
+echo ""
+echo "======================================================================"
+echo " Validating rotated credentials"
+echo "======================================================================"
+[[ -n "$SUMMARY_SONARR_NEW" ]] && validate sonarr 180 arr_login_ok sonarr http "$SONARR_HTTP_PORT" sonarr "$SUMMARY_SONARR_NEW"
+[[ -n "$SUMMARY_RADARR_NEW" ]] && validate radarr 180 arr_login_ok radarr https "$RADARR_HTTPS_PORT" radarr "$SUMMARY_RADARR_NEW"
+[[ -n "$SUMMARY_LIDARR_NEW" ]] && validate lidarr 180 arr_login_ok lidarr https "$LIDARR_HTTPS_PORT" lidarr "$SUMMARY_LIDARR_NEW"
+[[ -n "$SUMMARY_READARR_NEW" ]] && validate readarr 180 arr_login_ok readarr https "$READARR_HTTPS_PORT" readarr "$SUMMARY_READARR_NEW"
+[[ -n "$SUMMARY_WHISPARR_NEW" ]] && validate whisparr 180 arr_login_ok whisparr https "$WHISPARR_HTTPS_PORT" whisparr "$SUMMARY_WHISPARR_NEW"
+[[ -n "$SUMMARY_PROWLARR_NEW" ]] && validate prowlarr 180 arr_login_ok prowlarr https "$PROWLARR_HTTPS_PORT" prowlarr "$SUMMARY_PROWLARR_NEW"
+[[ -n "$SUMMARY_BAZARR_NEW" ]] && validate bazarr 180 bazarr_login_ok "$SUMMARY_BAZARR_NEW"
+[[ -n "$SUMMARY_QBITTORRENT_NEW" ]] && validate qbittorrent 180 qbittorrent_api_ok "$SUMMARY_QBITTORRENT_NEW"
+[[ -n "$VERIFY_SABNZBD_KEY" ]] && validate sabnzbd 180 sabnzbd_key_ok "$VERIFY_SABNZBD_KEY"
+[[ -n "$SUMMARY_LAZYLIBRARIAN_NEW" ]] && validate lazylibrarian 180 service_up_ok lazylibrarian "https://127.0.0.1:${LAZYLIBRARIAN_HTTP_PORT}/lazylibrarian/login"
+[[ -n "$SUMMARY_MYLAR_NEW" ]] && validate mylar 180 service_up_ok mylar "https://127.0.0.1:${MYLAR_HTTPS_PORT}/mylar/login"
+[[ -n "$SUMMARY_CALIBREWEB_NEW" ]] && validate calibreweb 180 calibreweb_login_ok "$SUMMARY_CALIBREWEB_NEW"
+[[ -n "$SUMMARY_GRAFANA_NEW" ]] && validate grafana 180 grafana_login_ok "$SUMMARY_GRAFANA_NEW"
+[[ -n "$SUMMARY_NZBHYDRA2_NEW" ]] && validate nzbhydra2 180 nzbhydra_login_ok "$SUMMARY_NZBHYDRA2_NEW"
+echo "======================================================================"
+
+if [[ ${#VALIDATION_FAILURES[@]} -gt 0 ]]; then
+  echo ""
+  echo "ERROR: validation failed for: ${VALIDATION_FAILURES[*]}" >&2
+  exit 1
+fi
