@@ -535,6 +535,14 @@ if [[ ${#RESTART_NEEDED[@]} -gt 0 ]]; then
 fi
 
 # ---------------------------------------------------------------------------
+# Host-side SQLite writes above can leave -wal/-shm files owned by the host
+# user, which the app user inside the container cannot open after a restart;
+# normalize ownership before finishing.
+# ---------------------------------------------------------------------------
+
+"$SCRIPT_DIR/permissions.py" repair --runtime podman --recursive >/dev/null 2>&1 || true
+
+# ---------------------------------------------------------------------------
 # Summary table
 # ---------------------------------------------------------------------------
 
