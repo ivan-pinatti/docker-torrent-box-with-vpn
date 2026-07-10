@@ -384,6 +384,11 @@ HOMEPAGE_WIDGET_PROBES = [
     ("prowlarr", "Indexers & Downloaders", "Prowlarr", "indexerstats"),
     ("sabnzbd", "Indexers & Downloaders", "SABnzbd", "queue"),
     ("qbittorrent", "Indexers & Downloaders", "qBittorrent", "torrents"),
+    ("jellyfin", "Media & Library", "Jellyfin", "Sessions"),
+    ("audiobookshelf", "Media & Library", "Audiobookshelf", "libraries"),
+    ("calibreweb", "Media & Library", "Calibre Web", "stats"),
+    ("grafana", "Observability", "Grafana", "stats"),
+    ("prometheus", "Observability", "Prometheus", "targets"),
 ]
 
 
@@ -425,6 +430,10 @@ def homepage_widget_failures(only_services: set | None = None) -> list[str]:
         status, body = homepage_http(url)
         if status != 200:
             failures.append(f"{service} ({endpoint}): HTTP {status} {body[:100]}")
+        elif body.lstrip().startswith('{"error"'):
+            # Homepage wraps upstream failures (bad credentials, unparsable
+            # responses) in a 200 with an error envelope.
+            failures.append(f"{service} ({endpoint}): widget error {body[:100]}")
     return failures
 
 
