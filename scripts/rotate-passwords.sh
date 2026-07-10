@@ -54,6 +54,7 @@ readonly SABNZBD_CONFIG="configs/sabnzbd/config/sabnzbd.ini"
 readonly SABNZBD_ENV="configs/sabnzbd/.env.secrets"
 readonly QBITTORRENT_SECRETS="configs/qbittorrent/.env.secrets"                   # pragma: allowlist secret
 readonly QBITTORRENT_EXPORTER_SECRETS="configs/qbittorrent_exporter/.env.secrets" # pragma: allowlist secret
+readonly HOMEPAGE_SECRETS="configs/homepage/.env.secrets"                         # pragma: allowlist secret
 readonly LAZYLIBRARIAN_CONFIG="configs/lazylibrarian/config/config.ini"
 readonly MYLAR_CONFIG="configs/mylar/config/mylar/config.ini"
 readonly NOTIFIARR_CONFIG="configs/notifiarr/config/notifiarr.conf"
@@ -350,6 +351,7 @@ def set_env(path, key, value):
 
 set_env('$QBITTORRENT_SECRETS', 'PASSWORD', new_password)
 set_env('$QBITTORRENT_EXPORTER_SECRETS', 'QBITTORRENT_PASS', new_password)
+set_env('$HOMEPAGE_SECRETS', 'HOMEPAGE_VAR_QBITTORRENT_PASS', new_password)
 PYEOF
 
   SUMMARY_QBITTORRENT_OLD="${current_password}"
@@ -401,6 +403,8 @@ for path in ('.env', '$SABNZBD_ENV'):
     set_env(path, 'SABNZBD_PASSWORD', new_password)
     set_env(path, 'SABNZBD_API_KEY', new_api_key)
     set_env(path, 'SABNZBD_NZB_KEY', new_nzb_key)
+
+set_env('$HOMEPAGE_SECRETS', 'HOMEPAGE_VAR_SABNZBD_API_KEY', new_api_key)
 
 def set_ini_key(path, key, value):
     p = Path(path)
@@ -505,6 +509,34 @@ all)
   exit 1
   ;;
 esac
+
+# ---------------------------------------------------------------------------
+# Recreate containers that consume rotated secrets from env files. They read
+# those values only at container creation, so without a recreate they keep
+# authenticating with the old credentials.
+# ---------------------------------------------------------------------------
+
+RECREATE_CONSUMERS=()
+case "$TARGET" in
+qbittorrent) RECREATE_CONSUMERS=(qbittorrent_exporter homepage) ;;
+sabnzbd) RECREATE_CONSUMERS=(sabnzbd_exporter homepage) ;;
+all) RECREATE_CONSUMERS=(qbittorrent_exporter sabnzbd_exporter homepage) ;;
+esac
+
+if [[ ${#RECREATE_CONSUMERS[@]} -gt 0 ]]; then
+  existing_consumers=()
+  for consumer in "${RECREATE_CONSUMERS[@]}"; do
+    if podman container exists "$consumer" 2>/dev/null; then
+      existing_consumers+=("$consumer")
+    fi
+  done
+  if [[ ${#existing_consumers[@]} -gt 0 ]]; then
+    echo ""
+    echo "Recreating secret consumers: ${existing_consumers[*]}"
+    podman-compose --file docker-compose.yml --profile enabled up -d --force-recreate \
+      "${existing_consumers[@]}"
+  fi
+fi
 
 # ---------------------------------------------------------------------------
 # Summary table

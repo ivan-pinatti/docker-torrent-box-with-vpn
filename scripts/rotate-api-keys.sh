@@ -334,13 +334,19 @@ all)
 esac
 
 # ---------------------------------------------------------------------------
-# Restart apps whose ApiKey was rewritten on disk, so they pick it up
+# Restart apps whose ApiKey was rewritten on disk, so they pick it up.
+# Homepage reads HOMEPAGE_VAR_* env values only at container creation, so it
+# must be recreated too or its widgets keep authenticating with stale keys.
 # ---------------------------------------------------------------------------
+
+if podman container exists homepage 2>/dev/null; then
+  RESTART_NEEDED+=("homepage")
+fi
 
 if [[ ${#RESTART_NEEDED[@]} -gt 0 ]]; then
   echo ""
   echo "======================================================================"
-  echo " Restarting apps to apply the new ApiKey: ${RESTART_NEEDED[*]}"
+  echo " Recreating containers to apply the new keys: ${RESTART_NEEDED[*]}"
   echo "======================================================================"
   podman-compose --file docker-compose.yml --profile enabled up -d --force-recreate \
     "${RESTART_NEEDED[@]}"
