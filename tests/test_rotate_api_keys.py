@@ -331,3 +331,172 @@ def test_rotate_api_key_propagates(
         assert not failures, (
             f"Homepage widget broken after restoring {app}:\n" + "\n".join(failures)
         )
+
+
+# ---------------------------------------------------------------------------
+# INI-configured apps (LazyLibrarian, Mylar), NZBHydra2, and Jellyfin.
+# These rotations are forward-only: every consumer is updated by the script,
+# so there is no state to restore.
+# ---------------------------------------------------------------------------
+
+
+def _read_ini_api_key(rel_path: str) -> str:
+    for line in (REPO_ROOT / rel_path).read_text().splitlines():
+        if line.startswith("api_key = "):
+            return line.split("= ", 1)[1]
+    return ""
+
+
+LAZYLIBRARIAN_INI = "configs/lazylibrarian/config/config.ini"
+MYLAR_INI = "configs/mylar/config/mylar/config.ini"
+
+
+def test_rotate_lazylibrarian_api_key(running_containers):
+    """Rotating LazyLibrarian's API key updates config.ini and Prowlarr."""
+    skip_if_not_running("lazylibrarian", running_containers)
+    skip_if_not_running("prowlarr", running_containers)
+
+    old_key = _read_ini_api_key(LAZYLIBRARIAN_INI)
+    result = _run_script("rotate-api-keys.sh", "lazylibrarian")
+    assert result.returncode == 0, (
+        f"rotate-api-keys.sh lazylibrarian exited {result.returncode}:\n{result.stderr}"
+    )
+
+    new_key = _read_ini_api_key(LAZYLIBRARIAN_INI)
+    assert new_key and new_key != old_key, "LazyLibrarian api_key was not changed"
+    assert _prowlarr_stored_key("LazyLibrarian") == new_key, (
+        "Prowlarr's LazyLibrarian entry was not updated"
+    )
+    assert wait_for_healthy("lazylibrarian"), "lazylibrarian unhealthy after rotation"
+
+
+def test_rotate_mylar_api_key(running_containers):
+    """Rotating Mylar's API key updates config.ini, Prowlarr, and Homepage."""
+    skip_if_not_running("mylar", running_containers)
+    skip_if_not_running("prowlarr", running_containers)
+
+    old_key = _read_ini_api_key(MYLAR_INI)
+    result = _run_script("rotate-api-keys.sh", "mylar")
+    assert result.returncode == 0, (
+        f"rotate-api-keys.sh mylar exited {result.returncode}:\n{result.stderr}"
+    )
+
+    new_key = _read_ini_api_key(MYLAR_INI)
+    assert new_key and new_key != old_key, "Mylar api_key was not changed"
+    assert _prowlarr_stored_key("Mylar") == new_key, (
+        "Prowlarr's Mylar entry was not updated"
+    )
+    assert wait_for_healthy("mylar"), "mylar unhealthy after rotation"
+
+    if "homepage" in running_containers:
+        assert wait_for_homepage_ready(), "homepage API did not respond"
+        failures = homepage_widget_failures(only_services={"mylar"})
+        assert not failures, (
+            "Homepage Mylar widget broken after rotation:\n" + "\n".join(failures)
+        )
+
+
+def test_rotate_nzbhydra2_api_key(running_containers):
+    """Rotating NZBHydra2's key updates the yml and every consumer."""
+    skip_if_not_running("nzbhydra2", running_containers)
+
+    def ll_hydra_key() -> str:
+        for line in (REPO_ROOT / LAZYLIBRARIAN_INI).read_text().splitlines():
+            if line.startswith("api = "):
+                return line.split("= ", 1)[1]
+        return ""
+
+    old_key = ll_hydra_key()
+    result = _run_script("rotate-api-keys.sh", "nzbhydra2")
+    assert result.returncode == 0, (
+        f"rotate-api-keys.sh nzbhydra2 exited {result.returncode}:\n{result.stderr}"
+    )
+
+    new_key = ll_hydra_key()
+    assert new_key and new_key != old_key, "NZBHydra2 key was not changed"
+
+    # All arr Indexers entries point at the new key
+    from test_rotate_passwords import ARR_DB_PATHS
+
+    for svc, db_rel in ARR_DB_PATHS.items():
+        db_path = REPO_ROOT / db_rel
+        if not db_path.exists():
+            continue
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        for name, settings in conn.execute("SELECT Name, Settings FROM Indexers"):
+            data = json.loads(settings)
+            if "nzbhydra" in str(data.get("baseUrl", "")).lower():
+                assert data.get("apiKey") == new_key, (
+                    f"{svc} indexer '{name}' still holds the old NZBHydra2 key"
+                )
+        conn.close()
+
+    # Mylar's extra_newznabs/extra_torznabs entries carry the new key
+    assert new_key in (REPO_ROOT / MYLAR_INI).read_text(), (
+        "Mylar config does not carry the new NZBHydra2 key"
+    )
+
+    # NZBHydra2 accepts the new key and rejects a wrong one (both are HTTP
+    # 200; the body distinguishes results from the error envelope)
+    assert wait_for_healthy("nzbhydra2"), "nzbhydra2 unhealthy after rotation"
+    port = int(ENV.get("NZBHYDRA2_HTTPS_PORT", "5077"))
+    _, body = container_http(
+        "nzbhydra2",
+        f"https://127.0.0.1:{port}/nzbhydra2/api?t=caps&apikey={new_key}",
+        timeout=TIMEOUT,
+    )
+    assert "<error" not in body, f"NZBHydra2 rejected the new key: {body[:120]}"
+    _, body = container_http(
+        "nzbhydra2",
+        f"https://127.0.0.1:{port}/nzbhydra2/api?t=caps&apikey={old_key}",
+        timeout=TIMEOUT,
+    )
+    assert "<error" in body, "NZBHydra2 still accepts the old key"
+
+
+def test_rotate_jellyfin_api_key(running_containers):
+    """Rotating Jellyfin's key creates a new one, adopts it, revokes the old."""
+    skip_if_not_running("jellyfin", running_containers)
+
+    env_path = REPO_ROOT / "configs/homepage/.env.secrets"
+    if not env_path.exists():
+        pytest.skip("homepage .env.secrets not present")
+
+    def homepage_jellyfin_key() -> str:
+        for line in env_path.read_text().splitlines():
+            if line.startswith("HOMEPAGE_VAR_JELLYFIN_KEY="):
+                return line.split("=", 1)[1]
+        return ""
+
+    old_key = homepage_jellyfin_key()
+    result = _run_script("rotate-api-keys.sh", "jellyfin")
+    assert result.returncode == 0, (
+        f"rotate-api-keys.sh jellyfin exited {result.returncode}:\n{result.stderr}"
+    )
+
+    new_key = homepage_jellyfin_key()
+    assert new_key and new_key != old_key, "Jellyfin key was not changed"
+
+    port = int(ENV.get("JELLYFIN_HTTP_PORT", "8096"))
+    status, _ = container_http(
+        "jellyfin",
+        f"http://127.0.0.1:{port}/jellyfin/Auth/Keys",
+        headers={"Authorization": f'MediaBrowser Token="{new_key}"'},
+        timeout=TIMEOUT,
+    )
+    assert status == 200, f"Jellyfin does not accept the new key (HTTP {status})"
+
+    status, _ = container_http(
+        "jellyfin",
+        f"http://127.0.0.1:{port}/jellyfin/Auth/Keys",
+        headers={"Authorization": f'MediaBrowser Token="{old_key}"'},
+        timeout=TIMEOUT,
+    )
+    assert status == 401, f"Jellyfin still accepts the revoked key (HTTP {status})"
+
+    if "homepage" in running_containers:
+        assert wait_for_homepage_ready(), "homepage API did not respond"
+        failures = homepage_widget_failures(only_services={"jellyfin"})
+        assert not failures, (
+            "Homepage Jellyfin widget broken after rotation:\n" + "\n".join(failures)
+        )

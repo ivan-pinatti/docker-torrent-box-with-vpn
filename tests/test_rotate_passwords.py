@@ -28,6 +28,7 @@ from conftest import (
     read_api_key,
     recreate_container,
     skip_if_not_running,
+    wait_for_healthy,
     wait_for_homepage_ready,
 )
 
@@ -355,3 +356,153 @@ def test_rotate_arr_password(
     _restore_arr_password(
         app, scheme, port, url_base, api_ver, api_key, original_password
     )
+
+
+# ---------------------------------------------------------------------------
+# Non-arr password rotations (forward-only: consumers are updated by the
+# script and the new password is printed in the summary table, which is the
+# operator's only copy since the apps store hashes).
+# ---------------------------------------------------------------------------
+
+
+def _summary_password(stdout: str, service: str) -> str:
+    """Extract the plaintext new password for a service from the summary table."""
+    for line in stdout.splitlines():
+        parts = line.split()
+        if len(parts) == 2 and parts[0] == service:
+            return parts[1]
+    return ""
+
+
+def test_rotate_grafana_password(running_containers):
+    """Rotating the Grafana admin password updates grafana.ini and Homepage."""
+    skip_if_not_running("grafana", running_containers)
+
+    result = _run_script("rotate-passwords.sh", "grafana")
+    assert result.returncode == 0, (
+        f"rotate-passwords.sh grafana exited {result.returncode}:\n{result.stderr}"
+    )
+    new_password = _summary_password(result.stdout, "grafana")
+    assert new_password, "Summary table does not contain the new grafana password"
+
+    ini = (REPO_ROOT / "configs/grafana/config/grafana.ini").read_text()
+    assert f"admin_password = {new_password}" in ini, "grafana.ini not updated"
+
+    status, _ = container_http(
+        "grafana",
+        "http://127.0.0.1:3000/api/user",
+        extra_args=["-u", f"admin:{new_password}"],
+        timeout=TIMEOUT,
+    )
+    assert status == 200, f"Grafana does not accept the new password (HTTP {status})"
+
+    status, _ = container_http(
+        "grafana",
+        "http://127.0.0.1:3000/api/user",
+        extra_args=["-u", "admin:definitely-wrong"],
+        timeout=TIMEOUT,
+    )
+    assert status == 401, f"Grafana accepts a wrong password (HTTP {status})"
+
+    if "homepage" in running_containers:
+        assert wait_for_homepage_ready(), "homepage API did not respond"
+        failures = homepage_widget_failures(only_services={"grafana"})
+        assert not failures, (
+            "Homepage Grafana widget broken after rotation:\n" + "\n".join(failures)
+        )
+
+
+def test_rotate_calibreweb_password(running_containers):
+    """Rotating the Calibre-Web password updates app.db and Homepage."""
+    skip_if_not_running("calibre-web", running_containers)
+
+    result = _run_script("rotate-passwords.sh", "calibreweb")
+    assert result.returncode == 0, (
+        f"rotate-passwords.sh calibreweb exited {result.returncode}:\n{result.stderr}"
+    )
+    new_password = _summary_password(result.stdout, "calibreweb")
+    assert new_password, "Summary table does not contain the new calibreweb password"
+
+    secrets = (REPO_ROOT / "configs/homepage/.env.secrets").read_text()
+    assert f"HOMEPAGE_VAR_CALIBREWEB_PASS={new_password}" in secrets, (
+        "Homepage secrets not updated with the new calibre-web password"
+    )
+
+    assert wait_for_healthy("calibre-web"), "calibre-web unhealthy after rotation"
+
+    if "homepage" in running_containers:
+        assert wait_for_homepage_ready(), "homepage API did not respond"
+        # calibre-web may still be warming up right after its restart; give
+        # the widget a few attempts before declaring it broken.
+        failures = homepage_widget_failures(only_services={"calibreweb"})
+        for _ in range(6):
+            if not failures:
+                break
+            time.sleep(10)
+            failures = homepage_widget_failures(only_services={"calibreweb"})
+        assert not failures, (
+            "Homepage Calibre Web widget broken after rotation:\n" + "\n".join(failures)
+        )
+
+
+def test_rotate_lazylibrarian_password(running_containers):
+    """Rotating LazyLibrarian's WebUI password survives its config flush."""
+    skip_if_not_running("lazylibrarian", running_containers)
+
+    result = _run_script("rotate-passwords.sh", "lazylibrarian")
+    assert result.returncode == 0, (
+        f"rotate-passwords.sh lazylibrarian exited {result.returncode}:\n{result.stderr}"
+    )
+    new_password = _summary_password(result.stdout, "lazylibrarian")
+    assert new_password, "Summary table does not contain the new password"
+
+    ini = (REPO_ROOT / "configs/lazylibrarian/config/config.ini").read_text()
+    assert f"http_pass = {new_password}" in ini, (
+        "LazyLibrarian config.ini does not hold the new password (config flush clobbered it?)"
+    )
+
+
+def test_rotate_mylar_password(running_containers):
+    """Rotating Mylar's WebUI password survives its config flush."""
+    skip_if_not_running("mylar", running_containers)
+
+    result = _run_script("rotate-passwords.sh", "mylar")
+    assert result.returncode == 0, (
+        f"rotate-passwords.sh mylar exited {result.returncode}:\n{result.stderr}"
+    )
+    new_password = _summary_password(result.stdout, "mylar")
+    assert new_password, "Summary table does not contain the new password"
+
+    ini = (REPO_ROOT / "configs/mylar/config/mylar/config.ini").read_text()
+    assert f"http_password = {new_password}" in ini, (
+        "Mylar config.ini does not hold the new password (config flush clobbered it?)"
+    )
+
+
+def test_rotate_nzbhydra2_password(running_containers):
+    """Rotating NZBHydra2's password writes a bcrypt hash the app accepts."""
+    skip_if_not_running("nzbhydra2", running_containers)
+
+    result = _run_script("rotate-passwords.sh", "nzbhydra2")
+    assert result.returncode == 0, (
+        f"rotate-passwords.sh nzbhydra2 exited {result.returncode}:\n{result.stderr}"
+    )
+    new_password = _summary_password(result.stdout, "nzbhydra2")
+    assert new_password, "Summary table does not contain the new password"
+
+    assert wait_for_healthy("nzbhydra2"), "nzbhydra2 unhealthy after rotation"
+
+    # Form login: success redirects into the app, failure back to /login?error.
+    # -D - includes the response headers (with Location) in the body.
+    port = int(ENV.get("NZBHYDRA2_HTTPS_PORT", "5077"))
+    status, body = container_http(
+        "nzbhydra2",
+        f"https://127.0.0.1:{port}/nzbhydra2/login",
+        method="POST",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        data=f"username=nzbhydra2&password={new_password}",
+        extra_args=["-D", "-"],
+        timeout=TIMEOUT,
+    )
+    assert status == 302, f"Unexpected login response (HTTP {status})"
+    assert "login?error" not in body, "NZBHydra2 rejected the new password"
