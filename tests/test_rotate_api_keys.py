@@ -25,9 +25,12 @@ from conftest import (
     ENV,
     REPO_ROOT,
     container_http,
+    homepage_widget_failures,
     is_enabled,
+    recreate_container,
     skip_if_not_running,
     wait_for_healthy,
+    wait_for_homepage_ready,
 )
 
 pytestmark = pytest.mark.rotation
@@ -296,6 +299,14 @@ def test_rotate_api_key_propagates(
             f"recyclarr secrets.yml {app}_apikey not updated"
         )
 
+    # Homepage was recreated by the script and must work with the new key
+    if "homepage" in running_containers:
+        assert wait_for_homepage_ready(), "homepage API did not respond after rotation"
+        failures = homepage_widget_failures(only_services={app})
+        assert not failures, (
+            f"Homepage widget broken after rotating {app}:\n" + "\n".join(failures)
+        )
+
     # ------------------------------------------------------------------
     # Restore the original key everywhere so the suite stays idempotent
     # ------------------------------------------------------------------
@@ -310,3 +321,13 @@ def test_rotate_api_key_propagates(
     if app in ("sonarr", "radarr"):
         _restore_yaml_consumers(app, old_key)
     _restore_homepage_key(f"HOMEPAGE_VAR_{app.upper()}_API_KEY", old_key)
+
+    # Homepage reads env only at creation; recreate it so the restored key is
+    # live again, then verify the widget still works.
+    if "homepage" in running_containers:
+        recreate_container("homepage")
+        assert wait_for_homepage_ready(), "homepage API did not respond after restore"
+        failures = homepage_widget_failures(only_services={app})
+        assert not failures, (
+            f"Homepage widget broken after restoring {app}:\n" + "\n".join(failures)
+        )

@@ -363,6 +363,102 @@ def container_http(
     return int(status or 0), body
 
 
+# ---------------------------------------------------------------------------
+# Homepage widget integration checks
+#
+# Homepage resolves HOMEPAGE_VAR_* credentials only at container creation and
+# proxies every widget through /api/services/proxy. Probing that proxy
+# exercises the full chain: env loaded, credential valid, upstream reachable.
+# One probe per widget type, using an endpoint from the widget's allowlist.
+# ---------------------------------------------------------------------------
+
+HOMEPAGE_WIDGET_PROBES = [
+    # (service key for profile check, homepage group, service name, endpoint)
+    ("sonarr", "Servarr", "Sonarr", "queue"),
+    ("radarr", "Servarr", "Radarr", "queue/status"),
+    ("lidarr", "Servarr", "Lidarr", "queue/status"),
+    ("readarr", "Servarr", "Readarr", "queue/status"),
+    ("whisparr", "Servarr", "Whisparr", "queue/status"),
+    ("mylar", "Servarr", "Mylar", "series"),
+    ("bazarr", "Servarr", "Bazarr", "episodes"),
+    ("prowlarr", "Indexers & Downloaders", "Prowlarr", "indexerstats"),
+    ("sabnzbd", "Indexers & Downloaders", "SABnzbd", "queue"),
+    ("qbittorrent", "Indexers & Downloaders", "qBittorrent", "torrents"),
+]
+
+
+def homepage_http(url: str, timeout: int = 30) -> tuple[int, str]:
+    """Fetch a URL from inside the homepage container (it only ships wget)."""
+    script = (
+        f'code=$(wget -q -O /tmp/homepage_probe -S "{url}" 2>&1 '
+        "| grep -m1 \"HTTP/\" | awk '{print $2}'); "
+        'echo "$code"; cat /tmp/homepage_probe 2>/dev/null'
+    )
+    result = subprocess.run(
+        ["podman", "exec", "homepage", "sh", "-c", script],
+        capture_output=True,
+        text=True,
+        timeout=timeout + 30,
+    )
+    first, _, rest = result.stdout.partition("\n")
+    try:
+        return int(first.strip()), rest
+    except ValueError:
+        return 0, result.stdout
+
+
+def homepage_widget_failures(only_services: set | None = None) -> list[str]:
+    """Probe homepage widget proxies; return a list of failure descriptions."""
+    from urllib.parse import quote
+
+    failures = []
+    for svc, group, service, endpoint in HOMEPAGE_WIDGET_PROBES:
+        if only_services is not None and svc not in only_services:
+            continue
+        if svc in SERVICES and not is_enabled(svc):
+            continue
+        url = (
+            "http://127.0.0.1:3000/api/services/proxy"
+            f"?group={quote(group)}&service={quote(service)}"
+            f"&endpoint={quote(endpoint, safe='')}"
+        )
+        status, body = homepage_http(url)
+        if status != 200:
+            failures.append(f"{service} ({endpoint}): HTTP {status} {body[:100]}")
+    return failures
+
+
+def recreate_container(name: str, timeout: int = 180):
+    """Force-recreate a compose service container so it reloads env files."""
+    subprocess.run(
+        [
+            "podman-compose",
+            "--file",
+            "docker-compose.yml",
+            "--profile",
+            "enabled",
+            "up",
+            "-d",
+            "--force-recreate",
+            name,
+        ],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        timeout=timeout,
+    )
+
+
+def wait_for_homepage_ready(timeout: int = 90) -> bool:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        status, _ = homepage_http("http://127.0.0.1:3000/api/healthcheck")
+        if status == 200:
+            return True
+        time.sleep(3)
+    return False
+
+
 def wait_for_healthy(container: str, timeout: int = 120) -> bool:
     """Poll podman health status until healthy or timeout."""
     deadline = time.time() + timeout

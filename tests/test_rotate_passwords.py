@@ -23,9 +23,12 @@ from conftest import (
     ENV,
     REPO_ROOT,
     container_http,
+    homepage_widget_failures,
     is_enabled,
     read_api_key,
+    recreate_container,
     skip_if_not_running,
+    wait_for_homepage_ready,
 )
 
 pytestmark = pytest.mark.rotation
@@ -202,6 +205,7 @@ def test_rotate_qbittorrent_password_propagates(running_containers):
 
     # .env.secrets consumers were updated
     for rel_path, var in (
+        ("configs/homepage/.env.secrets", "HOMEPAGE_VAR_QBITTORRENT_PASS"),
         ("configs/qbittorrent/.env.secrets", "PASSWORD"),
         ("configs/qbittorrent_exporter/.env.secrets", "QBITTORRENT_PASS"),
     ):
@@ -211,6 +215,14 @@ def test_rotate_qbittorrent_password_propagates(running_containers):
                 f"{rel_path} was not updated with the new password"
             )
 
+    # Homepage was recreated by the script and must work with the new password
+    if "homepage" in running_containers:
+        assert wait_for_homepage_ready(), "homepage API did not respond after rotation"
+        failures = homepage_widget_failures(only_services={"qbittorrent"})
+        assert not failures, (
+            "Homepage qBittorrent widget broken after rotation:\n" + "\n".join(failures)
+        )
+
     # Restore the original password everywhere
     _qbt_set_password(new_password, old_password)
     for svc in ARR_APPS_WITH_QBT:
@@ -218,6 +230,7 @@ def test_rotate_qbittorrent_password_propagates(running_containers):
         if db_path.exists():
             _set_qbt_password_in_db(db_path, old_password)
     for rel_path, var in (
+        ("configs/homepage/.env.secrets", "HOMEPAGE_VAR_QBITTORRENT_PASS"),
         ("configs/qbittorrent/.env.secrets", "PASSWORD"),
         ("configs/qbittorrent_exporter/.env.secrets", "QBITTORRENT_PASS"),
     ):
@@ -230,6 +243,17 @@ def test_rotate_qbittorrent_password_propagates(running_containers):
             path.write_text("\n".join(lines) + "\n")
 
     assert _qbt_api_ok(), "qBittorrent API not reachable after restore"
+
+    # Recreate the env consumers so the restored password is live again
+    if "homepage" in running_containers:
+        recreate_container("homepage")
+        assert wait_for_homepage_ready(), "homepage API did not respond after restore"
+        failures = homepage_widget_failures(only_services={"qbittorrent"})
+        assert not failures, (
+            "Homepage qBittorrent widget broken after restore:\n" + "\n".join(failures)
+        )
+    if "qbittorrent_exporter" in running_containers:
+        recreate_container("qbittorrent_exporter")
 
 
 # ---------------------------------------------------------------------------
