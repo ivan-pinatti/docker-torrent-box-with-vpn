@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Usage: ./scripts/rotate-passwords.sh [sonarr|radarr|lidarr|readarr|whisparr|prowlarr|bazarr|qbittorrent|sabnzbd|all]
+# Usage: ./scripts/rotate-passwords.sh [sonarr|radarr|lidarr|readarr|whisparr|prowlarr|bazarr|qbittorrent|sabnzbd|lazylibrarian|mylar|calibreweb|grafana|nzbhydra2|all]
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
@@ -9,7 +9,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 readonly REPO_ROOT
 cd "$REPO_ROOT"
 
-readonly USAGE="Usage: $0 [sonarr|radarr|lidarr|readarr|whisparr|prowlarr|bazarr|qbittorrent|sabnzbd|all]"
+readonly USAGE="Usage: $0 [sonarr|radarr|lidarr|readarr|whisparr|prowlarr|bazarr|qbittorrent|sabnzbd|lazylibrarian|mylar|calibreweb|grafana|nzbhydra2|all]"
 
 if [[ $# -ne 1 ]]; then
   echo "$USAGE" >&2
@@ -58,6 +58,14 @@ readonly HOMEPAGE_SECRETS="configs/homepage/.env.secrets"                       
 readonly LAZYLIBRARIAN_CONFIG="configs/lazylibrarian/config/config.ini"
 readonly MYLAR_CONFIG="configs/mylar/config/mylar/config.ini"
 readonly NOTIFIARR_CONFIG="configs/notifiarr/config/notifiarr.conf"
+readonly GRAFANA_INI="configs/grafana/config/grafana.ini"
+readonly CALIBREWEB_DB="configs/calibre-web/config/app.db"
+readonly CALIBREWEB_USER="calibre"
+readonly NZBHYDRA_YML="configs/nzbhydra2/config/nzbhydra.yml"
+
+# Containers that must restart at the end so rewritten config files take
+# effect (populated by the rotation functions).
+RESTART_NEEDED=()
 
 readonly SONARR_DB="configs/sonarr/config/sonarr.db"
 readonly RADARR_DB="configs/radarr/config/radarr.db"
@@ -198,6 +206,16 @@ SUMMARY_QBITTORRENT_OLD=""
 SUMMARY_QBITTORRENT_NEW=""
 SUMMARY_SABNZBD_OLD=""
 SUMMARY_SABNZBD_NEW=""
+SUMMARY_LAZYLIBRARIAN_OLD=""
+SUMMARY_LAZYLIBRARIAN_NEW=""
+SUMMARY_MYLAR_OLD=""
+SUMMARY_MYLAR_NEW=""
+SUMMARY_CALIBREWEB_OLD=""
+SUMMARY_CALIBREWEB_NEW=""
+SUMMARY_GRAFANA_OLD=""
+SUMMARY_GRAFANA_NEW=""
+SUMMARY_NZBHYDRA2_OLD=""
+SUMMARY_NZBHYDRA2_NEW=""
 
 # ---------------------------------------------------------------------------
 # Per-app rotation functions
@@ -331,6 +349,11 @@ PYEOF
   echo "[Whisparr DB] Updating qBittorrent password in DownloadClients..."
   update_arr_qbt_password "$WHISPARR_DB" "$new_password"
 
+  # LazyLibrarian and Mylar persist their configs on shutdown; stop them
+  # before rewriting their qBittorrent credentials.
+  echo "[Config] Stopping lazylibrarian and mylar for config edits..."
+  podman stop lazylibrarian mylar >/dev/null
+
   echo "[Config] Updating qBittorrent password in .env.secrets files..."
   python3 - <<PYEOF
 from pathlib import Path
@@ -352,10 +375,154 @@ def set_env(path, key, value):
 set_env('$QBITTORRENT_SECRETS', 'PASSWORD', new_password)
 set_env('$QBITTORRENT_EXPORTER_SECRETS', 'QBITTORRENT_PASS', new_password)
 set_env('$HOMEPAGE_SECRETS', 'HOMEPAGE_VAR_QBITTORRENT_PASS', new_password)
+
+def set_ini_line(path, key, value):
+    p = Path(path)
+    if not p.exists():
+        return
+    lines = p.read_text().splitlines()
+    for i, line in enumerate(lines):
+        if line.startswith(f'{key} = '):
+            lines[i] = f'{key} = {value}'
+    p.write_text('\n'.join(lines) + '\n')
+
+set_ini_line('$LAZYLIBRARIAN_CONFIG', 'qbittorrent_pass', new_password)
+set_ini_line('$MYLAR_CONFIG', 'qbittorrent_password', new_password)
 PYEOF
+
+  podman start lazylibrarian mylar >/dev/null
 
   SUMMARY_QBITTORRENT_OLD="${current_password}"
   SUMMARY_QBITTORRENT_NEW="$new_password"
+}
+
+rotate_lazylibrarian() {
+  # LazyLibrarian stores its WebUI password in plain text in config.ini and
+  # reads it only at startup.
+  local new_password
+  new_password=$(gen_password)
+  # LazyLibrarian persists its config on shutdown; stop, edit, start.
+  echo "[LazyLibrarian] Stopping container and writing new http_pass..."
+  podman stop lazylibrarian >/dev/null
+  sed -i "s|^http_pass = .*|http_pass = ${new_password}|" "$LAZYLIBRARIAN_CONFIG"
+  podman start lazylibrarian >/dev/null
+  SUMMARY_LAZYLIBRARIAN_OLD="lazylibrarian"
+  SUMMARY_LAZYLIBRARIAN_NEW="$new_password"
+}
+
+rotate_mylar() {
+  # Mylar stores its WebUI password in plain text in config.ini and reads it
+  # only at startup.
+  local new_password
+  new_password=$(gen_password)
+  # Mylar persists its config on shutdown; stop, edit, start.
+  echo "[Mylar] Stopping container and writing new http_password..."
+  podman stop mylar >/dev/null
+  sed -i "s|^http_password = .*|http_password = ${new_password}|" "$MYLAR_CONFIG"
+  podman start mylar >/dev/null
+  SUMMARY_MYLAR_OLD="mylar"
+  SUMMARY_MYLAR_NEW="$new_password"
+}
+
+rotate_calibreweb() {
+  # Calibre-Web has no password API; the hash is written directly to app.db
+  # (werkzeug pbkdf2 format) while the app is stopped, then Homepage's
+  # credential is updated.
+  local new_password
+  new_password=$(gen_password)
+
+  echo "[Calibre-Web] Stopping container to update app.db..."
+  podman stop calibre-web >/dev/null
+
+  echo "[Calibre-Web] Writing new password hash for user '${CALIBREWEB_USER}'..."
+  python3 - <<PYEOF
+import hashlib
+import secrets
+import sqlite3
+
+new_password = '$new_password'
+salt = secrets.token_hex(8)
+iterations = 600000
+digest = hashlib.pbkdf2_hmac("sha256", new_password.encode(), salt.encode(), iterations).hex()
+pw_hash = f"pbkdf2:sha256:{iterations}\${salt}\${digest}"
+
+conn = sqlite3.connect('$CALIBREWEB_DB')
+conn.execute("UPDATE user SET password = ? WHERE name = ?", (pw_hash, '$CALIBREWEB_USER'))
+conn.commit()
+conn.close()
+PYEOF
+
+  podman start calibre-web >/dev/null
+
+  python3 - <<PYEOF
+from pathlib import Path
+
+def set_env(path, key, value):
+    p = Path(path)
+    lines = p.read_text().splitlines() if p.exists() else []
+    needle = f"{key}="
+    for i, line in enumerate(lines):
+        if line.startswith(needle):
+            lines[i] = f"{key}={value}"
+            break
+    else:
+        lines.append(f"{key}={value}")
+    p.write_text("\\n".join(lines) + "\\n")
+
+set_env('$HOMEPAGE_SECRETS', 'HOMEPAGE_VAR_CALIBREWEB_PASS', '$new_password')
+PYEOF
+
+  SUMMARY_CALIBREWEB_OLD="calibre"
+  SUMMARY_CALIBREWEB_NEW="$new_password"
+}
+
+rotate_grafana() {
+  # Grafana's admin password lives in its own database; it is changed through
+  # the self-service API using the current credentials from grafana.ini, then
+  # grafana.ini and Homepage's Basic auth header are kept in sync.
+  local user old_password new_password
+  user=$(grep -oPm1 '(?<=^admin_user = ).*' "$GRAFANA_INI")
+  old_password=$(grep -oPm1 '(?<=^admin_password = ).*' "$GRAFANA_INI")
+  new_password=$(gen_password)
+
+  echo "[Grafana] Changing the admin password via the API..."
+  container_curl grafana -s --fail -u "${user}:${old_password}" -X PUT \
+    -H "Content-Type: application/json" \
+    -d "{\"oldPassword\":\"${old_password}\",\"newPassword\":\"${new_password}\",\"confirmNew\":\"${new_password}\"}" \
+    "http://127.0.0.1:3000/api/user/password" >/dev/null
+
+  echo "[Grafana] Updating admin_password in grafana.ini..."
+  sed -i "s|^admin_password = .*|admin_password = ${new_password}|" "$GRAFANA_INI"
+
+  echo "[Homepage] Updating HOMEPAGE_VAR_GRAFANA_AUTH..."
+  local auth
+  auth=$(printf '%s:%s' "$user" "$new_password" | base64 -w0)
+  sed -i "s|^HOMEPAGE_VAR_GRAFANA_AUTH=.*|HOMEPAGE_VAR_GRAFANA_AUTH=Basic ${auth}|" "$HOMEPAGE_SECRETS"
+
+  SUMMARY_GRAFANA_OLD="$old_password"
+  SUMMARY_GRAFANA_NEW="$new_password"
+}
+
+rotate_nzbhydra2() {
+  # NZBHydra2 stores WebUI passwords bcrypt-hashed in nzbhydra.yml with a
+  # {bcrypt} prefix and reads them at startup.
+  local new_password new_hash
+  new_password=$(gen_password)
+  new_hash=$(python3 - <<PYEOF
+import bcrypt
+
+print(bcrypt.hashpw('$new_password'.encode(), bcrypt.gensalt()).decode())
+PYEOF
+  )
+
+  # NZBHydra2 persists its config on shutdown; stop, edit, start.
+  echo "[NZBHydra2] Stopping container and writing new bcrypt password hash..."
+  podman stop nzbhydra2 >/dev/null
+  pwHash="{bcrypt}${new_hash}" yq -i '(.auth.users[0].password) = strenv(pwHash)' "$NZBHYDRA_YML"
+  podman start nzbhydra2 >/dev/null
+
+  SUMMARY_NZBHYDRA2_OLD="nzbhydra2"
+  SUMMARY_NZBHYDRA2_NEW="$new_password"
 }
 
 rotate_sabnzbd() {
@@ -375,6 +542,11 @@ else:
     print('sabnzbd')
 PYEOF
   )
+
+  # SABnzbd, LazyLibrarian, and Mylar persist their configs on shutdown;
+  # stop them before their files are edited so the edits survive.
+  echo "[SABnzbd] Stopping sabnzbd, lazylibrarian, and mylar for config edits..."
+  podman stop sabnzbd lazylibrarian mylar >/dev/null
 
   echo "[SABnzbd] Updating config and root env credentials..."
   python3 - <<PYEOF
@@ -474,6 +646,8 @@ PYEOF
   echo "[Whisparr DB] Updating SABnzbd credentials in DownloadClients..."
   update_arr_sabnzbd_credentials "$WHISPARR_DB" "$new_password" "$new_api_key"
 
+  podman start sabnzbd lazylibrarian mylar >/dev/null
+
   SUMMARY_SABNZBD_OLD="$current_password"
   SUMMARY_SABNZBD_NEW="$new_password"
 }
@@ -492,6 +666,11 @@ prowlarr) rotate_prowlarr ;;
 bazarr) rotate_bazarr ;;
 qbittorrent) rotate_qbittorrent ;;
 sabnzbd) rotate_sabnzbd ;;
+lazylibrarian) rotate_lazylibrarian ;;
+mylar) rotate_mylar ;;
+calibreweb) rotate_calibreweb ;;
+grafana) rotate_grafana ;;
+nzbhydra2) rotate_nzbhydra2 ;;
 all)
   rotate_sonarr
   rotate_radarr
@@ -502,6 +681,11 @@ all)
   rotate_bazarr
   rotate_qbittorrent
   rotate_sabnzbd
+  rotate_lazylibrarian
+  rotate_mylar
+  rotate_calibreweb
+  rotate_grafana
+  rotate_nzbhydra2
   ;;
 *)
   echo "Unknown target: $TARGET" >&2
@@ -509,6 +693,16 @@ all)
   exit 1
   ;;
 esac
+
+# ---------------------------------------------------------------------------
+# Restart apps whose config files were rewritten on disk
+# ---------------------------------------------------------------------------
+
+if [[ ${#RESTART_NEEDED[@]} -gt 0 ]]; then
+  echo ""
+  echo "Restarting apps to load rewritten configs: ${RESTART_NEEDED[*]}"
+  podman restart "${RESTART_NEEDED[@]}" >/dev/null
+fi
 
 # ---------------------------------------------------------------------------
 # Recreate containers that consume rotated secrets from env files. They read
@@ -520,6 +714,7 @@ RECREATE_CONSUMERS=()
 case "$TARGET" in
 qbittorrent) RECREATE_CONSUMERS=(qbittorrent_exporter homepage) ;;
 sabnzbd) RECREATE_CONSUMERS=(sabnzbd_exporter homepage) ;;
+calibreweb | grafana) RECREATE_CONSUMERS=(homepage) ;;
 all) RECREATE_CONSUMERS=(qbittorrent_exporter sabnzbd_exporter homepage) ;;
 esac
 
@@ -542,17 +737,20 @@ fi
 # Summary table
 # ---------------------------------------------------------------------------
 
+# The new passwords are printed in full: the apps store only hashes, so this
+# summary is the single chance to record them. Save them in your password
+# manager right away.
 echo ""
 echo "======================================================================"
-echo " Password rotation summary  (shown as: first4****)"
+echo " Password rotation summary"
 echo "======================================================================"
-printf "%-12s  %-12s  %-12s\n" "Service" "Old password" "New password"
+printf "%-14s  %-20s\n" "Service" "New password"
 echo "----------------------------------------------------------------------"
 
 print_row() {
   local svc="$1" old="$2" new="$3"
   if [[ -n "$new" ]]; then
-    printf "%-12s  %-12s  %-12s\n" "$svc" "$(mask "$old")" "$(mask "$new")"
+    printf "%-14s  %-20s\n" "$svc" "$new"
   fi
 }
 
@@ -565,8 +763,16 @@ print_row "prowlarr" "$SUMMARY_PROWLARR_OLD" "$SUMMARY_PROWLARR_NEW"
 print_row "bazarr" "$SUMMARY_BAZARR_OLD" "$SUMMARY_BAZARR_NEW"
 print_row "qbittorrent" "$SUMMARY_QBITTORRENT_OLD" "$SUMMARY_QBITTORRENT_NEW"
 print_row "sabnzbd" "$SUMMARY_SABNZBD_OLD" "$SUMMARY_SABNZBD_NEW"
+print_row "lazylibrarian" "$SUMMARY_LAZYLIBRARIAN_OLD" "$SUMMARY_LAZYLIBRARIAN_NEW"
+print_row "mylar" "$SUMMARY_MYLAR_OLD" "$SUMMARY_MYLAR_NEW"
+print_row "calibreweb" "$SUMMARY_CALIBREWEB_OLD" "$SUMMARY_CALIBREWEB_NEW"
+print_row "grafana" "$SUMMARY_GRAFANA_OLD" "$SUMMARY_GRAFANA_NEW"
+print_row "nzbhydra2" "$SUMMARY_NZBHYDRA2_OLD" "$SUMMARY_NZBHYDRA2_NEW"
 
 echo "======================================================================"
+echo ""
+echo "IMPORTANT: Save these passwords in your password manager now. The apps"
+echo "           store only hashes; the passwords cannot be recovered later."
 echo ""
 echo "NOTE: Some apps cache credentials in memory. Restart containers if"
 echo "      login fails after rotation:"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Usage: ./scripts/rotate-api-keys.sh [sonarr|radarr|lidarr|readarr|whisparr|prowlarr|bazarr|all]
+# Usage: ./scripts/rotate-api-keys.sh [sonarr|radarr|lidarr|readarr|whisparr|prowlarr|bazarr|lazylibrarian|mylar|nzbhydra2|jellyfin|all]
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
@@ -9,7 +9,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 readonly REPO_ROOT
 cd "$REPO_ROOT"
 
-readonly USAGE="Usage: $0 [sonarr|radarr|lidarr|readarr|whisparr|prowlarr|bazarr|all]"
+readonly USAGE="Usage: $0 [sonarr|radarr|lidarr|readarr|whisparr|prowlarr|bazarr|lazylibrarian|mylar|nzbhydra2|jellyfin|all]"
 
 if [[ $# -ne 1 ]]; then
   echo "$USAGE" >&2
@@ -30,7 +30,8 @@ env_value() {
 }
 
 PROWLARR_HTTPS_PORT="$(env_value PROWLARR_HTTPS_PORT)"
-readonly PROWLARR_HTTPS_PORT
+JELLYFIN_HTTP_PORT="$(env_value JELLYFIN_HTTP_PORT)"
+readonly PROWLARR_HTTPS_PORT JELLYFIN_HTTP_PORT
 
 # ---------------------------------------------------------------------------
 # Current (old) API keys — read from config.xml at rotation time
@@ -51,6 +52,9 @@ readonly PROWLARR_XML="configs/prowlarr/config/config.xml"
 readonly BAZARR_CONFIG="configs/bazarr/config/config/config.yaml"
 readonly RECYCLARR_SECRETS="configs/recyclarr/config/secrets.yml" # pragma: allowlist secret
 readonly HOMEPAGE_ENV="configs/homepage/.env.secrets"
+readonly LAZYLIBRARIAN_INI="configs/lazylibrarian/config/config.ini"
+readonly MYLAR_INI="configs/mylar/config/mylar/config.ini"
+readonly NZBHYDRA_YML="configs/nzbhydra2/config/nzbhydra.yml"
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -286,6 +290,168 @@ rotate_bazarr() {
   SUMMARY_BAZARR_NEW="$new_key"
 }
 
+# LazyLibrarian and Mylar keep their API key as a unique "api_key = ..." line
+# in their config.ini and read it only at startup.
+get_ini_apikey() {
+  grep -oPm1 '(?<=^api_key = ).*' "$1"
+}
+
+rotate_lazylibrarian() {
+  local old_key new_key
+  old_key=$(get_ini_apikey "$LAZYLIBRARIAN_INI")
+  new_key=$(gen_key)
+
+  # LazyLibrarian persists its in-memory config on shutdown, which would
+  # clobber a live file edit; stop it first, edit, then start.
+  echo "[LazyLibrarian] Stopping container and writing new api_key..."
+  podman stop lazylibrarian >/dev/null
+  sed -i "s|^api_key = .*|api_key = ${new_key}|" "$LAZYLIBRARIAN_INI"
+  podman start lazylibrarian >/dev/null
+
+  local prowlarr_key
+  prowlarr_key=$(get_xml_apikey "$PROWLARR_XML")
+  update_prowlarr_application "$prowlarr_key" "LazyLibrarian" "$new_key"
+
+  SUMMARY_LAZYLIBRARIAN_OLD="$old_key"
+  SUMMARY_LAZYLIBRARIAN_NEW="$new_key"
+}
+
+rotate_mylar() {
+  local old_key new_key
+  old_key=$(get_ini_apikey "$MYLAR_INI")
+  new_key=$(gen_key)
+
+  # Mylar persists its in-memory config on shutdown, which would clobber a
+  # live file edit; stop it first, edit, then start.
+  echo "[Mylar] Stopping container and writing new api_key..."
+  podman stop mylar >/dev/null
+  sed -i "s|^api_key = .*|api_key = ${new_key}|" "$MYLAR_INI"
+  podman start mylar >/dev/null
+
+  local prowlarr_key
+  prowlarr_key=$(get_xml_apikey "$PROWLARR_XML")
+  update_prowlarr_application "$prowlarr_key" "Mylar" "$new_key"
+
+  update_homepage_env "HOMEPAGE_VAR_MYLAR_API_KEY" "$new_key"
+
+  SUMMARY_MYLAR_OLD="$old_key"
+  SUMMARY_MYLAR_NEW="$new_key"
+}
+
+rotate_nzbhydra2() {
+  # nzbhydra.yml stores the key obfuscated ({OBF}...), so the plain current
+  # key is read from a consumer (LazyLibrarian's Newznab entry). Writing a
+  # plain value back is fine: NZBHydra re-obfuscates it on its next save.
+  local old_key new_key
+  old_key=$(grep -oPm1 '(?<=^api = ).*' "$LAZYLIBRARIAN_INI")
+  new_key=$(gen_key)
+
+  # NZBHydra2, LazyLibrarian, and Mylar all persist their configs on
+  # shutdown, so they must be stopped before their files are edited.
+  echo "[NZBHydra2] Stopping nzbhydra2, lazylibrarian, and mylar for config edits..."
+  podman stop nzbhydra2 lazylibrarian mylar >/dev/null
+
+  echo "[NZBHydra2] Writing new main.apiKey to $NZBHYDRA_YML..."
+  apiKey="$new_key" yq -i '(.main.apiKey) = strenv(apiKey)' "$NZBHYDRA_YML"
+
+  echo "[NZBHydra2] Updating consumers (arr Indexers tables, LazyLibrarian, Mylar)..."
+  python3 - <<PYEOF
+import json
+import re
+import sqlite3
+from pathlib import Path
+
+new_key = '$new_key'
+
+dbs = {
+    "sonarr": "configs/sonarr/config/sonarr.db",
+    "radarr": "configs/radarr/config/radarr.db",
+    "lidarr": "configs/lidarr/config/lidarr.db",
+    "readarr": "configs/readarr/config/readarr.db",
+    "whisparr": "configs/whisparr/config/whisparr3.db",
+}
+for app, db in dbs.items():
+    if not Path(db).exists():
+        continue
+    conn = sqlite3.connect(db)
+    cur = conn.cursor()
+    for row_id, raw in cur.execute("SELECT Id, Settings FROM Indexers").fetchall():
+        settings = json.loads(raw)
+        if "nzbhydra" not in str(settings.get("baseUrl", "")).lower():
+            continue
+        settings["apiKey"] = new_key
+        cur.execute("UPDATE Indexers SET Settings = ? WHERE Id = ?", (json.dumps(settings), row_id))
+    conn.commit()
+    conn.close()
+
+# LazyLibrarian: api = ... lines inside sections whose host points at NZBHydra
+ll = Path('$LAZYLIBRARIAN_INI')
+lines = ll.read_text().splitlines()
+section_hosts = {}
+current = None
+for line in lines:
+    if line.startswith('['):
+        current = line
+    elif line.startswith('host = ') and current:
+        section_hosts[current] = line
+current = None
+for i, line in enumerate(lines):
+    if line.startswith('['):
+        current = line
+    elif line.startswith('api = ') and current and 'nzbhydra' in section_hosts.get(current, '').lower():
+        lines[i] = f"api = {new_key}"
+ll.write_text("\n".join(lines) + "\n")
+
+# Mylar: extra_newznabs/extra_torznabs CSV entries carry the key after the URL
+my = Path('$MYLAR_INI')
+text = my.read_text()
+text = re.sub(
+    r"(https?://[^,]*nzbhydra[^,]*,\s*\d+,\s*)[A-Za-z0-9]+",
+    lambda m: m.group(1) + new_key,
+    text,
+)
+my.write_text(text)
+PYEOF
+
+  podman start nzbhydra2 lazylibrarian mylar >/dev/null
+
+  SUMMARY_NZBHYDRA2_OLD="$old_key"
+  SUMMARY_NZBHYDRA2_NEW="$new_key"
+}
+
+rotate_jellyfin() {
+  # Jellyfin API keys are created and revoked through its own API; the value
+  # cannot be chosen, so the flow is: create new, adopt it, revoke old.
+  local old_key new_key
+  old_key=$(grep -oPm1 '(?<=^HOMEPAGE_VAR_JELLYFIN_KEY=).*' "$HOMEPAGE_ENV")
+
+  echo "[Jellyfin] Creating a new API key..."
+  container_curl jellyfin -s --fail -X POST \
+    -H "Authorization: MediaBrowser Token=\"${old_key}\"" \
+    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}/jellyfin/Auth/Keys?App=homepage" >/dev/null
+
+  new_key=$(container_curl jellyfin -s --fail \
+    -H "Authorization: MediaBrowser Token=\"${old_key}\"" \
+    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}/jellyfin/Auth/Keys" |
+    jq -r --arg old "$old_key" \
+      '[.Items[] | select(.AccessToken != $old)] | sort_by(.DateCreated) | last.AccessToken')
+
+  if [[ -z "$new_key" || "$new_key" == "null" ]]; then
+    echo "[Jellyfin] ERROR: could not obtain the newly created API key" >&2
+    return 1
+  fi
+
+  update_homepage_env "HOMEPAGE_VAR_JELLYFIN_KEY" "$new_key"
+
+  echo "[Jellyfin] Revoking the old API key..."
+  container_curl jellyfin -s --fail -X DELETE \
+    -H "Authorization: MediaBrowser Token=\"${new_key}\"" \
+    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}/jellyfin/Auth/Keys/${old_key}" >/dev/null
+
+  SUMMARY_JELLYFIN_OLD="$old_key"
+  SUMMARY_JELLYFIN_NEW="$new_key"
+}
+
 # ---------------------------------------------------------------------------
 # Summary variables (populated by rotation functions)
 # ---------------------------------------------------------------------------
@@ -304,6 +470,14 @@ SUMMARY_PROWLARR_OLD=""
 SUMMARY_PROWLARR_NEW=""
 SUMMARY_BAZARR_OLD=""
 SUMMARY_BAZARR_NEW=""
+SUMMARY_LAZYLIBRARIAN_OLD=""
+SUMMARY_LAZYLIBRARIAN_NEW=""
+SUMMARY_MYLAR_OLD=""
+SUMMARY_MYLAR_NEW=""
+SUMMARY_NZBHYDRA2_OLD=""
+SUMMARY_NZBHYDRA2_NEW=""
+SUMMARY_JELLYFIN_OLD=""
+SUMMARY_JELLYFIN_NEW=""
 
 # ---------------------------------------------------------------------------
 # Dispatch
@@ -317,6 +491,10 @@ readarr) rotate_readarr ;;
 whisparr) rotate_whisparr ;;
 prowlarr) rotate_prowlarr ;;
 bazarr) rotate_bazarr ;;
+lazylibrarian) rotate_lazylibrarian ;;
+mylar) rotate_mylar ;;
+nzbhydra2) rotate_nzbhydra2 ;;
+jellyfin) rotate_jellyfin ;;
 all)
   rotate_sonarr
   rotate_radarr
@@ -325,6 +503,10 @@ all)
   rotate_whisparr
   rotate_prowlarr
   rotate_bazarr
+  rotate_lazylibrarian
+  rotate_mylar
+  rotate_nzbhydra2
+  rotate_jellyfin
   ;;
 *)
   echo "Unknown target: $TARGET" >&2
@@ -377,5 +559,9 @@ print_row "readarr" "$SUMMARY_READARR_OLD" "$SUMMARY_READARR_NEW"
 print_row "whisparr" "$SUMMARY_WHISPARR_OLD" "$SUMMARY_WHISPARR_NEW"
 print_row "prowlarr" "$SUMMARY_PROWLARR_OLD" "$SUMMARY_PROWLARR_NEW"
 print_row "bazarr" "$SUMMARY_BAZARR_OLD" "$SUMMARY_BAZARR_NEW"
+print_row "lazylibrarian" "$SUMMARY_LAZYLIBRARIAN_OLD" "$SUMMARY_LAZYLIBRARIAN_NEW"
+print_row "mylar" "$SUMMARY_MYLAR_OLD" "$SUMMARY_MYLAR_NEW"
+print_row "nzbhydra2" "$SUMMARY_NZBHYDRA2_OLD" "$SUMMARY_NZBHYDRA2_NEW"
+print_row "jellyfin" "$SUMMARY_JELLYFIN_OLD" "$SUMMARY_JELLYFIN_NEW"
 
 echo "======================================================================"
