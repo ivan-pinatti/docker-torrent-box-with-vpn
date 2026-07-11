@@ -40,6 +40,12 @@ runs all operations inside the container via `podman exec`:
 ./scripts/korsync-users.sh remove <username>
 ```
 
+The same commands are available through the Makefile wrapper:
+
+```sh
+make korsync_users ARGS="list"
+```
+
 `change-password` prompts for the new password interactively so it does not appear in shell history.
 
 `remove` deletes the user and all their synced progress records. There is no soft delete.

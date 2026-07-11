@@ -22,6 +22,14 @@ inside the container namespace, so repair commands must run through
 `make permissions_host_smoke` verifies that the host operator can create, edit,
 move, and delete files under manifest-managed directories without `sudo`.
 
+To preview what a repair would run without changing anything, call the script
+directly with the `dry-run` command. It prints every `mkdir`, `chown`, `chmod`,
+and `setfacl` invocation instead of executing them:
+
+```sh
+./scripts/permissions.py dry-run --runtime podman --recursive
+```
+
 ## Design Rules
 
 - Each app gets its own uid/gid from `permissions.yml` and `.env`.

@@ -28,6 +28,19 @@ Grafana Alloy to Loki, and surfaces everything in Grafana.
 > rate(podman_container_cpu_seconds_total[5m]) * on(id) group_left(name) podman_container_info
 > ```
 
+### Podman limits exporter
+
+`podman_limits_exporter` does not use a published exporter image. It runs
+`scripts/podman-limits-exporter.py` inside a stock Python container, with the
+script and the rootless Podman socket both mounted read-only. The script
+queries the libpod API and exposes two gauges on port `9889`:
+
+- `podman_container_cpu_limit_vcpus`: configured CPU limit in vCPUs (`0` means unlimited).
+- `podman_container_pids_limit`: configured `pids_limit` (`0` means unlimited or unset).
+
+Responses are cached for 30 seconds so Prometheus scrapes do not hammer the
+Podman socket.
+
 ## Enabling
 
 Set the following in `.env`:
