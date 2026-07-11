@@ -51,7 +51,7 @@ STOP_COMPOSE_FILES := --file docker-compose.yml $(foreach route_file,$(STOP_ROUT
 	configure_jellyfin_network \
 	detect_secrets_create_baseline down generate_certificate \
 	rotate_all rotate_api_keys rotate_certificate rotate_passwords \
-	disk_status permissions_check permissions_repair permissions_smoke permissions_host_smoke prune_cache rotate_nginx_logs \
+	disk_status korsync_users permissions_check permissions_repair permissions_smoke permissions_host_smoke prune_cache rotate_nginx_logs \
 	install_requirements pull_docker_images pre_commit \
 	restore-configs restore-full \
 	restart sanity_fast sanity_full start start_library start_observability \
@@ -285,6 +285,9 @@ pre_commit:
 
 disk_status:
 	@./scripts/disk-status.sh
+
+korsync_users:
+	@./scripts/korsync-users.sh $(ARGS)
 
 permissions_check:
 	@./scripts/permissions.py check --runtime $(RUNTIME)

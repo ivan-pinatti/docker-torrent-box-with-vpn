@@ -555,7 +555,8 @@ rotate_nzbhydra2() {
   # {bcrypt} prefix and reads them at startup.
   local new_password new_hash
   new_password=$(gen_password)
-  new_hash=$(python3 - <<PYEOF
+  new_hash=$(
+    python3 - <<PYEOF
 import bcrypt
 
 print(bcrypt.hashpw('$new_password'.encode(), bcrypt.gensalt()).decode())
