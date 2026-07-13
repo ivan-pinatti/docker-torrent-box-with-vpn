@@ -25,6 +25,19 @@ env_value() {
   grep -m1 "^${key}=" .env | cut -d= -f2-
 }
 
+# Generated password length and whether to include special characters, both
+# configurable via .env (ROTATE_PASSWORD_LENGTH, ROTATE_PASSWORD_SPECIAL_CHARS).
+ROTATE_PASSWORD_LENGTH="$(env_value ROTATE_PASSWORD_LENGTH)"
+ROTATE_PASSWORD_LENGTH="${ROTATE_PASSWORD_LENGTH:-16}"
+if ! [[ "$ROTATE_PASSWORD_LENGTH" =~ ^[0-9]+$ ]] || [[ "$ROTATE_PASSWORD_LENGTH" -lt 8 ]]; then
+  echo "ERROR: ROTATE_PASSWORD_LENGTH must be an integer >= 8 (got '${ROTATE_PASSWORD_LENGTH}')" >&2
+  exit 1
+fi
+ROTATE_PASSWORD_SPECIAL_CHARS="$(env_value ROTATE_PASSWORD_SPECIAL_CHARS)"
+ROTATE_PASSWORD_SPECIAL_CHARS="${ROTATE_PASSWORD_SPECIAL_CHARS,,}"
+ROTATE_PASSWORD_SPECIAL_CHARS="${ROTATE_PASSWORD_SPECIAL_CHARS:-false}"
+readonly ROTATE_PASSWORD_LENGTH ROTATE_PASSWORD_SPECIAL_CHARS
+
 # A service is enabled when its compose profile flag in .env is literally
 # "enabled" (the Makefile starts the stack with --profile enabled).
 # Args: profile_var_prefix (e.g. SONARR for SONARR_PROFILE)
@@ -107,8 +120,22 @@ readonly WHISPARR_DB="configs/whisparr/config/whisparr3.db"
 # Helpers
 # ---------------------------------------------------------------------------
 
+# Length and character set come from ROTATE_PASSWORD_LENGTH and
+# ROTATE_PASSWORD_SPECIAL_CHARS (see .env). The special-character subset is
+# deliberately narrow: the password gets embedded raw (no escaping) into sed
+# replacement text using | as the delimiter, curl's -d form-urlencoded
+# bodies, and single-quoted Python string literals in several rotate
+# functions, so it excludes anything with special meaning in any of those:
+# quotes/backslash/backtick/dollar (shell and Python string delimiters),
+# | and & (sed delimiter and "whole match" in replacement text), & = % +
+# (form-urlencoded field/kv separators and escape marker), and # / ;
+# (ini/yaml comment markers some apps' own config parsers may honor).
 gen_password() {
-  openssl rand -base64 18 | tr -d '=+/' | cut -c1-16
+  local charset='A-Za-z0-9'
+  if [[ "$ROTATE_PASSWORD_SPECIAL_CHARS" == "true" ]]; then # pragma: allowlist secret
+    charset='A-Za-z0-9!@^*()_~-'
+  fi
+  tr -dc "$charset" </dev/urandom 2>/dev/null | head -c "$ROTATE_PASSWORD_LENGTH" || true
 }
 
 gen_apikey() {
@@ -997,6 +1024,12 @@ prestart_api_containers
 PARALLEL_ROTATION_FAILURES=()
 
 # Args: service_name rotate_function [container_required_running]
+# Streams output live with a "[service]" prefix (instead of buffering it to
+# print after the whole group finishes) so the concurrency is visible as it
+# happens, not just in the final timing. Uses process substitution rather
+# than a plain pipe to the "sed" filter: piping would fork rotate_if_enabled
+# into its own subshell, losing the SUMMARY_* variable assignments the
+# individual rotate functions make before this function ever reads them back.
 run_parallel_service() {
   local service="$1" func="$2" requires_running="${3:-}"
   local upper user_var new_var status=0
@@ -1004,7 +1037,7 @@ run_parallel_service() {
   user_var="SUMMARY_${upper}_USER"
   new_var="SUMMARY_${upper}_NEW"
   rotate_if_enabled "$service" "$func" "$requires_running" \
-    >"$PARALLEL_TMPDIR/$service.log" 2>&1 || status=$?
+    > >(sed -u "s/^/[$service] /") 2>&1 || status=$?
   printf '%s\n%s\n%s\n' "${!user_var}" "${!new_var}" "$status" \
     >"$PARALLEL_TMPDIR/$service.result"
 }
@@ -1024,7 +1057,6 @@ run_parallel_group() {
 
   local service upper user_var new_var result lines
   for service in "${services[@]}"; do
-    cat "$PARALLEL_TMPDIR/$service.log"
     upper="$(echo "${service^^}" | tr '-' '_')"
     user_var="SUMMARY_${upper}_USER"
     new_var="SUMMARY_${upper}_NEW"

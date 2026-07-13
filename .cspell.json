@@ -525,6 +525,7 @@
     "TVSEARCH",
     "UID",
     "unlogged",
+    "urandom",
     "urlencode",
     "urllib",
     "usenet",

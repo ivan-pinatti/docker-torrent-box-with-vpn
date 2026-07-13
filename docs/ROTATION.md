@@ -28,6 +28,17 @@ API key rotation requires the stack already running, because it goes through
 each app's own API (via `podman exec` into the app container). Certificate
 and log rotation work on files only.
 
+Generated password length and character set are configurable in `.env`:
+`ROTATE_PASSWORD_LENGTH` (default `16`, minimum `8`) and
+`ROTATE_PASSWORD_SPECIAL_CHARS` (default `false`). Setting the latter to
+`true` adds a deliberately narrow symbol subset (`! @ ^ * ( ) _ ~ -`): the
+password gets embedded raw, with no escaping, into `sed` replacement text,
+`curl` form-urlencoded bodies, and single-quoted Python string literals
+across the rotate functions, so the set excludes anything with special
+meaning in any of those contexts (quotes, backslash, `$`, backtick, `|`,
+`&`, `=`, `%`, `+`, `#`, `;`). See the comment above `gen_password()` in
+`scripts/rotate-passwords.sh` for the full reasoning.
+
 Password rotation respects the compose profile flags in `.env`: with the
 `all` target, services whose `<SERVICE>_PROFILE` is `disabled` are skipped
 with a note, and requesting a disabled service explicitly (`SERVICE=<name>`)
@@ -46,8 +57,11 @@ explicit target.
 
 With the `all` target, the eight services with no shared container or
 config file (Audiobookshelf, Bazarr, Calibre-Web, Grafana, jDownloader2,
-Jellyfin, NZBHydra2, Prowlarr) rotate concurrently in the background, then
-the rest run sequentially exactly as a single-target invocation would.
+Jellyfin, NZBHydra2, Prowlarr) rotate concurrently in the background, with
+each one's output streamed live prefixed by `[service]` (interleaved,
+since they genuinely run at the same time) rather than buffered and
+printed only after the whole group finishes. The rest run sequentially
+exactly as a single-target invocation would.
 Calibre, LazyLibrarian, Mylar, qBittorrent, SABnzbd, and the remaining
 Servarr apps stay sequential because they touch the same containers,
 `config.ini` files, or DB tables as one another (qBittorrent's and
