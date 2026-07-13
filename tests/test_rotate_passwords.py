@@ -417,6 +417,41 @@ def test_rotate_grafana_password(running_containers):
         )
 
 
+def test_rotate_grafana_password_starts_stopped_container(running_containers):
+    """Rotating Grafana's password auto-starts the container if it's stopped.
+
+    Grafana's rotation logs into its own live API rather than stopping the
+    container to edit a file, so the script must bring it up first (and wait
+    for it to report healthy) instead of failing with a raw podman exec
+    error against a non-running container.
+    """
+    skip_if_not_running("grafana", running_containers)
+
+    subprocess.run(["podman", "stop", "grafana"], check=True, capture_output=True)  # nosec B607
+    try:
+        result = _run_script("rotate-passwords.sh", "grafana")
+        assert result.returncode == 0, (
+            f"rotate-passwords.sh grafana exited {result.returncode}:\n{result.stderr}"
+        )
+        assert "Not running; starting it" in result.stdout, (
+            "rotate-passwords.sh did not report starting the stopped container"
+        )
+        new_password = _summary_password(result.stdout, "grafana")
+        assert new_password, "Summary table does not contain the new grafana password"
+
+        status, _ = container_http(
+            "grafana",
+            "http://127.0.0.1:3000/api/user",
+            extra_args=["-u", f"admin:{new_password}"],
+            timeout=TIMEOUT,
+        )
+        assert status == 200, (
+            f"Grafana does not accept the new password after auto-start (HTTP {status})"
+        )
+    finally:
+        subprocess.run(["podman", "start", "grafana"], check=True, capture_output=True)  # nosec B607
+
+
 def test_rotate_calibreweb_password(running_containers):
     """Rotating the Calibre-Web password updates app.db and Homepage."""
     skip_if_not_running("calibre-web", running_containers)

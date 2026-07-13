@@ -887,23 +887,60 @@ profile_var_for() {
   esac
 }
 
+container_running() {
+  podman container inspect -f '{{.State.Running}}' "$1" 2>/dev/null | grep -q '^true$'
+}
+
+container_ready() {
+  local container="$1" status
+  container_running "$container" || return 1
+  status=$(podman inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$container" 2>/dev/null)
+  [[ "$status" == "healthy" || "$status" == "none" ]]
+}
+
+# Some rotations (Servarr apps, qBittorrent, Grafana, Jellyfin) log into the
+# app's own live API rather than stopping the container to edit a file, so
+# the container has to be up first. Start it if it isn't and wait for its
+# healthcheck, instead of requiring the operator to have started the stack.
+# Args: container_name
+ensure_running() {
+  local container="$1"
+  container_ready "$container" && return 0
+  if ! podman container exists "$container" 2>/dev/null; then
+    echo "[$container] Container does not exist; run 'make start' to create it" >&2
+    return 1
+  fi
+  echo "[$container] Not running; starting it..."
+  podman start "$container" >/dev/null
+  retry 120 container_ready "$container"
+}
+
 # Rotate one service, but only when its compose profile is enabled. In "all"
 # mode disabled services are skipped with a note; an explicitly requested
-# disabled service is an error (its container is not running, so the API
-# based rotations cannot work anyway).
-# Args: service_name rotate_function
+# disabled service is an error. If a container_required_running is given and
+# it cannot be brought up, the same skip-or-error handling applies.
+# Args: service_name rotate_function [container_required_running]
 rotate_if_enabled() {
-  local service="$1" func="$2"
+  local service="$1" func="$2" requires_running="${3:-}"
   local profile_var
   profile_var="$(profile_var_for "$service")"
-  if profile_enabled "$profile_var"; then
-    "$func"
-  elif [[ "$TARGET" == "all" ]]; then
-    echo "[$service] Skipped, ${profile_var}_PROFILE is disabled"
-  else
+  if ! profile_enabled "$profile_var"; then
+    if [[ "$TARGET" == "all" ]]; then
+      echo "[$service] Skipped, ${profile_var}_PROFILE is disabled"
+      return
+    fi
     echo "ERROR: ${profile_var}_PROFILE is disabled in .env; not rotating $service" >&2
     exit 1
   fi
+  if [[ -n "$requires_running" ]] && ! ensure_running "$requires_running"; then
+    if [[ "$TARGET" == "all" ]]; then
+      echo "[$service] Skipped, $requires_running did not become healthy"
+      return
+    fi
+    echo "ERROR: $requires_running did not become healthy; cannot rotate $service" >&2
+    exit 1
+  fi
+  "$func"
 }
 
 case "$TARGET" in
@@ -911,39 +948,39 @@ audiobookshelf) rotate_if_enabled audiobookshelf rotate_audiobookshelf ;;
 bazarr) rotate_if_enabled bazarr rotate_bazarr ;;
 calibre) rotate_if_enabled calibre rotate_calibre ;;
 calibre-web) rotate_if_enabled calibre-web rotate_calibre_web ;;
-grafana) rotate_if_enabled grafana rotate_grafana ;;
+grafana) rotate_if_enabled grafana rotate_grafana grafana ;;
 jdownloader2) rotate_if_enabled jdownloader2 rotate_jdownloader2 ;;
-jellyfin) rotate_if_enabled jellyfin rotate_jellyfin ;;
+jellyfin) rotate_if_enabled jellyfin rotate_jellyfin jellyfin ;;
 lazylibrarian) rotate_if_enabled lazylibrarian rotate_lazylibrarian ;;
-lidarr) rotate_if_enabled lidarr rotate_lidarr ;;
+lidarr) rotate_if_enabled lidarr rotate_lidarr lidarr ;;
 mylar) rotate_if_enabled mylar rotate_mylar ;;
 nzbhydra2) rotate_if_enabled nzbhydra2 rotate_nzbhydra2 ;;
-prowlarr) rotate_if_enabled prowlarr rotate_prowlarr ;;
-qbittorrent) rotate_if_enabled qbittorrent rotate_qbittorrent ;;
-radarr) rotate_if_enabled radarr rotate_radarr ;;
-readarr) rotate_if_enabled readarr rotate_readarr ;;
+prowlarr) rotate_if_enabled prowlarr rotate_prowlarr prowlarr ;;
+qbittorrent) rotate_if_enabled qbittorrent rotate_qbittorrent qbittorrent ;;
+radarr) rotate_if_enabled radarr rotate_radarr radarr ;;
+readarr) rotate_if_enabled readarr rotate_readarr readarr ;;
 sabnzbd) rotate_if_enabled sabnzbd rotate_sabnzbd ;;
-sonarr) rotate_if_enabled sonarr rotate_sonarr ;;
-whisparr) rotate_if_enabled whisparr rotate_whisparr ;;
+sonarr) rotate_if_enabled sonarr rotate_sonarr sonarr ;;
+whisparr) rotate_if_enabled whisparr rotate_whisparr whisparr ;;
 all)
   rotate_if_enabled audiobookshelf rotate_audiobookshelf
   rotate_if_enabled bazarr rotate_bazarr
   rotate_if_enabled calibre rotate_calibre
   rotate_if_enabled calibre-web rotate_calibre_web
-  rotate_if_enabled grafana rotate_grafana
+  rotate_if_enabled grafana rotate_grafana grafana
   rotate_if_enabled jdownloader2 rotate_jdownloader2
-  rotate_if_enabled jellyfin rotate_jellyfin
+  rotate_if_enabled jellyfin rotate_jellyfin jellyfin
   rotate_if_enabled lazylibrarian rotate_lazylibrarian
-  rotate_if_enabled lidarr rotate_lidarr
+  rotate_if_enabled lidarr rotate_lidarr lidarr
   rotate_if_enabled mylar rotate_mylar
   rotate_if_enabled nzbhydra2 rotate_nzbhydra2
-  rotate_if_enabled prowlarr rotate_prowlarr
-  rotate_if_enabled qbittorrent rotate_qbittorrent
-  rotate_if_enabled radarr rotate_radarr
-  rotate_if_enabled readarr rotate_readarr
+  rotate_if_enabled prowlarr rotate_prowlarr prowlarr
+  rotate_if_enabled qbittorrent rotate_qbittorrent qbittorrent
+  rotate_if_enabled radarr rotate_radarr radarr
+  rotate_if_enabled readarr rotate_readarr readarr
   rotate_if_enabled sabnzbd rotate_sabnzbd
-  rotate_if_enabled sonarr rotate_sonarr
-  rotate_if_enabled whisparr rotate_whisparr
+  rotate_if_enabled sonarr rotate_sonarr sonarr
+  rotate_if_enabled whisparr rotate_whisparr whisparr
   ;;
 *)
   echo "Unknown target: $TARGET" >&2

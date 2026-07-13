@@ -24,14 +24,19 @@ make rotate_api_keys SERVICE=radarr
 make rotate_passwords SERVICE=qbittorrent
 ```
 
-The stack must be running for API key and password rotation, because parts of
-the process go through each app's own API (via `podman exec` into the app
-container). Certificate and log rotation work on files only.
+API key rotation requires the stack already running, because it goes through
+each app's own API (via `podman exec` into the app container). Certificate
+and log rotation work on files only.
 
 Password rotation respects the compose profile flags in `.env`: with the
 `all` target, services whose `<SERVICE>_PROFILE` is `disabled` are skipped
-with a note, and requesting a disabled service explicitly
-(`SERVICE=<name>`) is an error, since its container is not running.
+with a note, and requesting a disabled service explicitly (`SERVICE=<name>`)
+is an error. Most password rotations stop, edit, and start their own
+container regardless of its prior state. The few that log into the app's
+own live API instead (Servarr apps, qBittorrent, Grafana, Jellyfin) start
+their container automatically if it isn't already running and wait for it
+to report healthy before rotating; if it never comes up, that service is
+skipped in `all` mode or the run exits with an error for an explicit target.
 
 ## API Keys (`rotate-api-keys.sh`)
 
