@@ -376,6 +376,7 @@
     "ppassword",
     "precommit",
     "preconfigured",
+    "prestart",
     "preshared",
     "PRESHARED",
     "privkey",

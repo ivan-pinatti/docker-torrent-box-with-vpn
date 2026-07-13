@@ -136,17 +136,21 @@ container_curl() {
 }
 
 # Stop the listed containers if they exist, remembering which ones were
-# stopped so start_stopped() can bring exactly those back.
+# stopped so start_stopped() can bring exactly those back. Stopped in one
+# batched call (podman stops them concurrently) rather than one at a time,
+# so one slow-to-stop container doesn't serialize behind the others.
 STOPPED_CONTAINERS=()
 stop_existing() {
   STOPPED_CONTAINERS=()
   local c
   for c in "$@"; do
     if podman container exists "$c" 2>/dev/null; then
-      podman stop "$c" >/dev/null
       STOPPED_CONTAINERS+=("$c")
     fi
   done
+  if [[ ${#STOPPED_CONTAINERS[@]} -gt 0 ]]; then
+    podman stop "${STOPPED_CONTAINERS[@]}" >/dev/null
+  fi
 }
 
 start_stopped() {
@@ -942,6 +946,43 @@ rotate_if_enabled() {
   fi
   "$func"
 }
+
+# Start every stopped container that an API-based rotation in this run will
+# need, in one batched call, and wait for them to become healthy together.
+# Without this, rotate_if_enabled's own ensure_running would start and wait
+# on each one in turn as its rotation happens to come up in the dispatch
+# below, serializing waits that could otherwise happen concurrently.
+prestart_api_containers() {
+  local svc container needed=()
+  for svc in sonarr radarr lidarr readarr whisparr prowlarr qbittorrent grafana jellyfin; do
+    if [[ "$TARGET" != "all" && "$TARGET" != "$svc" ]]; then
+      continue
+    fi
+    if ! profile_enabled "$(profile_var_for "$svc")"; then
+      continue
+    fi
+    if podman container exists "$svc" 2>/dev/null && ! container_ready "$svc"; then
+      needed+=("$svc")
+    fi
+  done
+  if [[ ${#needed[@]} -eq 0 ]]; then
+    return
+  fi
+  echo "Starting stopped containers needed for rotation: ${needed[*]}"
+  podman start "${needed[@]}" >/dev/null
+
+  local pending=("${needed[@]}") elapsed=0
+  while [[ ${#pending[@]} -gt 0 && $elapsed -lt 120 ]]; do
+    sleep 5
+    elapsed=$((elapsed + 5))
+    local still_pending=()
+    for container in "${pending[@]}"; do
+      container_ready "$container" || still_pending+=("$container")
+    done
+    pending=("${still_pending[@]}")
+  done
+}
+prestart_api_containers
 
 case "$TARGET" in
 audiobookshelf) rotate_if_enabled audiobookshelf rotate_audiobookshelf ;;

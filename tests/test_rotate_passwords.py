@@ -422,8 +422,8 @@ def test_rotate_grafana_password_starts_stopped_container(running_containers):
 
     Grafana's rotation logs into its own live API rather than stopping the
     container to edit a file, so the script must bring it up first (and wait
-    for it to report healthy) instead of failing with a raw podman exec
-    error against a non-running container.
+    for it to report healthy, in the batched pre-start pass) instead of
+    failing with a raw podman exec error against a non-running container.
     """
     skip_if_not_running("grafana", running_containers)
 
@@ -433,7 +433,7 @@ def test_rotate_grafana_password_starts_stopped_container(running_containers):
         assert result.returncode == 0, (
             f"rotate-passwords.sh grafana exited {result.returncode}:\n{result.stderr}"
         )
-        assert "Not running; starting it" in result.stdout, (
+        assert "Starting stopped containers needed for rotation" in result.stdout, (
             "rotate-passwords.sh did not report starting the stopped container"
         )
         new_password = _summary_password(result.stdout, "grafana")

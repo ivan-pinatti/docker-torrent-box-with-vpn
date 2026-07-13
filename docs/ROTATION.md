@@ -32,11 +32,17 @@ Password rotation respects the compose profile flags in `.env`: with the
 `all` target, services whose `<SERVICE>_PROFILE` is `disabled` are skipped
 with a note, and requesting a disabled service explicitly (`SERVICE=<name>`)
 is an error. Most password rotations stop, edit, and start their own
-container regardless of its prior state. The few that log into the app's
-own live API instead (Servarr apps, qBittorrent, Grafana, Jellyfin) start
-their container automatically if it isn't already running and wait for it
-to report healthy before rotating; if it never comes up, that service is
-skipped in `all` mode or the run exits with an error for an explicit target.
+container regardless of its prior state; those stop calls are batched, so
+stopping several containers for one rotation (e.g. qBittorrent's or
+SABnzbd's Servarr consumers) waits for the slowest one instead of each in
+turn. The few rotations that log into the app's own live API instead
+(Servarr apps, qBittorrent, Grafana, Jellyfin) need their container already
+running; before dispatch, the script starts every one of these containers
+that this run will need in a single batched call and waits for all of them
+to report healthy together, rather than starting and waiting on each in
+turn as its rotation happens to come up. If a container never comes up,
+that service is skipped in `all` mode or the run exits with an error for an
+explicit target.
 
 ## API Keys (`rotate-api-keys.sh`)
 
