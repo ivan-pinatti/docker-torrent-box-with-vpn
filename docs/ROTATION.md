@@ -53,7 +53,13 @@ that this run will need in a single batched call and waits for all of them
 to report healthy together, rather than starting and waiting on each in
 turn as its rotation happens to come up. If a container never comes up,
 that service is skipped in `all` mode or the run exits with an error for an
-explicit target.
+explicit target. `make start` returns as soon as it has issued `podman
+start` for everything, without waiting for each app's own healthcheck, so
+running `make rotate_passwords` right after `make start` will often catch
+some of these containers still warming up; the script distinguishes that
+("Waiting for already-running containers to become healthy") from actually
+stopped ("Starting stopped containers needed for rotation") so the message
+doesn't claim to be starting something that's already up.
 
 With the `all` target, the eight services with no shared container or
 config file (Audiobookshelf, Bazarr, Calibre-Web, Grafana, jDownloader2,
@@ -167,6 +173,11 @@ would clobber a live edit. Only changes made through an app's own API happen
 while it runs. Both scripts end with a validation phase that proves each
 rotated credential is accepted by its service (login or API probe, with
 retries while containers come back up) and exit nonzero if any check fails.
+Unlike rotation, validation is read-only (a login attempt against each
+service's own container, nothing shared), so every rotated service is
+checked concurrently regardless of target, not just the services rotation
+itself can safely parallelize; results print in whichever order each check
+finishes, not a fixed order.
 
 The summary table prints the new passwords **in full**: the apps store only
 hashes, so the table is the single opportunity to record them. Save them in

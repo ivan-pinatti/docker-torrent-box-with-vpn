@@ -941,8 +941,12 @@ ensure_running() {
     echo "[$container] Container does not exist; run 'make start' to create it" >&2
     return 1
   fi
-  echo "[$container] Not running; starting it..."
-  podman start "$container" >/dev/null
+  if container_running "$container"; then
+    echo "[$container] Waiting for it to become healthy..."
+  else
+    echo "[$container] Not running; starting it..."
+    podman start "$container" >/dev/null
+  fi
   retry 120 container_ready "$container"
 }
 
@@ -980,7 +984,7 @@ rotate_if_enabled() {
 # on each one in turn as its rotation happens to come up in the dispatch
 # below, serializing waits that could otherwise happen concurrently.
 prestart_api_containers() {
-  local svc container needed=()
+  local svc container to_start=() to_wait=()
   for svc in sonarr radarr lidarr readarr whisparr prowlarr qbittorrent grafana jellyfin; do
     if [[ "$TARGET" != "all" && "$TARGET" != "$svc" ]]; then
       continue
@@ -988,17 +992,32 @@ prestart_api_containers() {
     if ! profile_enabled "$(profile_var_for "$svc")"; then
       continue
     fi
-    if podman container exists "$svc" 2>/dev/null && ! container_ready "$svc"; then
-      needed+=("$svc")
+    if ! podman container exists "$svc" 2>/dev/null || container_ready "$svc"; then
+      continue
+    fi
+    # A container can already be running but not yet healthy right after
+    # `make start`, which fires everything up and returns without waiting
+    # for each app's own healthcheck; distinguish that from actually
+    # stopped so the message doesn't claim to be starting something that
+    # is already up.
+    if container_running "$svc"; then
+      to_wait+=("$svc")
+    else
+      to_start+=("$svc")
     fi
   done
-  if [[ ${#needed[@]} -eq 0 ]]; then
+  if [[ ${#to_start[@]} -eq 0 && ${#to_wait[@]} -eq 0 ]]; then
     return
   fi
-  echo "Starting stopped containers needed for rotation: ${needed[*]}"
-  podman start "${needed[@]}" >/dev/null
+  if [[ ${#to_start[@]} -gt 0 ]]; then
+    echo "Starting stopped containers needed for rotation: ${to_start[*]}"
+    podman start "${to_start[@]}" >/dev/null
+  fi
+  if [[ ${#to_wait[@]} -gt 0 ]]; then
+    echo "Waiting for already-running containers to become healthy: ${to_wait[*]}"
+  fi
 
-  local pending=("${needed[@]}") elapsed=0
+  local pending=("${to_start[@]}" "${to_wait[@]}") elapsed=0
   while [[ ${#pending[@]} -gt 0 && $elapsed -lt 120 ]]; do
     sleep 5
     elapsed=$((elapsed + 5))
@@ -1339,16 +1358,24 @@ service_up_ok() {
   [[ "$code" == "200" ]]
 }
 
+# Unlike rotation, validation is read-only (login attempts against each
+# service's own container) with no shared file or DB writes, so every
+# service validates concurrently, not just the services rotation itself
+# can safely parallelize. Each one records pass/fail to a result file since
+# it runs as a background job and can't hand VALIDATION_FAILURES back to
+# the parent shell directly.
 VALIDATION_FAILURES=()
 validate() {
   local name="$1" timeout="$2"
   shift 2
+  local status=0
   if retry "$timeout" "$@"; then
     printf "%-14s  OK\n" "$name"
   else
     printf "%-14s  FAILED\n" "$name"
-    VALIDATION_FAILURES+=("$name")
+    status=1
   fi
+  echo "$status" >"$VALIDATE_TMPDIR/$name.result"
 }
 
 # Calibre's desktop GUI (and its content server, which only starts once the
@@ -1358,8 +1385,10 @@ validate() {
 # requiring an operator to notice and run the recovery command by hand.
 validate_calibre() {
   local password="$1"
+  local status=0
   if retry 90 calibre_login_ok "$password"; then
     printf "%-14s  OK\n" "calibre"
+    echo "$status" >"$VALIDATE_TMPDIR/calibre.result"
     return
   fi
   echo "[Calibre] Not responding after 90s; restarting the desktop service..."
@@ -1368,34 +1397,58 @@ validate_calibre() {
     printf "%-14s  OK\n" "calibre"
   else
     printf "%-14s  FAILED\n" "calibre"
-    VALIDATION_FAILURES+=("calibre")
+    status=1
   fi
+  echo "$status" >"$VALIDATE_TMPDIR/calibre.result"
+}
+
+# Args: service_name validate_command...
+# Backgrounds the validation call and remembers its name so results can be
+# collected from VALIDATE_TMPDIR after "wait". Lines print in whatever order
+# each check finishes, not the order queued, which is expected for
+# concurrent jobs.
+VALIDATION_SERVICES=()
+queue_validation() {
+  local name="$1"
+  shift
+  VALIDATION_SERVICES+=("$name")
+  "$@" &
 }
 
 echo ""
 echo "======================================================================"
 echo " Validating rotated credentials"
 echo "======================================================================"
+VALIDATE_TMPDIR="$(mktemp -d)"
 # LazyLibrarian and Mylar serve their login page at /auth/login; /login is a
 # 404 (LazyLibrarian) or a redirect (Mylar), so probe the real page.
-[[ -n "$SUMMARY_AUDIOBOOKSHELF_NEW" ]] && validate audiobookshelf 180 audiobookshelf_login_ok "$SUMMARY_AUDIOBOOKSHELF_NEW"
-[[ -n "$SUMMARY_BAZARR_NEW" ]] && validate bazarr 180 bazarr_login_ok "$SUMMARY_BAZARR_NEW"
-[[ -n "$SUMMARY_CALIBRE_NEW" ]] && validate_calibre "$SUMMARY_CALIBRE_NEW"
-[[ -n "$SUMMARY_CALIBRE_WEB_NEW" ]] && validate calibre-web 180 calibre_web_login_ok "$SUMMARY_CALIBRE_WEB_NEW"
-[[ -n "$SUMMARY_GRAFANA_NEW" ]] && validate grafana 180 grafana_login_ok "$SUMMARY_GRAFANA_NEW"
-[[ -n "$SUMMARY_JDOWNLOADER2_NEW" ]] && validate jdownloader2 180 jdownloader2_login_ok "$SUMMARY_JDOWNLOADER2_NEW"
-[[ -n "$SUMMARY_JELLYFIN_NEW" ]] && validate jellyfin 180 jellyfin_login_ok "$SUMMARY_JELLYFIN_NEW"
-[[ -n "$SUMMARY_LAZYLIBRARIAN_NEW" ]] && validate lazylibrarian 180 service_up_ok lazylibrarian "https://127.0.0.1:${LAZYLIBRARIAN_HTTP_PORT}/lazylibrarian/auth/login"
-[[ -n "$SUMMARY_LIDARR_NEW" ]] && validate lidarr 180 arr_login_ok lidarr https "$LIDARR_HTTPS_PORT" lidarr "$SUMMARY_LIDARR_NEW"
-[[ -n "$SUMMARY_MYLAR_NEW" ]] && validate mylar 180 service_up_ok mylar "https://127.0.0.1:${MYLAR_HTTPS_PORT}/mylar/auth/login"
-[[ -n "$SUMMARY_NZBHYDRA2_NEW" ]] && validate nzbhydra2 180 nzbhydra_login_ok "$SUMMARY_NZBHYDRA2_NEW"
-[[ -n "$SUMMARY_PROWLARR_NEW" ]] && validate prowlarr 180 arr_login_ok prowlarr https "$PROWLARR_HTTPS_PORT" prowlarr "$SUMMARY_PROWLARR_NEW"
-[[ -n "$SUMMARY_QBITTORRENT_NEW" ]] && validate qbittorrent 180 qbittorrent_api_ok "$SUMMARY_QBITTORRENT_NEW"
-[[ -n "$SUMMARY_RADARR_NEW" ]] && validate radarr 180 arr_login_ok radarr https "$RADARR_HTTPS_PORT" radarr "$SUMMARY_RADARR_NEW"
-[[ -n "$SUMMARY_READARR_NEW" ]] && validate readarr 180 arr_login_ok readarr https "$READARR_HTTPS_PORT" readarr "$SUMMARY_READARR_NEW"
-[[ -n "$VERIFY_SABNZBD_KEY" ]] && validate sabnzbd 180 sabnzbd_key_ok "$VERIFY_SABNZBD_KEY"
-[[ -n "$SUMMARY_SONARR_NEW" ]] && validate sonarr 180 arr_login_ok sonarr http "$SONARR_HTTP_PORT" sonarr "$SUMMARY_SONARR_NEW"
-[[ -n "$SUMMARY_WHISPARR_NEW" ]] && validate whisparr 180 arr_login_ok whisparr https "$WHISPARR_HTTPS_PORT" whisparr "$SUMMARY_WHISPARR_NEW"
+[[ -n "$SUMMARY_AUDIOBOOKSHELF_NEW" ]] && queue_validation audiobookshelf validate audiobookshelf 180 audiobookshelf_login_ok "$SUMMARY_AUDIOBOOKSHELF_NEW"
+[[ -n "$SUMMARY_BAZARR_NEW" ]] && queue_validation bazarr validate bazarr 180 bazarr_login_ok "$SUMMARY_BAZARR_NEW"
+[[ -n "$SUMMARY_CALIBRE_NEW" ]] && queue_validation calibre validate_calibre "$SUMMARY_CALIBRE_NEW"
+[[ -n "$SUMMARY_CALIBRE_WEB_NEW" ]] && queue_validation calibre-web validate calibre-web 180 calibre_web_login_ok "$SUMMARY_CALIBRE_WEB_NEW"
+[[ -n "$SUMMARY_GRAFANA_NEW" ]] && queue_validation grafana validate grafana 180 grafana_login_ok "$SUMMARY_GRAFANA_NEW"
+[[ -n "$SUMMARY_JDOWNLOADER2_NEW" ]] && queue_validation jdownloader2 validate jdownloader2 180 jdownloader2_login_ok "$SUMMARY_JDOWNLOADER2_NEW"
+[[ -n "$SUMMARY_JELLYFIN_NEW" ]] && queue_validation jellyfin validate jellyfin 180 jellyfin_login_ok "$SUMMARY_JELLYFIN_NEW"
+[[ -n "$SUMMARY_LAZYLIBRARIAN_NEW" ]] && queue_validation lazylibrarian validate lazylibrarian 180 service_up_ok lazylibrarian "https://127.0.0.1:${LAZYLIBRARIAN_HTTP_PORT}/lazylibrarian/auth/login"
+[[ -n "$SUMMARY_LIDARR_NEW" ]] && queue_validation lidarr validate lidarr 180 arr_login_ok lidarr https "$LIDARR_HTTPS_PORT" lidarr "$SUMMARY_LIDARR_NEW"
+[[ -n "$SUMMARY_MYLAR_NEW" ]] && queue_validation mylar validate mylar 180 service_up_ok mylar "https://127.0.0.1:${MYLAR_HTTPS_PORT}/mylar/auth/login"
+[[ -n "$SUMMARY_NZBHYDRA2_NEW" ]] && queue_validation nzbhydra2 validate nzbhydra2 180 nzbhydra_login_ok "$SUMMARY_NZBHYDRA2_NEW"
+[[ -n "$SUMMARY_PROWLARR_NEW" ]] && queue_validation prowlarr validate prowlarr 180 arr_login_ok prowlarr https "$PROWLARR_HTTPS_PORT" prowlarr "$SUMMARY_PROWLARR_NEW"
+[[ -n "$SUMMARY_QBITTORRENT_NEW" ]] && queue_validation qbittorrent validate qbittorrent 180 qbittorrent_api_ok "$SUMMARY_QBITTORRENT_NEW"
+[[ -n "$SUMMARY_RADARR_NEW" ]] && queue_validation radarr validate radarr 180 arr_login_ok radarr https "$RADARR_HTTPS_PORT" radarr "$SUMMARY_RADARR_NEW"
+[[ -n "$SUMMARY_READARR_NEW" ]] && queue_validation readarr validate readarr 180 arr_login_ok readarr https "$READARR_HTTPS_PORT" readarr "$SUMMARY_READARR_NEW"
+[[ -n "$VERIFY_SABNZBD_KEY" ]] && queue_validation sabnzbd validate sabnzbd 180 sabnzbd_key_ok "$VERIFY_SABNZBD_KEY"
+[[ -n "$SUMMARY_SONARR_NEW" ]] && queue_validation sonarr validate sonarr 180 arr_login_ok sonarr http "$SONARR_HTTP_PORT" sonarr "$SUMMARY_SONARR_NEW"
+[[ -n "$SUMMARY_WHISPARR_NEW" ]] && queue_validation whisparr validate whisparr 180 arr_login_ok whisparr https "$WHISPARR_HTTPS_PORT" whisparr "$SUMMARY_WHISPARR_NEW"
+wait
+
+for name in "${VALIDATION_SERVICES[@]}"; do
+  result="$VALIDATE_TMPDIR/$name.result"
+  if [[ -s "$result" ]] && [[ "$(cat "$result")" == "1" ]]; then
+    VALIDATION_FAILURES+=("$name")
+  fi
+done
+rm -rf "$VALIDATE_TMPDIR"
 echo "======================================================================"
 
 if [[ ${#PARALLEL_ROTATION_FAILURES[@]} -gt 0 ]]; then
