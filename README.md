@@ -546,7 +546,20 @@ N5095 class of host (`direct_unpack` enabled with two unpack threads).
 ### jDownloader2
 
 jDownloader2 is exposed on `JDOWNLOADER2_HTTP_PORT=5800` (VNC web interface) and
-`JDOWNLOADER2_API_PORT=3128` (local REST API). No default credentials are set for the web GUI.
+`JDOWNLOADER2_API_PORT=3128` (local REST API).
+
+**Web GUI authentication:** the `jlesage/jdownloader-2` image serves the web interface behind
+its own nginx `auth_request` gate. `configs/jdownloader2/.env` sets `SECURE_CONNECTION=1`
+(https with a self-signed certificate) and `WEB_AUTHENTICATION=1` to require a login; the
+credentials come from `WEB_AUTHENTICATION_USERNAME`/`WEB_AUTHENTICATION_PASSWORD` in
+`configs/jdownloader2/.env.secrets` (gitignored, copy from `.env.secrets.example`), following the
+same committed-template-plus-gitignored-secrets pattern as `configs/grafana/`; see
+[COMPOSE_CONVENTIONS.md](docs/COMPOSE_CONVENTIONS.md). Both env files are only read at container
+creation, so a password change needs a recreate, not a restart:
+`podman-compose --file docker-compose.yml --profile enabled up -d --force-recreate --no-deps jdownloader2`.
+The healthcheck and the nginx reverse-proxy upstream both target `https://` for this reason.
+`make rotate_passwords SERVICE=jdownloader2` handles the password rotation and recreate; see
+[ROTATION.md](docs/ROTATION.md).
 
 **Memory tuning:** The `jlesage/jdownloader-2` image runs the JVM alongside an X11 server and
 VNC web layer. Without explicit heap limits, the JVM applies an ergonomic default of roughly 25%
