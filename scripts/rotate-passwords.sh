@@ -984,6 +984,63 @@ prestart_api_containers() {
 }
 prestart_api_containers
 
+# ---------------------------------------------------------------------------
+# Parallel rotation for services with no shared container or config file.
+# Everything else (Calibre, LazyLibrarian, Mylar, qBittorrent, SABnzbd, and
+# the Servarr apps) touches the same containers, config.ini files, or DB
+# tables as one another, so it stays fully sequential below: concurrent
+# writes to the same file/DB race and can corrupt it (see the "Editing
+# runtime app state" note in CLAUDE.md), and qBittorrent/SABnzbd's rotation
+# stops the very Servarr containers their own rotation needs running.
+# ---------------------------------------------------------------------------
+
+PARALLEL_ROTATION_FAILURES=()
+
+# Args: service_name rotate_function [container_required_running]
+run_parallel_service() {
+  local service="$1" func="$2" requires_running="${3:-}"
+  local upper user_var new_var status=0
+  upper="$(echo "${service^^}" | tr '-' '_')"
+  user_var="SUMMARY_${upper}_USER"
+  new_var="SUMMARY_${upper}_NEW"
+  rotate_if_enabled "$service" "$func" "$requires_running" \
+    >"$PARALLEL_TMPDIR/$service.log" 2>&1 || status=$?
+  printf '%s\n%s\n%s\n' "${!user_var}" "${!new_var}" "$status" \
+    >"$PARALLEL_TMPDIR/$service.result"
+}
+
+run_parallel_group() {
+  PARALLEL_TMPDIR="$(mktemp -d)"
+  local services=(audiobookshelf bazarr calibre-web grafana jdownloader2 jellyfin nzbhydra2 prowlarr)
+  run_parallel_service audiobookshelf rotate_audiobookshelf &
+  run_parallel_service bazarr rotate_bazarr &
+  run_parallel_service calibre-web rotate_calibre_web &
+  run_parallel_service grafana rotate_grafana grafana &
+  run_parallel_service jdownloader2 rotate_jdownloader2 &
+  run_parallel_service jellyfin rotate_jellyfin jellyfin &
+  run_parallel_service nzbhydra2 rotate_nzbhydra2 &
+  run_parallel_service prowlarr rotate_prowlarr prowlarr &
+  wait
+
+  local service upper user_var new_var result lines
+  for service in "${services[@]}"; do
+    cat "$PARALLEL_TMPDIR/$service.log"
+    upper="$(echo "${service^^}" | tr '-' '_')"
+    user_var="SUMMARY_${upper}_USER"
+    new_var="SUMMARY_${upper}_NEW"
+    result="$PARALLEL_TMPDIR/$service.result"
+    if [[ -s "$result" ]]; then
+      mapfile -t lines <"$result"
+      printf -v "$user_var" '%s' "${lines[0]}"
+      printf -v "$new_var" '%s' "${lines[1]}"
+      if [[ "${lines[2]}" != "0" ]]; then
+        PARALLEL_ROTATION_FAILURES+=("$service")
+      fi
+    fi
+  done
+  rm -rf "$PARALLEL_TMPDIR"
+}
+
 case "$TARGET" in
 audiobookshelf) rotate_if_enabled audiobookshelf rotate_audiobookshelf ;;
 bazarr) rotate_if_enabled bazarr rotate_bazarr ;;
@@ -1004,18 +1061,11 @@ sabnzbd) rotate_if_enabled sabnzbd rotate_sabnzbd ;;
 sonarr) rotate_if_enabled sonarr rotate_sonarr sonarr ;;
 whisparr) rotate_if_enabled whisparr rotate_whisparr whisparr ;;
 all)
-  rotate_if_enabled audiobookshelf rotate_audiobookshelf
-  rotate_if_enabled bazarr rotate_bazarr
+  run_parallel_group
   rotate_if_enabled calibre rotate_calibre
-  rotate_if_enabled calibre-web rotate_calibre_web
-  rotate_if_enabled grafana rotate_grafana grafana
-  rotate_if_enabled jdownloader2 rotate_jdownloader2
-  rotate_if_enabled jellyfin rotate_jellyfin jellyfin
   rotate_if_enabled lazylibrarian rotate_lazylibrarian
   rotate_if_enabled lidarr rotate_lidarr lidarr
   rotate_if_enabled mylar rotate_mylar
-  rotate_if_enabled nzbhydra2 rotate_nzbhydra2
-  rotate_if_enabled prowlarr rotate_prowlarr prowlarr
   rotate_if_enabled qbittorrent rotate_qbittorrent qbittorrent
   rotate_if_enabled radarr rotate_radarr radarr
   rotate_if_enabled readarr rotate_readarr readarr
@@ -1315,6 +1365,12 @@ echo "======================================================================"
 [[ -n "$SUMMARY_SONARR_NEW" ]] && validate sonarr 180 arr_login_ok sonarr http "$SONARR_HTTP_PORT" sonarr "$SUMMARY_SONARR_NEW"
 [[ -n "$SUMMARY_WHISPARR_NEW" ]] && validate whisparr 180 arr_login_ok whisparr https "$WHISPARR_HTTPS_PORT" whisparr "$SUMMARY_WHISPARR_NEW"
 echo "======================================================================"
+
+if [[ ${#PARALLEL_ROTATION_FAILURES[@]} -gt 0 ]]; then
+  echo ""
+  echo "ERROR: rotation failed for: ${PARALLEL_ROTATION_FAILURES[*]}" >&2
+  exit 1
+fi
 
 if [[ ${#VALIDATION_FAILURES[@]} -gt 0 ]]; then
   echo ""

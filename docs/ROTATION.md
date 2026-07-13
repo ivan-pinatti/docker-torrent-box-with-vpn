@@ -44,6 +44,18 @@ turn as its rotation happens to come up. If a container never comes up,
 that service is skipped in `all` mode or the run exits with an error for an
 explicit target.
 
+With the `all` target, the eight services with no shared container or
+config file (Audiobookshelf, Bazarr, Calibre-Web, Grafana, jDownloader2,
+Jellyfin, NZBHydra2, Prowlarr) rotate concurrently in the background, then
+the rest run sequentially exactly as a single-target invocation would.
+Calibre, LazyLibrarian, Mylar, qBittorrent, SABnzbd, and the remaining
+Servarr apps stay sequential because they touch the same containers,
+`config.ini` files, or DB tables as one another (qBittorrent's and
+SABnzbd's rotations stop the very Servarr containers their own password
+rotation needs running, for instance); running those concurrently would
+race on the same file or database writes. See the "Editing runtime app
+state" note in `CLAUDE.md` for why that's unsafe.
+
 ## API Keys (`rotate-api-keys.sh`)
 
 Valid targets: `sonarr`, `radarr`, `lidarr`, `readarr`, `whisparr`,
