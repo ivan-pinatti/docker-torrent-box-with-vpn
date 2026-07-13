@@ -61,7 +61,11 @@ services:
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
-    env_file: ["${CONFIG_FOLDER}/jdownloader2/.env"]
+    env_file:
+      [
+        "${CONFIG_FOLDER}/jdownloader2/.env",
+        "${CONFIG_FOLDER}/jdownloader2/.env.secrets",
+      ]
     environment:
       ["USER_ID=${JDOWNLOADER2_UID}", "GROUP_ID=${JDOWNLOADER2_GID}", "TZ=${TIMEZONE}"]
     volumes:
@@ -70,7 +74,9 @@ services:
       - ${DOWNLOADS_FOLDER}:/data/downloads:z
     healthcheck:
       <<: *healthcheck-defaults
-      test: curl --fail --silent http://127.0.0.1:${JDOWNLOADER2_HTTP_PORT}/ || exit 1
+      # SECURE_CONNECTION=1 serves the web UI over https with a self-signed
+      # certificate; the login portal answers unauthenticated requests.
+      test: curl --fail --silent --insecure https://127.0.0.1:${JDOWNLOADER2_HTTP_PORT}/ || exit 1
 
   # deluge:
   #   deploy:

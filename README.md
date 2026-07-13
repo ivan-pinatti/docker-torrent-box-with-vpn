@@ -758,28 +758,28 @@ canonical URL.
 
 ## **HTTP**
 
-| **App**        | **Link**                         | **User** | **Password** |
-| -------------- | -------------------------------- | -------- | ------------ |
-| Audiobookshelf | <http://localhost:13378/>        | admin    | -            |
-| Bazarr         | <http://localhost:6767/>         | bazarr   | bazarr       |
-| KOReader Sync  | <http://localhost:3000/>         | -        | -            |
-| Calibre        | <http://localhost:8080/>         | calibre  | bazarr       |
-| FlareSolverr   | <http://localhost:8191/>         | -        | -            |
-| Lidarr         | <http://localhost:8686/>         | lidarr   | lidarr       |
-| Nginx          | <http://localhost:80/>           | -        | -            |
-| jDownloader2   | <http://localhost:5800/>         | -        | -            |
-| SABnzbd        | <http://localhost:8086/sabnzbd/> | sabnzbd  | sabnzbd      |
-| Plex           | <http://localhost:32400/>        | -        | -            |
-| Prowlarr       | <http://localhost:9696/>         | prowlarr | prowlarr     |
-| Radarr         | <http://localhost:7878/>         | radarr   | radarr       |
-| Readarr        | <http://localhost:8787/>         | readarr  | readarr      |
-| Sonarr         | <http://localhost:8989/>         | sonarr   | sonarr       |
+| **App**        | **Link**                         | **User**     | **Password** |
+| -------------- | -------------------------------- | ------------ | ------------ |
+| Audiobookshelf | <http://localhost:13378/>        | root         | -            |
+| Bazarr         | <http://localhost:6767/>         | bazarr       | bazarr       |
+| KOReader Sync  | <http://localhost:3000/>         | -            | -            |
+| Calibre        | <http://localhost:8080/>         | calibre      | calibre      |
+| FlareSolverr   | <http://localhost:8191/>         | -            | -            |
+| Lidarr         | <http://localhost:8686/>         | lidarr       | lidarr       |
+| Nginx          | <http://localhost:80/>           | -            | -            |
+| jDownloader2   | <https://localhost:5800/>        | jdownloader2 | rotated      |
+| SABnzbd        | <http://localhost:8086/sabnzbd/> | sabnzbd      | sabnzbd      |
+| Plex           | <http://localhost:32400/>        | -            | -            |
+| Prowlarr       | <http://localhost:9696/>         | prowlarr     | prowlarr     |
+| Radarr         | <http://localhost:7878/>         | radarr       | radarr       |
+| Readarr        | <http://localhost:8787/>         | readarr      | readarr      |
+| Sonarr         | <http://localhost:8989/>         | sonarr       | sonarr       |
 
 ## **HTTPS**
 
 | **App**        | **Link**                               | **User**      | **Password**  |
 | -------------- | -------------------------------------- | ------------- | ------------- |
-| Audiobookshelf | <http://localhost:13378/>              | admin         | -             |
+| Audiobookshelf | <http://localhost:13378/>              | root          | -             |
 | Calibre        | <https://localhost:8181/>              | calibre       | calibre       |
 | Calibre-Web    | <https://localhost:8084/>              | calibre       | calibre       |
 | LazyLibrarian  | <https://localhost:5299/lazylibrarian> | lazylibrarian | lazylibrarian |
@@ -797,7 +797,7 @@ canonical URL.
 
 | **App**            | **Link**                                       | **User**      | **Password**  |
 | ------------------ | ---------------------------------------------- | ------------- | ------------- |
-| Audiobookshelf     | <https://localhost/audiobookshelf/>            | admin         | -             |
+| Audiobookshelf     | <https://localhost/audiobookshelf/>            | root          | -             |
 | Bazarr             | <https://localhost/bazarr/>                    | bazarr        | bazarr        |
 | Calibre            | <https://localhost/calibre/>                   | calibre       | calibre       |
 | Calibre-Web        | <https://localhost/calibre_web/>               | calibre       | calibre       |
@@ -805,7 +805,7 @@ canonical URL.
 | Gluetun VPN status | <https://localhost/gluetun/v1/vpn/status>      | -             | -             |
 | Gluetun port       | <https://localhost/gluetun/v1/portforward>     | -             | -             |
 | Gluetun exit IP    | <https://localhost/gluetun/v1/publicip/ip>     | -             | -             |
-| Jellyfin           | <https://localhost/jellyfin/>                  | -             | -             |
+| Jellyfin           | <https://localhost/jellyfin/>                  | jellyfin      | -             |
 | KOReader Sync      | <https://localhost/korsync/>                   | -             | -             |
 | Lazylibrarian      | <https://localhost/lazylibrarian/>             | lazylibrarian | lazylibrarian |
 | Lidarr             | <https://localhost/lidarr/>                    | lidarr        | lidarr        |

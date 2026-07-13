@@ -51,13 +51,15 @@ ARR_DB_PATHS = {
 # ---------------------------------------------------------------------------
 
 
-def _run_script(script: str, target: str) -> subprocess.CompletedProcess:
+def _run_script(
+    script: str, target: str, timeout: int = 600
+) -> subprocess.CompletedProcess:
     return subprocess.run(
         [str(SCRIPTS / script), target],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
-        timeout=600,
+        timeout=timeout,
     )
 
 
@@ -122,7 +124,7 @@ def _qbt_stored_password_hash() -> str:
 
 
 def _qbt_restart_and_wait():
-    subprocess.run(
+    subprocess.run(  # nosec B607 - podman is a trusted, fixed CLI in this stack
         ["podman", "restart", "qbittorrent"], check=True, capture_output=True
     )
     for _ in range(30):
@@ -135,7 +137,7 @@ def _qbt_restart_and_wait():
 def _qbt_set_password(current_password: str, new_password: str):
     """Set the qBittorrent WebUI password via its API, inside the container."""
     port = int(ENV.get("QBITTORRENT_HTTPS_PORT", "8085"))
-    jar = "/tmp/qbt_test_cookies.txt"
+    jar = "/tmp/qbt_test_cookies.txt"  # nosec B108 - path is inside the container, not the host
     login = (
         f"curl -sk -c {jar} -d 'username=qbittorrent&password={current_password}' "
         f"https://{QBT_HOST}:{port}/api/v2/auth/login"
@@ -145,7 +147,7 @@ def _qbt_set_password(current_password: str, new_password: str):
         f"curl -sk -b {jar} --data-urlencode 'json={payload}' "
         f"https://{QBT_HOST}:{port}/api/v2/app/setPreferences"
     )
-    subprocess.run(
+    subprocess.run(  # nosec B607 - podman is a trusted, fixed CLI in this stack
         [
             "podman",
             "exec",
@@ -366,11 +368,14 @@ def test_rotate_arr_password(
 
 
 def _summary_password(stdout: str, service: str) -> str:
-    """Extract the plaintext new password for a service from the summary table."""
+    """Extract the plaintext new password for a service from the summary table.
+
+    Table rows are: service, user, new password.
+    """
     for line in stdout.splitlines():
         parts = line.split()
-        if len(parts) == 2 and parts[0] == service:
-            return parts[1]
+        if len(parts) == 3 and parts[0] == service:
+            return parts[2]
     return ""
 
 
@@ -416,12 +421,12 @@ def test_rotate_calibreweb_password(running_containers):
     """Rotating the Calibre-Web password updates app.db and Homepage."""
     skip_if_not_running("calibre-web", running_containers)
 
-    result = _run_script("rotate-passwords.sh", "calibreweb")
+    result = _run_script("rotate-passwords.sh", "calibre-web")
     assert result.returncode == 0, (
-        f"rotate-passwords.sh calibreweb exited {result.returncode}:\n{result.stderr}"
+        f"rotate-passwords.sh calibre-web exited {result.returncode}:\n{result.stderr}"
     )
-    new_password = _summary_password(result.stdout, "calibreweb")
-    assert new_password, "Summary table does not contain the new calibreweb password"
+    new_password = _summary_password(result.stdout, "calibre-web")
+    assert new_password, "Summary table does not contain the new calibre-web password"
 
     secrets = (REPO_ROOT / "configs/homepage/.env.secrets").read_text()
     assert f"HOMEPAGE_VAR_CALIBREWEB_PASS={new_password}" in secrets, (
@@ -477,6 +482,217 @@ def test_rotate_mylar_password(running_containers):
     assert f"http_password = {new_password}" in ini, (
         "Mylar config.ini does not hold the new password (config flush clobbered it?)"
     )
+
+
+def test_rotate_calibre_password(running_containers):
+    """Rotating the Calibre content server password updates the userdb and LazyLibrarian."""
+    if ENV.get("CALIBRE_PROFILE", "disabled").lower() != "enabled":
+        pytest.skip("calibre profile is disabled")
+    skip_if_not_running("calibre", running_containers)
+
+    # rotate-passwords.sh itself retries calibre_login_ok for up to 600s
+    # (the desktop GUI can take minutes to boot); give the subprocess margin
+    # above that so this test's own timeout never fires first.
+    result = _run_script("rotate-passwords.sh", "calibre", timeout=660)
+    assert result.returncode == 0, (
+        f"rotate-passwords.sh calibre exited {result.returncode}:\n{result.stderr}"
+    )
+    new_password = _summary_password(result.stdout, "calibre")
+    assert new_password, "Summary table does not contain the new calibre password"
+
+    conn = sqlite3.connect(
+        str(REPO_ROOT / "configs/calibre/config/.config/calibre/server-users.sqlite")
+    )
+    cur = conn.cursor()
+    cur.execute("SELECT pw FROM users WHERE name = 'calibre'")
+    row = cur.fetchone()
+    conn.close()
+    assert row is not None and row[0] == new_password, (
+        "server-users.sqlite does not hold the new calibre password"
+    )
+
+    ll_config = REPO_ROOT / "configs/lazylibrarian/config/config.ini"
+    if ll_config.exists():
+        assert f"calibre_pass = {new_password}" in ll_config.read_text(), (
+            "LazyLibrarian config.ini does not hold the new calibre password"
+        )
+
+    port = int(ENV.get("CALIBRE_GUI_WEB_HTTP_PORT", "8081"))
+    status = 0
+    for _ in range(10):
+        status, _body = container_http(
+            "calibre",
+            f"http://127.0.0.1:{port}/ajax/library-info",
+            extra_args=["-u", f"calibre:{new_password}"],
+            timeout=TIMEOUT,
+        )
+        if status == 200:
+            break
+        time.sleep(5)
+    assert status == 200, (
+        f"Calibre content server does not accept the new password (HTTP {status})"
+    )
+
+    # The desktop GUI/noVNC session shares the same password, via basic auth
+    # over HTTPS with a self-signed certificate. It only starts once the
+    # container's X11 desktop has booted, which can lag well behind the
+    # content server; if this proves flaky, see the recovery command in
+    # docs/ROTATION.md for the known GUI single-instance wedge.
+    gui_port = int(ENV.get("CALIBRE_DESKTOP_HTTPS_PORT", "8181"))
+    gui_status = 0
+    for _ in range(10):
+        gui_status, _body = container_http(
+            "calibre",
+            f"https://127.0.0.1:{gui_port}/",
+            extra_args=["-k", "-u", f"calibre:{new_password}"],
+            timeout=TIMEOUT,
+        )
+        if gui_status == 200:
+            break
+        time.sleep(5)
+    assert gui_status == 200, (
+        f"Calibre desktop GUI does not accept the new password (HTTP {gui_status})"
+    )
+
+
+def test_rotate_jdownloader2_password(running_containers):
+    """Rotating jDownloader2's web auth password is accepted by its login flow."""
+    if ENV.get("JDOWNLOADER2_PROFILE", "disabled").lower() != "enabled":
+        pytest.skip("jdownloader2 profile is disabled")
+    skip_if_not_running("jdownloader2", running_containers)
+
+    result = _run_script("rotate-passwords.sh", "jdownloader2")
+    assert result.returncode == 0, (
+        f"rotate-passwords.sh jdownloader2 exited {result.returncode}:\n{result.stderr}"
+    )
+    new_password = _summary_password(result.stdout, "jdownloader2")
+    assert new_password, "Summary table does not contain the new jdownloader2 password"
+
+    secrets = REPO_ROOT / "configs/jdownloader2/.env.secrets"
+    assert f"WEB_AUTHENTICATION_PASSWORD={new_password}" in secrets.read_text(), (
+        "jdownloader2 .env.secrets was not updated with the new password"
+    )
+
+    port = int(ENV.get("JDOWNLOADER2_HTTP_PORT", "5800"))
+    login_sh = (
+        "jar=$(mktemp); "
+        f'curl -sk -c "$jar" -o /dev/null https://127.0.0.1:{port}/; '
+        f'curl -sk -b "$jar" -c "$jar" -o /dev/null '
+        f"-d 'username=jdownloader2&password={new_password}' "
+        f"https://127.0.0.1:{port}/login/login; "
+        f'code=$(curl -sk -b "$jar" -o /dev/null -w "%{{http_code}}" https://127.0.0.1:{port}/); '
+        'rm -f "$jar"; echo "$code"'
+    )
+    code = None
+    for _ in range(10):
+        login = subprocess.run(  # nosec B607 - podman is a trusted, fixed CLI in this stack
+            ["podman", "exec", "jdownloader2", "sh", "-c", login_sh],
+            capture_output=True,
+            text=True,
+            timeout=TIMEOUT,
+        )
+        code = login.stdout.strip()
+        if code == "200":
+            break
+        time.sleep(5)
+    assert code == "200", f"jDownloader2 rejected the new password (HTTP {code})"
+
+
+def test_rotate_jellyfin_password(running_containers):
+    """Rotating the Jellyfin password is accepted by AuthenticateByName."""
+    if not is_enabled("jellyfin"):
+        pytest.skip("jellyfin profile is disabled")
+    skip_if_not_running("jellyfin", running_containers)
+
+    result = _run_script("rotate-passwords.sh", "jellyfin")
+    assert result.returncode == 0, (
+        f"rotate-passwords.sh jellyfin exited {result.returncode}:\n{result.stderr}"
+    )
+    new_password = _summary_password(result.stdout, "jellyfin")
+    assert new_password, "Summary table does not contain the new jellyfin password"
+
+    port = int(ENV.get("JELLYFIN_HTTP_PORT", "8096"))
+    auth_header = (
+        'Authorization: MediaBrowser Client="pytest", Device="pytest", '
+        'DeviceId="pytest", Version="1.0"'
+    )
+    status, _body = container_http(
+        "jellyfin",
+        f"http://127.0.0.1:{port}/jellyfin/Users/AuthenticateByName",
+        method="POST",
+        headers={"Content-Type": "application/json"},
+        data=json.dumps({"Username": "jellyfin", "Pw": new_password}),
+        extra_args=["-H", auth_header],
+        timeout=TIMEOUT,
+    )
+    assert status == 200, f"Jellyfin rejected the new password (HTTP {status})"
+
+
+def _abs_password_hash() -> str:
+    """Return the bcrypt hash stored for the root user in absdatabase.sqlite."""
+    conn = sqlite3.connect(
+        str(REPO_ROOT / "configs/audiobookshelf/config/absdatabase.sqlite")
+    )
+    cur = conn.cursor()
+    cur.execute("SELECT pash FROM users WHERE username = 'root'")
+    row = cur.fetchone()
+    conn.close()
+    assert row is not None, "No root user in absdatabase.sqlite"
+    return row[0]
+
+
+def test_rotate_audiobookshelf_password(running_containers):
+    """Rotating the Audiobookshelf password writes a bcrypt hash the app accepts."""
+    # Audiobookshelf has no SERVICES entry in conftest, so check its compose
+    # profile flag directly instead of via is_enabled().
+    if ENV.get("AUDIOBOOKSHELF_PROFILE", "disabled").lower() != "enabled":
+        pytest.skip("audiobookshelf profile is disabled")
+    skip_if_not_running("audiobookshelf", running_containers)
+
+    old_hash = _abs_password_hash()
+
+    result = _run_script("rotate-passwords.sh", "audiobookshelf")
+    assert result.returncode == 0, (
+        f"rotate-passwords.sh audiobookshelf exited {result.returncode}:\n{result.stderr}"
+    )
+    new_password = _summary_password(result.stdout, "audiobookshelf")
+    assert new_password, "Summary table does not contain the new password"
+
+    new_hash = _abs_password_hash()
+    assert new_hash != old_hash, "absdatabase.sqlite password hash did not change"
+
+    # The audiobookshelf image ships no curl; log in with node's global fetch
+    # inside the container, like the rotation script's own validation does.
+    port = int(ENV.get("AUDIOBOOKSHELF_HTTP_PORT", "13378"))
+    login_js = (
+        "const [port, username, password] = process.argv.slice(1);"
+        "fetch(`http://127.0.0.1:${port}/audiobookshelf/login`, {"
+        "  method: 'POST',"
+        "  headers: { 'Content-Type': 'application/json' },"
+        "  body: JSON.stringify({ username, password }),"
+        "}).then((res) => process.exit(res.status === 200 ? 0 : 1),"
+        "        () => process.exit(1));"
+    )
+    for _ in range(10):
+        login = subprocess.run(  # nosec B607 - podman is a trusted, fixed CLI in this stack
+            [
+                "podman",
+                "exec",
+                "audiobookshelf",
+                "node",
+                "-e",
+                login_js,
+                str(port),
+                "root",
+                new_password,
+            ],
+            capture_output=True,
+            timeout=TIMEOUT,
+        )
+        if login.returncode == 0:
+            break
+        time.sleep(5)
+    assert login.returncode == 0, "Audiobookshelf rejected the new password"
 
 
 def test_rotate_nzbhydra2_password(running_containers):

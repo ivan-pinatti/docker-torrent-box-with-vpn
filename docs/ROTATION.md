@@ -28,6 +28,11 @@ The stack must be running for API key and password rotation, because parts of
 the process go through each app's own API (via `podman exec` into the app
 container). Certificate and log rotation work on files only.
 
+Password rotation respects the compose profile flags in `.env`: with the
+`all` target, services whose `<SERVICE>_PROFILE` is `disabled` are skipped
+with a note, and requesting a disabled service explicitly
+(`SERVICE=<name>`) is an error, since its container is not running.
+
 ## API Keys (`rotate-api-keys.sh`)
 
 Valid targets: `sonarr`, `radarr`, `lidarr`, `readarr`, `whisparr`,
@@ -66,14 +71,45 @@ actual values live in the respective config files.
 
 ## Passwords (`rotate-passwords.sh`)
 
-Valid targets: `sonarr`, `radarr`, `lidarr`, `readarr`, `whisparr`,
-`prowlarr`, `bazarr`, `qbittorrent`, `sabnzbd`, `lazylibrarian`, `mylar`,
-`calibreweb`, `grafana`, `nzbhydra2`, `all`.
+Valid targets (alphabetical): `audiobookshelf`, `bazarr`, `calibre`,
+`calibre-web`, `grafana`, `jdownloader2`, `jellyfin`, `lazylibrarian`,
+`lidarr`, `mylar`, `nzbhydra2`, `prowlarr`, `qbittorrent`, `radarr`,
+`readarr`, `sabnzbd`, `sonarr`, `whisparr`, `all`.
 
-- **Servarr apps**: the new login password is set through each app's host
-  config API, which hashes it internally.
+The summary table prints service, user, and new password, and the rotation
+functions, execution order, summary rows, and validation checks are all
+alphabetical by service.
+
+- **Audiobookshelf**: writes a new bcrypt hash for the `root` user directly
+  to the `users` table in `absdatabase.sqlite` (no rotation API exists
+  without the current password). Homepage talks to Audiobookshelf with a
+  JWT API token, not the password, so no consumer update is needed.
 - **Bazarr**: writes the MD5 hash of the new password to `config.yaml`
   (Bazarr stores MD5 by design).
+- **Calibre**: rotates two independent logins that share one password here
+  for simplicity: the content server (users in `server-users.sqlite`,
+  plain text, read at startup) and the desktop GUI/noVNC session (basic
+  auth via `CUSTOM_USER`/`PASSWORD` in `.env.secrets`, read only at
+  container creation, so the container is recreated rather than restarted).
+  Also updates LazyLibrarian's `calibre_pass` in its `config.ini`. The
+  content server only starts once the desktop GUI is up, and the GUI
+  reliably wedges on its single instance lock after a stop/start or
+  recreate cycle; validation gives it a normal boot window, then
+  self-heals once by running `podman exec calibre s6-svc -r
+  /run/service/svc-de` before giving it a second window, so an operator
+  does not need to notice and run that command by hand.
+- **Calibre-Web**: writes a new password hash for the `calibre` user
+  directly to `app.db` (no API exists) and updates Homepage.
+- **Grafana**: changes the admin password over Grafana's API, then keeps
+  `grafana.ini` and Homepage's Basic auth header in sync.
+- **jDownloader2**: writes the new password to `WEB_AUTHENTICATION_PASSWORD`
+  in `.env.secrets`, read only at container creation, so the container is
+  recreated. No other consumer holds this credential.
+- **Jellyfin**: sets a new password for the `jellyfin` user over Jellyfin's
+  API, authenticated with the admin API key Homepage holds. Homepage keeps
+  using the API key, so no consumer update is needed.
+- **LazyLibrarian** and **Mylar**: WebUI passwords in their `config.ini`.
+- **NZBHydra2**: writes a new bcrypt hash to `nzbhydra.yml`.
 - **qBittorrent**: logs into the WebUI API with the current password (read
   from Sonarr's download client settings), sets the new one, then updates
   every consumer: the `DownloadClients` tables of all five Servarr apps,
@@ -84,12 +120,9 @@ Valid targets: `sonarr`, `radarr`, `lidarr`, `readarr`, `whisparr`,
   `configs/sabnzbd/config/sabnzbd.ini`, `.env` and
   `configs/sabnzbd/.env.secrets`, the Servarr `DownloadClients` tables,
   LazyLibrarian, Mylar, Notifiarr, and Homepage.
-- **LazyLibrarian** and **Mylar**: WebUI passwords in their `config.ini`.
-- **Calibre-Web**: writes a new password hash for the `calibre` user
-  directly to `app.db` (no API exists) and updates Homepage.
-- **Grafana**: changes the admin password over Grafana's API, then keeps
-  `grafana.ini` and Homepage's Basic auth header in sync.
-- **NZBHydra2**: writes a new bcrypt hash to `nzbhydra.yml`.
+- **Servarr apps** (Lidarr, Prowlarr, Radarr, Readarr, Sonarr, Whisparr):
+  the new login password is set through each app's host config API, which
+  hashes it internally.
 
 Every file or database edit follows the stop, edit, start pattern: apps read
 their config only at startup and persist in-memory state on shutdown, which
@@ -146,8 +179,6 @@ truncates the original, then compresses rotated files older than
 - **Audiobookshelf's token** used by Homepage is a per-user JWT that must be
   rotated manually in the Audiobookshelf UI; see
   [DEPENDENCIES.md](DEPENDENCIES.md).
-- **Calibre's desktop content server** credentials are managed in Calibre's
-  own user database.
 - **Jackett** is legacy and not covered by any rotation script.
 - **Gluetun's WireGuard private key** lives in `configs/gluetun/.secret`;
   rotate it by generating a new config with your VPN provider.

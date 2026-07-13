@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Usage: ./scripts/rotate-passwords.sh [sonarr|radarr|lidarr|readarr|whisparr|prowlarr|bazarr|qbittorrent|sabnzbd|lazylibrarian|mylar|calibreweb|grafana|nzbhydra2|all]
+# Usage: ./scripts/rotate-passwords.sh [audiobookshelf|bazarr|calibre|calibre-web|grafana|jdownloader2|jellyfin|lazylibrarian|lidarr|mylar|nzbhydra2|prowlarr|qbittorrent|radarr|readarr|sabnzbd|sonarr|whisparr|all]
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
@@ -9,7 +9,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 readonly REPO_ROOT
 cd "$REPO_ROOT"
 
-readonly USAGE="Usage: $0 [sonarr|radarr|lidarr|readarr|whisparr|prowlarr|bazarr|qbittorrent|sabnzbd|lazylibrarian|mylar|calibreweb|grafana|nzbhydra2|all]"
+readonly USAGE="Usage: $0 [audiobookshelf|bazarr|calibre|calibre-web|grafana|jdownloader2|jellyfin|lazylibrarian|lidarr|mylar|nzbhydra2|prowlarr|qbittorrent|radarr|readarr|sabnzbd|sonarr|whisparr|all]"
 
 if [[ $# -ne 1 ]]; then
   echo "$USAGE" >&2
@@ -25,26 +25,40 @@ env_value() {
   grep -m1 "^${key}=" .env | cut -d= -f2-
 }
 
-SONARR_HTTP_PORT="$(env_value SONARR_HTTP_PORT)"
-RADARR_HTTPS_PORT="$(env_value RADARR_HTTPS_PORT)"
+# A service is enabled when its compose profile flag in .env is literally
+# "enabled" (the Makefile starts the stack with --profile enabled).
+# Args: profile_var_prefix (e.g. SONARR for SONARR_PROFILE)
+profile_enabled() {
+  [[ "$(env_value "${1}_PROFILE")" == "enabled" ]]
+}
+
+AUDIOBOOKSHELF_HTTP_PORT="$(env_value AUDIOBOOKSHELF_HTTP_PORT)"
+BAZARR_HTTP_PORT="$(env_value BAZARR_HTTP_PORT)"
+CALIBRE_GUI_WEB_HTTP_PORT="$(env_value CALIBRE_GUI_WEB_HTTP_PORT)"
+CALIBRE_DESKTOP_HTTPS_PORT="$(env_value CALIBRE_DESKTOP_HTTPS_PORT)"
+CALIBRE_WEB_CONTAINER_HTTPS_PORT="$(env_value CALIBRE_WEB_CONTAINER_HTTPS_PORT)"
+JDOWNLOADER2_HTTP_PORT="$(env_value JDOWNLOADER2_HTTP_PORT)"
+JELLYFIN_HTTP_PORT="$(env_value JELLYFIN_HTTP_PORT)"
+LAZYLIBRARIAN_HTTP_PORT="$(env_value LAZYLIBRARIAN_HTTP_PORT)"
 LIDARR_HTTPS_PORT="$(env_value LIDARR_HTTPS_PORT)"
-READARR_HTTPS_PORT="$(env_value READARR_HTTPS_PORT)"
-WHISPARR_HTTPS_PORT="$(env_value WHISPARR_HTTPS_PORT)"
+MYLAR_HTTPS_PORT="$(env_value MYLAR_HTTPS_PORT)"
+NZBHYDRA2_HTTPS_PORT="$(env_value NZBHYDRA2_HTTPS_PORT)"
 PROWLARR_HTTPS_PORT="$(env_value PROWLARR_HTTPS_PORT)"
 QBITTORRENT_HTTPS_PORT="$(env_value QBITTORRENT_HTTPS_PORT)"
 # qBittorrent's WebUI binds to the Gluetun services IP (WebUI\Address in
 # qBittorrent.conf), not loopback, so in-container curl must target it.
 GLUETUN_SERVICES_IP="$(env_value GLUETUN_SERVICES_IP)"
+RADARR_HTTPS_PORT="$(env_value RADARR_HTTPS_PORT)"
+READARR_HTTPS_PORT="$(env_value READARR_HTTPS_PORT)"
 SABNZBD_HTTPS_PORT="$(env_value SABNZBD_HTTPS_PORT)"
-BAZARR_HTTP_PORT="$(env_value BAZARR_HTTP_PORT)"
-LAZYLIBRARIAN_HTTP_PORT="$(env_value LAZYLIBRARIAN_HTTP_PORT)"
-MYLAR_HTTPS_PORT="$(env_value MYLAR_HTTPS_PORT)"
-CALIBRE_WEB_CONTAINER_HTTPS_PORT="$(env_value CALIBRE_WEB_CONTAINER_HTTPS_PORT)"
-NZBHYDRA2_HTTPS_PORT="$(env_value NZBHYDRA2_HTTPS_PORT)"
-readonly SONARR_HTTP_PORT RADARR_HTTPS_PORT LIDARR_HTTPS_PORT READARR_HTTPS_PORT \
-  WHISPARR_HTTPS_PORT PROWLARR_HTTPS_PORT QBITTORRENT_HTTPS_PORT GLUETUN_SERVICES_IP \
-  SABNZBD_HTTPS_PORT LAZYLIBRARIAN_HTTP_PORT MYLAR_HTTPS_PORT \
-  CALIBRE_WEB_CONTAINER_HTTPS_PORT NZBHYDRA2_HTTPS_PORT BAZARR_HTTP_PORT
+SONARR_HTTP_PORT="$(env_value SONARR_HTTP_PORT)"
+WHISPARR_HTTPS_PORT="$(env_value WHISPARR_HTTPS_PORT)"
+readonly AUDIOBOOKSHELF_HTTP_PORT BAZARR_HTTP_PORT CALIBRE_GUI_WEB_HTTP_PORT \
+  CALIBRE_DESKTOP_HTTPS_PORT CALIBRE_WEB_CONTAINER_HTTPS_PORT JDOWNLOADER2_HTTP_PORT \
+  JELLYFIN_HTTP_PORT LAZYLIBRARIAN_HTTP_PORT \
+  LIDARR_HTTPS_PORT MYLAR_HTTPS_PORT NZBHYDRA2_HTTPS_PORT PROWLARR_HTTPS_PORT \
+  QBITTORRENT_HTTPS_PORT GLUETUN_SERVICES_IP RADARR_HTTPS_PORT \
+  READARR_HTTPS_PORT SABNZBD_HTTPS_PORT SONARR_HTTP_PORT WHISPARR_HTTPS_PORT
 
 # ---------------------------------------------------------------------------
 # Config file paths
@@ -69,7 +83,15 @@ readonly NOTIFIARR_CONFIG="configs/notifiarr/config/notifiarr.conf"
 readonly GRAFANA_INI="configs/grafana/config/grafana.ini"
 readonly CALIBREWEB_DB="configs/calibre-web/config/app.db"
 readonly CALIBREWEB_USER="calibre"
+readonly CALIBRE_USERS_DB="configs/calibre/config/.config/calibre/server-users.sqlite"
+readonly CALIBRE_USER="calibre"
+readonly CALIBRE_SECRETS="configs/calibre/.env.secrets" # pragma: allowlist secret
 readonly NZBHYDRA_YML="configs/nzbhydra2/config/nzbhydra.yml"
+readonly AUDIOBOOKSHELF_DB="configs/audiobookshelf/config/absdatabase.sqlite"
+readonly AUDIOBOOKSHELF_USER="root"
+readonly JELLYFIN_USERNAME="jellyfin"
+readonly JDOWNLOADER2_SECRETS="configs/jdownloader2/.env.secrets" # pragma: allowlist secret
+readonly JDOWNLOADER2_USERNAME="jdownloader2"
 
 # Containers that must restart at the end so rewritten config files take
 # effect (populated by the rotation functions).
@@ -227,101 +249,83 @@ PYEOF
 }
 
 # ---------------------------------------------------------------------------
-# Summary variables
+# Summary variables (alphabetical by service)
 # ---------------------------------------------------------------------------
 
-SUMMARY_SONARR_OLD=""
-SUMMARY_SONARR_NEW=""
-SUMMARY_RADARR_OLD=""
-SUMMARY_RADARR_NEW=""
-SUMMARY_LIDARR_OLD=""
-SUMMARY_LIDARR_NEW=""
-SUMMARY_READARR_OLD=""
-SUMMARY_READARR_NEW=""
-SUMMARY_WHISPARR_OLD=""
-SUMMARY_WHISPARR_NEW=""
-SUMMARY_PROWLARR_OLD=""
-SUMMARY_PROWLARR_NEW=""
-SUMMARY_BAZARR_OLD=""
+SUMMARY_AUDIOBOOKSHELF_USER=""
+SUMMARY_AUDIOBOOKSHELF_NEW=""
+SUMMARY_BAZARR_USER=""
 SUMMARY_BAZARR_NEW=""
-SUMMARY_QBITTORRENT_OLD=""
-SUMMARY_QBITTORRENT_NEW=""
-SUMMARY_SABNZBD_OLD=""
-SUMMARY_SABNZBD_NEW=""
-SUMMARY_LAZYLIBRARIAN_OLD=""
-SUMMARY_LAZYLIBRARIAN_NEW=""
-SUMMARY_MYLAR_OLD=""
-SUMMARY_MYLAR_NEW=""
-SUMMARY_CALIBREWEB_OLD=""
-SUMMARY_CALIBREWEB_NEW=""
-SUMMARY_GRAFANA_OLD=""
+SUMMARY_CALIBRE_USER=""
+SUMMARY_CALIBRE_NEW=""
+SUMMARY_CALIBRE_WEB_USER=""
+SUMMARY_CALIBRE_WEB_NEW=""
+SUMMARY_GRAFANA_USER=""
 SUMMARY_GRAFANA_NEW=""
-SUMMARY_NZBHYDRA2_OLD=""
+SUMMARY_JDOWNLOADER2_USER=""
+SUMMARY_JDOWNLOADER2_NEW=""
+SUMMARY_JELLYFIN_USER=""
+SUMMARY_JELLYFIN_NEW=""
+SUMMARY_LAZYLIBRARIAN_USER=""
+SUMMARY_LAZYLIBRARIAN_NEW=""
+SUMMARY_LIDARR_USER=""
+SUMMARY_LIDARR_NEW=""
+SUMMARY_MYLAR_USER=""
+SUMMARY_MYLAR_NEW=""
+SUMMARY_NZBHYDRA2_USER=""
 SUMMARY_NZBHYDRA2_NEW=""
+SUMMARY_PROWLARR_USER=""
+SUMMARY_PROWLARR_NEW=""
+SUMMARY_QBITTORRENT_USER=""
+SUMMARY_QBITTORRENT_NEW=""
+SUMMARY_RADARR_USER=""
+SUMMARY_RADARR_NEW=""
+SUMMARY_READARR_USER=""
+SUMMARY_READARR_NEW=""
+SUMMARY_SABNZBD_USER=""
+SUMMARY_SABNZBD_NEW=""
+SUMMARY_SONARR_USER=""
+SUMMARY_SONARR_NEW=""
+SUMMARY_WHISPARR_USER=""
+SUMMARY_WHISPARR_NEW=""
 VERIFY_SABNZBD_KEY=""
 
 # ---------------------------------------------------------------------------
-# Per-app rotation functions
+# Per-app rotation functions (alphabetical by service)
 # ---------------------------------------------------------------------------
 
-rotate_sonarr() {
-  local new_password
+rotate_audiobookshelf() {
+  # Audiobookshelf has no password rotation API without the current password;
+  # the bcrypt hash is written directly to the users table in absdatabase.sqlite
+  # while the app is stopped. Homepage talks to it with a JWT API token, not
+  # the password, so no consumer cascade is needed.
+  local new_password new_hash
   new_password=$(gen_password)
-  local api_key
-  api_key=$(get_xml_apikey "$SONARR_XML")
-  rotate_arr_password "Sonarr" "sonarr" "$api_key" "$SONARR_HTTP_PORT" "sonarr" "v3" "$new_password" "http"
-  SUMMARY_SONARR_OLD="sonarr"
-  SUMMARY_SONARR_NEW="$new_password"
-}
+  new_hash=$(
+    python3 - <<PYEOF
+import bcrypt
 
-rotate_radarr() {
-  local new_password
-  new_password=$(gen_password)
-  local api_key
-  api_key=$(get_xml_apikey "$RADARR_XML")
-  rotate_arr_password "Radarr" "radarr" "$api_key" "$RADARR_HTTPS_PORT" "radarr" "v3" "$new_password"
-  SUMMARY_RADARR_OLD="radarr"
-  SUMMARY_RADARR_NEW="$new_password"
-}
+print(bcrypt.hashpw('$new_password'.encode(), bcrypt.gensalt()).decode())
+PYEOF
+  )
 
-rotate_lidarr() {
-  local new_password
-  new_password=$(gen_password)
-  local api_key
-  api_key=$(get_xml_apikey "$LIDARR_XML")
-  rotate_arr_password "Lidarr" "lidarr" "$api_key" "$LIDARR_HTTPS_PORT" "lidarr" "v1" "$new_password"
-  SUMMARY_LIDARR_OLD="lidarr"
-  SUMMARY_LIDARR_NEW="$new_password"
-}
+  echo "[Audiobookshelf] Stopping container to update absdatabase.sqlite..."
+  podman stop audiobookshelf >/dev/null
 
-rotate_readarr() {
-  local new_password
-  new_password=$(gen_password)
-  local api_key
-  api_key=$(get_xml_apikey "$READARR_XML")
-  rotate_arr_password "Readarr" "readarr" "$api_key" "$READARR_HTTPS_PORT" "readarr" "v1" "$new_password"
-  SUMMARY_READARR_OLD="readarr"
-  SUMMARY_READARR_NEW="$new_password"
-}
+  echo "[Audiobookshelf] Writing new password hash for user '${AUDIOBOOKSHELF_USER}'..."
+  python3 - <<PYEOF
+import sqlite3
 
-rotate_whisparr() {
-  local new_password
-  new_password=$(gen_password)
-  local api_key
-  api_key=$(get_xml_apikey "$WHISPARR_XML")
-  rotate_arr_password "Whisparr" "whisparr" "$api_key" "$WHISPARR_HTTPS_PORT" "whisparr" "v3" "$new_password"
-  SUMMARY_WHISPARR_OLD="whisparr"
-  SUMMARY_WHISPARR_NEW="$new_password"
-}
+conn = sqlite3.connect('$AUDIOBOOKSHELF_DB')
+conn.execute("UPDATE users SET pash = ? WHERE username = ?", ('$new_hash', '$AUDIOBOOKSHELF_USER'))
+conn.commit()
+conn.close()
+PYEOF
 
-rotate_prowlarr() {
-  local new_password
-  new_password=$(gen_password)
-  local api_key
-  api_key=$(get_xml_apikey "$PROWLARR_XML")
-  rotate_arr_password "Prowlarr" "prowlarr" "$api_key" "$PROWLARR_HTTPS_PORT" "prowlarr" "v1" "$new_password"
-  SUMMARY_PROWLARR_OLD="prowlarr"
-  SUMMARY_PROWLARR_NEW="$new_password"
+  podman start audiobookshelf >/dev/null
+
+  SUMMARY_AUDIOBOOKSHELF_USER="$AUDIOBOOKSHELF_USER"
+  SUMMARY_AUDIOBOOKSHELF_NEW="$new_password"
 }
 
 rotate_bazarr() {
@@ -335,8 +339,279 @@ rotate_bazarr() {
   podman stop bazarr >/dev/null
   yq -i ".auth.password = \"$new_md5\"" "$BAZARR_CONFIG"
   podman start bazarr >/dev/null
-  SUMMARY_BAZARR_OLD="bazarr"
+  SUMMARY_BAZARR_USER="bazarr"
   SUMMARY_BAZARR_NEW="$new_password"
+}
+
+rotate_calibre() {
+  # Calibre has two independent logins that share the same password here for
+  # simplicity: the content server (users in server-users.sqlite, read at
+  # startup) and the desktop GUI/noVNC session (basic auth via CUSTOM_USER
+  # and PASSWORD in .env.secrets, read only at container creation). Both
+  # need the container down for the edit; the GUI container is left stopped
+  # here and picked up by the env-secret consumer recreate at the end of the
+  # script instead of a plain restart, so the new PASSWORD env var is loaded.
+  # LazyLibrarian holds the same credential in its config.ini, which it
+  # persists on shutdown, so it is stopped too.
+  local new_password
+  new_password=$(gen_password)
+
+  echo "[Calibre] Stopping calibre and lazylibrarian to update credentials..."
+  stop_existing lazylibrarian
+  if podman container exists calibre 2>/dev/null; then
+    podman stop calibre >/dev/null
+  fi
+
+  echo "[Calibre] Writing new password for content server user '${CALIBRE_USER}' to server-users.sqlite..."
+  python3 - <<PYEOF
+import sqlite3
+
+conn = sqlite3.connect('$CALIBRE_USERS_DB')
+conn.execute("UPDATE users SET pw = ? WHERE name = ?", ('$new_password', '$CALIBRE_USER'))
+conn.commit()
+conn.close()
+PYEOF
+
+  echo "[Calibre] Writing new password for desktop GUI user '${CALIBRE_USER}' to .env.secrets..."
+  python3 - <<PYEOF
+from pathlib import Path
+
+def set_env(path, key, value):
+    p = Path(path)
+    lines = p.read_text().splitlines() if p.exists() else []
+    needle = f"{key}="
+    for i, line in enumerate(lines):
+        if line.startswith(needle):
+            lines[i] = f"{key}={value}"
+            break
+    else:
+        lines.append(f"{key}={value}")
+    p.write_text("\\n".join(lines) + "\\n")
+
+set_env('$CALIBRE_SECRETS', 'PASSWORD', '$new_password')
+PYEOF
+
+  echo "[LazyLibrarian] Updating calibre_pass in config.ini..."
+  sed -i "s|^calibre_pass = .*|calibre_pass = ${new_password}|" "$LAZYLIBRARIAN_CONFIG"
+
+  start_stopped
+
+  SUMMARY_CALIBRE_USER="$CALIBRE_USER"
+  SUMMARY_CALIBRE_NEW="$new_password"
+}
+
+rotate_calibre_web() {
+  # Calibre-Web has no password API; the hash is written directly to app.db
+  # (werkzeug pbkdf2 format) while the app is stopped, then Homepage's
+  # credential is updated.
+  local new_password
+  new_password=$(gen_password)
+
+  echo "[Calibre-Web] Stopping container to update app.db..."
+  podman stop calibre-web >/dev/null
+
+  echo "[Calibre-Web] Writing new password hash for user '${CALIBREWEB_USER}'..."
+  python3 - <<PYEOF
+import hashlib
+import secrets
+import sqlite3
+
+new_password = '$new_password'
+salt = secrets.token_hex(8)
+iterations = 600000
+digest = hashlib.pbkdf2_hmac("sha256", new_password.encode(), salt.encode(), iterations).hex()
+pw_hash = f"pbkdf2:sha256:{iterations}\${salt}\${digest}"
+
+conn = sqlite3.connect('$CALIBREWEB_DB')
+conn.execute("UPDATE user SET password = ? WHERE name = ?", (pw_hash, '$CALIBREWEB_USER'))
+conn.commit()
+conn.close()
+PYEOF
+
+  podman start calibre-web >/dev/null
+
+  python3 - <<PYEOF
+from pathlib import Path
+
+def set_env(path, key, value):
+    p = Path(path)
+    lines = p.read_text().splitlines() if p.exists() else []
+    needle = f"{key}="
+    for i, line in enumerate(lines):
+        if line.startswith(needle):
+            lines[i] = f"{key}={value}"
+            break
+    else:
+        lines.append(f"{key}={value}")
+    p.write_text("\\n".join(lines) + "\\n")
+
+set_env('$HOMEPAGE_SECRETS', 'HOMEPAGE_VAR_CALIBREWEB_PASS', '$new_password')
+PYEOF
+
+  SUMMARY_CALIBRE_WEB_USER="$CALIBREWEB_USER"
+  SUMMARY_CALIBRE_WEB_NEW="$new_password"
+}
+
+rotate_grafana() {
+  # Grafana's admin password lives in its own database; it is changed through
+  # the self-service API using the current credentials from grafana.ini, then
+  # grafana.ini and Homepage's Basic auth header are kept in sync.
+  local user old_password new_password
+  user=$(grep -oPm1 '(?<=^admin_user = ).*' "$GRAFANA_INI")
+  old_password=$(grep -oPm1 '(?<=^admin_password = ).*' "$GRAFANA_INI")
+  new_password=$(gen_password)
+
+  echo "[Grafana] Changing the admin password via the API..."
+  container_curl grafana -s --fail -u "${user}:${old_password}" -X PUT \
+    -H "Content-Type: application/json" \
+    -d "{\"oldPassword\":\"${old_password}\",\"newPassword\":\"${new_password}\",\"confirmNew\":\"${new_password}\"}" \
+    "http://127.0.0.1:3000/api/user/password" >/dev/null
+
+  echo "[Grafana] Updating admin_password in grafana.ini..."
+  sed -i "s|^admin_password = .*|admin_password = ${new_password}|" "$GRAFANA_INI"
+
+  echo "[Homepage] Updating HOMEPAGE_VAR_GRAFANA_AUTH..."
+  local auth
+  auth=$(printf '%s:%s' "$user" "$new_password" | base64 -w0)
+  sed -i "s|^HOMEPAGE_VAR_GRAFANA_AUTH=.*|HOMEPAGE_VAR_GRAFANA_AUTH=Basic ${auth}|" "$HOMEPAGE_SECRETS"
+
+  SUMMARY_GRAFANA_USER="$user"
+  SUMMARY_GRAFANA_NEW="$new_password"
+}
+
+rotate_jdownloader2() {
+  # jDownloader2's web UI (jlesage image) authenticates via WEB_AUTHENTICATION_*
+  # env vars, read only at container creation, so the container is recreated
+  # by the env-secret consumer step at the end of the script rather than
+  # restarted here.
+  local new_password
+  new_password=$(gen_password)
+
+  echo "[jDownloader2] Writing new password to .env.secrets..."
+  python3 - <<PYEOF
+from pathlib import Path
+
+def set_env(path, key, value):
+    p = Path(path)
+    lines = p.read_text().splitlines() if p.exists() else []
+    needle = f"{key}="
+    for i, line in enumerate(lines):
+        if line.startswith(needle):
+            lines[i] = f"{key}={value}"
+            break
+    else:
+        lines.append(f"{key}={value}")
+    p.write_text("\\n".join(lines) + "\\n")
+
+set_env('$JDOWNLOADER2_SECRETS', 'WEB_AUTHENTICATION_PASSWORD', '$new_password')
+PYEOF
+
+  SUMMARY_JDOWNLOADER2_USER="$JDOWNLOADER2_USERNAME"
+  SUMMARY_JDOWNLOADER2_NEW="$new_password"
+}
+
+rotate_jellyfin() {
+  # Jellyfin's login password is changed through its API with the admin API
+  # key that Homepage holds. No other consumer stores the password (Homepage
+  # authenticates with the API key).
+  local new_password api_key user_id
+  new_password=$(gen_password)
+  api_key=$(grep -oPm1 '(?<=^HOMEPAGE_VAR_JELLYFIN_KEY=).*' "$HOMEPAGE_SECRETS")
+  if [[ -z "$api_key" ]]; then
+    echo "[Jellyfin] Could not read HOMEPAGE_VAR_JELLYFIN_KEY from ${HOMEPAGE_SECRETS}. Aborting Jellyfin rotation." >&2
+    exit 1
+  fi
+
+  echo "[Jellyfin] Looking up the '${JELLYFIN_USERNAME}' user id..."
+  user_id=$(container_curl jellyfin -s --fail \
+    -H "Authorization: MediaBrowser Token=\"${api_key}\"" \
+    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}/jellyfin/Users" |
+    jq -r --arg name "$JELLYFIN_USERNAME" '.[] | select(.Name == $name) | .Id')
+  if [[ -z "$user_id" ]]; then
+    echo "[Jellyfin] User '${JELLYFIN_USERNAME}' not found. Aborting Jellyfin rotation." >&2
+    exit 1
+  fi
+
+  echo "[Jellyfin] Setting new password..."
+  container_curl jellyfin -s --fail -X POST \
+    -H "Authorization: MediaBrowser Token=\"${api_key}\"" \
+    -H "Content-Type: application/json" \
+    -d "{\"NewPw\":\"${new_password}\"}" \
+    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}/jellyfin/Users/${user_id}/Password"
+
+  SUMMARY_JELLYFIN_USER="$JELLYFIN_USERNAME"
+  SUMMARY_JELLYFIN_NEW="$new_password"
+}
+
+rotate_lazylibrarian() {
+  # LazyLibrarian stores its WebUI password in plain text in config.ini and
+  # reads it only at startup.
+  local new_password
+  new_password=$(gen_password)
+  # LazyLibrarian persists its config on shutdown; stop, edit, start.
+  echo "[LazyLibrarian] Stopping container and writing new http_pass..."
+  podman stop lazylibrarian >/dev/null
+  sed -i "s|^http_pass = .*|http_pass = ${new_password}|" "$LAZYLIBRARIAN_CONFIG"
+  podman start lazylibrarian >/dev/null
+  SUMMARY_LAZYLIBRARIAN_USER="lazylibrarian"
+  SUMMARY_LAZYLIBRARIAN_NEW="$new_password"
+}
+
+rotate_lidarr() {
+  local new_password
+  new_password=$(gen_password)
+  local api_key
+  api_key=$(get_xml_apikey "$LIDARR_XML")
+  rotate_arr_password "Lidarr" "lidarr" "$api_key" "$LIDARR_HTTPS_PORT" "lidarr" "v1" "$new_password"
+  SUMMARY_LIDARR_USER="lidarr"
+  SUMMARY_LIDARR_NEW="$new_password"
+}
+
+rotate_mylar() {
+  # Mylar stores its WebUI password in plain text in config.ini and reads it
+  # only at startup.
+  local new_password
+  new_password=$(gen_password)
+  # Mylar persists its config on shutdown; stop, edit, start.
+  echo "[Mylar] Stopping container and writing new http_password..."
+  podman stop mylar >/dev/null
+  sed -i "s|^http_password = .*|http_password = ${new_password}|" "$MYLAR_CONFIG"
+  podman start mylar >/dev/null
+  SUMMARY_MYLAR_USER="mylar"
+  SUMMARY_MYLAR_NEW="$new_password"
+}
+
+rotate_nzbhydra2() {
+  # NZBHydra2 stores WebUI passwords bcrypt-hashed in nzbhydra.yml with a
+  # {bcrypt} prefix and reads them at startup.
+  local new_password new_hash
+  new_password=$(gen_password)
+  new_hash=$(
+    python3 - <<PYEOF
+import bcrypt
+
+print(bcrypt.hashpw('$new_password'.encode(), bcrypt.gensalt()).decode())
+PYEOF
+  )
+
+  # NZBHydra2 persists its config on shutdown; stop, edit, start.
+  echo "[NZBHydra2] Stopping container and writing new bcrypt password hash..."
+  podman stop nzbhydra2 >/dev/null
+  pwHash="{bcrypt}${new_hash}" yq -i '(.auth.users[0].password) = strenv(pwHash)' "$NZBHYDRA_YML"
+  podman start nzbhydra2 >/dev/null
+
+  SUMMARY_NZBHYDRA2_USER="nzbhydra2"
+  SUMMARY_NZBHYDRA2_NEW="$new_password"
+}
+
+rotate_prowlarr() {
+  local new_password
+  new_password=$(gen_password)
+  local api_key
+  api_key=$(get_xml_apikey "$PROWLARR_XML")
+  rotate_arr_password "Prowlarr" "prowlarr" "$api_key" "$PROWLARR_HTTPS_PORT" "prowlarr" "v1" "$new_password"
+  SUMMARY_PROWLARR_USER="prowlarr"
+  SUMMARY_PROWLARR_NEW="$new_password"
 }
 
 rotate_qbittorrent() {
@@ -439,157 +714,35 @@ PYEOF
 
   start_stopped
 
-  SUMMARY_QBITTORRENT_OLD="${current_password}"
+  SUMMARY_QBITTORRENT_USER="qbittorrent"
   SUMMARY_QBITTORRENT_NEW="$new_password"
 }
 
-rotate_lazylibrarian() {
-  # LazyLibrarian stores its WebUI password in plain text in config.ini and
-  # reads it only at startup.
+rotate_radarr() {
   local new_password
   new_password=$(gen_password)
-  # LazyLibrarian persists its config on shutdown; stop, edit, start.
-  echo "[LazyLibrarian] Stopping container and writing new http_pass..."
-  podman stop lazylibrarian >/dev/null
-  sed -i "s|^http_pass = .*|http_pass = ${new_password}|" "$LAZYLIBRARIAN_CONFIG"
-  podman start lazylibrarian >/dev/null
-  SUMMARY_LAZYLIBRARIAN_OLD="lazylibrarian"
-  SUMMARY_LAZYLIBRARIAN_NEW="$new_password"
+  local api_key
+  api_key=$(get_xml_apikey "$RADARR_XML")
+  rotate_arr_password "Radarr" "radarr" "$api_key" "$RADARR_HTTPS_PORT" "radarr" "v3" "$new_password"
+  SUMMARY_RADARR_USER="radarr"
+  SUMMARY_RADARR_NEW="$new_password"
 }
 
-rotate_mylar() {
-  # Mylar stores its WebUI password in plain text in config.ini and reads it
-  # only at startup.
+rotate_readarr() {
   local new_password
   new_password=$(gen_password)
-  # Mylar persists its config on shutdown; stop, edit, start.
-  echo "[Mylar] Stopping container and writing new http_password..."
-  podman stop mylar >/dev/null
-  sed -i "s|^http_password = .*|http_password = ${new_password}|" "$MYLAR_CONFIG"
-  podman start mylar >/dev/null
-  SUMMARY_MYLAR_OLD="mylar"
-  SUMMARY_MYLAR_NEW="$new_password"
-}
-
-rotate_calibreweb() {
-  # Calibre-Web has no password API; the hash is written directly to app.db
-  # (werkzeug pbkdf2 format) while the app is stopped, then Homepage's
-  # credential is updated.
-  local new_password
-  new_password=$(gen_password)
-
-  echo "[Calibre-Web] Stopping container to update app.db..."
-  podman stop calibre-web >/dev/null
-
-  echo "[Calibre-Web] Writing new password hash for user '${CALIBREWEB_USER}'..."
-  python3 - <<PYEOF
-import hashlib
-import secrets
-import sqlite3
-
-new_password = '$new_password'
-salt = secrets.token_hex(8)
-iterations = 600000
-digest = hashlib.pbkdf2_hmac("sha256", new_password.encode(), salt.encode(), iterations).hex()
-pw_hash = f"pbkdf2:sha256:{iterations}\${salt}\${digest}"
-
-conn = sqlite3.connect('$CALIBREWEB_DB')
-conn.execute("UPDATE user SET password = ? WHERE name = ?", (pw_hash, '$CALIBREWEB_USER'))
-conn.commit()
-conn.close()
-PYEOF
-
-  podman start calibre-web >/dev/null
-
-  python3 - <<PYEOF
-from pathlib import Path
-
-def set_env(path, key, value):
-    p = Path(path)
-    lines = p.read_text().splitlines() if p.exists() else []
-    needle = f"{key}="
-    for i, line in enumerate(lines):
-        if line.startswith(needle):
-            lines[i] = f"{key}={value}"
-            break
-    else:
-        lines.append(f"{key}={value}")
-    p.write_text("\\n".join(lines) + "\\n")
-
-set_env('$HOMEPAGE_SECRETS', 'HOMEPAGE_VAR_CALIBREWEB_PASS', '$new_password')
-PYEOF
-
-  SUMMARY_CALIBREWEB_OLD="calibre"
-  SUMMARY_CALIBREWEB_NEW="$new_password"
-}
-
-rotate_grafana() {
-  # Grafana's admin password lives in its own database; it is changed through
-  # the self-service API using the current credentials from grafana.ini, then
-  # grafana.ini and Homepage's Basic auth header are kept in sync.
-  local user old_password new_password
-  user=$(grep -oPm1 '(?<=^admin_user = ).*' "$GRAFANA_INI")
-  old_password=$(grep -oPm1 '(?<=^admin_password = ).*' "$GRAFANA_INI")
-  new_password=$(gen_password)
-
-  echo "[Grafana] Changing the admin password via the API..."
-  container_curl grafana -s --fail -u "${user}:${old_password}" -X PUT \
-    -H "Content-Type: application/json" \
-    -d "{\"oldPassword\":\"${old_password}\",\"newPassword\":\"${new_password}\",\"confirmNew\":\"${new_password}\"}" \
-    "http://127.0.0.1:3000/api/user/password" >/dev/null
-
-  echo "[Grafana] Updating admin_password in grafana.ini..."
-  sed -i "s|^admin_password = .*|admin_password = ${new_password}|" "$GRAFANA_INI"
-
-  echo "[Homepage] Updating HOMEPAGE_VAR_GRAFANA_AUTH..."
-  local auth
-  auth=$(printf '%s:%s' "$user" "$new_password" | base64 -w0)
-  sed -i "s|^HOMEPAGE_VAR_GRAFANA_AUTH=.*|HOMEPAGE_VAR_GRAFANA_AUTH=Basic ${auth}|" "$HOMEPAGE_SECRETS"
-
-  SUMMARY_GRAFANA_OLD="$old_password"
-  SUMMARY_GRAFANA_NEW="$new_password"
-}
-
-rotate_nzbhydra2() {
-  # NZBHydra2 stores WebUI passwords bcrypt-hashed in nzbhydra.yml with a
-  # {bcrypt} prefix and reads them at startup.
-  local new_password new_hash
-  new_password=$(gen_password)
-  new_hash=$(
-    python3 - <<PYEOF
-import bcrypt
-
-print(bcrypt.hashpw('$new_password'.encode(), bcrypt.gensalt()).decode())
-PYEOF
-  )
-
-  # NZBHydra2 persists its config on shutdown; stop, edit, start.
-  echo "[NZBHydra2] Stopping container and writing new bcrypt password hash..."
-  podman stop nzbhydra2 >/dev/null
-  pwHash="{bcrypt}${new_hash}" yq -i '(.auth.users[0].password) = strenv(pwHash)' "$NZBHYDRA_YML"
-  podman start nzbhydra2 >/dev/null
-
-  SUMMARY_NZBHYDRA2_OLD="nzbhydra2"
-  SUMMARY_NZBHYDRA2_NEW="$new_password"
+  local api_key
+  api_key=$(get_xml_apikey "$READARR_XML")
+  rotate_arr_password "Readarr" "readarr" "$api_key" "$READARR_HTTPS_PORT" "readarr" "v1" "$new_password"
+  SUMMARY_READARR_USER="readarr"
+  SUMMARY_READARR_NEW="$new_password"
 }
 
 rotate_sabnzbd() {
-  local new_password new_api_key new_nzb_key current_password
+  local new_password new_api_key new_nzb_key
   new_password=$(gen_password)
   new_api_key=$(gen_apikey)
   new_nzb_key=$(gen_apikey)
-
-  current_password=$(
-    python3 - <<PYEOF
-from pathlib import Path
-for line in Path('$SABNZBD_CONFIG').read_text().splitlines():
-    if line.strip().startswith('password ='):
-        print(line.split('=', 1)[1].strip())
-        break
-else:
-    print('sabnzbd')
-PYEOF
-  )
 
   # SABnzbd, LazyLibrarian, and Mylar persist their configs on shutdown, and
   # the arr apps' DownloadClients tables are edited on disk; stop everything
@@ -697,45 +850,100 @@ PYEOF
 
   start_stopped
 
-  SUMMARY_SABNZBD_OLD="$current_password"
+  SUMMARY_SABNZBD_USER="sabnzbd"
   SUMMARY_SABNZBD_NEW="$new_password"
   VERIFY_SABNZBD_KEY="$new_api_key"
+}
+
+rotate_sonarr() {
+  local new_password
+  new_password=$(gen_password)
+  local api_key
+  api_key=$(get_xml_apikey "$SONARR_XML")
+  rotate_arr_password "Sonarr" "sonarr" "$api_key" "$SONARR_HTTP_PORT" "sonarr" "v3" "$new_password" "http"
+  SUMMARY_SONARR_USER="sonarr"
+  SUMMARY_SONARR_NEW="$new_password"
+}
+
+rotate_whisparr() {
+  local new_password
+  new_password=$(gen_password)
+  local api_key
+  api_key=$(get_xml_apikey "$WHISPARR_XML")
+  rotate_arr_password "Whisparr" "whisparr" "$api_key" "$WHISPARR_HTTPS_PORT" "whisparr" "v3" "$new_password"
+  SUMMARY_WHISPARR_USER="whisparr"
+  SUMMARY_WHISPARR_NEW="$new_password"
 }
 
 # ---------------------------------------------------------------------------
 # Dispatch
 # ---------------------------------------------------------------------------
 
+# Compose profile flag prefix per rotation target (<prefix>_PROFILE in .env).
+profile_var_for() {
+  case "$1" in
+  calibre-web) echo "CALIBREWEB" ;;
+  *) echo "${1^^}" ;;
+  esac
+}
+
+# Rotate one service, but only when its compose profile is enabled. In "all"
+# mode disabled services are skipped with a note; an explicitly requested
+# disabled service is an error (its container is not running, so the API
+# based rotations cannot work anyway).
+# Args: service_name rotate_function
+rotate_if_enabled() {
+  local service="$1" func="$2"
+  local profile_var
+  profile_var="$(profile_var_for "$service")"
+  if profile_enabled "$profile_var"; then
+    "$func"
+  elif [[ "$TARGET" == "all" ]]; then
+    echo "[$service] Skipped, ${profile_var}_PROFILE is disabled"
+  else
+    echo "ERROR: ${profile_var}_PROFILE is disabled in .env; not rotating $service" >&2
+    exit 1
+  fi
+}
+
 case "$TARGET" in
-sonarr) rotate_sonarr ;;
-radarr) rotate_radarr ;;
-lidarr) rotate_lidarr ;;
-readarr) rotate_readarr ;;
-whisparr) rotate_whisparr ;;
-prowlarr) rotate_prowlarr ;;
-bazarr) rotate_bazarr ;;
-qbittorrent) rotate_qbittorrent ;;
-sabnzbd) rotate_sabnzbd ;;
-lazylibrarian) rotate_lazylibrarian ;;
-mylar) rotate_mylar ;;
-calibreweb) rotate_calibreweb ;;
-grafana) rotate_grafana ;;
-nzbhydra2) rotate_nzbhydra2 ;;
+audiobookshelf) rotate_if_enabled audiobookshelf rotate_audiobookshelf ;;
+bazarr) rotate_if_enabled bazarr rotate_bazarr ;;
+calibre) rotate_if_enabled calibre rotate_calibre ;;
+calibre-web) rotate_if_enabled calibre-web rotate_calibre_web ;;
+grafana) rotate_if_enabled grafana rotate_grafana ;;
+jdownloader2) rotate_if_enabled jdownloader2 rotate_jdownloader2 ;;
+jellyfin) rotate_if_enabled jellyfin rotate_jellyfin ;;
+lazylibrarian) rotate_if_enabled lazylibrarian rotate_lazylibrarian ;;
+lidarr) rotate_if_enabled lidarr rotate_lidarr ;;
+mylar) rotate_if_enabled mylar rotate_mylar ;;
+nzbhydra2) rotate_if_enabled nzbhydra2 rotate_nzbhydra2 ;;
+prowlarr) rotate_if_enabled prowlarr rotate_prowlarr ;;
+qbittorrent) rotate_if_enabled qbittorrent rotate_qbittorrent ;;
+radarr) rotate_if_enabled radarr rotate_radarr ;;
+readarr) rotate_if_enabled readarr rotate_readarr ;;
+sabnzbd) rotate_if_enabled sabnzbd rotate_sabnzbd ;;
+sonarr) rotate_if_enabled sonarr rotate_sonarr ;;
+whisparr) rotate_if_enabled whisparr rotate_whisparr ;;
 all)
-  rotate_sonarr
-  rotate_radarr
-  rotate_lidarr
-  rotate_readarr
-  rotate_whisparr
-  rotate_prowlarr
-  rotate_bazarr
-  rotate_qbittorrent
-  rotate_sabnzbd
-  rotate_lazylibrarian
-  rotate_mylar
-  rotate_calibreweb
-  rotate_grafana
-  rotate_nzbhydra2
+  rotate_if_enabled audiobookshelf rotate_audiobookshelf
+  rotate_if_enabled bazarr rotate_bazarr
+  rotate_if_enabled calibre rotate_calibre
+  rotate_if_enabled calibre-web rotate_calibre_web
+  rotate_if_enabled grafana rotate_grafana
+  rotate_if_enabled jdownloader2 rotate_jdownloader2
+  rotate_if_enabled jellyfin rotate_jellyfin
+  rotate_if_enabled lazylibrarian rotate_lazylibrarian
+  rotate_if_enabled lidarr rotate_lidarr
+  rotate_if_enabled mylar rotate_mylar
+  rotate_if_enabled nzbhydra2 rotate_nzbhydra2
+  rotate_if_enabled prowlarr rotate_prowlarr
+  rotate_if_enabled qbittorrent rotate_qbittorrent
+  rotate_if_enabled radarr rotate_radarr
+  rotate_if_enabled readarr rotate_readarr
+  rotate_if_enabled sabnzbd rotate_sabnzbd
+  rotate_if_enabled sonarr rotate_sonarr
+  rotate_if_enabled whisparr rotate_whisparr
   ;;
 *)
   echo "Unknown target: $TARGET" >&2
@@ -764,8 +972,10 @@ RECREATE_CONSUMERS=()
 case "$TARGET" in
 qbittorrent) RECREATE_CONSUMERS=(qbittorrent_exporter homepage) ;;
 sabnzbd) RECREATE_CONSUMERS=(sabnzbd_exporter homepage) ;;
-calibreweb | grafana) RECREATE_CONSUMERS=(homepage) ;;
-all) RECREATE_CONSUMERS=(qbittorrent_exporter sabnzbd_exporter homepage) ;;
+calibre) RECREATE_CONSUMERS=(calibre) ;;
+calibre-web | grafana) RECREATE_CONSUMERS=(homepage) ;;
+jdownloader2) RECREATE_CONSUMERS=(jdownloader2) ;;
+all) RECREATE_CONSUMERS=(qbittorrent_exporter sabnzbd_exporter homepage calibre jdownloader2) ;;
 esac
 
 if [[ ${#RECREATE_CONSUMERS[@]} -gt 0 ]]; then
@@ -778,7 +988,11 @@ if [[ ${#RECREATE_CONSUMERS[@]} -gt 0 ]]; then
   if [[ ${#existing_consumers[@]} -gt 0 ]]; then
     echo ""
     echo "Recreating secret consumers: ${existing_consumers[*]}"
-    podman-compose --file docker-compose.yml --profile enabled up -d --force-recreate \
+    # --no-deps is required: jdownloader2 (and anything else on
+    # network_mode: container:gluetun) declares gluetun as a dependency, and
+    # without --no-deps podman-compose recreates gluetun too, which drops the
+    # network namespace out from under qbittorrent and sabnzbd.
+    podman-compose --file docker-compose.yml --profile enabled up -d --force-recreate --no-deps \
       "${existing_consumers[@]}"
   fi
 fi
@@ -792,7 +1006,7 @@ fi
 "$SCRIPT_DIR/permissions.py" repair --runtime podman --recursive >/dev/null 2>&1 || true
 
 # ---------------------------------------------------------------------------
-# Summary table
+# Summary table (alphabetical by service)
 # ---------------------------------------------------------------------------
 
 # The new passwords are printed in full: the apps store only hashes, so this
@@ -802,30 +1016,34 @@ echo ""
 echo "======================================================================"
 echo " Password rotation summary"
 echo "======================================================================"
-printf "%-14s  %-20s\n" "Service" "New password"
+printf "%-14s  %-14s  %-20s\n" "Service" "User" "New password"
 echo "----------------------------------------------------------------------"
 
 print_row() {
-  local svc="$1" old="$2" new="$3"
+  local svc="$1" user="$2" new="$3"
   if [[ -n "$new" ]]; then
-    printf "%-14s  %-20s\n" "$svc" "$new"
+    printf "%-14s  %-14s  %-20s\n" "$svc" "$user" "$new"
   fi
 }
 
-print_row "sonarr" "$SUMMARY_SONARR_OLD" "$SUMMARY_SONARR_NEW"
-print_row "radarr" "$SUMMARY_RADARR_OLD" "$SUMMARY_RADARR_NEW"
-print_row "lidarr" "$SUMMARY_LIDARR_OLD" "$SUMMARY_LIDARR_NEW"
-print_row "readarr" "$SUMMARY_READARR_OLD" "$SUMMARY_READARR_NEW"
-print_row "whisparr" "$SUMMARY_WHISPARR_OLD" "$SUMMARY_WHISPARR_NEW"
-print_row "prowlarr" "$SUMMARY_PROWLARR_OLD" "$SUMMARY_PROWLARR_NEW"
-print_row "bazarr" "$SUMMARY_BAZARR_OLD" "$SUMMARY_BAZARR_NEW"
-print_row "qbittorrent" "$SUMMARY_QBITTORRENT_OLD" "$SUMMARY_QBITTORRENT_NEW"
-print_row "sabnzbd" "$SUMMARY_SABNZBD_OLD" "$SUMMARY_SABNZBD_NEW"
-print_row "lazylibrarian" "$SUMMARY_LAZYLIBRARIAN_OLD" "$SUMMARY_LAZYLIBRARIAN_NEW"
-print_row "mylar" "$SUMMARY_MYLAR_OLD" "$SUMMARY_MYLAR_NEW"
-print_row "calibreweb" "$SUMMARY_CALIBREWEB_OLD" "$SUMMARY_CALIBREWEB_NEW"
-print_row "grafana" "$SUMMARY_GRAFANA_OLD" "$SUMMARY_GRAFANA_NEW"
-print_row "nzbhydra2" "$SUMMARY_NZBHYDRA2_OLD" "$SUMMARY_NZBHYDRA2_NEW"
+print_row "audiobookshelf" "$SUMMARY_AUDIOBOOKSHELF_USER" "$SUMMARY_AUDIOBOOKSHELF_NEW"
+print_row "bazarr" "$SUMMARY_BAZARR_USER" "$SUMMARY_BAZARR_NEW"
+print_row "calibre" "$SUMMARY_CALIBRE_USER" "$SUMMARY_CALIBRE_NEW"
+print_row "calibre-web" "$SUMMARY_CALIBRE_WEB_USER" "$SUMMARY_CALIBRE_WEB_NEW"
+print_row "grafana" "$SUMMARY_GRAFANA_USER" "$SUMMARY_GRAFANA_NEW"
+print_row "jdownloader2" "$SUMMARY_JDOWNLOADER2_USER" "$SUMMARY_JDOWNLOADER2_NEW"
+print_row "jellyfin" "$SUMMARY_JELLYFIN_USER" "$SUMMARY_JELLYFIN_NEW"
+print_row "lazylibrarian" "$SUMMARY_LAZYLIBRARIAN_USER" "$SUMMARY_LAZYLIBRARIAN_NEW"
+print_row "lidarr" "$SUMMARY_LIDARR_USER" "$SUMMARY_LIDARR_NEW"
+print_row "mylar" "$SUMMARY_MYLAR_USER" "$SUMMARY_MYLAR_NEW"
+print_row "nzbhydra2" "$SUMMARY_NZBHYDRA2_USER" "$SUMMARY_NZBHYDRA2_NEW"
+print_row "prowlarr" "$SUMMARY_PROWLARR_USER" "$SUMMARY_PROWLARR_NEW"
+print_row "qbittorrent" "$SUMMARY_QBITTORRENT_USER" "$SUMMARY_QBITTORRENT_NEW"
+print_row "radarr" "$SUMMARY_RADARR_USER" "$SUMMARY_RADARR_NEW"
+print_row "readarr" "$SUMMARY_READARR_USER" "$SUMMARY_READARR_NEW"
+print_row "sabnzbd" "$SUMMARY_SABNZBD_USER" "$SUMMARY_SABNZBD_NEW"
+print_row "sonarr" "$SUMMARY_SONARR_USER" "$SUMMARY_SONARR_NEW"
+print_row "whisparr" "$SUMMARY_WHISPARR_USER" "$SUMMARY_WHISPARR_NEW"
 
 echo "======================================================================"
 echo ""
@@ -838,7 +1056,8 @@ echo "        make restart"
 echo "      or restart individual services as needed."
 # ---------------------------------------------------------------------------
 # Validation: prove each rotated credential is accepted by its service. Each
-# check retries while the restarted container comes back up.
+# check retries while the restarted container comes back up. Checks are
+# listed alphabetically by service.
 # ---------------------------------------------------------------------------
 
 arr_login_ok() {
@@ -850,12 +1069,92 @@ arr_login_ok() {
   [[ "$code" == "302" || "$code" == "303" ]]
 }
 
+# The audiobookshelf image ships no curl, but it is a node image with global
+# fetch; the login check runs node inside the container instead.
+audiobookshelf_login_ok() {
+  podman exec audiobookshelf node -e '
+    const [port, username, password] = process.argv.slice(1);
+    fetch(`http://127.0.0.1:${port}/audiobookshelf/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    }).then((res) => process.exit(res.status === 200 ? 0 : 1),
+            () => process.exit(1));
+  ' "$AUDIOBOOKSHELF_HTTP_PORT" "$AUDIOBOOKSHELF_USER" "$1"
+}
+
+# Bazarr's /bazarr/login route only accepts GET (POST returns 405); the real
+# credential check is the account API, which returns 204 on success and 403
+# on a wrong password.
 bazarr_login_ok() {
   local code
   code=$(container_curl bazarr -s -o /dev/null -w '%{http_code}' \
-    -d "username=bazarr&password=$1" \
-    "http://127.0.0.1:${BAZARR_HTTP_PORT}/bazarr/login")
-  [[ "$code" == "200" || "$code" == "204" || "$code" == "302" ]]
+    -X POST -d "username=bazarr&password=$1" \
+    "http://127.0.0.1:${BAZARR_HTTP_PORT}/bazarr/api/system/account?action=login")
+  [[ "$code" == "204" ]]
+}
+
+# Checks both of Calibre's independent logins that share this password: the
+# content server (plain HTTP basic auth) and the desktop GUI/noVNC session
+# (basic auth over HTTPS with a self-signed certificate).
+calibre_login_ok() {
+  local code
+  code=$(container_curl calibre -s -o /dev/null -w '%{http_code}' \
+    -u "${CALIBRE_USER}:$1" \
+    "http://127.0.0.1:${CALIBRE_GUI_WEB_HTTP_PORT}/ajax/library-info")
+  [[ "$code" == "200" ]] || return 1
+  code=$(container_curl calibre -sk -o /dev/null -w '%{http_code}' \
+    -u "${CALIBRE_USER}:$1" \
+    "https://127.0.0.1:${CALIBRE_DESKTOP_HTTPS_PORT}/")
+  [[ "$code" == "200" ]]
+}
+
+calibre_web_login_ok() {
+  local code
+  code=$(container_curl calibre-web -sk -o /dev/null -w '%{http_code}' \
+    -u "${CALIBREWEB_USER}:$1" \
+    "https://127.0.0.1:${CALIBRE_WEB_CONTAINER_HTTPS_PORT}/opds/stats")
+  [[ "$code" == "200" ]]
+}
+
+grafana_login_ok() {
+  container_curl grafana -s --fail -o /dev/null -u "admin:$1" \
+    http://127.0.0.1:3000/api/user
+}
+
+# jDownloader2's login flow (jlesage webauth) needs a cookie jar across three
+# requests: prime cookies, POST the login form, then confirm the root page
+# no longer redirects to /login/. Runs as a single in-container shell script
+# since container_curl only wraps one curl call.
+jdownloader2_login_ok() {
+  podman exec jdownloader2 sh -c '
+    jar=$(mktemp)
+    curl -sk -c "$jar" -o /dev/null "https://127.0.0.1:'"${JDOWNLOADER2_HTTP_PORT}"'/"
+    curl -sk -b "$jar" -c "$jar" -o /dev/null \
+      -d "username='"${JDOWNLOADER2_USERNAME}"'&password='"$1"'" \
+      "https://127.0.0.1:'"${JDOWNLOADER2_HTTP_PORT}"'/login/login"
+    code=$(curl -sk -b "$jar" -o /dev/null -w "%{http_code}" "https://127.0.0.1:'"${JDOWNLOADER2_HTTP_PORT}"'/")
+    rm -f "$jar"
+    [ "$code" = "200" ]
+  '
+}
+
+jellyfin_login_ok() {
+  local code
+  code=$(container_curl jellyfin -s -o /dev/null -w '%{http_code}' -X POST \
+    -H 'Authorization: MediaBrowser Client="rotate-passwords", Device="script", DeviceId="rotate-passwords", Version="1.0"' \
+    -H "Content-Type: application/json" \
+    -d "{\"Username\":\"${JELLYFIN_USERNAME}\",\"Pw\":\"$1\"}" \
+    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}/jellyfin/Users/AuthenticateByName")
+  [[ "$code" == "200" ]]
+}
+
+nzbhydra_login_ok() {
+  local out
+  out=$(container_curl nzbhydra2 -sk -o /dev/null -w '%{http_code} %{redirect_url}' \
+    -d "username=nzbhydra2&password=$1" \
+    "https://127.0.0.1:${NZBHYDRA2_HTTPS_PORT}/nzbhydra2/login")
+  [[ "$out" == 302* && "$out" != *"login?error"* ]]
 }
 
 qbittorrent_api_ok() {
@@ -880,27 +1179,6 @@ service_up_ok() {
   [[ "$code" == "200" ]]
 }
 
-calibreweb_login_ok() {
-  local code
-  code=$(container_curl calibre-web -sk -o /dev/null -w '%{http_code}' \
-    -u "${CALIBREWEB_USER}:$1" \
-    "https://127.0.0.1:${CALIBRE_WEB_CONTAINER_HTTPS_PORT}/opds/stats")
-  [[ "$code" == "200" ]]
-}
-
-grafana_login_ok() {
-  container_curl grafana -s --fail -o /dev/null -u "admin:$1" \
-    http://127.0.0.1:3000/api/user
-}
-
-nzbhydra_login_ok() {
-  local out
-  out=$(container_curl nzbhydra2 -sk -o /dev/null -w '%{http_code} %{redirect_url}' \
-    -d "username=nzbhydra2&password=$1" \
-    "https://127.0.0.1:${NZBHYDRA2_HTTPS_PORT}/nzbhydra2/login")
-  [[ "$out" == 302* && "$out" != *"login?error"* ]]
-}
-
 VALIDATION_FAILURES=()
 validate() {
   local name="$1" timeout="$2"
@@ -913,24 +1191,51 @@ validate() {
   fi
 }
 
+# Calibre's desktop GUI (and its content server, which only starts once the
+# GUI is up) can wedge on its single-instance lock after a stop/start or
+# recreate cycle. Give it a normal boot window first, then self-heal once by
+# restarting the desktop service before giving it a second window, instead of
+# requiring an operator to notice and run the recovery command by hand.
+validate_calibre() {
+  local password="$1"
+  if retry 90 calibre_login_ok "$password"; then
+    printf "%-14s  OK\n" "calibre"
+    return
+  fi
+  echo "[Calibre] Not responding after 90s; restarting the desktop service..."
+  podman exec calibre s6-svc -r /run/service/svc-de >/dev/null 2>&1 || true
+  if retry 300 calibre_login_ok "$password"; then
+    printf "%-14s  OK\n" "calibre"
+  else
+    printf "%-14s  FAILED\n" "calibre"
+    VALIDATION_FAILURES+=("calibre")
+  fi
+}
+
 echo ""
 echo "======================================================================"
 echo " Validating rotated credentials"
 echo "======================================================================"
-[[ -n "$SUMMARY_SONARR_NEW" ]] && validate sonarr 180 arr_login_ok sonarr http "$SONARR_HTTP_PORT" sonarr "$SUMMARY_SONARR_NEW"
-[[ -n "$SUMMARY_RADARR_NEW" ]] && validate radarr 180 arr_login_ok radarr https "$RADARR_HTTPS_PORT" radarr "$SUMMARY_RADARR_NEW"
-[[ -n "$SUMMARY_LIDARR_NEW" ]] && validate lidarr 180 arr_login_ok lidarr https "$LIDARR_HTTPS_PORT" lidarr "$SUMMARY_LIDARR_NEW"
-[[ -n "$SUMMARY_READARR_NEW" ]] && validate readarr 180 arr_login_ok readarr https "$READARR_HTTPS_PORT" readarr "$SUMMARY_READARR_NEW"
-[[ -n "$SUMMARY_WHISPARR_NEW" ]] && validate whisparr 180 arr_login_ok whisparr https "$WHISPARR_HTTPS_PORT" whisparr "$SUMMARY_WHISPARR_NEW"
-[[ -n "$SUMMARY_PROWLARR_NEW" ]] && validate prowlarr 180 arr_login_ok prowlarr https "$PROWLARR_HTTPS_PORT" prowlarr "$SUMMARY_PROWLARR_NEW"
+# LazyLibrarian and Mylar serve their login page at /auth/login; /login is a
+# 404 (LazyLibrarian) or a redirect (Mylar), so probe the real page.
+[[ -n "$SUMMARY_AUDIOBOOKSHELF_NEW" ]] && validate audiobookshelf 180 audiobookshelf_login_ok "$SUMMARY_AUDIOBOOKSHELF_NEW"
 [[ -n "$SUMMARY_BAZARR_NEW" ]] && validate bazarr 180 bazarr_login_ok "$SUMMARY_BAZARR_NEW"
-[[ -n "$SUMMARY_QBITTORRENT_NEW" ]] && validate qbittorrent 180 qbittorrent_api_ok "$SUMMARY_QBITTORRENT_NEW"
-[[ -n "$VERIFY_SABNZBD_KEY" ]] && validate sabnzbd 180 sabnzbd_key_ok "$VERIFY_SABNZBD_KEY"
-[[ -n "$SUMMARY_LAZYLIBRARIAN_NEW" ]] && validate lazylibrarian 180 service_up_ok lazylibrarian "https://127.0.0.1:${LAZYLIBRARIAN_HTTP_PORT}/lazylibrarian/login"
-[[ -n "$SUMMARY_MYLAR_NEW" ]] && validate mylar 180 service_up_ok mylar "https://127.0.0.1:${MYLAR_HTTPS_PORT}/mylar/login"
-[[ -n "$SUMMARY_CALIBREWEB_NEW" ]] && validate calibreweb 180 calibreweb_login_ok "$SUMMARY_CALIBREWEB_NEW"
+[[ -n "$SUMMARY_CALIBRE_NEW" ]] && validate_calibre "$SUMMARY_CALIBRE_NEW"
+[[ -n "$SUMMARY_CALIBRE_WEB_NEW" ]] && validate calibre-web 180 calibre_web_login_ok "$SUMMARY_CALIBRE_WEB_NEW"
 [[ -n "$SUMMARY_GRAFANA_NEW" ]] && validate grafana 180 grafana_login_ok "$SUMMARY_GRAFANA_NEW"
+[[ -n "$SUMMARY_JDOWNLOADER2_NEW" ]] && validate jdownloader2 180 jdownloader2_login_ok "$SUMMARY_JDOWNLOADER2_NEW"
+[[ -n "$SUMMARY_JELLYFIN_NEW" ]] && validate jellyfin 180 jellyfin_login_ok "$SUMMARY_JELLYFIN_NEW"
+[[ -n "$SUMMARY_LAZYLIBRARIAN_NEW" ]] && validate lazylibrarian 180 service_up_ok lazylibrarian "https://127.0.0.1:${LAZYLIBRARIAN_HTTP_PORT}/lazylibrarian/auth/login"
+[[ -n "$SUMMARY_LIDARR_NEW" ]] && validate lidarr 180 arr_login_ok lidarr https "$LIDARR_HTTPS_PORT" lidarr "$SUMMARY_LIDARR_NEW"
+[[ -n "$SUMMARY_MYLAR_NEW" ]] && validate mylar 180 service_up_ok mylar "https://127.0.0.1:${MYLAR_HTTPS_PORT}/mylar/auth/login"
 [[ -n "$SUMMARY_NZBHYDRA2_NEW" ]] && validate nzbhydra2 180 nzbhydra_login_ok "$SUMMARY_NZBHYDRA2_NEW"
+[[ -n "$SUMMARY_PROWLARR_NEW" ]] && validate prowlarr 180 arr_login_ok prowlarr https "$PROWLARR_HTTPS_PORT" prowlarr "$SUMMARY_PROWLARR_NEW"
+[[ -n "$SUMMARY_QBITTORRENT_NEW" ]] && validate qbittorrent 180 qbittorrent_api_ok "$SUMMARY_QBITTORRENT_NEW"
+[[ -n "$SUMMARY_RADARR_NEW" ]] && validate radarr 180 arr_login_ok radarr https "$RADARR_HTTPS_PORT" radarr "$SUMMARY_RADARR_NEW"
+[[ -n "$SUMMARY_READARR_NEW" ]] && validate readarr 180 arr_login_ok readarr https "$READARR_HTTPS_PORT" readarr "$SUMMARY_READARR_NEW"
+[[ -n "$VERIFY_SABNZBD_KEY" ]] && validate sabnzbd 180 sabnzbd_key_ok "$VERIFY_SABNZBD_KEY"
+[[ -n "$SUMMARY_SONARR_NEW" ]] && validate sonarr 180 arr_login_ok sonarr http "$SONARR_HTTP_PORT" sonarr "$SUMMARY_SONARR_NEW"
+[[ -n "$SUMMARY_WHISPARR_NEW" ]] && validate whisparr 180 arr_login_ok whisparr https "$WHISPARR_HTTPS_PORT" whisparr "$SUMMARY_WHISPARR_NEW"
 echo "======================================================================"
 
 if [[ ${#VALIDATION_FAILURES[@]} -gt 0 ]]; then

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Usage: ./scripts/rotate-all.sh [sonarr|radarr|lidarr|readarr|whisparr|prowlarr|bazarr|qbittorrent|sabnzbd|all]
+# Usage: ./scripts/rotate-all.sh [service|all]
 # Rotates API keys then passwords. Defaults to "all" if no argument is given.
+# See rotate-api-keys.sh and rotate-passwords.sh for the valid service names.
 
 TARGET="${1:-all}"
 
