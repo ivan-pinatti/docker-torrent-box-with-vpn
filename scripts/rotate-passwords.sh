@@ -1380,29 +1380,20 @@ validate() {
 
 # Calibre's desktop GUI (and its content server, which only starts once the
 # GUI is up) can wedge on its single-instance lock after a stop/start or
-# recreate cycle: the calibre process launches, connects to nothing, and
-# sits at ~0.2% CPU with static memory indefinitely -- confirmed by sampling
-# `ps`/cpu.stat every 2s through a live wedge, where the original process
-# did no measurable work for 50+ seconds until self-healed. This is a genuine
-# hang, not slow startup: a healthy launch reaches the content server within
-# 4-20s, and a hung one never recovers on its own however long you wait, so
-# a longer first window would only waste time, not improve reliability.
-# Give it a short boot window, then self-heal once by restarting the desktop
-# service before giving it a second window, instead of requiring an operator
-# to notice and run the recovery command by hand. The restarted process
-# reliably opens the content server within a few seconds, so the second
-# window only needs to cover genuine slow-host cases, not the hang itself.
+# recreate cycle. Give it a normal boot window first, then self-heal once by
+# restarting the desktop service before giving it a second window, instead of
+# requiring an operator to notice and run the recovery command by hand.
 validate_calibre() {
   local password="$1"
   local status=0
-  if retry 30 calibre_login_ok "$password"; then
+  if retry 90 calibre_login_ok "$password"; then
     printf "%-14s  OK\n" "calibre"
     echo "$status" >"$VALIDATE_TMPDIR/calibre.result"
     return
   fi
-  echo "[Calibre] Not responding after 30s; restarting the desktop service..."
+  echo "[Calibre] Not responding after 90s; restarting the desktop service..."
   podman exec calibre s6-svc -r /run/service/svc-de >/dev/null 2>&1 || true
-  if retry 90 calibre_login_ok "$password"; then
+  if retry 300 calibre_login_ok "$password"; then
     printf "%-14s  OK\n" "calibre"
   else
     printf "%-14s  FAILED\n" "calibre"
