@@ -135,12 +135,17 @@ alphabetical by service.
   auth via `CUSTOM_USER`/`PASSWORD` in `.env.secrets`, read only at
   container creation, so the container is recreated rather than restarted).
   Also updates LazyLibrarian's `calibre_pass` in its `config.ini`. The
-  content server only starts once the desktop GUI is up, and the GUI
-  reliably wedges on its single instance lock after a stop/start or
-  recreate cycle; validation gives it a normal boot window, then
-  self-heals once by running `podman exec calibre s6-svc -r
-  /run/service/svc-de` before giving it a second window, so an operator
-  does not need to notice and run that command by hand.
+  content server only starts once the desktop GUI is up, and the GUI's
+  calibre process reliably hangs after a stop/start or recreate cycle:
+  confirmed by sampling it every 2s through a live hang, where it sat at
+  ~0.2% CPU with static memory doing nothing for 50+ seconds until
+  restarted. This is a genuine hang, not slow startup, so a longer wait
+  never helps; a healthy launch reaches the content server within 4-20s,
+  and a hung one never recovers on its own. Validation gives it a short
+  30s window, then self-heals once by running `podman exec calibre s6-svc
+  -r /run/service/svc-de` (which reliably recovers within a few seconds)
+  before giving it a second, shorter window, so an operator does not need
+  to notice and run that command by hand.
 - **Calibre-Web**: writes a new password hash for the `calibre` user
   directly to `app.db` (no API exists) and updates Homepage.
 - **Grafana**: changes the admin password over Grafana's API, then keeps
