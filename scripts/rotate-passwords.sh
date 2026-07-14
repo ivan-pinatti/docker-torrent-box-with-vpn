@@ -135,7 +135,18 @@ gen_password() {
   if [[ "$ROTATE_PASSWORD_SPECIAL_CHARS" == "true" ]]; then # pragma: allowlist secret
     charset='A-Za-z0-9!@^*()_~-'
   fi
-  tr -dc "$charset" </dev/urandom 2>/dev/null | head -c "$ROTATE_PASSWORD_LENGTH" || true
+  local pw
+  pw=$(tr -dc "$charset" </dev/urandom 2>/dev/null | head -c "$ROTATE_PASSWORD_LENGTH" || true)
+  # Never let the password start with '-': some consumers pass it as a bare
+  # CLI argument, and a leading '-' gets parsed as a flag rather than data.
+  # Confirmed directly: the calibre image's own init does
+  # `passwd ... "$PASSWORD"`, and a password of "-csgvg13)j0ejd8U" produced
+  # "passwd: Unknown option: -csgvg13)j0ejd8U", silently leaving the old
+  # password in place while the rotation reported success.
+  while [[ "$pw" == -* ]]; do
+    pw=$(tr -dc "$charset" </dev/urandom 2>/dev/null | head -c "$ROTATE_PASSWORD_LENGTH" || true)
+  done
+  printf '%s' "$pw"
 }
 
 gen_apikey() {

@@ -97,6 +97,34 @@ recommendations):
   CertificateValidation to Disabled (everything is on internal networks), or
   issue a certificate with SANs for the service aliases
 
+## Calibre
+
+- [ ] Investigate why the desktop GUI/content server sometimes takes 90s to
+  300s+ to come up (vs. 4-8s in isolation), specifically during mass
+  simultaneous container startup (`make start` bringing up the whole stack,
+  or `rotate-passwords.sh`'s own cascading stop/start/recreate activity).
+  Confirmed via direct log capture: `svc-de` is an s6 "longrun" service
+  whose `run` script does `wait "$PID"; exit 1` on the underlying
+  calibre/labwc process, so whenever that process exits for any reason, s6
+  automatically relaunches it with a fresh PID — this is what both the
+  spontaneous recovery (seen during a plain `make start`, no self-heal
+  logic involved) and `rotate-passwords.sh`'s manual
+  `s6-svc -r /run/service/svc-de` self-heal actually trigger. What's not
+  found: why the first attempt's process exits/goes idle in the first
+  place — no crash or error appears in the container logs at the moment it
+  happens. Tested and ruled out as the sole cause: CPU quota (0.5 vs 1 vs 2
+  CPUs made no difference to the worst case under real load, though 0.5 did
+  show genuine throttling in isolation and 1 is the current setting),
+  sustained concurrent `podman exec` load against other containers alone,
+  and a long stopped period alone or combined with the load test — none of
+  these reproduce it outside an actual mass-startup event. See
+  [README.md known issue #6](../README.md#known-issues-and-future-improvements)
+  and `docs/ROTATION.md` for the current mitigation
+  (`validate_calibre()` in `scripts/rotate-passwords.sh`). Not filed
+  upstream: without a minimal reproduction outside the full stack's
+  concurrent startup, a report to `linuxserver/docker-calibre` wouldn't be
+  actionable for the maintainers.
+
 ## Mylar
 
 - [ ] Mylar + NZBget HTTPS. The qBittorrent side is already fixed via a
