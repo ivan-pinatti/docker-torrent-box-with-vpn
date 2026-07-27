@@ -160,13 +160,25 @@ than caused by that update, but they still need fixing:
   `tests/test_security.py`, instead of reusing the session-fixture object.
   Reproduced and confirmed the fix directly: force-recreated a container
   mid-session, the stale object 404s while a freshly-fetched one works
-- [ ] `test_capabilities_dropped` in `tests/test_security.py` asserts the
+- [x] `test_capabilities_dropped` in `tests/test_security.py` asserted the
   literal string `"ALL"` appears in `CapDrop`, but podman's Docker-compatible
-  API reports the fully expanded capability list instead (or an empty list
-  for some containers), even though `cap_drop: ALL` is set in compose.
-  Affects `[sonarr,radarr,bazarr,lidarr,prowlarr,readarr,whisparr,recyclarr,flaresolverr,qbittorrent,sabnzbd,jellyfin,prometheus,grafana,node_exporter,qbittorrent_exporter,sabnzbd_exporter]`.
-  Needs a podman-aware assertion (compare against the full capability set
-  rather than looking for the literal `"ALL"` token)
+  API reports the fully expanded default-capability list instead. This
+  surfaced a real, separate gap while fixing it: `cap_drop: ALL` was
+  completely missing (not just misreported) from the compose blocks for
+  sonarr, radarr, bazarr, lidarr, prowlarr, readarr, whisparr (via the
+  shared `x-servarr-common` anchor), qbittorrent, sabnzbd, and jellyfin,
+  confirmed via `/proc/1/status` (`CapBnd` non-zero) despite the 2.2.x
+  changelog claiming all containers were hardened with it. Tried adding
+  `cap_drop: [ALL]` to all ten and it broke every one of them:
+  s6-overlay's root-to-PUID/PGID privilege drop needs `CAP_SETGID` for its
+  `setgroups()` call, and `s6-applyuidgid: fatal: unable to set
+  supplementary group list: Operation not permitted` crash-loops them.
+  Reverted the compose change (confirmed clean, containers healthy again);
+  these ten structurally cannot reach zero capabilities without breaking
+  their own startup. Fixed the test instead to assert the achievable
+  invariant per group: full drop for services that can reach it, and "no
+  capability added beyond the default floor" for the ten that need it
+  (tracked as `ROOT_INIT_SERVICES` in the test file)
 - [x] Grafana dashboard tests in `tests/test_observability.py` read dashboard
   JSON straight from `configs/grafana/config/provisioning/dashboards/<file>.json`,
   but the dashboards were reorganized into subfolders

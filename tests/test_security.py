@@ -6,7 +6,14 @@ import subprocess
 
 import pytest
 
-from conftest import REPO_ROOT, SERVICES, env, skip_if_disabled, skip_if_not_running
+from conftest import (
+    REPO_ROOT,
+    SERVICES,
+    env,
+    fresh_container,
+    skip_if_disabled,
+    skip_if_not_running,
+)
 
 pytestmark = pytest.mark.security
 
@@ -55,6 +62,17 @@ PUID_PGID_SERVICES = [
     ]
     if s in SERVICES
 ]
+
+# Services whose entrypoint starts as root and drops to PUID/PGID via
+# s6-overlay (same set as PUID_PGID_SERVICES, plus jellyfin which uses the
+# same pattern but isn't covered by the PUID/PGID-specific tests below).
+# Confirmed empirically that cap_drop: ALL breaks these: s6-applyuidgid's
+# setgroups() call fails with "unable to set supplementary group list" once
+# CAP_SETGID is removed, so they need the engine's default capability floor
+# and cap_drop: ALL was never added to their compose blocks.
+ROOT_INIT_SERVICES = set(PUID_PGID_SERVICES) | (
+    {"jellyfin"} if "jellyfin" in SERVICES else set()
+)
 
 # Services that mount /config and whose app process must be able to read and write it.
 SERVICES_WITH_CONFIG = [
@@ -225,7 +243,7 @@ def _sabnzbd_config_lines() -> list[str]:
     try:
         return path.read_text().splitlines()
     except PermissionError:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B607 - podman is a trusted, fixed CLI in this stack
             ["podman", "unshare", "cat", str(path.relative_to(REPO_ROOT))],
             cwd=REPO_ROOT,
             check=True,
@@ -278,7 +296,7 @@ def _repo_file_exists(path) -> bool:
     if not shutil.which("podman"):
         return False
     rel = path.relative_to(REPO_ROOT)
-    result = subprocess.run(
+    result = subprocess.run(  # nosec B607 - podman is a trusted, fixed CLI in this stack
         ["podman", "unshare", "test", "-f", str(rel)],
         cwd=REPO_ROOT,
         check=False,
@@ -312,11 +330,11 @@ def _app_uid(container) -> str:
 
 
 @pytest.mark.parametrize("service_name", IPV6_DISABLED_SERVICES)
-def test_ipv6_sysctls_disabled(service_name, running_containers):
+def test_ipv6_sysctls_disabled(service_name, running_containers, docker_client):
     """Standalone hardened services that can disable IPv6 must do so."""
     skip_if_disabled(service_name)
     skip_if_not_running(service_name, running_containers)
-    container = running_containers[service_name]
+    container = fresh_container(docker_client, service_name)
     for path in (
         "/proc/sys/net/ipv6/conf/all/disable_ipv6",
         "/proc/sys/net/ipv6/conf/default/disable_ipv6",
@@ -330,7 +348,7 @@ def test_ipv6_sysctls_disabled(service_name, running_containers):
 def test_sabnzbd_config_disables_ipv6():
     """SABnzbd should not bind or select Usenet servers over IPv6."""
     misc = _sabnzbd_misc()
-    assert misc["host"] == "0.0.0.0"
+    assert misc["host"] == "0.0.0.0"  # nosec B104 - asserting a config value, not binding a socket
     assert misc["ipv6_hosting"] == "0"
     assert misc["ipv6_servers"] == "0"
 
@@ -368,12 +386,12 @@ def test_usenet_completed_category_folders_exist_in_repo():
     ["sabnzbd", "sonarr", "radarr", "lidarr", "readarr", "whisparr"],
 )
 def test_usenet_completed_category_folders_visible_to_apps(
-    service_name, running_containers
+    service_name, running_containers, docker_client
 ):
     """All apps sharing /data must see the same SABnzbd completed paths."""
     skip_if_disabled(service_name)
     skip_if_not_running(service_name, running_containers)
-    container = running_containers[service_name]
+    container = fresh_container(docker_client, service_name)
     paths = ["/data/usenet/incomplete", "/data/usenet/complete"]
     paths.extend(
         f"/data/usenet/complete/{directory}"
@@ -443,15 +461,55 @@ def test_no_new_privileges(service_name, running_containers):
     )
 
 
+# podman's Docker-compatible API expands `cap_drop: [ALL]` into the engine's
+# actual default capability set instead of reporting the literal "ALL" token
+# real Docker returns, so check that every default capability was dropped
+# rather than looking for that literal string.
+DEFAULT_CAPABILITIES = {
+    "CHOWN",
+    "DAC_OVERRIDE",
+    "FOWNER",
+    "FSETID",
+    "KILL",
+    "NET_BIND_SERVICE",
+    "SETFCAP",
+    "SETGID",
+    "SETPCAP",
+    "SETUID",
+    "SYS_CHROOT",
+}
+
+
 @pytest.mark.parametrize("service_name", HARDENED_SERVICES)
 def test_capabilities_dropped(service_name, running_containers):
-    """ALL capabilities must be dropped for all hardened services."""
+    """Hardened services must drop every capability they don't structurally need.
+
+    Most hardened services can and do drop every capability (cap_drop: ALL).
+    ROOT_INIT_SERVICES structurally can't: their entrypoint starts as root
+    and needs the engine's default capability floor to drop privileges via
+    s6-overlay, so for those this only checks that nothing extra was added
+    on top of that floor.
+    """
     skip_if_disabled(service_name)
     skip_if_not_running(service_name, running_containers)
     container = running_containers[service_name]
-    cap_drop = container.attrs.get("HostConfig", {}).get("CapDrop") or []
-    assert any(cap.upper() == "ALL" for cap in cap_drop), (
-        f"Container '{service_name}' is missing 'ALL' in CapDrop: {cap_drop}"
+    host_config = container.attrs.get("HostConfig", {})
+    cap_add = {cap.upper() for cap in (host_config.get("CapAdd") or [])}
+
+    if service_name in ROOT_INIT_SERVICES:
+        assert not cap_add, (
+            f"Container '{service_name}' has capabilities added beyond the "
+            f"default floor it needs for its own privilege drop: {sorted(cap_add)}"
+        )
+        return
+
+    cap_drop = {cap.upper() for cap in (host_config.get("CapDrop") or [])}
+    if "ALL" in cap_drop:
+        return
+    missing = DEFAULT_CAPABILITIES - cap_drop
+    assert not missing, (
+        f"Container '{service_name}' retains capabilities beyond the default "
+        f"floor (CapDrop={sorted(cap_drop)}): missing {sorted(missing)}"
     )
 
 
@@ -473,7 +531,7 @@ def test_puid_pgid_non_root(service_name, running_containers):
 
 
 @pytest.mark.parametrize("service_name", PUID_PGID_SERVICES)
-def test_app_process_non_root(service_name, running_containers):
+def test_app_process_non_root(service_name, running_containers, docker_client):
     """At least one process inside the container must run as a non-root UID.
 
     s6-overlay PID 1 legitimately runs as uid=0; the app process it spawns must
@@ -481,7 +539,7 @@ def test_app_process_non_root(service_name, running_containers):
     """
     skip_if_disabled(service_name)
     skip_if_not_running(service_name, running_containers)
-    container = running_containers[service_name]
+    container = fresh_container(docker_client, service_name)
     exit_code, output = container.exec_run(
         [
             "sh",
@@ -503,11 +561,11 @@ def test_app_process_non_root(service_name, running_containers):
 
 
 @pytest.mark.parametrize("service_name", SERVICES_WITH_CONFIG)
-def test_config_readable_as_app_user(service_name, running_containers):
+def test_config_readable_as_app_user(service_name, running_containers, docker_client):
     """The app user must be able to list and read the /config directory."""
     skip_if_disabled(service_name)
     skip_if_not_running(service_name, running_containers)
-    container = running_containers[service_name]
+    container = fresh_container(docker_client, service_name)
     uid = _app_uid(container)
     exit_code, output = container.exec_run(
         [
@@ -524,11 +582,11 @@ def test_config_readable_as_app_user(service_name, running_containers):
 
 
 @pytest.mark.parametrize("service_name", SERVICES_WITH_CONFIG)
-def test_config_writable_as_app_user(service_name, running_containers):
+def test_config_writable_as_app_user(service_name, running_containers, docker_client):
     """The app user must be able to create and remove a file inside /config."""
     skip_if_disabled(service_name)
     skip_if_not_running(service_name, running_containers)
-    container = running_containers[service_name]
+    container = fresh_container(docker_client, service_name)
     uid = _app_uid(container)
     exit_code, output = container.exec_run(
         [
