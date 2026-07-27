@@ -76,7 +76,9 @@ recommendations):
 ## NZBHydra2
 
 - [ ] Restrict access for unlogged-in users
-- [ ] Set cookie expiry to 1 day
+- [x] Set cookie expiry to 1 day: `auth.rememberMeValidityDays` is already `1`
+  in the live config (confirmed it survives container restarts, since
+  NZBHydra2 flushes its own config back to `nzbhydra.yml` on shutdown)
 - [ ] Add notifications (Apprise?)
 - [ ] Fix failure adding to Lidarr, see
   [SSL verification errors wiki page](https://github.com/theotherp/nzbhydra2/wiki/SSL-verification-errors)
