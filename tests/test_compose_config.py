@@ -76,6 +76,7 @@ def test_homepage_group_and_media_ordering():
         "SABnzbd",
         "Prowlarr",
         "NZBHydra2",
+        "JDownloader2",
     ]
 
     media_services = [next(iter(service)) for service in media_group]
