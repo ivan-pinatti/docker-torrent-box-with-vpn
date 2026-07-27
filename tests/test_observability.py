@@ -95,7 +95,7 @@ def _podman_dashboard():
     return json.loads(
         (
             REPO_ROOT
-            / "configs/grafana/config/provisioning/dashboards/podman_containers.json"
+            / "configs/grafana/config/provisioning/dashboards/node_containers/podman_containers.json"
         ).read_text()
     )
 
@@ -411,7 +411,8 @@ def test_podman_dashboard_podman_exporter_queries_are_repo_scoped():
 
 def test_torrent_box_overview_uses_sabnzbd_not_nzbget():
     dashboard = (
-        REPO_ROOT / "configs/grafana/config/provisioning/dashboards/backends.json"
+        REPO_ROOT
+        / "configs/grafana/config/provisioning/dashboards/torrent_box/backends.json"
     ).read_text()
     assert "nzbget" not in dashboard.lower()
     assert "sabnzbd" in dashboard.lower()
@@ -421,7 +422,7 @@ def test_qbittorrent_dashboard_uses_bit_rates():
     dashboard = json.loads(
         (
             REPO_ROOT
-            / "configs/grafana/config/provisioning/dashboards/qbittorrent.json"
+            / "configs/grafana/config/provisioning/dashboards/downloaders/qbittorrent.json"
         ).read_text()
     )
     panels = {panel["title"]: panel for panel in dashboard["panels"]}
@@ -430,7 +431,7 @@ def test_qbittorrent_dashboard_uses_bit_rates():
         "Session Transfer Rate",
         "Active Download Limit",
         "Active Upload Limit",
-        "Network I/O",
+        "VPN Network I/O",
     ):
         panel = panels[title]
         assert panel["fieldConfig"]["defaults"]["unit"] == "bps"
@@ -444,7 +445,7 @@ def test_qbittorrent_dashboard_uses_decimal_byte_sizes():
     dashboard = json.loads(
         (
             REPO_ROOT
-            / "configs/grafana/config/provisioning/dashboards/qbittorrent.json"
+            / "configs/grafana/config/provisioning/dashboards/downloaders/qbittorrent.json"
         ).read_text()
     )
     panels = {panel["title"]: panel for panel in dashboard["panels"]}
