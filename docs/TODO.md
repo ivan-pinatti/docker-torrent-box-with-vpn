@@ -129,12 +129,71 @@ recommendations):
 
 - [ ] Mylar + NZBget HTTPS. The qBittorrent side is already fixed via a
   local patch (`patches/mylar/`); upstream PR
-  [MylarComics/mylar3#23](https://github.com/MylarComics/mylar3/pull/23) is
-  still open
+  [MylarComics/mylar3#23](https://github.com/MylarComics/mylar3/pull/23)
+  merged into `nightly` on 2026-07-23 but hasn't reached a stable release
+  yet. See `docs/MYLAR.md` for the check to run before removing the patch
 
 ## Whisparr
 
 - [ ] Re-enable the password once the upstream bug is fixed
+
+## Test Suite
+
+Found running `make test` after the 2026-07-27 Prowlarr/Sonarr/Radarr version
+bump (2.5.2/6.3.0/4.0.19). None of the arr-specific tests (health checks, API
+key rotation, password rotation) failed, so these look pre-existing rather
+than caused by that update, but they still need fixing:
+
+- [ ] `docker-py` container references go stale mid-session against the
+  podman socket: once a container is stopped/recreated (as the rotation and
+  rinse-and-repeat tests do earlier in the same `pytest` run), later
+  `container.exec_run()` calls against the old cached ID 404 with
+  `docker.errors.NotFound`. Affects, all in `tests/test_security.py`:
+  `test_app_process_non_root[sonarr,radarr,bazarr,lidarr,prowlarr,readarr,whisparr,qbittorrent,sabnzbd]`,
+  `test_config_readable_as_app_user[sonarr,radarr,bazarr,lidarr,prowlarr,readarr,whisparr,recyclarr,qbittorrent,sabnzbd]`,
+  `test_config_writable_as_app_user[sonarr,radarr,bazarr,lidarr,prowlarr,readarr,whisparr,recyclarr,qbittorrent,sabnzbd]`,
+  `test_usenet_completed_category_folders_visible_to_apps[sabnzbd,sonarr,radarr,lidarr,readarr,whisparr]`,
+  `test_ipv6_sysctls_disabled[sabnzbd_exporter]`. Likely needs the container
+  object re-fetched by name right before each `exec_run()` instead of reused
+  from an earlier fixture
+- [ ] `test_capabilities_dropped` in `tests/test_security.py` asserts the
+  literal string `"ALL"` appears in `CapDrop`, but podman's Docker-compatible
+  API reports the fully expanded capability list instead (or an empty list
+  for some containers), even though `cap_drop: ALL` is set in compose.
+  Affects `[sonarr,radarr,bazarr,lidarr,prowlarr,readarr,whisparr,recyclarr,flaresolverr,qbittorrent,sabnzbd,jellyfin,prometheus,grafana,node_exporter,qbittorrent_exporter,sabnzbd_exporter]`.
+  Needs a podman-aware assertion (compare against the full capability set
+  rather than looking for the literal `"ALL"` token)
+- [ ] Grafana dashboard tests in `tests/test_observability.py` read dashboard
+  JSON straight from `configs/grafana/config/provisioning/dashboards/<file>.json`,
+  but the dashboards were reorganized into subfolders
+  (`downloaders/`, `node_containers/`, `torrent_box/`) without updating the
+  tests, so every one 404s with `FileNotFoundError`:
+  `test_grafana_dashboards_provisioned`,
+  `test_podman_dashboard_stack_filters_match_app_groups`,
+  `test_podman_dashboard_default_stack_filter_is_repo_only`,
+  `test_podman_dashboard_container_variable_is_repo_scoped`,
+  `test_podman_dashboard_podman_exporter_queries_are_repo_scoped`,
+  `test_torrent_box_overview_uses_sabnzbd_not_nzbget`,
+  `test_qbittorrent_dashboard_uses_bit_rates`,
+  `test_qbittorrent_dashboard_uses_decimal_byte_sizes`
+- [ ] `tests/test_auth.py::test_qbittorrent_api_login` and
+  `test_qbittorrent_web_session_login` failed with a login `'Fails.'`
+  response, and `tests/test_containers.py::test_container_healthy[qbittorrent]`
+  saw it stuck in `starting` (health probe couldn't connect yet). qBittorrent
+  came up healthy shortly after on its own, so this looks like the health
+  check window being too short during a mass-restart from `make test`
+  rather than an actual auth regression; confirm and adjust the wait/retry
+  before it flakes a CI run
+- [ ] `tests/test_compose_config.py::test_homepage_group_and_media_ordering`
+  expects the indexers/downloaders group ordered
+  `[..., 'NZBHydra2']` but got `JDownloader2` appended instead; homepage
+  config and test have drifted apart
+- [ ] `tests/test_rinse_and_repeat.py::test_stop_then_start[1]` hit a
+  transient podman IPAM error (`requested ip address 172.30.0.10 is already
+  allocated`) on the first stop/start cycle; passed clean on the immediate
+  retry (`[2]`). Likely a network cleanup race on `stop`; investigate whether
+  `make start` needs to wait for the old network allocation to release
+  before recreating containers
 
 ## In Progress
 

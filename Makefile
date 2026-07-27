@@ -323,9 +323,19 @@ pull_docker_images:
 	@echo "Pulling container images..."
 	@$(COMPOSE) $(COMPOSE_FILES) --profile enabled pull
 
+# podman-compose restarts every service concurrently with no dependency ordering
+# (see transfer_service_status() in podman_compose.py), so services using
+# network_mode: container:gluetun would race gluetun's own restart and could be
+# left attached to its old, torn down network namespace. Restart gluetun first,
+# wait for it to be healthy again, then restart everything else.
 restart:
-	@echo "Re-starting containers..."
-	@$(COMPOSE) $(STOP_COMPOSE_FILES) --profile enabled restart
+	@echo "Restarting VPN gateway..."
+	@$(COMPOSE) $(STOP_COMPOSE_FILES) --profile enabled restart gluetun
+	@echo "Waiting for VPN gateway to be healthy (up to 120s)..."
+	@timeout 120 sh -c 'until $(RUNTIME) inspect gluetun --format "{{.State.Health.Status}}" 2>/dev/null | grep -q healthy; do sleep 5; done' || (echo "ERROR: gluetun did not become healthy in time"; exit 1)
+	@echo "Restarting remaining containers..."
+	@services=$$($(COMPOSE) $(STOP_COMPOSE_FILES) --profile enabled config --services 2>/dev/null | grep -vx gluetun); \
+	$(COMPOSE) $(STOP_COMPOSE_FILES) --profile enabled restart $$services
 
 # Rotate API keys and login passwords. Pass SERVICE=<name> to limit the scope,
 # e.g. `make rotate_passwords SERVICE=sonarr`. Defaults to all services.
