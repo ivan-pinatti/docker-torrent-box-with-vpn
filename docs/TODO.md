@@ -75,7 +75,12 @@ recommendations):
 
 ## NZBHydra2
 
-- [ ] Restrict access for unlogged-in users
+- [x] Restrict access for unlogged-in users: `restrictAdmin`,
+  `restrictDetailsDl`, `restrictIndexerSelection`, `restrictSearch`, and
+  `restrictStats` are all already `true` in the live config. Verified live:
+  an unauthenticated request to the internal search API and to the home
+  page both redirect to `/login` (302); the Newznab-compatible `/api`
+  endpoint is separately protected by its own API key check regardless
 - [x] Set cookie expiry to 1 day: `auth.rememberMeValidityDays` is already `1`
   in the live config (confirmed it survives container restarts, since
   NZBHydra2 flushes its own config back to `nzbhydra.yml` on shutdown)
@@ -146,18 +151,15 @@ bump (2.5.2/6.3.0/4.0.19). None of the arr-specific tests (health checks, API
 key rotation, password rotation) failed, so these look pre-existing rather
 than caused by that update, but they still need fixing:
 
-- [ ] `docker-py` container references go stale mid-session against the
+- [x] `docker-py` container references go stale mid-session against the
   podman socket: once a container is stopped/recreated (as the rotation and
   rinse-and-repeat tests do earlier in the same `pytest` run), later
   `container.exec_run()` calls against the old cached ID 404 with
-  `docker.errors.NotFound`. Affects, all in `tests/test_security.py`:
-  `test_app_process_non_root[sonarr,radarr,bazarr,lidarr,prowlarr,readarr,whisparr,qbittorrent,sabnzbd]`,
-  `test_config_readable_as_app_user[sonarr,radarr,bazarr,lidarr,prowlarr,readarr,whisparr,recyclarr,qbittorrent,sabnzbd]`,
-  `test_config_writable_as_app_user[sonarr,radarr,bazarr,lidarr,prowlarr,readarr,whisparr,recyclarr,qbittorrent,sabnzbd]`,
-  `test_usenet_completed_category_folders_visible_to_apps[sabnzbd,sonarr,radarr,lidarr,readarr,whisparr]`,
-  `test_ipv6_sysctls_disabled[sabnzbd_exporter]`. Likely needs the container
-  object re-fetched by name right before each `exec_run()` instead of reused
-  from an earlier fixture
+  `docker.errors.NotFound`. Fixed by adding `fresh_container()` in
+  `conftest.py`, re-fetched by name right before each `exec_run()` in
+  `tests/test_security.py`, instead of reusing the session-fixture object.
+  Reproduced and confirmed the fix directly: force-recreated a container
+  mid-session, the stale object 404s while a freshly-fetched one works
 - [ ] `test_capabilities_dropped` in `tests/test_security.py` asserts the
   literal string `"ALL"` appears in `CapDrop`, but podman's Docker-compatible
   API reports the fully expanded capability list instead (or an empty list
@@ -165,31 +167,28 @@ than caused by that update, but they still need fixing:
   Affects `[sonarr,radarr,bazarr,lidarr,prowlarr,readarr,whisparr,recyclarr,flaresolverr,qbittorrent,sabnzbd,jellyfin,prometheus,grafana,node_exporter,qbittorrent_exporter,sabnzbd_exporter]`.
   Needs a podman-aware assertion (compare against the full capability set
   rather than looking for the literal `"ALL"` token)
-- [ ] Grafana dashboard tests in `tests/test_observability.py` read dashboard
+- [x] Grafana dashboard tests in `tests/test_observability.py` read dashboard
   JSON straight from `configs/grafana/config/provisioning/dashboards/<file>.json`,
   but the dashboards were reorganized into subfolders
   (`downloaders/`, `node_containers/`, `torrent_box/`) without updating the
-  tests, so every one 404s with `FileNotFoundError`:
-  `test_grafana_dashboards_provisioned`,
-  `test_podman_dashboard_stack_filters_match_app_groups`,
-  `test_podman_dashboard_default_stack_filter_is_repo_only`,
-  `test_podman_dashboard_container_variable_is_repo_scoped`,
-  `test_podman_dashboard_podman_exporter_queries_are_repo_scoped`,
-  `test_torrent_box_overview_uses_sabnzbd_not_nzbget`,
-  `test_qbittorrent_dashboard_uses_bit_rates`,
-  `test_qbittorrent_dashboard_uses_decimal_byte_sizes`
-- [ ] `tests/test_auth.py::test_qbittorrent_api_login` and
+  tests, so every one 404s with `FileNotFoundError`. Fixed the paths; also
+  caught a stale panel title (`Network I/O` renamed to `VPN Network I/O`) in
+  the same run
+- [x] `tests/test_auth.py::test_qbittorrent_api_login` and
   `test_qbittorrent_web_session_login` failed with a login `'Fails.'`
-  response, and `tests/test_containers.py::test_container_healthy[qbittorrent]`
-  saw it stuck in `starting` (health probe couldn't connect yet). qBittorrent
-  came up healthy shortly after on its own, so this looks like the health
-  check window being too short during a mass-restart from `make test`
-  rather than an actual auth regression; confirm and adjust the wait/retry
-  before it flakes a CI run
-- [ ] `tests/test_compose_config.py::test_homepage_group_and_media_ordering`
+  response. Not a health-check timing issue: the tests read
+  `QBITTORRENT_PASSWORD` from root `.env`, but `rotate-passwords.sh` only
+  ever writes the rotated password to `configs/qbittorrent/.env.secrets`, so
+  they always fell back to the placeholder password and failed with a real
+  credential mismatch. Fixed to read the actual secrets file.
+  `test_containers.py::test_container_healthy` also read a stale `Health`
+  snapshot captured once at session-fixture creation; fixed to reload and
+  retry via `wait_for_healthy` before asserting
+- [x] `tests/test_compose_config.py::test_homepage_group_and_media_ordering`
   expects the indexers/downloaders group ordered
   `[..., 'NZBHydra2']` but got `JDownloader2` appended instead; homepage
-  config and test have drifted apart
+  config and test have drifted apart. Updated the expected order to include
+  `JDownloader2`
 - [ ] `tests/test_rinse_and_repeat.py::test_stop_then_start[1]` hit a
   transient podman IPAM error (`requested ip address 172.30.0.10 is already
   allocated`) on the first stop/start cycle; passed clean on the immediate
