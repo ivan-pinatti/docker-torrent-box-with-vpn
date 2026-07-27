@@ -359,6 +359,7 @@ start: permissions_repair
 	@echo "Ensuring required networks exist..."
 	@$(RUNTIME) network exists docker-torrent-box-with-vpn_apps || $(RUNTIME) network create docker-torrent-box-with-vpn_apps
 	@$(RUNTIME) network exists docker-torrent-box-with-vpn_services || $(RUNTIME) network create --internal --subnet ${SERVICES_SUBNET} docker-torrent-box-with-vpn_services
+	@$(RUNTIME) network exists docker-torrent-box-with-vpn_media || $(RUNTIME) network create --subnet ${MEDIA_SUBNET} docker-torrent-box-with-vpn_media
 	@$(RUNTIME) network exists docker-torrent-box-with-vpn_observability || $(RUNTIME) network create --internal --subnet ${OBSERVABILITY_SUBNET} docker-torrent-box-with-vpn_observability
 	@echo "Starting VPN gateway..."
 	@$(COMPOSE) $(COMPOSE_FILES) --profile enabled up --detach --no-recreate gluetun

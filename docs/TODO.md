@@ -201,12 +201,18 @@ than caused by that update, but they still need fixing:
   `[..., 'NZBHydra2']` but got `JDownloader2` appended instead; homepage
   config and test have drifted apart. Updated the expected order to include
   `JDownloader2`
-- [ ] `tests/test_rinse_and_repeat.py::test_stop_then_start[1]` hit a
+- [x] `tests/test_rinse_and_repeat.py::test_stop_then_start[1]` hit a
   transient podman IPAM error (`requested ip address 172.30.0.10 is already
   allocated`) on the first stop/start cycle; passed clean on the immediate
-  retry (`[2]`). Likely a network cleanup race on `stop`; investigate whether
-  `make start` needs to wait for the old network allocation to release
-  before recreating containers
+  retry (`[2]`). Root cause: the `media` network (nginx's static IP lives on
+  it) was never added to `start:`'s "ensure required networks exist"
+  pre-check, unlike `apps`/`services`/`observability`, so it relied entirely
+  on podman-compose's own automatic network creation during `up`, racing
+  under the same category of bug those three were already worked around for.
+  `start_library:` already had the correct line (`network exists ... media
+  || network create --subnet ${MEDIA_SUBNET} ... media`); `start:` just
+  never got it. Added it; ran `test_stop_then_start` and
+  `test_down_then_start` (2 cycles each) clean afterward
 
 ## In Progress
 
