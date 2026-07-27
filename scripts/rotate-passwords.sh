@@ -1054,12 +1054,18 @@ prestart_api_containers
 PARALLEL_ROTATION_FAILURES=()
 
 # Args: service_name rotate_function [container_required_running]
-# Streams output live with a "[service]" prefix (instead of buffering it to
-# print after the whole group finishes) so the concurrency is visible as it
-# happens, not just in the final timing. Uses process substitution rather
-# than a plain pipe to the "sed" filter: piping would fork rotate_if_enabled
-# into its own subshell, losing the SUMMARY_* variable assignments the
-# individual rotate functions make before this function ever reads them back.
+# Buffers output to a per-service file instead of streaming it live through a
+# "sed" filter fed by process substitution (`> >(sed ...)`). That used to
+# stream output live, but any rotate_* function that runs `podman start` (most
+# of them do, per the "Editing runtime app state" stop/edit/start pattern in
+# CLAUDE.md) spawns a conmon process that inherits the process substitution's
+# pipe write-end and holds it open for the container's entire lifetime. The
+# sed filter then never sees EOF and blocks forever, and since sed's own
+# stdout is inherited from this script's stdout, that dangling filter also
+# keeps the *whole script's* output pipe from ever reaching EOF, even after
+# every rotation has genuinely finished. Symptom: `make rotate_passwords`
+# looks hung indefinitely and its final summary (with the actual new
+# passwords) never prints, even though the rotations already succeeded.
 run_parallel_service() {
   local service="$1" func="$2" requires_running="${3:-}"
   local upper user_var new_var status=0
@@ -1067,7 +1073,7 @@ run_parallel_service() {
   user_var="SUMMARY_${upper}_USER"
   new_var="SUMMARY_${upper}_NEW"
   rotate_if_enabled "$service" "$func" "$requires_running" \
-    > >(sed -u "s/^/[$service] /") 2>&1 || status=$?
+    >"$PARALLEL_TMPDIR/$service.log" 2>&1 || status=$?
   printf '%s\n%s\n%s\n' "${!user_var}" "${!new_var}" "$status" \
     >"$PARALLEL_TMPDIR/$service.result"
 }
@@ -1086,6 +1092,11 @@ run_parallel_group() {
   wait
 
   local service upper user_var new_var result lines
+  for service in "${services[@]}"; do
+    if [[ -s "$PARALLEL_TMPDIR/$service.log" ]]; then
+      sed "s/^/[$service] /" "$PARALLEL_TMPDIR/$service.log"
+    fi
+  done
   for service in "${services[@]}"; do
     upper="$(echo "${service^^}" | tr '-' '_')"
     user_var="SUMMARY_${upper}_USER"
@@ -1252,11 +1263,15 @@ echo "      or restart individual services as needed."
 
 arr_login_ok() {
   local app="$1" scheme="$2" port="$3" base="$4" password="$5"
-  local code
-  code=$(container_curl "$app" -sk -o /dev/null -w '%{http_code}' \
+  local location
+  # These apps always redirect (302/303) on a /login POST, whether the
+  # credentials are right or wrong; only the redirect target differs
+  # (back to /login?...loginFailed=true on failure). Checking the status
+  # code alone always reports success, so check the Location header instead.
+  location=$(container_curl "$app" -sk -D - -o /dev/null \
     -d "username=${app}&password=${password}" \
-    "${scheme}://127.0.0.1:${port}/${base}/login")
-  [[ "$code" == "302" || "$code" == "303" ]]
+    "${scheme}://127.0.0.1:${port}/${base}/login" | tr -d '\r' | grep -i '^location:')
+  [[ -n "$location" && "$location" != *"loginFailed=true"* ]]
 }
 
 # The audiobookshelf image ships no curl, but it is a node image with global
