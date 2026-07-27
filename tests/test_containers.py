@@ -2,7 +2,7 @@
 
 import pytest
 
-from conftest import SERVICES, skip_if_disabled, skip_if_not_running
+from conftest import SERVICES, skip_if_disabled, skip_if_not_running, wait_for_healthy
 
 pytestmark = pytest.mark.containers
 
@@ -22,10 +22,19 @@ def test_container_healthy(service_name, running_containers):
     skip_if_disabled(service_name)
     skip_if_not_running(service_name, running_containers)
     container = running_containers[service_name]
+    container.reload()
     health = container.attrs.get("State", {}).get("Health")
     if health is None:
         pytest.skip(f"Container '{service_name}' has no healthcheck defined")
     status = health.get("Status")
+    if status != "healthy":
+        # A container can still be inside its healthcheck start_period right
+        # after a mass restart (e.g. `make test`), so give it a chance to
+        # finish coming up before treating this as a real failure.
+        wait_for_healthy(service_name)
+        container.reload()
+        health = container.attrs.get("State", {}).get("Health")
+        status = health.get("Status")
     assert status == "healthy", (
         f"Container '{service_name}' health is '{status}' (last log: {health.get('Log', [{}])[-1].get('Output', '')})"
     )

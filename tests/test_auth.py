@@ -3,8 +3,10 @@
 import pytest
 import requests
 import urllib3
+from dotenv import dotenv_values
 
 from conftest import (
+    REPO_ROOT,
     SERVICES,
     base_url,
     env,
@@ -12,6 +14,7 @@ from conftest import (
     read_api_key,
     service_base_url,
     skip_if_not_running,
+    wait_for_healthy,
 )
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -20,6 +23,12 @@ pytestmark = pytest.mark.auth
 
 TIMEOUT = 10
 BASE = base_url(https=True)
+
+
+def _qbittorrent_password():
+    """qBittorrent's rotated password lives in its own .env.secrets, not root .env."""
+    secrets = dotenv_values(REPO_ROOT / "configs/qbittorrent/.env.secrets")
+    return secrets.get("PASSWORD") or env("QBITTORRENT_PASSWORD", "qbittorrent")
 
 
 # ---------------------------------------------------------------------------
@@ -32,8 +41,9 @@ def test_qbittorrent_api_login(running_containers):
     if not is_enabled("qbittorrent"):
         pytest.skip("qbittorrent profile is disabled")
     skip_if_not_running("qbittorrent", running_containers)
+    wait_for_healthy("qbittorrent")
 
-    password = env("QBITTORRENT_PASSWORD", "qbittorrent")
+    password = _qbittorrent_password()
     username = SERVICES["qbittorrent"]["username"]
     url = f"{BASE}/qbittorrent/api/v2/auth/login"
     resp = requests.post(
@@ -51,8 +61,9 @@ def test_qbittorrent_web_session_login(running_containers):
     if not is_enabled("qbittorrent"):
         pytest.skip("qbittorrent profile is disabled")
     skip_if_not_running("qbittorrent", running_containers)
+    wait_for_healthy("qbittorrent")
 
-    password = env("QBITTORRENT_PASSWORD", "qbittorrent")
+    password = _qbittorrent_password()
     username = SERVICES["qbittorrent"]["username"]
     session = requests.Session()
     session.verify = False
