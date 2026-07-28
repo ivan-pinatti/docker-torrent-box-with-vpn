@@ -50,6 +50,7 @@ STOP_COMPOSE_FILES := --file docker-compose.yml $(foreach route_file,$(STOP_ROUT
 .PHONY: all backup backup-configs backup-full bootstrap build_images clean clean_all check_requirements \
 	configure_jellyfin_network \
 	detect_secrets_create_baseline down generate_certificate \
+	heal_vpn_dependents \
 	rotate_all rotate_api_keys rotate_certificate rotate_passwords \
 	disk_status korsync_users permissions_check permissions_repair permissions_smoke permissions_host_smoke prune_cache rotate_nginx_logs \
 	install_requirements pull_docker_images pre_commit \
@@ -337,6 +338,42 @@ restart:
 	@echo "Restarting remaining containers..."
 	@services=$$($(COMPOSE) $(STOP_COMPOSE_FILES) --profile enabled config --services 2>/dev/null | grep -vx gluetun); \
 	$(COMPOSE) $(STOP_COMPOSE_FILES) --profile enabled restart $$services
+
+# gluetun's own `restart: unless-stopped` policy can also fire it back up on
+# its own (lost WireGuard handshake, OOM kill, etc.) outside of `make
+# restart` entirely. `depends_on: restart: true` in the compose files is
+# meant to cover exactly this, but podman-compose (checked through 1.6.0,
+# the latest release) only ever reads the `condition` key and silently
+# ignores `restart`, so nothing actually restarts these containers when that
+# happens. Detect and fix it after the fact: any container sharing gluetun's
+# network namespace whose StartedAt predates gluetun's current StartedAt has
+# a stale namespace and gets restarted.
+VPN_DEPENDENT_CONTAINERS := qbittorrent jdownloader2 sabnzbd
+
+heal_vpn_dependents:
+	@if [ "$$($(RUNTIME) inspect gluetun --format '{{.State.Running}}' 2>/dev/null)" != "true" ]; then \
+		echo "gluetun is not running, nothing to heal."; \
+		exit 0; \
+	fi; \
+	gluetun_started=$$($(RUNTIME) inspect gluetun --format '{{json .State.StartedAt}}' | tr -d '"'); \
+	gluetun_epoch=$$(date -d "$$gluetun_started" +%s); \
+	stale=""; \
+	for c in $(VPN_DEPENDENT_CONTAINERS); do \
+		if [ "$$($(RUNTIME) inspect $$c --format '{{.State.Running}}' 2>/dev/null)" != "true" ]; then \
+			continue; \
+		fi; \
+		c_started=$$($(RUNTIME) inspect $$c --format '{{json .State.StartedAt}}' | tr -d '"'); \
+		c_epoch=$$(date -d "$$c_started" +%s); \
+		if [ "$$c_epoch" -lt "$$gluetun_epoch" ]; then \
+			stale="$$stale $$c"; \
+		fi; \
+	done; \
+	if [ -n "$$stale" ]; then \
+		echo "Restarting containers stale relative to gluetun:$$stale"; \
+		$(RUNTIME) restart $$stale; \
+	else \
+		echo "All VPN-namespace-sharing containers are already fresh."; \
+	fi
 
 # Rotate API keys and login passwords. Pass SERVICE=<name> to limit the scope,
 # e.g. `make rotate_passwords SERVICE=sonarr`. Defaults to all services.

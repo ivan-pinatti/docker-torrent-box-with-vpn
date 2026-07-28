@@ -288,9 +288,32 @@ than caused by that update, but they still need fixing:
   (fresh WireGuard connection) and containers sharing its network
   namespace (`sabnzbd`, `qbittorrent`, `jdownloader2`) didn't
   automatically regain reachability; a plain `podman restart sabnzbd`
-  fixed it immediately. Not otherwise investigated or fixed — flagged
-  here in case it recurs, since it may be a real gap: nothing currently
-  recreates VPN-namespace-sharing containers after gluetun restarts
+  fixed it immediately. Root cause confirmed by reading podman-compose's
+  own source (checked 1.5.0, installed, and 1.6.0, latest): `depends_on`
+  parsing only ever reads the `condition` key and silently ignores
+  `restart`, so `restart: true` (present on qbittorrent/jdownloader2, now
+  also added to sabnzbd for consistency) never actually fires, and
+  gluetun's own `restart: unless-stopped` policy can bring it back up on
+  its own (lost WireGuard handshake, OOM kill, etc.) with nothing
+  restarting its namespace-sharing dependents afterward. Fixed with a new
+  `make heal_vpn_dependents` target: compares each dependent container's
+  `StartedAt` against gluetun's current `StartedAt` and restarts any that
+  predate it. Reproduced the bug live (`podman restart gluetun` while
+  sabnzbd/qbittorrent/jdownloader2 kept running) and confirmed the target
+  detects and fixes it, restoring reachability.
+- [x] Validated `JELLYFIN_PROXY_DOMAIN` end to end using `jellyfin.localhost`
+  (resolves to `127.0.0.1` out of the box via glibc's built-in RFC 6761
+  handling, no `/etc/hosts` entry needed on this host) instead of
+  `jellyfin.invalid`: set it in both `.env` and `configs/nginx/.env`, ran
+  `make generate_certificate` to add it to the cert's SAN (safe to run
+  against a live stack since it reuses the existing `CERT_PASSWORD`, so the
+  servarr config.xml writes are no-ops), recreated `nginx` to pick up the
+  new cert and rendered `server_name`, then confirmed
+  `test_jellyfin_proxy_domain_reachable` passes and
+  `curl -k https://jellyfin.localhost/` redirects to `jellyfin/web/`. Note
+  `.localhost` only works for this because the test client and the stack
+  are the same machine; a real LAN-reachable domain needs a non-reserved
+  name and a real `/etc/hosts`/DNS entry on the client instead.
 
 ## In Progress
 

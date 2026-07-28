@@ -25,7 +25,10 @@ services:
     <<: *limit-downloaders
     image: docker.io/linuxserver/sabnzbd:${SABNZBD_VERSION}
     container_name: sabnzbd
-    depends_on: ["${VPN_PROVIDER}"]
+    depends_on:
+      ${VPN_PROVIDER}:
+        condition: service_healthy
+        restart: true
     profiles: ["${SABNZBD_PROFILE}"]
     network_mode: container:${VPN_PROVIDER}
     restart: unless-stopped
