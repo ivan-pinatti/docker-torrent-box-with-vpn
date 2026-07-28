@@ -20,6 +20,7 @@ networks:
     ipam:
       config:
         - subnet: ${MEDIA_SUBNET}
+          ip_range: ${MEDIA_DYNAMIC_IP_RANGE}
 
   observability:
     driver: bridge

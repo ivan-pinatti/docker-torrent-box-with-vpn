@@ -212,7 +212,18 @@ than caused by that update, but they still need fixing:
   `start_library:` already had the correct line (`network exists ... media
   || network create --subnet ${MEDIA_SUBNET} ... media`); `start:` just
   never got it. Added it; ran `test_stop_then_start` and
-  `test_down_then_start` (2 cycles each) clean afterward
+  `test_down_then_start` (2 cycles each) clean afterward. That alone wasn't
+  sufficient though: a subsequent `make start` still hit the exact same
+  IPAM error, this time with `calibre` (a dynamically-addressed container)
+  holding nginx's static IP, because nothing reserved `172.30.0.10` out of
+  the dynamic pool, so whichever container asked for an address first could
+  get it. Added `MEDIA_DYNAMIC_IP_RANGE=172.30.0.16/28` (`.env`,
+  `.env.example`) and wired it into the `media` network's `ip_range` in
+  `docker-compose.yml` and the two `podman network create` calls in the
+  Makefile, so dynamic allocation can no longer touch nginx's reserved
+  address. Verified after recreating the network: nginx holds `.10`,
+  jellyfin/audiobookshelf/calibre/calibre-web/korsync/homepage all land in
+  `.16`-`.31` with no collisions
 
 ## In Progress
 
