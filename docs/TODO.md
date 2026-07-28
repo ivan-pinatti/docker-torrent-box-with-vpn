@@ -50,10 +50,16 @@
 
 ## Nginx
 
-- [ ] Investigate `NGINX_HOST=${DOMAIN}` in `configs/nginx/.env`: `DOMAIN` was
-  undefined in root `.env` (now added), but it's unconfirmed whether any
-  nginx config/template in this repo actually reads `NGINX_HOST` at all, or
-  if it's dead config left over like the removed *arr `PASSWORD` vars
+- [x] Investigate `NGINX_HOST=${DOMAIN}` in `configs/nginx/.env`: confirmed
+  dead, like the removed *arr `PASSWORD` vars. Not referenced in
+  `configs/nginx/templates/*.template` and not read by the official nginx
+  image's own entrypoint scripts either (checked `/docker-entrypoint.d/` and
+  `/docker-entrypoint.sh` inside the running container). The other two vars
+  in that file are real: `JELLYFIN_PROXY_DOMAIN` is used in
+  `default.conf.template`'s `server_name`, and
+  `NGINX_ENTRYPOINT_LOCAL_RESOLVERS` drives the image's own
+  `15-local-resolvers.envsh`. Removed `NGINX_HOST`; nginx recreated clean
+  and healthy afterward
 
 ## qBittorrent
 
