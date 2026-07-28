@@ -351,10 +351,10 @@ def test_grafana_dashboards_provisioned(
     titles = {d["title"] for d in resp.json()}
 
     expected = {
-        "Node Exporter - Overview",
+        "Node Exporter",
         "Docker Containers",
-        "qBittorrent - Overview",
-        "SABnzbd Dashboard",
+        "qBittorrent",
+        "SABnzbd",
         "Podman Containers",
     }
     missing = expected - titles

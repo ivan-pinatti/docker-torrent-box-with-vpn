@@ -2,14 +2,18 @@
 
 These tests execute the rotation script against the live stack, verify the new
 password is accepted and propagated to every consumer, then restore the original
-password. They are marked `rotation` and excluded from the default test run.
+password. They are marked `rotation` and `pw_rotation`.
 
 App ports are not published to the host, so all API calls run curl inside the
 target container (see conftest.container_http), matching how the rotation
 scripts themselves talk to the apps.
 
 Run explicitly with:
-    pytest -m rotation tests/test_rotate_passwords.py
+    pytest -m pw_rotation
+
+Run everything else, skipping just this file:
+    pytest -m "not pw_rotation"
+    # or: make test_no_rotate_passwords
 """
 
 import json
@@ -32,7 +36,7 @@ from conftest import (
     wait_for_homepage_ready,
 )
 
-pytestmark = pytest.mark.rotation
+pytestmark = [pytest.mark.rotation, pytest.mark.pw_rotation]
 
 TIMEOUT = 30
 SCRIPTS = REPO_ROOT / "scripts"

@@ -55,7 +55,8 @@ STOP_COMPOSE_FILES := --file docker-compose.yml $(foreach route_file,$(STOP_ROUT
 	install_requirements pull_docker_images pre_commit \
 	restore-configs restore-full \
 	restart sanity_fast sanity_full start start_library start_observability \
-	stop stop_all update_containers update_images update_pre_commit test test_prerequisites
+	stop stop_all update_containers update_images update_pre_commit test test_prerequisites \
+	test_no_rotate_passwords
 
 BACKUP_DIR ?= backup
 BACKUP_TIMESTAMP ?= $(shell date +%Y-%m-%d-%H%M%S)
@@ -419,3 +420,6 @@ test: tests/.venv ## Run full test suite (requires the stack to be running)
 
 test_prerequisites: tests/.venv ## Run only pre-flight checks (no containers needed)
 	@tests/.venv/bin/pytest -m prerequisites $(PYTEST_ARGS)
+
+test_no_rotate_passwords: tests/.venv ## Run full test suite except password rotation (rotate-passwords.sh)
+	@tests/.venv/bin/pytest -m "not pw_rotation" $(PYTEST_ARGS)
