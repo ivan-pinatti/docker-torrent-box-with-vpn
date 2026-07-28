@@ -12,7 +12,7 @@ import warnings
 import pytest
 import urllib3
 
-from conftest import env, skip_if_not_running
+from conftest import REPO_ROOT, env, skip_if_not_running
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -21,17 +21,27 @@ pytestmark = pytest.mark.tls
 HOST = env("DOMAIN", "localhost")
 HTTPS_PORT = int(env("NGINX_HTTPS_PORT", "443"))
 EXPIRY_WARN_DAYS = 30
+CERT_FILE = REPO_ROOT / "certs" / "server.crt"
 
 
 def _get_cert(host: str, port: int) -> dict | None:
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
+    # CERT_NONE skips certificate parsing entirely, so getpeercert() always
+    # returns {} regardless of the real certificate's state. Trust the
+    # stack's own self-signed cert directly (it can verify itself) so
+    # verification actually succeeds and getpeercert() returns the parsed
+    # fields instead of permanently no-op'ing these checks.
+    try:
+        ctx.load_verify_locations(cafile=str(CERT_FILE))
+        ctx.verify_mode = ssl.CERT_REQUIRED
+    except (FileNotFoundError, ssl.SSLError):
+        ctx.verify_mode = ssl.CERT_NONE
     try:
         with socket.create_connection((host, port), timeout=5) as raw:
             with ctx.wrap_socket(raw, server_hostname=host) as conn:
                 return conn.getpeercert()
-    except OSError:
+    except (OSError, ssl.SSLError):
         return None
 
 
@@ -84,7 +94,7 @@ def test_certificate_not_expired(running_containers):
         return
 
     not_after = datetime.datetime.strptime(not_after_str, "%b %d %H:%M:%S %Y %Z")
-    now = datetime.datetime.utcnow()
+    now = datetime.datetime.now(datetime.UTC).replace(tzinfo=None)
     days_remaining = (not_after - now).days
 
     subject = dict(x[0] for x in cert.get("subject", []))

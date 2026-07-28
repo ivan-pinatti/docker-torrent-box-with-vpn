@@ -267,6 +267,30 @@ than caused by that update, but they still need fixing:
   reproduce on an immediate re-run in isolation or on a second full run
   (295 passed, 9 skipped, 0 failed) after the dashboard fix, so treated as a
   one-off environmental blip rather than a real bug
+- [x] `tests/test_tls.py::test_certificate_not_expired` and
+  `test_certificate_subject_logged` always skipped with "Could not retrieve
+  certificate," regardless of the certificate's real state. Root cause:
+  `_get_cert()` sets `ssl.CERT_NONE` (needed to tolerate the self-signed
+  cert) and calls `conn.getpeercert()`, but Python's `ssl` module only
+  populates `getpeercert()`'s parsed dict when verification actually
+  succeeds; under `CERT_NONE` it always returns `{}`. Fixed by loading the
+  stack's own `certs/server.crt` as a trust anchor
+  (`ctx.load_verify_locations` + `CERT_REQUIRED`) so the self-signed cert
+  verifies against itself and `getpeercert()` returns real data, falling
+  back to `CERT_NONE` if the cert file is missing/unreadable. Also fixed a
+  `datetime.utcnow()` deprecation warning this surfaced (the code path
+  never used to run). Both tests now genuinely pass instead of
+  permanently no-op'ing.
+
+  While verifying this, hit an unrelated live issue: SABnzbd was
+  502'ing (`nginx` → `connect() failed (111: Connection refused)` to
+  `172.28.0.10:8087`) because `gluetun` had restarted minutes earlier
+  (fresh WireGuard connection) and containers sharing its network
+  namespace (`sabnzbd`, `qbittorrent`, `jdownloader2`) didn't
+  automatically regain reachability; a plain `podman restart sabnzbd`
+  fixed it immediately. Not otherwise investigated or fixed — flagged
+  here in case it recurs, since it may be a real gap: nothing currently
+  recreates VPN-namespace-sharing containers after gluetun restarts
 
 ## In Progress
 
