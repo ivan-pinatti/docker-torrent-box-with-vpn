@@ -27,7 +27,17 @@
   [ROTATION.md](ROTATION.md)
 - [ ] Move certificate info to a dedicated folder
 - [ ] Add k6 load testing
-- [ ] Disable automatic Docker image updates in all containers
+- [x] Disable automatic Docker image updates in all containers: no
+  watchtower/auto-update mechanism exists, and `up` never re-pulls images on
+  its own, so the only real drift risk was the handful of services still
+  pinned to the `latest` tag. `nordvpn`/`plex` have no container definition
+  left anywhere in the compose tree (dead `.env` vars, no risk); `mylar` and
+  `jdownloader2` were actively running on `latest` and got pinned to the
+  exact versions already running (`v0.9.0-ls252`, `v26.07.2`, confirmed via
+  the running images' own version labels and a rebuild that reused the
+  identical cached layer, so no functional change). Also synced
+  `.env.example`'s stale `latest` defaults for `cadvisor`/`node_exporter` to
+  match what `.env` already pins, so fresh clones get the same protection
 - [ ] Add a VPN provider affiliate link
 - [ ] Set up a firewall
 - [ ] Find and inventory existing backups
