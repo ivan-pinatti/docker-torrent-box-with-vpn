@@ -158,7 +158,18 @@ recommendations):
 
 ## Whisparr
 
-- [ ] Re-enable the password once the upstream bug is fixed
+- [x] Re-enable the password once the upstream bug is fixed: already
+  re-enabled. `config.xml` shows `AuthenticationMethod=Forms`,
+  `AuthenticationRequired=Enabled`, matching its Servarr siblings; verified
+  live that an unauthenticated request gets a real `401` redirecting to
+  `/login`. `rotate-passwords.sh`/`rotate-api-keys.sh` treat it identically
+  to every other arr app with no special-casing, and Prowlarr has it
+  registered as a synced application with no active failure/disable state
+  and no related errors in recent logs. The original bug reference is lost
+  (introduced from a root `TODO.md` that was never tracked by git, so no
+  history survived the merge in `dc14c98`); likely candidate is the
+  documented Prowlarr↔Whisparr Basic-auth-challenge sync bug, not currently
+  reproducing here
 
 ## Test Suite
 
