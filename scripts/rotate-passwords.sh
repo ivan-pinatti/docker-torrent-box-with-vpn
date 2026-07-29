@@ -117,8 +117,12 @@ readonly AUDIOBOOKSHELF_DB="configs/audiobookshelf/config/absdatabase.sqlite"
 readonly AUDIOBOOKSHELF_USER="root"
 readonly JELLYFIN_USERNAME="jellyfin"
 readonly JELLYFIN_API_KEY_SECRET="configs/jellyfin/secrets/api_key.txt" # pragma: allowlist secret
-readonly JDOWNLOADER2_SECRETS="configs/jdownloader2/.env.secrets"       # pragma: allowlist secret
 readonly JDOWNLOADER2_USERNAME="jdownloader2"
+# Single source of truth for jDownloader2's web UI password, consumed via
+# compose `secrets:` and read directly by patches/jdownloader2/10-webauth.sh
+# (the image's own Docker-secrets support does not work; see
+# docker-compose-torrent.yml). See docs/COMPOSE_CONVENTIONS.md.
+readonly JDOWNLOADER2_PASSWORD_SECRET="configs/jdownloader2/secrets/password.txt" # pragma: allowlist secret
 
 # Containers that must restart at the end so rewritten config files take
 # effect (populated by the rotation functions).
@@ -537,34 +541,30 @@ rotate_grafana() {
 }
 
 rotate_jdownloader2() {
-  # jDownloader2's web UI (jlesage image) authenticates via WEB_AUTHENTICATION_*
-  # env vars, read only at container creation, so the container is recreated
-  # by the env-secret consumer step at the end of the script rather than
-  # restarted here. Not migrated to a compose secret: the CONT_ENV_<VAR>
-  # convention documented for jlesage/docker-baseimage-gui does not exist in
-  # this pinned image version (verified: no reference to CONT_ENV anywhere in
-  # the image, and a live rotation confirmed a mounted secret is silently
-  # never picked up). Revisit if a future JDOWNLOADER2_VERSION adds it.
+  # jDownloader2's web UI (jlesage image) authenticates via a compose secret,
+  # read directly by patches/jdownloader2/10-webauth.sh (which replaces the
+  # image's own cont-init.d script: its documented CONT_ENV_<VAR>
+  # Docker-secrets support does not work here, verified by source inspection
+  # of /init and a live rotation test; see docker-compose-torrent.yml). That
+  # patched script runs on every container start, so a plain restart is
+  # enough, verified live.
   local new_password
   new_password=$(gen_password)
 
-  echo "[jDownloader2] Writing new password to .env.secrets..."
+  echo "[jDownloader2] Writing new password to the secret file..."
   python3 - <<PYEOF
 from pathlib import Path
 
-def set_env(path, key, value):
+def write_secret(path, value):
+    # No trailing newline: consumers read the file's contents verbatim.
+    # Mode 644: rootless podman maps this host file to uid 0 inside the
+    # container while the app runs as another UID.
     p = Path(path)
-    lines = p.read_text().splitlines() if p.exists() else []
-    needle = f"{key}="
-    for i, line in enumerate(lines):
-        if line.startswith(needle):
-            lines[i] = f"{key}={value}"
-            break
-    else:
-        lines.append(f"{key}={value}")
-    p.write_text("\\n".join(lines) + "\\n")
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(value)
+    p.chmod(0o644)
 
-set_env('$JDOWNLOADER2_SECRETS', 'WEB_AUTHENTICATION_PASSWORD', '$new_password')
+write_secret('$JDOWNLOADER2_PASSWORD_SECRET', '$new_password')
 PYEOF
 
   SUMMARY_JDOWNLOADER2_USER="$JDOWNLOADER2_USERNAME"
@@ -1186,47 +1186,24 @@ if [[ ${#RESTART_NEEDED[@]} -gt 0 ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Recreate or restart containers that consume rotated secrets, so they stop
-# authenticating with the old credentials. jdownloader2 still reads its own
-# credentials from env_file, which bakes in at container creation, so it
-# needs a full --force-recreate. homepage, the two exporters, and calibre
-# read every other value covered here from a bind-mounted compose `secrets:`
-# file instead (see docs/COMPOSE_CONVENTIONS.md), whose contents are re-read
-# on every start, so a plain restart is enough for them.
+# Restart containers that consume rotated secrets, so they stop
+# authenticating with the old credentials. Every one of them reads its value
+# from a bind-mounted compose `secrets:` file (see
+# docs/COMPOSE_CONVENTIONS.md), whose contents are re-read on every start,
+# so a plain restart is enough; none of them need --force-recreate.
 # ---------------------------------------------------------------------------
 
-RECREATE_CONSUMERS=()
 RESTART_CONSUMERS=()
 case "$TARGET" in
 qbittorrent) RESTART_CONSUMERS=(qbittorrent_exporter homepage) ;;
 sabnzbd) RESTART_CONSUMERS=(sabnzbd_exporter homepage) ;;
 calibre) RESTART_CONSUMERS=(calibre) ;;
 calibre-web | grafana) RESTART_CONSUMERS=(homepage) ;;
-jdownloader2) RECREATE_CONSUMERS=(jdownloader2) ;;
+jdownloader2) RESTART_CONSUMERS=(jdownloader2) ;;
 all)
-  RECREATE_CONSUMERS=(jdownloader2)
-  RESTART_CONSUMERS=(qbittorrent_exporter sabnzbd_exporter homepage calibre)
+  RESTART_CONSUMERS=(qbittorrent_exporter sabnzbd_exporter homepage calibre jdownloader2)
   ;;
 esac
-
-if [[ ${#RECREATE_CONSUMERS[@]} -gt 0 ]]; then
-  existing_consumers=()
-  for consumer in "${RECREATE_CONSUMERS[@]}"; do
-    if podman container exists "$consumer" 2>/dev/null; then
-      existing_consumers+=("$consumer")
-    fi
-  done
-  if [[ ${#existing_consumers[@]} -gt 0 ]]; then
-    echo ""
-    echo "Recreating secret consumers: ${existing_consumers[*]}"
-    # --no-deps is required: jdownloader2 (and anything else on
-    # network_mode: container:gluetun) declares gluetun as a dependency, and
-    # without --no-deps podman-compose recreates gluetun too, which drops the
-    # network namespace out from under qbittorrent and sabnzbd.
-    podman-compose --file docker-compose.yml --profile enabled up -d --force-recreate --no-deps \
-      "${existing_consumers[@]}"
-  fi
-fi
 
 if [[ ${#RESTART_CONSUMERS[@]} -gt 0 ]]; then
   existing_consumers=()

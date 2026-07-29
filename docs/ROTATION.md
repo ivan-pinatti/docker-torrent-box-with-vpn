@@ -152,12 +152,19 @@ alphabetical by service.
   `grafana.ini` and the shared secret file
   `configs/grafana/secrets/homepage_auth.txt` (the precomputed Basic-auth
   header, not the raw password) in sync.
-- **jDownloader2**: writes the new password to `WEB_AUTHENTICATION_PASSWORD`
-  in `.env.secrets`, read only at container creation, so the container is
-  recreated. Not migrated to a compose secret: jlesage/docker-baseimage-gui's
-  documented `CONT_ENV_<VAR>` convention does not exist in this pinned image
-  version (a live rotation confirmed a mounted secret is silently never
-  picked up). No other consumer holds this credential.
+- **jDownloader2**: writes the new password to the secret file
+  `configs/jdownloader2/secrets/password.txt`. This image's own
+  Docker-secrets support (`CONT_ENV_<VAR>`) does not work: its Dockerfile
+  pre-declares `WEB_AUTHENTICATION_USERNAME`/`PASSWORD` as empty-string env
+  vars, and `/init`'s secrets loader only sets a variable if it is currently
+  *unset*, so it always finds them already "set" (to `""`) and silently
+  skips loading the secret (confirmed by reading `/init`'s source inside the
+  image; same root cause as a known, closed-"not planned" upstream issue).
+  `patches/jdownloader2/10-webauth.sh` is bind-mounted over the image's own
+  cont-init.d script and reads the mounted secret files directly instead,
+  bypassing the broken loader entirely. That script runs on every container
+  start, so a plain restart picks up a rotated password (verified live). No
+  other consumer holds this credential.
 - **Jellyfin**: sets a new password for the `jellyfin` user over Jellyfin's
   API, authenticated with the admin API key read from
   `configs/jellyfin/secrets/api_key.txt`. That key is unaffected by a

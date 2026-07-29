@@ -809,9 +809,12 @@ def test_rotate_jdownloader2_password(running_containers):
     new_password = _summary_password(result.stdout, "jdownloader2")
     assert new_password, "Summary table does not contain the new jdownloader2 password"
 
-    secrets = REPO_ROOT / "configs/jdownloader2/.env.secrets"
-    assert f"WEB_AUTHENTICATION_PASSWORD={new_password}" in secrets.read_text(), (
-        "jdownloader2 .env.secrets was not updated with the new password"
+    secret_path = REPO_ROOT / "configs/jdownloader2/secrets/password.txt"
+    assert secret_path.read_text() == new_password, (
+        "configs/jdownloader2/secrets/password.txt was not updated with the new password"
+    )
+    assert oct(secret_path.stat().st_mode)[-3:] == "644", (
+        "configs/jdownloader2/secrets/password.txt has the wrong mode for rootless podman"
     )
 
     port = int(ENV.get("JDOWNLOADER2_HTTP_PORT", "5800"))

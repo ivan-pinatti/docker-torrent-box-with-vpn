@@ -63,12 +63,14 @@ repos:
     hooks:
       - id: shellcheck
         args: ["--severity=error"]
+        exclude: *vendored_patches
 
   - repo: https://github.com/jumanjihouse/pre-commit-hooks
     rev: 3.0.0
     hooks:
       - id: shfmt
         args: ["--indent", "2", "--list", "--write"]
+        exclude: *vendored_patches
 
   - repo: https://github.com/adrienverge/yamllint
     rev: v1.38.0

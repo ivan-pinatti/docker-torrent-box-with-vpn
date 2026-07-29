@@ -186,11 +186,23 @@ Rules that are easy to get wrong:
   `config` passes, then the consuming service dies with
   `statfs ...: no such file or directory`. Other services are unaffected.
   `make bootstrap` seeds the file so a fresh clone works.
-- **Consumer support varies.** All LinuxServer images accept
-  `FILE__<VAR>=/run/secrets/<name>`; homepage accepts
-  `HOMEPAGE_FILE_<VAR>`. Third-party images with neither need an entrypoint
-  shim that exports the value before exec'ing the original command, as
-  `sabnzbd_exporter` does.
+- **Consumer support varies, and don't trust an image's own docs.** All
+  LinuxServer images accept `FILE__<VAR>=/run/secrets/<name>`; homepage
+  accepts `HOMEPAGE_FILE_<VAR>`. Third-party images with neither need an
+  entrypoint shim that exports the value before exec'ing the original
+  command, as `sabnzbd_exporter` does. jlesage's baseimage-gui documents a
+  `CONT_ENV_<VAR>` Docker-secrets convention that does not actually work in
+  the `jdownloader-2` image (its Dockerfile pre-declares the target vars as
+  empty strings, which defeats the loader's own "only set if unset" check;
+  confirmed by reading `/init`'s source, and by a live rotation that
+  silently kept authenticating with the old password). When neither an env
+  convention nor a shim will do, bind-mount a patched version of the
+  specific cont-init.d script that reads the secret file directly,
+  `patches/jdownloader2/10-webauth.sh` over the image's own
+  `/etc/cont-init.d/10-webauth.sh`, the same idiom `patches/mylar/` already
+  uses for source patches (see `docs/MYLAR.md`). On SELinux hosts this
+  volume mount needs `:ro,z` like any other bind mount, not just the
+  `x-podman.relabel: z` on the `secrets:` declaration.
 - The owning service's `.gitignore` needs `!secrets/`, `secrets/*` and
   `!secrets/*.example`, so real values stay ignored while the `.example`
   templates commit. `scripts/seed-secrets.sh` seeds them on bootstrap.
