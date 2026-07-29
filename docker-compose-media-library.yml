@@ -41,6 +41,34 @@ x-limit-korsync: &limit-korsync
         memory: ${KORSYNC_MEMORY}
         cpus: "${KORSYNC_CPUS}"
 
+secrets:
+  # Each service's own credential, owned here since these services live in
+  # this file. homepage (docker-compose-proxy.yml) declares an identical copy
+  # of this block so that file resolves standalone. See
+  # docs/COMPOSE_CONVENTIONS.md. Keep the `file:` paths identical across both,
+  # compose does not detect a mismatch, it silently uses whichever
+  # declaration was included last.
+  jellyfin_api_key:
+    file: ./configs/jellyfin/secrets/api_key.txt
+    x-podman.relabel: z
+  audiobookshelf_api_key:
+    file: ./configs/audiobookshelf/secrets/api_key.txt
+    x-podman.relabel: z
+  calibreweb_username:
+    file: ./configs/calibre-web/secrets/username.txt
+    x-podman.relabel: z
+  calibreweb_password:
+    file: ./configs/calibre-web/secrets/password.txt
+    x-podman.relabel: z
+  # Consumed only by calibre itself (single consumer, no duplicate needed
+  # elsewhere): the desktop GUI/noVNC session's basic auth credentials.
+  calibre_username:
+    file: ./configs/calibre/secrets/username.txt
+    x-podman.relabel: z
+  calibre_password:
+    file: ./configs/calibre/secrets/password.txt
+    x-podman.relabel: z
+
 services:
   jellyfin:
     <<: *limit-jellyfin
@@ -149,6 +177,9 @@ services:
       PUID: "${CALIBRE_UID}"
       UMASK: "${UMASK}"
       TZ: "${TIMEZONE}"
+      FILE__CUSTOM_USER: /run/secrets/calibre_username
+      FILE__PASSWORD: /run/secrets/calibre_password
+    secrets: [calibre_username, calibre_password]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CERTIFICATES_FOLDER}:/certs:ro
@@ -225,23 +256,3 @@ services:
     healthcheck:
       <<: *healthcheck-defaults
       test: wget -q -O /dev/null http://127.0.0.1:${KORSYNC_HTTP_PORT}/health || exit 1
-
-secrets:
-  # Each service's own credential, owned here since these services live in
-  # this file. homepage (docker-compose-proxy.yml) declares an identical copy
-  # of this block so that file resolves standalone. See
-  # docs/COMPOSE_CONVENTIONS.md. Keep the `file:` paths identical across both,
-  # compose does not detect a mismatch, it silently uses whichever
-  # declaration was included last.
-  jellyfin_api_key:
-    file: ./configs/jellyfin/secrets/api_key.txt
-    x-podman.relabel: z
-  audiobookshelf_api_key:
-    file: ./configs/audiobookshelf/secrets/api_key.txt
-    x-podman.relabel: z
-  calibreweb_username:
-    file: ./configs/calibre-web/secrets/username.txt
-    x-podman.relabel: z
-  calibreweb_password:
-    file: ./configs/calibre-web/secrets/password.txt
-    x-podman.relabel: z

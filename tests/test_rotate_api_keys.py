@@ -342,6 +342,142 @@ def test_rotate_api_key_propagates(
         )
 
 
+def test_rotate_prowlarr_api_key(running_containers):
+    """Rotating Prowlarr's own key updates config.xml, the secret file, and Homepage.
+
+    Unlike Sonarr/Radarr/etc, nothing else stores Prowlarr's own key (the
+    Applications table holds each *downstream* app's key, not Prowlarr's),
+    so restoring only needs config.xml and the secret file.
+    """
+    if not is_enabled("prowlarr"):
+        pytest.skip("prowlarr profile is disabled")
+    skip_if_not_running("prowlarr", running_containers)
+
+    xml_path = "configs/prowlarr/config/config.xml"
+    old_key = _read_xml_key(xml_path)
+    port = int(ENV.get("PROWLARR_HTTPS_PORT", "6969"))
+
+    result = _run_script("rotate-api-keys.sh", "prowlarr")
+    assert result.returncode == 0, (
+        f"rotate-api-keys.sh prowlarr exited {result.returncode}:\n{result.stderr}"
+    )
+
+    new_key = _read_xml_key(xml_path)
+    assert new_key != old_key, "prowlarr: key was not changed"
+    assert wait_for_healthy("prowlarr"), (
+        "prowlarr did not become healthy after rotation"
+    )
+
+    status = _health_status("prowlarr", "https", port, "prowlarr", "v1", new_key)
+    assert status == 200, f"prowlarr: new key not accepted (HTTP {status})"
+    status = _health_status("prowlarr", "https", port, "prowlarr", "v1", old_key)
+    assert status == 401, f"prowlarr: old key still accepted (HTTP {status})"
+
+    secret_path = REPO_ROOT / "configs/prowlarr/secrets/api_key.txt"
+    assert secret_path.read_text() == new_key, (
+        "configs/prowlarr/secrets/api_key.txt was not updated with the new key"
+    )
+
+    if "homepage" in running_containers:
+        assert wait_for_homepage_ready(), "homepage API did not respond after rotation"
+        failures = homepage_widget_failures(only_services={"prowlarr"})
+        assert not failures, (
+            "Homepage widget broken after rotating prowlarr:\n" + "\n".join(failures)
+        )
+
+    _restore_arr_key("prowlarr", xml_path, old_key)
+    status = _health_status("prowlarr", "https", port, "prowlarr", "v1", old_key)
+    assert status == 200, f"prowlarr: could not restore old key (HTTP {status})"
+    _restore_api_key_secret("prowlarr", old_key)
+
+    if "homepage" in running_containers:
+        subprocess.run(  # nosec B607 - podman is a trusted, fixed CLI in this stack
+            ["podman", "restart", "homepage"], check=True, capture_output=True
+        )
+        assert wait_for_homepage_ready(), "homepage API did not respond after restore"
+        failures = homepage_widget_failures(only_services={"prowlarr"})
+        assert not failures, (
+            "Homepage widget broken after restoring prowlarr:\n" + "\n".join(failures)
+        )
+
+
+def test_rotate_bazarr_api_key(running_containers):
+    """Rotating Bazarr's own key updates config.yaml, the secret file, and Homepage.
+
+    Nothing consumes Bazarr's own key (Bazarr consumes Sonarr/Radarr's keys,
+    not the other way around), so restoring only needs config.yaml and the
+    secret file.
+    """
+    if not is_enabled("bazarr"):
+        pytest.skip("bazarr profile is disabled")
+    skip_if_not_running("bazarr", running_containers)
+
+    with open(BAZARR_CONFIG) as fh:
+        old_key = yaml.safe_load(fh)["auth"]["apikey"]
+    port = int(ENV.get("BAZARR_HTTP_PORT", "6767"))
+
+    result = _run_script("rotate-api-keys.sh", "bazarr")
+    assert result.returncode == 0, (
+        f"rotate-api-keys.sh bazarr exited {result.returncode}:\n{result.stderr}"
+    )
+
+    with open(BAZARR_CONFIG) as fh:
+        new_key = yaml.safe_load(fh)["auth"]["apikey"]
+    assert new_key != old_key, "bazarr: key was not changed"
+    assert wait_for_healthy("bazarr"), "bazarr did not become healthy after rotation"
+
+    status, _ = container_http(
+        "bazarr",
+        f"http://127.0.0.1:{port}/bazarr/api/system/health",
+        headers={"X-API-KEY": new_key},
+        timeout=TIMEOUT,
+    )
+    assert status == 200, f"bazarr: new key not accepted (HTTP {status})"
+    status, _ = container_http(
+        "bazarr",
+        f"http://127.0.0.1:{port}/bazarr/api/system/health",
+        headers={"X-API-KEY": old_key},
+        timeout=TIMEOUT,
+    )
+    assert status == 401, f"bazarr: old key still accepted (HTTP {status})"
+
+    secret_path = REPO_ROOT / "configs/bazarr/secrets/api_key.txt"
+    assert secret_path.read_text() == new_key, (
+        "configs/bazarr/secrets/api_key.txt was not updated with the new key"
+    )
+
+    if "homepage" in running_containers:
+        assert wait_for_homepage_ready(), "homepage API did not respond after rotation"
+        failures = homepage_widget_failures(only_services={"bazarr"})
+        assert not failures, (
+            "Homepage widget broken after rotating bazarr:\n" + "\n".join(failures)
+        )
+
+    with open(BAZARR_CONFIG) as fh:
+        cfg = yaml.safe_load(fh)
+    cfg["auth"]["apikey"] = old_key
+    subprocess.run(  # nosec B607 - podman is a trusted, fixed CLI in this stack
+        ["podman", "stop", "bazarr"], check=True, capture_output=True
+    )
+    with open(BAZARR_CONFIG, "w") as fh:
+        yaml.dump(cfg, fh, default_flow_style=False)
+    subprocess.run(  # nosec B607 - podman is a trusted, fixed CLI in this stack
+        ["podman", "start", "bazarr"], check=True, capture_output=True
+    )
+    assert wait_for_healthy("bazarr"), "bazarr did not become healthy after restore"
+    _restore_api_key_secret("bazarr", old_key)
+
+    if "homepage" in running_containers:
+        subprocess.run(  # nosec B607 - podman is a trusted, fixed CLI in this stack
+            ["podman", "restart", "homepage"], check=True, capture_output=True
+        )
+        assert wait_for_homepage_ready(), "homepage API did not respond after restore"
+        failures = homepage_widget_failures(only_services={"bazarr"})
+        assert not failures, (
+            "Homepage widget broken after restoring bazarr:\n" + "\n".join(failures)
+        )
+
+
 # ---------------------------------------------------------------------------
 # INI-configured apps (LazyLibrarian, Mylar), NZBHydra2, and Jellyfin.
 # These rotations are forward-only: every consumer is updated by the script,

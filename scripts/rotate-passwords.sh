@@ -109,7 +109,9 @@ readonly CALIBREWEB_USER="calibre"
 readonly CALIBREWEB_PASSWORD_SECRET="configs/calibre-web/secrets/password.txt" # pragma: allowlist secret
 readonly CALIBRE_USERS_DB="configs/calibre/config/.config/calibre/server-users.sqlite"
 readonly CALIBRE_USER="calibre"
-readonly CALIBRE_SECRETS="configs/calibre/.env.secrets" # pragma: allowlist secret
+# Single source of truth for the desktop GUI's password, consumed via
+# compose `secrets:` by calibre itself. See docs/COMPOSE_CONVENTIONS.md.
+readonly CALIBRE_PASSWORD_SECRET="configs/calibre/secrets/password.txt" # pragma: allowlist secret
 readonly NZBHYDRA_YML="configs/nzbhydra2/config/nzbhydra.yml"
 readonly AUDIOBOOKSHELF_DB="configs/audiobookshelf/config/absdatabase.sqlite"
 readonly AUDIOBOOKSHELF_USER="root"
@@ -400,13 +402,12 @@ rotate_bazarr() {
 rotate_calibre() {
   # Calibre has two independent logins that share the same password here for
   # simplicity: the content server (users in server-users.sqlite, read at
-  # startup) and the desktop GUI/noVNC session (basic auth via CUSTOM_USER
-  # and PASSWORD in .env.secrets, read only at container creation). Both
-  # need the container down for the edit; the GUI container is left stopped
-  # here and picked up by the env-secret consumer recreate at the end of the
-  # script instead of a plain restart, so the new PASSWORD env var is loaded.
-  # LazyLibrarian holds the same credential in its config.ini, which it
-  # persists on shutdown, so it is stopped too.
+  # startup) and the desktop GUI/noVNC session (basic auth via a bind-mounted
+  # secret file, re-read on every start). Both need the container down for
+  # the edit; the GUI container is left stopped here and picked up by
+  # RESTART_CONSUMERS at the end of the script. LazyLibrarian holds the same
+  # credential in its config.ini, which it persists on shutdown, so it is
+  # stopped too.
   local new_password
   new_password=$(gen_password)
 
@@ -426,23 +427,20 @@ conn.commit()
 conn.close()
 PYEOF
 
-  echo "[Calibre] Writing new password for desktop GUI user '${CALIBRE_USER}' to .env.secrets..."
+  echo "[Calibre] Writing new password for desktop GUI user '${CALIBRE_USER}' to the secret file..."
   python3 - <<PYEOF
 from pathlib import Path
 
-def set_env(path, key, value):
+def write_secret(path, value):
+    # No trailing newline: consumers read the file's contents verbatim.
+    # Mode 644: rootless podman maps this host file to uid 0 inside the
+    # container while the app runs as another UID.
     p = Path(path)
-    lines = p.read_text().splitlines() if p.exists() else []
-    needle = f"{key}="
-    for i, line in enumerate(lines):
-        if line.startswith(needle):
-            lines[i] = f"{key}={value}"
-            break
-    else:
-        lines.append(f"{key}={value}")
-    p.write_text("\\n".join(lines) + "\\n")
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(value)
+    p.chmod(0o644)
 
-set_env('$CALIBRE_SECRETS', 'PASSWORD', '$new_password')
+write_secret('$CALIBRE_PASSWORD_SECRET', '$new_password')
 PYEOF
 
   echo "[LazyLibrarian] Updating calibre_pass in config.ini..."
@@ -542,7 +540,11 @@ rotate_jdownloader2() {
   # jDownloader2's web UI (jlesage image) authenticates via WEB_AUTHENTICATION_*
   # env vars, read only at container creation, so the container is recreated
   # by the env-secret consumer step at the end of the script rather than
-  # restarted here.
+  # restarted here. Not migrated to a compose secret: the CONT_ENV_<VAR>
+  # convention documented for jlesage/docker-baseimage-gui does not exist in
+  # this pinned image version (verified: no reference to CONT_ENV anywhere in
+  # the image, and a live rotation confirmed a mounted secret is silently
+  # never picked up). Revisit if a future JDOWNLOADER2_VERSION adds it.
   local new_password
   new_password=$(gen_password)
 
@@ -1185,12 +1187,12 @@ fi
 
 # ---------------------------------------------------------------------------
 # Recreate or restart containers that consume rotated secrets, so they stop
-# authenticating with the old credentials. calibre and jdownloader2 still
-# read their own credentials from env_file, which bakes in at container
-# creation, so those need a full --force-recreate. homepage and the two
-# exporters read every value covered here from a bind-mounted compose
-# `secrets:` file instead (see docs/COMPOSE_CONVENTIONS.md), whose contents
-# are re-read on every start, so a plain restart is enough for them.
+# authenticating with the old credentials. jdownloader2 still reads its own
+# credentials from env_file, which bakes in at container creation, so it
+# needs a full --force-recreate. homepage, the two exporters, and calibre
+# read every other value covered here from a bind-mounted compose `secrets:`
+# file instead (see docs/COMPOSE_CONVENTIONS.md), whose contents are re-read
+# on every start, so a plain restart is enough for them.
 # ---------------------------------------------------------------------------
 
 RECREATE_CONSUMERS=()
@@ -1198,12 +1200,12 @@ RESTART_CONSUMERS=()
 case "$TARGET" in
 qbittorrent) RESTART_CONSUMERS=(qbittorrent_exporter homepage) ;;
 sabnzbd) RESTART_CONSUMERS=(sabnzbd_exporter homepage) ;;
-calibre) RECREATE_CONSUMERS=(calibre) ;;
+calibre) RESTART_CONSUMERS=(calibre) ;;
 calibre-web | grafana) RESTART_CONSUMERS=(homepage) ;;
 jdownloader2) RECREATE_CONSUMERS=(jdownloader2) ;;
 all)
-  RECREATE_CONSUMERS=(calibre jdownloader2)
-  RESTART_CONSUMERS=(qbittorrent_exporter sabnzbd_exporter homepage)
+  RECREATE_CONSUMERS=(jdownloader2)
+  RESTART_CONSUMERS=(qbittorrent_exporter sabnzbd_exporter homepage calibre)
   ;;
 esac
 

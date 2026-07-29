@@ -6,6 +6,12 @@
 !.env
 !.env.secrets.example
 
+# Secret files consumed via compose `secrets:`. Real values stay ignored
+# by the blanket `*` above; only the .example templates are committed.
+!secrets/
+secrets/*
+!secrets/*.example
+
 # config file
 !config/
 config/*
@@ -17,3 +23,7 @@ config/.config/calibre/*
 !config/.config/calibre/gui.py.json
 !config/.config/calibre/global.py.json
 !config/.config/calibre/dynamic.pickle.json
+
+# pre-start init scripts
+!custom-cont-init.d/
+!custom-cont-init.d/10-fix-library.sh

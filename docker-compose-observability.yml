@@ -27,6 +27,35 @@ x-limit-log-rotator: &limit-log-rotator
         memory: ${LOG_ROTATOR_MEMORY}
         cpus: "${LOG_ROTATOR_CPUS}"
 
+secrets:
+  # Owned by sabnzbd (docker-compose-nzb.yml) and qbittorrent
+  # (docker-compose-torrent.yml) respectively; declared here identically so
+  # this file resolves standalone (it is: `make start_observability`).
+  # See docs/COMPOSE_CONVENTIONS.md.
+  sabnzbd_api_key:
+    file: ./configs/sabnzbd/secrets/api_key.txt
+    x-podman.relabel: z
+  qbittorrent_username:
+    file: ./configs/qbittorrent/secrets/username.txt
+    x-podman.relabel: z
+  qbittorrent_password:
+    file: ./configs/qbittorrent/secrets/password.txt
+    x-podman.relabel: z
+  # Owned here since grafana is the service in this file; homepage
+  # (docker-compose-proxy.yml) declares an identical copy.
+  grafana_homepage_auth:
+    file: ./configs/grafana/secrets/homepage_auth.txt
+    x-podman.relabel: z
+  # Consumed only by grafana itself (single consumer, no duplicate needed
+  # elsewhere), referenced directly from grafana.ini via Grafana's own
+  # $__file{} config provider, not an env var.
+  grafana_smtp_user:
+    file: ./configs/grafana/secrets/smtp_user.txt
+    x-podman.relabel: z
+  grafana_smtp_password:
+    file: ./configs/grafana/secrets/smtp_password.txt
+    x-podman.relabel: z
+
 services:
   cadvisor:
     <<: *limit-telemetry
@@ -252,6 +281,7 @@ services:
       # - GF_SECURITY_ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
       # - GF_USERS_ALLOW_SIGN_UP=false
       # - GF_SERVER_ROOT_URL=https://172.16.15.30/admin/grafana
+    secrets: [grafana_smtp_user, grafana_smtp_password]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CERTIFICATES_FOLDER}:/certs:ro
@@ -337,26 +367,6 @@ services:
     healthcheck:
       <<: *healthcheck-defaults
       test: wget -q -O /dev/null http://127.0.0.1:9387/metrics || exit 1
-
-secrets:
-  # Owned by sabnzbd (docker-compose-nzb.yml) and qbittorrent
-  # (docker-compose-torrent.yml) respectively; declared here identically so
-  # this file resolves standalone (it is: `make start_observability`).
-  # See docs/COMPOSE_CONVENTIONS.md.
-  sabnzbd_api_key:
-    file: ./configs/sabnzbd/secrets/api_key.txt
-    x-podman.relabel: z
-  qbittorrent_username:
-    file: ./configs/qbittorrent/secrets/username.txt
-    x-podman.relabel: z
-  qbittorrent_password:
-    file: ./configs/qbittorrent/secrets/password.txt
-    x-podman.relabel: z
-  # Owned here since grafana is the service in this file; homepage
-  # (docker-compose-proxy.yml) declares an identical copy.
-  grafana_homepage_auth:
-    file: ./configs/grafana/secrets/homepage_auth.txt
-    x-podman.relabel: z
 
 networks:
   observability:

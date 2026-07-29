@@ -20,6 +20,63 @@ x-limit-homepage: &limit-homepage
         memory: ${HOMEPAGE_MEMORY}
         cpus: "${HOMEPAGE_CPUS}"
 
+secrets:
+  # Owned by sabnzbd (docker-compose-nzb.yml), qbittorrent
+  # (docker-compose-torrent.yml), and each servarr app
+  # (docker-compose-servarr.yml) respectively; declared here identically so
+  # this file resolves standalone. See docs/COMPOSE_CONVENTIONS.md. Keep every
+  # `file:` path identical to its owning file's declaration, compose does not
+  # detect a mismatch, it silently uses whichever declaration was included
+  # last.
+  sabnzbd_api_key:
+    file: ./configs/sabnzbd/secrets/api_key.txt
+    x-podman.relabel: z
+  qbittorrent_username:
+    file: ./configs/qbittorrent/secrets/username.txt
+    x-podman.relabel: z
+  qbittorrent_password:
+    file: ./configs/qbittorrent/secrets/password.txt
+    x-podman.relabel: z
+  sonarr_api_key:
+    file: ./configs/sonarr/secrets/api_key.txt
+    x-podman.relabel: z
+  radarr_api_key:
+    file: ./configs/radarr/secrets/api_key.txt
+    x-podman.relabel: z
+  readarr_api_key:
+    file: ./configs/readarr/secrets/api_key.txt
+    x-podman.relabel: z
+  bazarr_api_key:
+    file: ./configs/bazarr/secrets/api_key.txt
+    x-podman.relabel: z
+  prowlarr_api_key:
+    file: ./configs/prowlarr/secrets/api_key.txt
+    x-podman.relabel: z
+  lidarr_api_key:
+    file: ./configs/lidarr/secrets/api_key.txt
+    x-podman.relabel: z
+  whisparr_api_key:
+    file: ./configs/whisparr/secrets/api_key.txt
+    x-podman.relabel: z
+  mylar_api_key:
+    file: ./configs/mylar/secrets/api_key.txt
+    x-podman.relabel: z
+  jellyfin_api_key:
+    file: ./configs/jellyfin/secrets/api_key.txt
+    x-podman.relabel: z
+  audiobookshelf_api_key:
+    file: ./configs/audiobookshelf/secrets/api_key.txt
+    x-podman.relabel: z
+  calibreweb_username:
+    file: ./configs/calibre-web/secrets/username.txt
+    x-podman.relabel: z
+  calibreweb_password:
+    file: ./configs/calibre-web/secrets/password.txt
+    x-podman.relabel: z
+  grafana_homepage_auth:
+    file: ./configs/grafana/secrets/homepage_auth.txt
+    x-podman.relabel: z
+
 services:
   nginx:
     <<: *limit-nginx
@@ -208,60 +265,3 @@ services:
   #     # - ${CONFIG_FOLDER}/caddy/Caddyfile:/etc/caddy/Caddyfile:z
   #     # - ${CONFIG_FOLDER}/caddy/config:/config:z
   #     # - ${CONFIG_FOLDER}/caddy/data:/data:z
-
-secrets:
-  # Owned by sabnzbd (docker-compose-nzb.yml), qbittorrent
-  # (docker-compose-torrent.yml), and each servarr app
-  # (docker-compose-servarr.yml) respectively; declared here identically so
-  # this file resolves standalone. See docs/COMPOSE_CONVENTIONS.md. Keep every
-  # `file:` path identical to its owning file's declaration, compose does not
-  # detect a mismatch, it silently uses whichever declaration was included
-  # last.
-  sabnzbd_api_key:
-    file: ./configs/sabnzbd/secrets/api_key.txt
-    x-podman.relabel: z
-  qbittorrent_username:
-    file: ./configs/qbittorrent/secrets/username.txt
-    x-podman.relabel: z
-  qbittorrent_password:
-    file: ./configs/qbittorrent/secrets/password.txt
-    x-podman.relabel: z
-  sonarr_api_key:
-    file: ./configs/sonarr/secrets/api_key.txt
-    x-podman.relabel: z
-  radarr_api_key:
-    file: ./configs/radarr/secrets/api_key.txt
-    x-podman.relabel: z
-  readarr_api_key:
-    file: ./configs/readarr/secrets/api_key.txt
-    x-podman.relabel: z
-  bazarr_api_key:
-    file: ./configs/bazarr/secrets/api_key.txt
-    x-podman.relabel: z
-  prowlarr_api_key:
-    file: ./configs/prowlarr/secrets/api_key.txt
-    x-podman.relabel: z
-  lidarr_api_key:
-    file: ./configs/lidarr/secrets/api_key.txt
-    x-podman.relabel: z
-  whisparr_api_key:
-    file: ./configs/whisparr/secrets/api_key.txt
-    x-podman.relabel: z
-  mylar_api_key:
-    file: ./configs/mylar/secrets/api_key.txt
-    x-podman.relabel: z
-  jellyfin_api_key:
-    file: ./configs/jellyfin/secrets/api_key.txt
-    x-podman.relabel: z
-  audiobookshelf_api_key:
-    file: ./configs/audiobookshelf/secrets/api_key.txt
-    x-podman.relabel: z
-  calibreweb_username:
-    file: ./configs/calibre-web/secrets/username.txt
-    x-podman.relabel: z
-  calibreweb_password:
-    file: ./configs/calibre-web/secrets/password.txt
-    x-podman.relabel: z
-  grafana_homepage_auth:
-    file: ./configs/grafana/secrets/homepage_auth.txt
-    x-podman.relabel: z

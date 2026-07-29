@@ -136,13 +136,13 @@ alphabetical by service.
 - **Calibre**: rotates two independent logins that share one password here
   for simplicity: the content server (users in `server-users.sqlite`,
   plain text, read at startup) and the desktop GUI/noVNC session (basic
-  auth via `CUSTOM_USER`/`PASSWORD` in `.env.secrets`, read only at
-  container creation, so the container is recreated rather than restarted).
-  Also updates LazyLibrarian's `calibre_pass` in its `config.ini`. The
-  content server only starts once the desktop GUI is up, and the GUI
-  reliably wedges on its single instance lock after a stop/start or
-  recreate cycle; validation gives it a normal boot window, then
-  self-heals once by running `podman exec calibre s6-svc -r
+  auth via the shared secret file `configs/calibre/secrets/password.txt`,
+  read via `FILE__PASSWORD` and re-read on every start, so a restart
+  suffices). Also updates LazyLibrarian's `calibre_pass` in its
+  `config.ini`. The content server only starts once the desktop GUI is up,
+  and the GUI reliably wedges on its single instance lock after a
+  stop/start or recreate cycle; validation gives it a normal boot window,
+  then self-heals once by running `podman exec calibre s6-svc -r
   /run/service/svc-de` before giving it a second window, so an operator
   does not need to notice and run that command by hand.
 - **Calibre-Web**: writes a new password hash for the `calibre` user
@@ -154,7 +154,10 @@ alphabetical by service.
   header, not the raw password) in sync.
 - **jDownloader2**: writes the new password to `WEB_AUTHENTICATION_PASSWORD`
   in `.env.secrets`, read only at container creation, so the container is
-  recreated. No other consumer holds this credential.
+  recreated. Not migrated to a compose secret: jlesage/docker-baseimage-gui's
+  documented `CONT_ENV_<VAR>` convention does not exist in this pinned image
+  version (a live rotation confirmed a mounted secret is silently never
+  picked up). No other consumer holds this credential.
 - **Jellyfin**: sets a new password for the `jellyfin` user over Jellyfin's
   API, authenticated with the admin API key read from
   `configs/jellyfin/secrets/api_key.txt`. That key is unaffected by a

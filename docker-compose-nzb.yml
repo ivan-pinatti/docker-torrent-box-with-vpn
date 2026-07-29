@@ -20,6 +20,25 @@ x-healthcheck-defaults: &healthcheck-defaults
   start_period: 30s
   timeout: 10s
 
+secrets:
+  # SABnzbd's API key, owned here since sabnzbd is the service that issues
+  # it. sabnzbd_exporter (docker-compose-observability.yml) and homepage
+  # (docker-compose-proxy.yml) each declare an identical copy of this block so
+  # every file resolves it standalone; see docs/COMPOSE_CONVENTIONS.md. Keep
+  # the `file:` path identical across all three, compose does not detect a
+  # mismatch, it silently uses whichever declaration was included last.
+  sabnzbd_api_key:
+    file: ./configs/sabnzbd/secrets/api_key.txt
+    x-podman.relabel: z
+  # Consumed only by nzbget itself (single consumer, no duplicate needed
+  # elsewhere). NZBGET_PROFILE is disabled by default.
+  nzbget_username:
+    file: ./configs/nzbget/secrets/username.txt
+    x-podman.relabel: z
+  nzbget_password:
+    file: ./configs/nzbget/secrets/password.txt
+    x-podman.relabel: z
+
 services:
   sabnzbd:
     <<: *limit-downloaders
@@ -79,7 +98,15 @@ services:
         "${CONFIG_FOLDER}/nzbget/.env.secrets",
       ]
     environment:
-      ["PGID=${SABNZBD_GID}", "PUID=${SABNZBD_UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
+      [
+        "PGID=${SABNZBD_GID}",
+        "PUID=${SABNZBD_UID}",
+        "UMASK=${UMASK}",
+        "TZ=${TIMEZONE}",
+        "FILE__NZBGET_USER=/run/secrets/nzbget_username",
+        "FILE__NZBGET_PASS=/run/secrets/nzbget_password",
+      ]
+    secrets: [nzbget_username, nzbget_password]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CERTIFICATES_FOLDER}:/certs:ro
@@ -116,17 +143,6 @@ services:
         https://127.0.0.1:${NZBHYDRA2_HTTPS_PORT}/nzbhydra2/) &&
         test "$$http_status" = "000" -o "$$http_status" = "200" -o "$$http_status" = "302" &&
         test "$$https_status" = "200" -o "$$https_status" = "302"
-
-secrets:
-  # SABnzbd's API key, owned here since sabnzbd is the service that issues
-  # it. sabnzbd_exporter (docker-compose-observability.yml) and homepage
-  # (docker-compose-proxy.yml) each declare an identical copy of this block so
-  # every file resolves it standalone; see docs/COMPOSE_CONVENTIONS.md. Keep
-  # the `file:` path identical across all three, compose does not detect a
-  # mismatch, it silently uses whichever declaration was included last.
-  sabnzbd_api_key:
-    file: ./configs/sabnzbd/secrets/api_key.txt
-    x-podman.relabel: z
 
 networks:
   apps:
