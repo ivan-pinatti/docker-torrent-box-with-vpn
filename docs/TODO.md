@@ -152,6 +152,21 @@ recommendations):
   merged into `nightly` on 2026-07-23 but hasn't reached a stable release
   yet. See `docs/MYLAR.md` for the check to run before removing the patch
 
+## jDownloader2
+
+- [x] Fix the web UI password not picking up rotations. Root cause: the
+  image's documented Docker-secrets support (`CONT_ENV_<VAR>`) never fires
+  for `WEB_AUTHENTICATION_USERNAME`/`PASSWORD` specifically, confirmed by
+  reading `/init`'s source: `load_env_var()` only sets a variable when
+  currently unset, but the image's own Dockerfile pre-declares both as
+  empty-string env vars, so the loader always finds them already "set" (to
+  `""`) and silently skips loading the secret. Fixed with
+  `patches/jdownloader2/10-webauth.sh`, bind-mounted over the image's own
+  cont-init.d script, reading the mounted secret file directly instead of
+  trusting the broken loader. Filed upstream:
+  [jlesage/docker-baseimage-gui#196](https://github.com/jlesage/docker-baseimage-gui/issues/196).
+  See `docs/ROTATION.md` and `docs/COMPOSE_CONVENTIONS.md` for the pattern
+
 ## Whisparr
 
 - [x] Re-enable the password once the upstream bug is fixed: already
