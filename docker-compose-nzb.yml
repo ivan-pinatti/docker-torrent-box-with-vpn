@@ -117,6 +117,17 @@ services:
         test "$$http_status" = "000" -o "$$http_status" = "200" -o "$$http_status" = "302" &&
         test "$$https_status" = "200" -o "$$https_status" = "302"
 
+secrets:
+  # SABnzbd's API key, owned here since sabnzbd is the service that issues
+  # it. sabnzbd_exporter (docker-compose-observability.yml) and homepage
+  # (docker-compose-proxy.yml) each declare an identical copy of this block so
+  # every file resolves it standalone; see docs/COMPOSE_CONVENTIONS.md. Keep
+  # the `file:` path identical across all three, compose does not detect a
+  # mismatch, it silently uses whichever declaration was included last.
+  sabnzbd_api_key:
+    file: ./configs/sabnzbd/secrets/api_key.txt
+    x-podman.relabel: z
+
 networks:
   apps:
     external: true

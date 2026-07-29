@@ -15,5 +15,7 @@ secrets/*
 # config file
 !config/
 config/*
-!config/config.xml
-!config/prowlarr.db
+!config/config/
+!config/config/**
+!config/data/
+!config/data/jellyfin.db

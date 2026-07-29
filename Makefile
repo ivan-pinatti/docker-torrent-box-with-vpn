@@ -128,6 +128,17 @@ bootstrap:
 	@./scripts/seed-secrets.sh configs/calibre
 	@./scripts/seed-secrets.sh configs/nzbget
 	@./scripts/seed-secrets.sh configs/sabnzbd
+	@./scripts/seed-secrets.sh configs/sonarr
+	@./scripts/seed-secrets.sh configs/radarr
+	@./scripts/seed-secrets.sh configs/readarr
+	@./scripts/seed-secrets.sh configs/bazarr
+	@./scripts/seed-secrets.sh configs/prowlarr
+	@./scripts/seed-secrets.sh configs/lidarr
+	@./scripts/seed-secrets.sh configs/whisparr
+	@./scripts/seed-secrets.sh configs/mylar
+	@./scripts/seed-secrets.sh configs/jellyfin
+	@./scripts/seed-secrets.sh configs/audiobookshelf
+	@./scripts/seed-secrets.sh configs/calibre-web
 	@./scripts/permissions.py repair --runtime $(RUNTIME) --recursive
 	@$(MAKE) --no-print-directory configure_jellyfin_network
 	@echo "Bootstrap complete. You can now run: make start"
@@ -414,17 +425,12 @@ start_library: permissions_repair
 	@$(RUNTIME) network exists docker-torrent-box-with-vpn_media || $(RUNTIME) network create --subnet ${MEDIA_SUBNET} --ip-range ${MEDIA_DYNAMIC_IP_RANGE} docker-torrent-box-with-vpn_media
 	@$(COMPOSE) --file docker-compose.yml --file docker-compose-media-library.yml --profile enabled up --detach --no-recreate
 
-# docker-compose.yml is passed alongside docker-compose-observability.yml so
-# that shared `secrets:` declared there resolve. Without it, sabnzbd_exporter
-# fails at start with "undeclared secret", which compose `config` does not
-# catch. --no-recreate matches start_library and keeps the wider include graph
-# from recreating containers that are already running.
 start_observability: permissions_repair
 	@echo "Starting Observability containers..."
 	@$(RUNTIME) network exists docker-torrent-box-with-vpn_apps || $(RUNTIME) network create docker-torrent-box-with-vpn_apps
 	@$(RUNTIME) network exists docker-torrent-box-with-vpn_services || $(RUNTIME) network create --internal --subnet ${SERVICES_SUBNET} docker-torrent-box-with-vpn_services
 	@$(RUNTIME) network exists docker-torrent-box-with-vpn_observability || $(RUNTIME) network create --internal --subnet ${OBSERVABILITY_SUBNET} docker-torrent-box-with-vpn_observability
-	@$(COMPOSE) --file docker-compose.yml --file docker-compose-observability.yml --profile enabled up --detach --no-recreate
+	@$(COMPOSE) --file docker-compose-observability.yml --profile enabled up --detach
 
 stop: stop_all
 

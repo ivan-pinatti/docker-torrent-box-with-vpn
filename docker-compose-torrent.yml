@@ -100,3 +100,19 @@ services:
   #     - ${CERTIFICATES_FOLDER}:/certs:ro
   #     - ${CONFIG_FOLDER}/deluge/config:/config:z
   #     - ${TORRENTS_FOLDER}:/data/torrents:z
+
+secrets:
+  # qBittorrent's username/password, owned here since qbittorrent is the
+  # service that issues them (qbittorrent itself never reads the password
+  # from env, but the value is generated/rotated alongside this service).
+  # qbittorrent_exporter (docker-compose-observability.yml) and homepage
+  # (docker-compose-proxy.yml) each declare an identical copy of this block so
+  # every file resolves it standalone; see docs/COMPOSE_CONVENTIONS.md. Keep
+  # the `file:` paths identical across all three, compose does not detect a
+  # mismatch, it silently uses whichever declaration was included last.
+  qbittorrent_username:
+    file: ./configs/qbittorrent/secrets/username.txt
+    x-podman.relabel: z
+  qbittorrent_password:
+    file: ./configs/qbittorrent/secrets/password.txt
+    x-podman.relabel: z

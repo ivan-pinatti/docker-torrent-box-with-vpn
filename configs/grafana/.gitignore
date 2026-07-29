@@ -6,3 +6,9 @@
 !.prometheus.yml
 !.env
 !.env.secrets.example
+
+# Secret files consumed via compose `secrets:`. Real values stay ignored
+# by the blanket `*` above; only the .example templates are committed.
+!secrets/
+secrets/*
+!secrets/*.example

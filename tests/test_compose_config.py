@@ -105,7 +105,7 @@ def test_homepage_observability_widgets():
         "version": 2,
         "alerts": "grafana",
         "headers": {
-            "Authorization": "{{HOMEPAGE_VAR_GRAFANA_AUTH}}",
+            "Authorization": "{{HOMEPAGE_FILE_GRAFANA_AUTH}}",
         },
     }
     assert prometheus["widget"] == {

@@ -58,7 +58,21 @@ readonly PROWLARR_XML="configs/prowlarr/config/config.xml"
 
 readonly BAZARR_CONFIG="configs/bazarr/config/config/config.yaml"
 readonly RECYCLARR_SECRETS="configs/recyclarr/config/secrets.yml" # pragma: allowlist secret
-readonly HOMEPAGE_ENV="configs/homepage/.env.secrets"
+
+# Single source of truth for each app's API key, consumed via compose
+# `secrets:` by homepage instead of being copied into its .env.secrets.
+# See docs/COMPOSE_CONVENTIONS.md.
+readonly SONARR_API_KEY_SECRET="configs/sonarr/secrets/api_key.txt"     # pragma: allowlist secret
+readonly RADARR_API_KEY_SECRET="configs/radarr/secrets/api_key.txt"     # pragma: allowlist secret
+readonly READARR_API_KEY_SECRET="configs/readarr/secrets/api_key.txt"   # pragma: allowlist secret
+readonly BAZARR_API_KEY_SECRET="configs/bazarr/secrets/api_key.txt"     # pragma: allowlist secret
+readonly PROWLARR_API_KEY_SECRET="configs/prowlarr/secrets/api_key.txt" # pragma: allowlist secret
+readonly LIDARR_API_KEY_SECRET="configs/lidarr/secrets/api_key.txt"     # pragma: allowlist secret
+readonly WHISPARR_API_KEY_SECRET="configs/whisparr/secrets/api_key.txt" # pragma: allowlist secret
+readonly MYLAR_API_KEY_SECRET="configs/mylar/secrets/api_key.txt"       # pragma: allowlist secret
+# Jellyfin has no independent source of truth for its own current key (it is
+# created/revoked live via Jellyfin's own API); this file is that record.
+readonly JELLYFIN_API_KEY_SECRET="configs/jellyfin/secrets/api_key.txt" # pragma: allowlist secret
 readonly LAZYLIBRARIAN_INI="configs/lazylibrarian/config/config.ini"
 readonly MYLAR_INI="configs/mylar/config/mylar/config.ini"
 readonly NZBHYDRA_YML="configs/nzbhydra2/config/nzbhydra.yml"
@@ -76,13 +90,19 @@ mask() {
   echo "${val:0:4}****"
 }
 
-# Update a HOMEPAGE_VAR_* entry in configs/homepage/.env.
-# Args: var_name new_value
-update_homepage_env() {
-  local var_name="$1"
+# Write a value shared via compose `secrets:` (path, not name=value, so it can
+# be delivered to consumers spelling it differently, e.g. HOMEPAGE_FILE_*
+# alongside an app's own config.xml). No trailing newline: consumers read the
+# file's contents verbatim, and homepage substitutes them straight into its
+# config. Mode 644: rootless podman maps this host file to uid 0 inside the
+# container while the app runs as another UID, so 640/600 are unreadable.
+# Args: path new_value
+write_secret_file() {
+  local path="$1"
   local new_value="$2"
-  echo "[Homepage] Updating ${var_name} in ${HOMEPAGE_ENV}..."
-  sed -i "s|^${var_name}=.*|${var_name}=${new_value}|" "$HOMEPAGE_ENV"
+  mkdir -p "$(dirname "$path")"
+  printf '%s' "$new_value" >"$path"
+  chmod 644 "$path"
 }
 
 # Run curl inside the target app's own container, hitting its own loopback
@@ -222,7 +242,7 @@ rotate_sonarr() {
   echo "[recyclarr] Updating sonarr_apikey in secrets.yml..."
   yq -i ".sonarr_apikey = \"$new_key\"" "$RECYCLARR_SECRETS"
 
-  update_homepage_env "HOMEPAGE_VAR_SONARR_API_KEY" "$new_key"
+  write_secret_file "$SONARR_API_KEY_SECRET" "$new_key"
 
   SUMMARY_SONARR_OLD="$old_key"
   SUMMARY_SONARR_NEW="$new_key"
@@ -244,7 +264,7 @@ rotate_radarr() {
   echo "[recyclarr] Updating radarr_apikey in secrets.yml..."
   yq -i ".radarr_apikey = \"$new_key\"" "$RECYCLARR_SECRETS"
 
-  update_homepage_env "HOMEPAGE_VAR_RADARR_API_KEY" "$new_key"
+  write_secret_file "$RADARR_API_KEY_SECRET" "$new_key"
 
   SUMMARY_RADARR_OLD="$old_key"
   SUMMARY_RADARR_NEW="$new_key"
@@ -260,7 +280,7 @@ rotate_lidarr() {
   prowlarr_key=$(get_xml_apikey "$PROWLARR_XML")
   update_prowlarr_application "$prowlarr_key" "Lidarr" "$new_key"
 
-  update_homepage_env "HOMEPAGE_VAR_LIDARR_API_KEY" "$new_key"
+  write_secret_file "$LIDARR_API_KEY_SECRET" "$new_key"
 
   SUMMARY_LIDARR_OLD="$old_key"
   SUMMARY_LIDARR_NEW="$new_key"
@@ -276,7 +296,7 @@ rotate_readarr() {
   prowlarr_key=$(get_xml_apikey "$PROWLARR_XML")
   update_prowlarr_application "$prowlarr_key" "Readarr" "$new_key"
 
-  update_homepage_env "HOMEPAGE_VAR_READARR_API_KEY" "$new_key"
+  write_secret_file "$READARR_API_KEY_SECRET" "$new_key"
 
   SUMMARY_READARR_OLD="$old_key"
   SUMMARY_READARR_NEW="$new_key"
@@ -292,7 +312,7 @@ rotate_whisparr() {
   prowlarr_key=$(get_xml_apikey "$PROWLARR_XML")
   update_prowlarr_application "$prowlarr_key" "Whisparr" "$new_key"
 
-  update_homepage_env "HOMEPAGE_VAR_WHISPARR_API_KEY" "$new_key"
+  write_secret_file "$WHISPARR_API_KEY_SECRET" "$new_key"
 
   SUMMARY_WHISPARR_OLD="$old_key"
   SUMMARY_WHISPARR_NEW="$new_key"
@@ -304,7 +324,7 @@ rotate_prowlarr() {
   local new_key
   new_key=$(rotate_arr_apikey "Prowlarr" "prowlarr" "$PROWLARR_XML")
 
-  update_homepage_env "HOMEPAGE_VAR_PROWLARR_API_KEY" "$new_key"
+  write_secret_file "$PROWLARR_API_KEY_SECRET" "$new_key"
 
   SUMMARY_PROWLARR_OLD="$old_key"
   SUMMARY_PROWLARR_NEW="$new_key"
@@ -324,7 +344,7 @@ rotate_bazarr() {
   yq -i ".auth.apikey = \"$new_key\"" "$BAZARR_CONFIG"
   podman start bazarr >/dev/null
 
-  update_homepage_env "HOMEPAGE_VAR_BAZARR_API_KEY" "$new_key"
+  write_secret_file "$BAZARR_API_KEY_SECRET" "$new_key"
 
   SUMMARY_BAZARR_OLD="$old_key"
   SUMMARY_BAZARR_NEW="$new_key"
@@ -372,7 +392,7 @@ rotate_mylar() {
   prowlarr_key=$(get_xml_apikey "$PROWLARR_XML")
   update_prowlarr_application "$prowlarr_key" "Mylar" "$new_key"
 
-  update_homepage_env "HOMEPAGE_VAR_MYLAR_API_KEY" "$new_key"
+  write_secret_file "$MYLAR_API_KEY_SECRET" "$new_key"
 
   SUMMARY_MYLAR_OLD="$old_key"
   SUMMARY_MYLAR_NEW="$new_key"
@@ -464,7 +484,7 @@ rotate_jellyfin() {
   # Jellyfin API keys are created and revoked through its own API; the value
   # cannot be chosen, so the flow is: create new, adopt it, revoke old.
   local old_key new_key
-  old_key=$(grep -oPm1 '(?<=^HOMEPAGE_VAR_JELLYFIN_KEY=).*' "$HOMEPAGE_ENV")
+  old_key=$(cat "$JELLYFIN_API_KEY_SECRET")
 
   echo "[Jellyfin] Creating a new API key..."
   container_curl jellyfin -s --fail -X POST \
@@ -482,7 +502,7 @@ rotate_jellyfin() {
     return 1
   fi
 
-  update_homepage_env "HOMEPAGE_VAR_JELLYFIN_KEY" "$new_key"
+  write_secret_file "$JELLYFIN_API_KEY_SECRET" "$new_key"
 
   echo "[Jellyfin] Revoking the old API key..."
   container_curl jellyfin -s --fail -X DELETE \
@@ -557,15 +577,16 @@ all)
 esac
 
 # ---------------------------------------------------------------------------
-# Homepage reads HOMEPAGE_VAR_* env values only at container creation, so it
-# must be recreated or its widgets keep authenticating with stale keys.
+# Homepage reads every key this script writes from a bind-mounted secret
+# file, not env_file, so a plain restart is enough to pick up new values
+# (env_file bakes in at container creation and would need --force-recreate;
+# a mounted file's contents are re-read on every restart).
 # ---------------------------------------------------------------------------
 
 if podman container exists homepage 2>/dev/null; then
   echo ""
-  echo "Recreating homepage to load the new keys..."
-  podman-compose --file docker-compose.yml --profile enabled up -d --force-recreate \
-    homepage >/dev/null
+  echo "Restarting homepage to load the new keys..."
+  podman restart homepage >/dev/null
 fi
 
 # ---------------------------------------------------------------------------

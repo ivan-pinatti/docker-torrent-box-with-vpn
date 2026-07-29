@@ -126,13 +126,19 @@ value, leaving each consumer to name it. The file lives in the directory of
 the service that owns the credential, named `<thing>.txt` because its contents
 are one bare value rather than `KEY=value`.
 
-A secret shared across compose files is declared once in `docker-compose.yml`.
-`include:` makes it resolvable from every included file, so consumers only
-need `secrets: [name]` in their own service block. A secret used by a single
-service is declared in that service's own compose file instead.
+A secret is declared identically, in full, in **every** compose file that has
+an owning or consuming service for it, not once in a shared parent. Each
+declaration repeats the same `file:` path, so the block is a few duplicated
+lines rather than a single shared one, in exchange for every compose file
+being usable standalone: `podman-compose -f docker-compose-X.yml up` resolves
+its own secrets without needing `docker-compose.yml` or any other file in
+scope. (A single declaration in `docker-compose.yml`, relying on `include:` to
+make it resolvable everywhere, was tried first and works, but ties every
+consuming file's correctness to always being invoked through the aggregate;
+see the git history on this file if you want the details.)
 
 ```yaml
-# docker-compose.yml, before `include:`
+# docker-compose-nzb.yml — owns the secret (sabnzbd issues the key)
 secrets:
   sabnzbd_api_key:
     file: ./configs/sabnzbd/secrets/api_key.txt
@@ -140,7 +146,12 @@ secrets:
 ```
 
 ```yaml
-# docker-compose-proxy.yml — consumes it, declares nothing
+# docker-compose-proxy.yml — consumes it, declares an identical copy
+secrets:
+  sabnzbd_api_key:
+    file: ./configs/sabnzbd/secrets/api_key.txt
+    x-podman.relabel: z
+
 services:
   homepage:
     environment:
@@ -148,8 +159,9 @@ services:
     secrets: [sabnzbd_api_key]
 ```
 
-The top-level `secrets:` block goes before `services:` (and before `include:`
-in `docker-compose.yml`), so declarations are read before their use.
+The top-level `secrets:` block goes before `services:` in each file (and
+before `include:` in `docker-compose.yml`, for files that use it), so
+declarations are read before their use.
 
 Rules that are easy to get wrong:
 
@@ -164,11 +176,12 @@ Rules that are easy to get wrong:
   homepage substitutes a trailing newline straight into its config and the
   credential silently stops working. (A `$(cat ...)` shim strips it, so the
   breakage shows up in only some consumers, which makes it hard to spot.)
-- **A compose file run on its own cannot see the parent's declarations.**
-  Anything invoking an included file directly must also pass
-  `--file docker-compose.yml`, which is why `start_observability` does. Get
-  this wrong and the consumer dies at start with `undeclared secret`; compose
-  `config` exits 0 and will not warn you.
+- **Duplicate declarations must stay byte-identical.** If two files declare
+  the same secret name with a different `file:` path, compose does not
+  error, it silently uses whichever declaration was included last. This is
+  the risk this pattern trades the old "parent-only declaration" fragility
+  for, and it is why every declaration above is annotated with a reminder to
+  keep it in sync with its siblings.
 - **A missing secret file is a start-time failure, not a config error.**
   `config` passes, then the consuming service dies with
   `statfs ...: no such file or directory`. Other services are unaffected.

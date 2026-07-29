@@ -150,7 +150,38 @@ services:
       - HOMEPAGE_FILE_SABNZBD_API_KEY=/run/secrets/sabnzbd_api_key
       - HOMEPAGE_FILE_QBITTORRENT_USER=/run/secrets/qbittorrent_username
       - HOMEPAGE_FILE_QBITTORRENT_PASS=/run/secrets/qbittorrent_password
-    secrets: [sabnzbd_api_key, qbittorrent_username, qbittorrent_password]
+      - HOMEPAGE_FILE_SONARR_API_KEY=/run/secrets/sonarr_api_key
+      - HOMEPAGE_FILE_RADARR_API_KEY=/run/secrets/radarr_api_key
+      - HOMEPAGE_FILE_READARR_API_KEY=/run/secrets/readarr_api_key
+      - HOMEPAGE_FILE_BAZARR_API_KEY=/run/secrets/bazarr_api_key
+      - HOMEPAGE_FILE_PROWLARR_API_KEY=/run/secrets/prowlarr_api_key
+      - HOMEPAGE_FILE_LIDARR_API_KEY=/run/secrets/lidarr_api_key
+      - HOMEPAGE_FILE_WHISPARR_API_KEY=/run/secrets/whisparr_api_key
+      - HOMEPAGE_FILE_MYLAR_API_KEY=/run/secrets/mylar_api_key
+      - HOMEPAGE_FILE_JELLYFIN_KEY=/run/secrets/jellyfin_api_key
+      - HOMEPAGE_FILE_AUDIOBOOKSHELF_API_KEY=/run/secrets/audiobookshelf_api_key
+      - HOMEPAGE_FILE_CALIBREWEB_USER=/run/secrets/calibreweb_username
+      - HOMEPAGE_FILE_CALIBREWEB_PASS=/run/secrets/calibreweb_password
+      - HOMEPAGE_FILE_GRAFANA_AUTH=/run/secrets/grafana_homepage_auth
+    secrets:
+      [
+        sabnzbd_api_key,
+        qbittorrent_username,
+        qbittorrent_password,
+        sonarr_api_key,
+        radarr_api_key,
+        readarr_api_key,
+        bazarr_api_key,
+        prowlarr_api_key,
+        lidarr_api_key,
+        whisparr_api_key,
+        mylar_api_key,
+        jellyfin_api_key,
+        audiobookshelf_api_key,
+        calibreweb_username,
+        calibreweb_password,
+        grafana_homepage_auth,
+      ]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/homepage/config:/app/config:z
@@ -177,3 +208,60 @@ services:
   #     # - ${CONFIG_FOLDER}/caddy/Caddyfile:/etc/caddy/Caddyfile:z
   #     # - ${CONFIG_FOLDER}/caddy/config:/config:z
   #     # - ${CONFIG_FOLDER}/caddy/data:/data:z
+
+secrets:
+  # Owned by sabnzbd (docker-compose-nzb.yml), qbittorrent
+  # (docker-compose-torrent.yml), and each servarr app
+  # (docker-compose-servarr.yml) respectively; declared here identically so
+  # this file resolves standalone. See docs/COMPOSE_CONVENTIONS.md. Keep every
+  # `file:` path identical to its owning file's declaration, compose does not
+  # detect a mismatch, it silently uses whichever declaration was included
+  # last.
+  sabnzbd_api_key:
+    file: ./configs/sabnzbd/secrets/api_key.txt
+    x-podman.relabel: z
+  qbittorrent_username:
+    file: ./configs/qbittorrent/secrets/username.txt
+    x-podman.relabel: z
+  qbittorrent_password:
+    file: ./configs/qbittorrent/secrets/password.txt
+    x-podman.relabel: z
+  sonarr_api_key:
+    file: ./configs/sonarr/secrets/api_key.txt
+    x-podman.relabel: z
+  radarr_api_key:
+    file: ./configs/radarr/secrets/api_key.txt
+    x-podman.relabel: z
+  readarr_api_key:
+    file: ./configs/readarr/secrets/api_key.txt
+    x-podman.relabel: z
+  bazarr_api_key:
+    file: ./configs/bazarr/secrets/api_key.txt
+    x-podman.relabel: z
+  prowlarr_api_key:
+    file: ./configs/prowlarr/secrets/api_key.txt
+    x-podman.relabel: z
+  lidarr_api_key:
+    file: ./configs/lidarr/secrets/api_key.txt
+    x-podman.relabel: z
+  whisparr_api_key:
+    file: ./configs/whisparr/secrets/api_key.txt
+    x-podman.relabel: z
+  mylar_api_key:
+    file: ./configs/mylar/secrets/api_key.txt
+    x-podman.relabel: z
+  jellyfin_api_key:
+    file: ./configs/jellyfin/secrets/api_key.txt
+    x-podman.relabel: z
+  audiobookshelf_api_key:
+    file: ./configs/audiobookshelf/secrets/api_key.txt
+    x-podman.relabel: z
+  calibreweb_username:
+    file: ./configs/calibre-web/secrets/username.txt
+    x-podman.relabel: z
+  calibreweb_password:
+    file: ./configs/calibre-web/secrets/password.txt
+    x-podman.relabel: z
+  grafana_homepage_auth:
+    file: ./configs/grafana/secrets/homepage_auth.txt
+    x-podman.relabel: z

@@ -16,4 +16,4 @@ secrets/*
 !config/
 config/*
 !config/config.xml
-!config/prowlarr.db
+!config/whisparr3.db

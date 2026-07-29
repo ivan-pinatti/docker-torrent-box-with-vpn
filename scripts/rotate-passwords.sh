@@ -86,7 +86,6 @@ readonly PROWLARR_XML="configs/prowlarr/config/config.xml"
 
 readonly BAZARR_CONFIG="configs/bazarr/config/config/config.yaml"
 readonly SABNZBD_CONFIG="configs/sabnzbd/config/sabnzbd.ini"
-readonly SABNZBD_ENV="configs/sabnzbd/.env.secrets"
 # Single source of truth for SABnzbd's API key, consumed via compose
 # `secrets:` by sabnzbd_exporter and homepage instead of being copied into
 # each of their .env files. See docs/COMPOSE_CONVENTIONS.md.
@@ -95,13 +94,19 @@ readonly SABNZBD_API_KEY_SECRET="configs/sabnzbd/secrets/api_key.txt" # pragma: 
 # `secrets:` by qbittorrent_exporter and homepage. See
 # docs/COMPOSE_CONVENTIONS.md.
 readonly QBITTORRENT_PASSWORD_SECRET="configs/qbittorrent/secrets/password.txt" # pragma: allowlist secret
-readonly HOMEPAGE_SECRETS="configs/homepage/.env.secrets"                       # pragma: allowlist secret
 readonly LAZYLIBRARIAN_CONFIG="configs/lazylibrarian/config/config.ini"
 readonly MYLAR_CONFIG="configs/mylar/config/mylar/config.ini"
 readonly NOTIFIARR_CONFIG="configs/notifiarr/config/notifiarr.conf"
 readonly GRAFANA_INI="configs/grafana/config/grafana.ini"
+# Single source of truth for homepage's precomputed Basic-auth header for
+# Grafana ("Basic <base64(user:pass)>", not just the raw password), consumed
+# via compose `secrets:`. See docs/COMPOSE_CONVENTIONS.md.
+readonly GRAFANA_HOMEPAGE_AUTH_SECRET="configs/grafana/secrets/homepage_auth.txt" # pragma: allowlist secret
 readonly CALIBREWEB_DB="configs/calibre-web/config/app.db"
 readonly CALIBREWEB_USER="calibre"
+# Single source of truth for Calibre-Web's password, consumed via compose
+# `secrets:` by homepage. See docs/COMPOSE_CONVENTIONS.md.
+readonly CALIBREWEB_PASSWORD_SECRET="configs/calibre-web/secrets/password.txt" # pragma: allowlist secret
 readonly CALIBRE_USERS_DB="configs/calibre/config/.config/calibre/server-users.sqlite"
 readonly CALIBRE_USER="calibre"
 readonly CALIBRE_SECRETS="configs/calibre/.env.secrets" # pragma: allowlist secret
@@ -109,7 +114,8 @@ readonly NZBHYDRA_YML="configs/nzbhydra2/config/nzbhydra.yml"
 readonly AUDIOBOOKSHELF_DB="configs/audiobookshelf/config/absdatabase.sqlite"
 readonly AUDIOBOOKSHELF_USER="root"
 readonly JELLYFIN_USERNAME="jellyfin"
-readonly JDOWNLOADER2_SECRETS="configs/jdownloader2/.env.secrets" # pragma: allowlist secret
+readonly JELLYFIN_API_KEY_SECRET="configs/jellyfin/secrets/api_key.txt" # pragma: allowlist secret
+readonly JDOWNLOADER2_SECRETS="configs/jdownloader2/.env.secrets"       # pragma: allowlist secret
 readonly JDOWNLOADER2_USERNAME="jdownloader2"
 
 # Containers that must restart at the end so rewritten config files take
@@ -481,20 +487,20 @@ PYEOF
   python3 - <<PYEOF
 from pathlib import Path
 
-def set_env(path, key, value):
+def write_secret(path, value):
+    # Consumers read the file's contents verbatim (homepage substitutes them
+    # straight into its config), so no trailing newline. Mode 644 because
+    # rootless podman maps this host file to uid 0 inside the container while
+    # the app runs as another UID; 640 and 600 are unreadable to it.
     p = Path(path)
-    lines = p.read_text().splitlines() if p.exists() else []
-    needle = f"{key}="
-    for i, line in enumerate(lines):
-        if line.startswith(needle):
-            lines[i] = f"{key}={value}"
-            break
-    else:
-        lines.append(f"{key}={value}")
-    p.write_text("\\n".join(lines) + "\\n")
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(value)
+    p.chmod(0o644)
 
-set_env('$HOMEPAGE_SECRETS', 'HOMEPAGE_VAR_CALIBREWEB_PASS', '$new_password')
+write_secret('$CALIBREWEB_PASSWORD_SECRET', '$new_password')
 PYEOF
+
+  # homepage is handled separately, by RECREATE_CONSUMERS below.
 
   SUMMARY_CALIBRE_WEB_USER="$CALIBREWEB_USER"
   SUMMARY_CALIBRE_WEB_NEW="$new_password"
@@ -518,10 +524,15 @@ rotate_grafana() {
   echo "[Grafana] Updating admin_password in grafana.ini..."
   sed -i "s|^admin_password = .*|admin_password = ${new_password}|" "$GRAFANA_INI"
 
-  echo "[Homepage] Updating HOMEPAGE_VAR_GRAFANA_AUTH..."
+  echo "[Homepage] Updating the Basic-auth secret file..."
   local auth
   auth=$(printf '%s:%s' "$user" "$new_password" | base64 -w0)
-  sed -i "s|^HOMEPAGE_VAR_GRAFANA_AUTH=.*|HOMEPAGE_VAR_GRAFANA_AUTH=Basic ${auth}|" "$HOMEPAGE_SECRETS"
+  # No trailing newline: homepage substitutes the file's contents straight
+  # into its config. Mode 644: rootless podman maps this host file to uid 0
+  # inside the container while homepage runs as another UID.
+  mkdir -p "$(dirname "$GRAFANA_HOMEPAGE_AUTH_SECRET")"
+  printf 'Basic %s' "$auth" >"$GRAFANA_HOMEPAGE_AUTH_SECRET"
+  chmod 644 "$GRAFANA_HOMEPAGE_AUTH_SECRET"
 
   SUMMARY_GRAFANA_USER="$user"
   SUMMARY_GRAFANA_NEW="$new_password"
@@ -564,9 +575,9 @@ rotate_jellyfin() {
   # authenticates with the API key).
   local new_password api_key user_id
   new_password=$(gen_password)
-  api_key=$(grep -oPm1 '(?<=^HOMEPAGE_VAR_JELLYFIN_KEY=).*' "$HOMEPAGE_SECRETS")
+  api_key=$(cat "$JELLYFIN_API_KEY_SECRET" 2>/dev/null)
   if [[ -z "$api_key" ]]; then
-    echo "[Jellyfin] Could not read HOMEPAGE_VAR_JELLYFIN_KEY from ${HOMEPAGE_SECRETS}. Aborting Jellyfin rotation." >&2
+    echo "[Jellyfin] Could not read ${JELLYFIN_API_KEY_SECRET}. Aborting Jellyfin rotation." >&2
     exit 1
   fi
 
@@ -705,13 +716,10 @@ PYEOF
 
   # The arr apps' DownloadClients tables, and LazyLibrarian's and Mylar's
   # config files, are edited on disk; stop everything in the blast radius so
-  # nothing rewrites the files mid-edit or reloads stale state.
-  # homepage and qbittorrent_exporter read the password from a bind-mounted
-  # secret file, so a plain stop/start is enough for them to pick up the new
-  # value (unlike env_file, which bakes in at container creation).
+  # nothing rewrites the files mid-edit or reloads stale state. homepage and
+  # qbittorrent_exporter are handled separately, by RECREATE_CONSUMERS below.
   echo "[qBittorrent] Stopping consumers for config and database edits..."
-  stop_existing sonarr radarr lidarr readarr whisparr lazylibrarian mylar \
-    homepage qbittorrent_exporter
+  stop_existing sonarr radarr lidarr readarr whisparr lazylibrarian mylar
 
   echo "[Sonarr DB] Updating qBittorrent password in DownloadClients..."
   update_arr_qbt_password "$SONARR_DB" "$new_password"
@@ -798,15 +806,10 @@ rotate_sabnzbd() {
 
   # SABnzbd, LazyLibrarian, and Mylar persist their configs on shutdown, and
   # the arr apps' DownloadClients tables are edited on disk; stop everything
-  # in the blast radius for the duration of the edits.
-  # homepage and sabnzbd_exporter read the API key secret file at startup, so
-  # they need a restart to pick up the new value. A plain stop/start suffices
-  # now that the key is a bind-mounted file rather than an env_file entry
-  # (env_file values bake in at container creation, so the old code left both
-  # serving a stale key until the next --force-recreate).
+  # in the blast radius for the duration of the edits. homepage and
+  # sabnzbd_exporter are handled separately, by RECREATE_CONSUMERS below.
   echo "[SABnzbd] Stopping consumers for config and database edits..."
-  stop_existing sabnzbd lazylibrarian mylar sonarr radarr lidarr readarr whisparr \
-    homepage sabnzbd_exporter
+  stop_existing sabnzbd lazylibrarian mylar sonarr radarr lidarr readarr whisparr
 
   echo "[SABnzbd] Updating config and service env credentials..."
   python3 - <<PYEOF
@@ -818,18 +821,6 @@ new_password = '$new_password'
 new_api_key = '$new_api_key'
 new_nzb_key = '$new_nzb_key'
 
-def set_env(path, key, value):
-    p = Path(path)
-    lines = p.read_text().splitlines() if p.exists() else []
-    needle = f"{key}="
-    for i, line in enumerate(lines):
-        if line.startswith(needle):
-            lines[i] = f"{key}={value}"
-            break
-    else:
-        lines.append(f"{key}={value}")
-    p.write_text("\\n".join(lines) + "\\n")
-
 def write_secret(path, value):
     # Consumers read the file's contents verbatim (homepage substitutes them
     # straight into its config), so no trailing newline. Mode 644 because
@@ -840,9 +831,11 @@ def write_secret(path, value):
     p.write_text(value)
     p.chmod(0o644)
 
-set_env('$SABNZBD_ENV', 'SABNZBD_USERNAME', 'sabnzbd')
-set_env('$SABNZBD_ENV', 'SABNZBD_PASSWORD', new_password)
-set_env('$SABNZBD_ENV', 'SABNZBD_NZB_KEY', new_nzb_key)
+# SABNZBD_USERNAME/PASSWORD/NZB_KEY are not written anywhere here: sabnzbd.ini
+# (below) is the only thing that reads them. The linuxserver/sabnzbd image
+# does not recognize those env var names at all (verified by grepping the
+# image), so a former .env.secrets copy of them was pure dead weight, exactly
+# like qBittorrent's own PASSWORD entry was.
 
 # Replaces the former SABNZBD_API_KEY writes to the root .env and
 # configs/sabnzbd/.env.secrets, and the HOMEPAGE_VAR_SABNZBD_API_KEY write to
@@ -1191,19 +1184,27 @@ if [[ ${#RESTART_NEEDED[@]} -gt 0 ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Recreate containers that consume rotated secrets from env files. They read
-# those values only at container creation, so without a recreate they keep
-# authenticating with the old credentials.
+# Recreate or restart containers that consume rotated secrets, so they stop
+# authenticating with the old credentials. calibre and jdownloader2 still
+# read their own credentials from env_file, which bakes in at container
+# creation, so those need a full --force-recreate. homepage and the two
+# exporters read every value covered here from a bind-mounted compose
+# `secrets:` file instead (see docs/COMPOSE_CONVENTIONS.md), whose contents
+# are re-read on every start, so a plain restart is enough for them.
 # ---------------------------------------------------------------------------
 
 RECREATE_CONSUMERS=()
+RESTART_CONSUMERS=()
 case "$TARGET" in
-qbittorrent) RECREATE_CONSUMERS=(qbittorrent_exporter homepage) ;;
-sabnzbd) RECREATE_CONSUMERS=(sabnzbd_exporter homepage) ;;
+qbittorrent) RESTART_CONSUMERS=(qbittorrent_exporter homepage) ;;
+sabnzbd) RESTART_CONSUMERS=(sabnzbd_exporter homepage) ;;
 calibre) RECREATE_CONSUMERS=(calibre) ;;
-calibre-web | grafana) RECREATE_CONSUMERS=(homepage) ;;
+calibre-web | grafana) RESTART_CONSUMERS=(homepage) ;;
 jdownloader2) RECREATE_CONSUMERS=(jdownloader2) ;;
-all) RECREATE_CONSUMERS=(qbittorrent_exporter sabnzbd_exporter homepage calibre jdownloader2) ;;
+all)
+  RECREATE_CONSUMERS=(calibre jdownloader2)
+  RESTART_CONSUMERS=(qbittorrent_exporter sabnzbd_exporter homepage)
+  ;;
 esac
 
 if [[ ${#RECREATE_CONSUMERS[@]} -gt 0 ]]; then
@@ -1222,6 +1223,20 @@ if [[ ${#RECREATE_CONSUMERS[@]} -gt 0 ]]; then
     # network namespace out from under qbittorrent and sabnzbd.
     podman-compose --file docker-compose.yml --profile enabled up -d --force-recreate --no-deps \
       "${existing_consumers[@]}"
+  fi
+fi
+
+if [[ ${#RESTART_CONSUMERS[@]} -gt 0 ]]; then
+  existing_consumers=()
+  for consumer in "${RESTART_CONSUMERS[@]}"; do
+    if podman container exists "$consumer" 2>/dev/null; then
+      existing_consumers+=("$consumer")
+    fi
+  done
+  if [[ ${#existing_consumers[@]} -gt 0 ]]; then
+    echo ""
+    echo "Restarting secret consumers: ${existing_consumers[*]}"
+    podman restart "${existing_consumers[@]}" >/dev/null
   fi
 fi
 

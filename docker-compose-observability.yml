@@ -338,6 +338,26 @@ services:
       <<: *healthcheck-defaults
       test: wget -q -O /dev/null http://127.0.0.1:9387/metrics || exit 1
 
+secrets:
+  # Owned by sabnzbd (docker-compose-nzb.yml) and qbittorrent
+  # (docker-compose-torrent.yml) respectively; declared here identically so
+  # this file resolves standalone (it is: `make start_observability`).
+  # See docs/COMPOSE_CONVENTIONS.md.
+  sabnzbd_api_key:
+    file: ./configs/sabnzbd/secrets/api_key.txt
+    x-podman.relabel: z
+  qbittorrent_username:
+    file: ./configs/qbittorrent/secrets/username.txt
+    x-podman.relabel: z
+  qbittorrent_password:
+    file: ./configs/qbittorrent/secrets/password.txt
+    x-podman.relabel: z
+  # Owned here since grafana is the service in this file; homepage
+  # (docker-compose-proxy.yml) declares an identical copy.
+  grafana_homepage_auth:
+    file: ./configs/grafana/secrets/homepage_auth.txt
+    x-podman.relabel: z
+
 networks:
   observability:
     external: true

@@ -15,7 +15,7 @@
         widget:
           type: sonarr
           url: http://sonarr:8989
-          key: "{{HOMEPAGE_VAR_SONARR_API_KEY}}"
+          key: "{{HOMEPAGE_FILE_SONARR_API_KEY}}"
 
     - Radarr:
         icon: radarr.png
@@ -24,7 +24,7 @@
         widget:
           type: radarr
           url: https://radarr-https:7879/radarr
-          key: "{{HOMEPAGE_VAR_RADARR_API_KEY}}"
+          key: "{{HOMEPAGE_FILE_RADARR_API_KEY}}"
 
     - Lidarr:
         icon: lidarr.png
@@ -33,7 +33,7 @@
         widget:
           type: lidarr
           url: https://lidarr-https:6868/lidarr
-          key: "{{HOMEPAGE_VAR_LIDARR_API_KEY}}"
+          key: "{{HOMEPAGE_FILE_LIDARR_API_KEY}}"
 
     - Readarr:
         icon: readarr.png
@@ -42,7 +42,7 @@
         widget:
           type: readarr
           url: https://readarr-https:8788/readarr
-          key: "{{HOMEPAGE_VAR_READARR_API_KEY}}"
+          key: "{{HOMEPAGE_FILE_READARR_API_KEY}}"
 
     - Mylar:
         icon: mylar.png
@@ -51,7 +51,7 @@
         widget:
           type: mylar
           url: https://mylar-https:8091/mylar
-          key: "{{HOMEPAGE_VAR_MYLAR_API_KEY}}"
+          key: "{{HOMEPAGE_FILE_MYLAR_API_KEY}}"
 
     - Whisparr:
         icon: whisparr.png
@@ -60,7 +60,7 @@
         widget:
           type: radarr
           url: https://whisparr-https:9898/whisparr
-          key: "{{HOMEPAGE_VAR_WHISPARR_API_KEY}}"
+          key: "{{HOMEPAGE_FILE_WHISPARR_API_KEY}}"
 
     - Bazarr:
         icon: bazarr.png
@@ -69,7 +69,7 @@
         widget:
           type: bazarr
           url: http://bazarr:6767/bazarr
-          key: "{{HOMEPAGE_VAR_BAZARR_API_KEY}}"
+          key: "{{HOMEPAGE_FILE_BAZARR_API_KEY}}"
 
 - Indexers & Downloaders:
     - qBittorrent:
@@ -98,7 +98,7 @@
         widget:
           type: prowlarr
           url: https://prowlarr-https:6969/prowlarr
-          key: "{{HOMEPAGE_VAR_PROWLARR_API_KEY}}"
+          key: "{{HOMEPAGE_FILE_PROWLARR_API_KEY}}"
 
     - NZBHydra2:
         icon: nzbhydra2.png
@@ -118,7 +118,7 @@
         widget:
           type: jellyfin
           url: http://jellyfin:8096/jellyfin
-          key: "{{HOMEPAGE_VAR_JELLYFIN_KEY}}"
+          key: "{{HOMEPAGE_FILE_JELLYFIN_KEY}}"
           enableBlocks: true
 
     - Audiobookshelf:
@@ -128,7 +128,7 @@
         widget:
           type: audiobookshelf
           url: http://audiobookshelf:13378
-          key: "{{HOMEPAGE_VAR_AUDIOBOOKSHELF_API_KEY}}"
+          key: "{{HOMEPAGE_FILE_AUDIOBOOKSHELF_API_KEY}}"
 
     - Calibre Web:
         icon: calibre-web.png
@@ -137,8 +137,8 @@
         widget:
           type: calibreweb
           url: https://calibre-web-https:8084
-          username: "{{HOMEPAGE_VAR_CALIBREWEB_USER}}"
-          password: "{{HOMEPAGE_VAR_CALIBREWEB_PASS}}"
+          username: "{{HOMEPAGE_FILE_CALIBREWEB_USER}}"
+          password: "{{HOMEPAGE_FILE_CALIBREWEB_PASS}}"
 
     - Calibre:
         icon: calibre.png
@@ -166,7 +166,7 @@
           version: 2
           alerts: grafana
           headers:
-            Authorization: "{{HOMEPAGE_VAR_GRAFANA_AUTH}}"
+            Authorization: "{{HOMEPAGE_FILE_GRAFANA_AUTH}}"
 
     - Prometheus:
         icon: prometheus.png

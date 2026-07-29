@@ -220,8 +220,8 @@ def test_rotate_qbittorrent_password_propagates(running_containers):
         "configs/qbittorrent/secrets/password.txt has the wrong mode for rootless podman"
     )
 
-    # Homepage and the exporter were restarted by the script (stop_existing
-    # includes them) and must both work with the new password. The exporter
+    # Homepage and the exporter were restarted by the script (RESTART_CONSUMERS,
+    # at the end) and must both work with the new password. The exporter
     # image has no curl, so container_http (which shells out to curl) can't
     # be used here; wget is what its healthcheck uses too.
     if "qbittorrent_exporter" in running_containers:
@@ -377,16 +377,12 @@ def test_rotate_sabnzbd_credentials_propagate(running_containers):
     assert new_api_key != old_api_key, "sabnzbd.ini api_key was not changed"
     assert new_nzb_key != old_nzb_key, "sabnzbd.ini nzb_key was not changed"
 
-    # .env.secrets holds password/nzb_key, but the API key must never come back
+    # The linuxserver/sabnzbd image never reads SABNZBD_USERNAME/PASSWORD/
+    # NZB_KEY/API_KEY, so none of them belong in .env.secrets; sabnzbd.ini
+    # (checked above) is the only real destination.
     secrets_text = (REPO_ROOT / "configs/sabnzbd/.env.secrets").read_text()
-    assert f"SABNZBD_PASSWORD={new_password}" in secrets_text, (
-        "configs/sabnzbd/.env.secrets was not updated with the new password"
-    )
-    assert f"SABNZBD_NZB_KEY={new_nzb_key}" in secrets_text, (
-        "configs/sabnzbd/.env.secrets was not updated with the new NZB key"
-    )
-    assert "SABNZBD_API_KEY" not in secrets_text, (
-        "SABNZBD_API_KEY leaked back into configs/sabnzbd/.env.secrets"
+    assert secrets_text.strip() == "", (
+        f"configs/sabnzbd/.env.secrets should stay empty, found: {secrets_text!r}"
     )
     assert "SABNZBD_API_KEY" not in (REPO_ROOT / ".env").read_text(), (
         "SABNZBD_API_KEY leaked back into the root .env"
@@ -414,8 +410,8 @@ def test_rotate_sabnzbd_credentials_propagate(running_containers):
             f"{svc} DB still holds old SABnzbd API key"
         )
 
-    # Homepage and the exporter were restarted by the script (stop_existing
-    # includes them) and must both work with the new key
+    # Homepage and the exporter were restarted by the script (RESTART_CONSUMERS,
+    # at the end) and must both work with the new key
     if "sabnzbd_exporter" in running_containers:
         status, body = container_http(
             "sabnzbd_exporter", "http://127.0.0.1:9387/metrics", timeout=TIMEOUT
@@ -445,15 +441,6 @@ def test_rotate_sabnzbd_credentials_propagate(running_containers):
         ["podman", "start", "sabnzbd"], check=True, capture_output=True
     )
     assert wait_for_healthy("sabnzbd"), "sabnzbd did not become healthy after restore"
-
-    secrets_path = REPO_ROOT / "configs/sabnzbd/.env.secrets"
-    lines = secrets_path.read_text().splitlines()
-    for i, line in enumerate(lines):
-        if line.startswith("SABNZBD_PASSWORD="):
-            lines[i] = f"SABNZBD_PASSWORD={old_password}"
-        elif line.startswith("SABNZBD_NZB_KEY="):
-            lines[i] = f"SABNZBD_NZB_KEY={old_nzb_key}"
-    secrets_path.write_text("\n".join(lines) + "\n")
 
     # No trailing newline: consumers (homepage) read the file verbatim
     SABNZBD_API_KEY_FILE.write_text(old_api_key)
@@ -679,9 +666,12 @@ def test_rotate_calibreweb_password(running_containers):
     new_password = _summary_password(result.stdout, "calibre-web")
     assert new_password, "Summary table does not contain the new calibre-web password"
 
-    secrets = (REPO_ROOT / "configs/homepage/.env.secrets").read_text()
-    assert f"HOMEPAGE_VAR_CALIBREWEB_PASS={new_password}" in secrets, (
-        "Homepage secrets not updated with the new calibre-web password"
+    secret_path = REPO_ROOT / "configs/calibre-web/secrets/password.txt"
+    assert secret_path.read_text() == new_password, (
+        "configs/calibre-web/secrets/password.txt was not updated with the new password"
+    )
+    assert oct(secret_path.stat().st_mode)[-3:] == "644", (
+        "configs/calibre-web/secrets/password.txt has the wrong mode for rootless podman"
     )
 
     assert wait_for_healthy("calibre-web"), "calibre-web unhealthy after rotation"

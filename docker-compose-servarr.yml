@@ -356,3 +356,35 @@ services:
   #     - /etc/localtime:/etc/localtime:ro
   #     - ${CERTIFICATES_FOLDER}:/certs:ro
   #     - ${CONFIG_FOLDER}/notifiarr/config:/config:z
+
+secrets:
+  # Each app's own API key, owned here since these services generate and own
+  # it themselves (in config.xml/config.yaml/config.ini). homepage
+  # (docker-compose-proxy.yml) declares an identical copy of this block so
+  # that file resolves standalone. See docs/COMPOSE_CONVENTIONS.md. Keep the
+  # `file:` paths identical across both, compose does not detect a mismatch,
+  # it silently uses whichever declaration was included last.
+  sonarr_api_key:
+    file: ./configs/sonarr/secrets/api_key.txt
+    x-podman.relabel: z
+  radarr_api_key:
+    file: ./configs/radarr/secrets/api_key.txt
+    x-podman.relabel: z
+  readarr_api_key:
+    file: ./configs/readarr/secrets/api_key.txt
+    x-podman.relabel: z
+  bazarr_api_key:
+    file: ./configs/bazarr/secrets/api_key.txt
+    x-podman.relabel: z
+  prowlarr_api_key:
+    file: ./configs/prowlarr/secrets/api_key.txt
+    x-podman.relabel: z
+  lidarr_api_key:
+    file: ./configs/lidarr/secrets/api_key.txt
+    x-podman.relabel: z
+  whisparr_api_key:
+    file: ./configs/whisparr/secrets/api_key.txt
+    x-podman.relabel: z
+  mylar_api_key:
+    file: ./configs/mylar/secrets/api_key.txt
+    x-podman.relabel: z

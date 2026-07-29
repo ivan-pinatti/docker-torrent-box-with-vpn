@@ -12,8 +12,6 @@
 secrets/*
 !secrets/*.example
 
-# config file
+# config directory (tracked selectively)
 !config/
 config/*
-!config/config.xml
-!config/prowlarr.db

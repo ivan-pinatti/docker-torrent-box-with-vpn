@@ -91,8 +91,9 @@ every consumer of that key:
   `configs/bazarr/config/config/config.yaml`.
 - Recyclarr's `sonarr_apikey` and `radarr_apikey` in
   `configs/recyclarr/config/secrets.yml`.
-- Homepage's `HOMEPAGE_VAR_*_API_KEY` entries in
-  `configs/homepage/.env.secrets`.
+- The app's own `configs/<app>/secrets/api_key.txt`, a compose secret
+  homepage reads directly (see `docs/COMPOSE_CONVENTIONS.md`); homepage is
+  restarted, not recreated, to pick it up.
 
 The non-Servarr targets:
 
@@ -105,12 +106,15 @@ The non-Servarr targets:
   `Indexers` tables of all five Servarr databases, LazyLibrarian's Newznab
   and Torznab entries, and Mylar's `extra_newznabs`/`extra_torznabs` lines.
 - **Jellyfin** keys cannot be chosen, so the script creates a new key over
-  the Jellyfin API, stores it for Homepage, and revokes the old one.
+  the Jellyfin API, writes it to `configs/jellyfin/secrets/api_key.txt`
+  (the only record of Jellyfin's current key; there is no config.xml
+  equivalent), and revokes the old one.
 
 Apps whose key was rewritten on disk are restarted or recreated
-automatically so they load the new key, and Homepage is recreated to pick up
-the new env values. The summary table masks the keys (`first4****`); the
-actual values live in the respective config files.
+automatically so they load the new key, and Homepage is restarted (it reads
+every key here from a mounted secret file, not `env_file`, so a restart is
+enough). The summary table masks the keys (`first4****`); the actual values
+live in the respective config files.
 
 ## Passwords (`rotate-passwords.sh`)
 
@@ -142,27 +146,33 @@ alphabetical by service.
   /run/service/svc-de` before giving it a second window, so an operator
   does not need to notice and run that command by hand.
 - **Calibre-Web**: writes a new password hash for the `calibre` user
-  directly to `app.db` (no API exists) and updates Homepage.
+  directly to `app.db` (no API exists) and updates the shared secret file
+  `configs/calibre-web/secrets/password.txt`, which Homepage reads directly.
 - **Grafana**: changes the admin password over Grafana's API, then keeps
-  `grafana.ini` and Homepage's Basic auth header in sync.
+  `grafana.ini` and the shared secret file
+  `configs/grafana/secrets/homepage_auth.txt` (the precomputed Basic-auth
+  header, not the raw password) in sync.
 - **jDownloader2**: writes the new password to `WEB_AUTHENTICATION_PASSWORD`
   in `.env.secrets`, read only at container creation, so the container is
   recreated. No other consumer holds this credential.
 - **Jellyfin**: sets a new password for the `jellyfin` user over Jellyfin's
-  API, authenticated with the admin API key Homepage holds. Homepage keeps
-  using the API key, so no consumer update is needed.
+  API, authenticated with the admin API key read from
+  `configs/jellyfin/secrets/api_key.txt`. That key is unaffected by a
+  password rotation, so no consumer update is needed.
 - **LazyLibrarian** and **Mylar**: WebUI passwords in their `config.ini`.
 - **NZBHydra2**: writes a new bcrypt hash to `nzbhydra.yml`.
 - **qBittorrent**: logs into the WebUI API with the current password (read
   from Sonarr's download client settings), sets the new one, then updates
   every consumer: the `DownloadClients` tables of all five Servarr apps,
-  LazyLibrarian's and Mylar's download client settings,
-  `configs/qbittorrent/.env.secrets`,
-  `configs/qbittorrent_exporter/.env.secrets`, and Homepage.
+  LazyLibrarian's and Mylar's download client settings, and the shared
+  secret file `configs/qbittorrent/secrets/password.txt`, which
+  qbittorrent_exporter and Homepage both read directly.
 - **SABnzbd**: rotates the password, API key, and NZB key together. Updates
-  `configs/sabnzbd/config/sabnzbd.ini`, `.env` and
-  `configs/sabnzbd/.env.secrets`, the Servarr `DownloadClients` tables,
-  LazyLibrarian, Mylar, Notifiarr, and Homepage.
+  `configs/sabnzbd/config/sabnzbd.ini`, `configs/sabnzbd/.env.secrets`
+  (password and NZB key only), the shared secret file
+  `configs/sabnzbd/secrets/api_key.txt` (read directly by sabnzbd_exporter
+  and Homepage), the Servarr `DownloadClients` tables, LazyLibrarian, Mylar,
+  and Notifiarr.
 - **Servarr apps** (Lidarr, Prowlarr, Radarr, Readarr, Sonarr, Whisparr):
   the new login password is set through each app's host config API, which
   hashes it internally.

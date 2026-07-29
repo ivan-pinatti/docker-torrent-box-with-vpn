@@ -225,3 +225,23 @@ services:
     healthcheck:
       <<: *healthcheck-defaults
       test: wget -q -O /dev/null http://127.0.0.1:${KORSYNC_HTTP_PORT}/health || exit 1
+
+secrets:
+  # Each service's own credential, owned here since these services live in
+  # this file. homepage (docker-compose-proxy.yml) declares an identical copy
+  # of this block so that file resolves standalone. See
+  # docs/COMPOSE_CONVENTIONS.md. Keep the `file:` paths identical across both,
+  # compose does not detect a mismatch, it silently uses whichever
+  # declaration was included last.
+  jellyfin_api_key:
+    file: ./configs/jellyfin/secrets/api_key.txt
+    x-podman.relabel: z
+  audiobookshelf_api_key:
+    file: ./configs/audiobookshelf/secrets/api_key.txt
+    x-podman.relabel: z
+  calibreweb_username:
+    file: ./configs/calibre-web/secrets/username.txt
+    x-podman.relabel: z
+  calibreweb_password:
+    file: ./configs/calibre-web/secrets/password.txt
+    x-podman.relabel: z

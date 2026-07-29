@@ -27,7 +27,7 @@ from conftest import (
     container_http,
     homepage_widget_failures,
     is_enabled,
-    recreate_container,
+    read_secret,
     skip_if_not_running,
     wait_for_healthy,
     wait_for_homepage_ready,
@@ -83,7 +83,7 @@ def _restore_arr_key(app: str, xml_path: str, old_key: str):
     The arr apps ignore apiKey changes sent over their API, so restore uses
     the same mechanism as the rotation script: edit config.xml and restart.
     """
-    subprocess.run(
+    subprocess.run(  # nosec B607 - xmlstarlet is a trusted, fixed CLI in this stack
         [
             "xmlstarlet",
             "--quiet",
@@ -97,7 +97,9 @@ def _restore_arr_key(app: str, xml_path: str, old_key: str):
         ],
         check=True,
     )
-    subprocess.run(["podman", "restart", app], check=True, capture_output=True)
+    subprocess.run(  # nosec B607 - podman is a trusted, fixed CLI in this stack
+        ["podman", "restart", app], check=True, capture_output=True
+    )
     assert wait_for_healthy(app), f"{app} did not become healthy after key restore"
 
 
@@ -172,16 +174,11 @@ def _restore_yaml_consumers(app: str, old_key: str):
         yaml.dump(recyclarr_cfg, fh, default_flow_style=False)
 
 
-def _restore_homepage_key(var_name: str, old_key: str):
-    path = REPO_ROOT / "configs/homepage/.env.secrets"
-    if not path.exists():
-        return
-    lines = path.read_text().splitlines()
-    for i, line in enumerate(lines):
-        if line.startswith(f"{var_name}="):
-            lines[i] = f"{var_name}={old_key}"
-            break
-    path.write_text("\n".join(lines) + "\n")
+def _restore_api_key_secret(app: str, old_key: str):
+    # No trailing newline: consumers (homepage) read the file verbatim
+    path = REPO_ROOT / f"configs/{app}/secrets/api_key.txt"
+    path.write_text(old_key)
+    path.chmod(0o644)
 
 
 # ---------------------------------------------------------------------------
@@ -299,7 +296,17 @@ def test_rotate_api_key_propagates(
             f"recyclarr secrets.yml {app}_apikey not updated"
         )
 
-    # Homepage was recreated by the script and must work with the new key
+    # The shared secret file (read by homepage) holds the new key, without a
+    # trailing newline, at mode 644
+    secret_path = REPO_ROOT / f"configs/{app}/secrets/api_key.txt"
+    assert secret_path.read_text() == new_key, (
+        f"configs/{app}/secrets/api_key.txt was not updated with the new key"
+    )
+    assert oct(secret_path.stat().st_mode)[-3:] == "644", (
+        f"configs/{app}/secrets/api_key.txt has the wrong mode for rootless podman"
+    )
+
+    # Homepage was restarted by the script and must work with the new key
     if "homepage" in running_containers:
         assert wait_for_homepage_ready(), "homepage API did not respond after rotation"
         failures = homepage_widget_failures(only_services={app})
@@ -320,12 +327,14 @@ def test_rotate_api_key_propagates(
 
     if app in ("sonarr", "radarr"):
         _restore_yaml_consumers(app, old_key)
-    _restore_homepage_key(f"HOMEPAGE_VAR_{app.upper()}_API_KEY", old_key)
+    _restore_api_key_secret(app, old_key)
 
-    # Homepage reads env only at creation; recreate it so the restored key is
-    # live again, then verify the widget still works.
+    # Homepage reads the key from a bind-mounted secret file, so a plain
+    # restart (not a recreate) is enough to pick up the restored value.
     if "homepage" in running_containers:
-        recreate_container("homepage")
+        subprocess.run(  # nosec B607 - podman is a trusted, fixed CLI in this stack
+            ["podman", "restart", "homepage"], check=True, capture_output=True
+        )
         assert wait_for_homepage_ready(), "homepage API did not respond after restore"
         failures = homepage_widget_failures(only_services={app})
         assert not failures, (
@@ -387,6 +396,11 @@ def test_rotate_mylar_api_key(running_containers):
         "Prowlarr's Mylar entry was not updated"
     )
     assert wait_for_healthy("mylar"), "mylar unhealthy after rotation"
+
+    secret_path = REPO_ROOT / "configs/mylar/secrets/api_key.txt"
+    assert secret_path.read_text() == new_key, (
+        "configs/mylar/secrets/api_key.txt was not updated with the new key"
+    )
 
     if "homepage" in running_containers:
         assert wait_for_homepage_ready(), "homepage API did not respond"
@@ -458,24 +472,21 @@ def test_rotate_jellyfin_api_key(running_containers):
     """Rotating Jellyfin's key creates a new one, adopts it, revokes the old."""
     skip_if_not_running("jellyfin", running_containers)
 
-    env_path = REPO_ROOT / "configs/homepage/.env.secrets"
-    if not env_path.exists():
-        pytest.skip("homepage .env.secrets not present")
+    key_path = REPO_ROOT / "configs/jellyfin/secrets/api_key.txt"
+    if not key_path.exists():
+        pytest.skip("configs/jellyfin/secrets/api_key.txt not present")
 
-    def homepage_jellyfin_key() -> str:
-        for line in env_path.read_text().splitlines():
-            if line.startswith("HOMEPAGE_VAR_JELLYFIN_KEY="):
-                return line.split("=", 1)[1]
-        return ""
-
-    old_key = homepage_jellyfin_key()
+    old_key = read_secret("jellyfin", "api_key.txt")
     result = _run_script("rotate-api-keys.sh", "jellyfin")
     assert result.returncode == 0, (
         f"rotate-api-keys.sh jellyfin exited {result.returncode}:\n{result.stderr}"
     )
 
-    new_key = homepage_jellyfin_key()
+    new_key = read_secret("jellyfin", "api_key.txt")
     assert new_key and new_key != old_key, "Jellyfin key was not changed"
+    assert oct(key_path.stat().st_mode)[-3:] == "644", (
+        "configs/jellyfin/secrets/api_key.txt has the wrong mode for rootless podman"
+    )
 
     port = int(ENV.get("JELLYFIN_HTTP_PORT", "8096"))
     status, _ = container_http(
