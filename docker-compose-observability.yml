@@ -315,10 +315,19 @@ services:
     security_opt:
       - no-new-privileges:true
     cap_drop: [ALL]
+    # The image reads its API key only from SABNZBD_APIKEYS and has no file
+    # based equivalent, so a shell shim exports the mounted secret before
+    # handing off to the image's own entrypoint (python /sabnzbd_exporter.py).
+    # $$ escapes the substitution so compose leaves it for the inner shell.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        export SABNZBD_APIKEYS="$$(cat /run/secrets/sabnzbd_api_key)";
+        exec python /sabnzbd_exporter.py
     env_file: ["${CONFIG_FOLDER}/sabnzbd_exporter/.env"]
     environment:
       - SABNZBD_BASEURLS=http://${GLUETUN_SERVICES_IP}:${SABNZBD_HTTP_PORT}/sabnzbd
-      - SABNZBD_APIKEYS=${SABNZBD_API_KEY}
+    secrets: [sabnzbd_api_key]
     healthcheck:
       <<: *healthcheck-defaults
       test: wget -q -O /dev/null http://127.0.0.1:9387/metrics || exit 1

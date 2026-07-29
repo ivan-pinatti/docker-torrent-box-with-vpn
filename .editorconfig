@@ -44,3 +44,9 @@ indent_style = tab
 
 [COMMIT_EDITMSG]
 max_line_length = 0
+
+# Files delivered to containers via compose `secrets:`. Consumers read the
+# contents verbatim (homepage substitutes them straight into its config), so a
+# final newline would become part of the credential and silently break auth.
+[configs/*/secrets/*]
+insert_final_newline = false

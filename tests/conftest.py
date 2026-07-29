@@ -14,6 +14,30 @@ from dotenv import dotenv_values
 REPO_ROOT = Path(__file__).parent.parent
 ENV = dotenv_values(REPO_ROOT / ".env")
 
+
+def service_env(service: str) -> dict:
+    """Resolve a service's env the way compose does: template then secrets.
+
+    The root .env holds no secrets (they reach only compose's interpolation
+    namespace, not the container), so per-service files have to be layered on
+    top of it or credentials come back empty.
+    """
+    resolved = dict(ENV)
+    for name in (".env", ".env.secrets"):
+        resolved.update(dotenv_values(REPO_ROOT / "configs" / service / name) or {})
+    return resolved
+
+
+def read_secret(owner: str, name: str):
+    """Read a value delivered to containers via compose `secrets:`.
+
+    These files are written without a trailing newline, but strip anyway so a
+    hand-edited file does not silently produce a credential with \\n appended.
+    """
+    path = REPO_ROOT / "configs" / owner / "secrets" / name
+    return path.read_text().strip() if path.exists() else None
+
+
 # Service registry — each entry drives parametrize across all test layers.
 # api_key_source:
 # ("xml", rel_path, tag) | ("yaml", rel_path, *keys) |
@@ -309,6 +333,17 @@ def skip_if_not_running(name: str, running_containers: dict):
         pytest.skip(f"container '{name}' is not running")
 
 
+def fresh_container(docker_client, name: str):
+    """Re-fetch a container by name instead of reusing a cached object.
+
+    The session-scoped `running_containers` fixture snapshots container
+    objects once. If an earlier test in the same run stops/recreates a
+    container (rotation, rinse-and-repeat), that container gets a new ID and
+    the cached object's exec_run() calls 404 against the old one.
+    """
+    return docker_client.containers.get(name)
+
+
 def skip_if_disabled(name: str):
     if not is_enabled(name):
         pytest.skip(f"service '{name}' profile is disabled")
@@ -399,7 +434,7 @@ def homepage_http(url: str, timeout: int = 30) -> tuple[int, str]:
         "| grep -m1 \"HTTP/\" | awk '{print $2}'); "
         'echo "$code"; cat /tmp/homepage_probe 2>/dev/null'
     )
-    result = subprocess.run(
+    result = subprocess.run(  # nosec B607 - podman is a trusted, fixed CLI in this stack
         ["podman", "exec", "homepage", "sh", "-c", script],
         capture_output=True,
         text=True,
@@ -439,7 +474,7 @@ def homepage_widget_failures(only_services: set | None = None) -> list[str]:
 
 def recreate_container(name: str, timeout: int = 180):
     """Force-recreate a compose service container so it reloads env files."""
-    subprocess.run(
+    subprocess.run(  # nosec B607 - podman-compose is a trusted, fixed CLI in this stack
         [
             "podman-compose",
             "--file",
@@ -472,7 +507,7 @@ def wait_for_healthy(container: str, timeout: int = 120) -> bool:
     """Poll podman health status until healthy or timeout."""
     deadline = time.time() + timeout
     while time.time() < deadline:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B607 - podman is a trusted, fixed CLI in this stack
             [
                 "podman",
                 "inspect",

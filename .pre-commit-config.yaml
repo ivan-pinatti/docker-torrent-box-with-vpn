@@ -39,12 +39,12 @@ repos:
       - id: destroyed-symlinks
       - id: detect-private-key
       - id: end-of-file-fixer
-        exclude: '^(configs/.*/\.env|configs/.*/config/|configs/recyclarr/config/.*\.yml|media/eBooks/metadata\.db|\.secrets\.baseline)$|^patches/'
+        exclude: '^(configs/.*/\.env|configs/.*/config/|configs/.*/secrets/.*|configs/recyclarr/config/.*\.yml|media/eBooks/metadata\.db|\.secrets\.baseline)$|^patches/'
       - id: mixed-line-ending
-        exclude: '^(configs/.*/\.env|configs/.*/config/|configs/recyclarr/config/.*\.yml|media/eBooks/metadata\.db|\.secrets\.baseline)$|^patches/'
+        exclude: '^(configs/.*/\.env|configs/.*/config/|configs/.*/secrets/.*|configs/recyclarr/config/.*\.yml|media/eBooks/metadata\.db|\.secrets\.baseline)$|^patches/'
       - id: trailing-whitespace
         args: ["--markdown-linebreak-ext=md"]
-        exclude: '^(configs/.*/\.env|configs/.*/config/|configs/recyclarr/config/.*\.yml|media/eBooks/metadata\.db|\.secrets\.baseline)$|^patches/'
+        exclude: '^(configs/.*/\.env|configs/.*/config/|configs/.*/secrets/.*|configs/recyclarr/config/.*\.yml|media/eBooks/metadata\.db|\.secrets\.baseline)$|^patches/'
       - id: check-ast
         files: ^tests/
       - id: debug-statements

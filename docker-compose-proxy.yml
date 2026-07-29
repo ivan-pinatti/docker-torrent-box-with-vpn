@@ -142,6 +142,12 @@ services:
         "${CONFIG_FOLDER}/homepage/.env",
         "${CONFIG_FOLDER}/homepage/.env.secrets",
       ]
+    environment:
+      # HOMEPAGE_FILE_* holds a path, not a value: homepage substitutes the
+      # file's contents into {{HOMEPAGE_FILE_X}} in its config. This replaces
+      # the HOMEPAGE_VAR_SABNZBD_API_KEY copy that lived in .env.secrets.
+      - HOMEPAGE_FILE_SABNZBD_API_KEY=/run/secrets/sabnzbd_api_key
+    secrets: [sabnzbd_api_key]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/homepage/config:/app/config:z

@@ -32,6 +32,7 @@ entrypoint
 command
 env_file
 environment
+secrets             # compose `secrets:` the service consumes
 volumes
 healthcheck
 memswap_limit       # disabled services only, sits with deploy at the top
@@ -45,6 +46,9 @@ Reasoning for the less obvious placements:
   `networks`, `security_opt`, etc.) are visible without scrolling.
 - `command`/`entrypoint` sit with the other short "how the process starts"
   keys, right before `env_file`, rather than being grouped with the long tail.
+- `secrets` follows `environment` because it's the third and last source of
+  configuration a service receives, and reads naturally after the variables
+  that reference the mounted paths.
 - `deploy` and `memswap_limit` are resource-limit keys. When a service
   declares one explicitly instead of (or as an override on top of) a shared
   `x-limit-*` anchor, it stays at the very top, immediately after the merge
@@ -107,6 +111,76 @@ The service's `.gitignore` should except `.env` and `.env.secrets.example`,
 but never `.env.secrets`. It stays caught by the blanket `*` rule (and the
 root `.gitignore`'s `.env.*` pattern as a backstop). See `configs/grafana/`
 for a working example.
+
+## Secrets shared by more than one service
+
+The pattern above works when only one container needs a value. It breaks down
+as soon as a second one does, because `env_file` delivers `NAME=value` and
+cannot rename: each image insists on its own spelling. SABnzbd's API key is
+wanted as `SABNZBD_API_KEY` by SABnzbd, `SABNZBD_APIKEYS` by its exporter, and
+`HOMEPAGE_VAR_SABNZBD_API_KEY` by homepage. Copying the value into three
+`.env` files is what this pattern exists to avoid.
+
+Compose `secrets:` solves it because it delivers a **path** rather than a
+value, leaving each consumer to name it. The file lives in the directory of
+the service that owns the credential, named `<thing>.txt` because its contents
+are one bare value rather than `KEY=value`.
+
+A secret shared across compose files is declared once in `docker-compose.yml`.
+`include:` makes it resolvable from every included file, so consumers only
+need `secrets: [name]` in their own service block. A secret used by a single
+service is declared in that service's own compose file instead.
+
+```yaml
+# docker-compose.yml, before `include:`
+secrets:
+  sabnzbd_api_key:
+    file: ./configs/sabnzbd/secrets/api_key.txt
+    x-podman.relabel: z    # required on SELinux hosts
+```
+
+```yaml
+# docker-compose-proxy.yml — consumes it, declares nothing
+services:
+  homepage:
+    environment:
+      - HOMEPAGE_FILE_SABNZBD_API_KEY=/run/secrets/sabnzbd_api_key
+    secrets: [sabnzbd_api_key]
+```
+
+The top-level `secrets:` block goes before `services:` (and before `include:`
+in `docker-compose.yml`), so declarations are read before their use.
+
+Rules that are easy to get wrong:
+
+- **Never put a secret in the root `.env`.** Values there land in compose's
+  interpolation namespace, which is shared by every service, whereas a
+  per-service file or a declared secret reaches only the container that takes
+  it. The root `.env` is for non-secret configuration only.
+- **Mode 644, and it is not laxness.** Rootless podman maps the host file to
+  uid 0 inside the container while the app runs as another UID, so 640 and
+  600 leave it unreadable. This matches the existing `.env.secrets` files.
+- **Write with `printf`, never `echo`.** The contents are consumed verbatim;
+  homepage substitutes a trailing newline straight into its config and the
+  credential silently stops working. (A `$(cat ...)` shim strips it, so the
+  breakage shows up in only some consumers, which makes it hard to spot.)
+- **A compose file run on its own cannot see the parent's declarations.**
+  Anything invoking an included file directly must also pass
+  `--file docker-compose.yml`, which is why `start_observability` does. Get
+  this wrong and the consumer dies at start with `undeclared secret`; compose
+  `config` exits 0 and will not warn you.
+- **A missing secret file is a start-time failure, not a config error.**
+  `config` passes, then the consuming service dies with
+  `statfs ...: no such file or directory`. Other services are unaffected.
+  `make bootstrap` seeds the file so a fresh clone works.
+- **Consumer support varies.** All LinuxServer images accept
+  `FILE__<VAR>=/run/secrets/<name>`; homepage accepts
+  `HOMEPAGE_FILE_<VAR>`. Third-party images with neither need an entrypoint
+  shim that exports the value before exec'ing the original command, as
+  `sabnzbd_exporter` does.
+- The owning service's `.gitignore` needs `!secrets/`, `secrets/*` and
+  `!secrets/*.example`, so real values stay ignored while the `.example`
+  templates commit. `scripts/seed-secrets.sh` seeds them on bootstrap.
 
 ## Shared anchors
 

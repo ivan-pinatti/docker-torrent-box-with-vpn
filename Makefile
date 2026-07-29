@@ -414,12 +414,17 @@ start_library: permissions_repair
 	@$(RUNTIME) network exists docker-torrent-box-with-vpn_media || $(RUNTIME) network create --subnet ${MEDIA_SUBNET} --ip-range ${MEDIA_DYNAMIC_IP_RANGE} docker-torrent-box-with-vpn_media
 	@$(COMPOSE) --file docker-compose.yml --file docker-compose-media-library.yml --profile enabled up --detach --no-recreate
 
+# docker-compose.yml is passed alongside docker-compose-observability.yml so
+# that shared `secrets:` declared there resolve. Without it, sabnzbd_exporter
+# fails at start with "undeclared secret", which compose `config` does not
+# catch. --no-recreate matches start_library and keeps the wider include graph
+# from recreating containers that are already running.
 start_observability: permissions_repair
 	@echo "Starting Observability containers..."
 	@$(RUNTIME) network exists docker-torrent-box-with-vpn_apps || $(RUNTIME) network create docker-torrent-box-with-vpn_apps
 	@$(RUNTIME) network exists docker-torrent-box-with-vpn_services || $(RUNTIME) network create --internal --subnet ${SERVICES_SUBNET} docker-torrent-box-with-vpn_services
 	@$(RUNTIME) network exists docker-torrent-box-with-vpn_observability || $(RUNTIME) network create --internal --subnet ${OBSERVABILITY_SUBNET} docker-torrent-box-with-vpn_observability
-	@$(COMPOSE) --file docker-compose-observability.yml --profile enabled up --detach
+	@$(COMPOSE) --file docker-compose.yml --file docker-compose-observability.yml --profile enabled up --detach --no-recreate
 
 stop: stop_all
 

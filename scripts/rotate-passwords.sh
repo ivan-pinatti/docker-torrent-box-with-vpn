@@ -87,6 +87,10 @@ readonly PROWLARR_XML="configs/prowlarr/config/config.xml"
 readonly BAZARR_CONFIG="configs/bazarr/config/config/config.yaml"
 readonly SABNZBD_CONFIG="configs/sabnzbd/config/sabnzbd.ini"
 readonly SABNZBD_ENV="configs/sabnzbd/.env.secrets"
+# Single source of truth for SABnzbd's API key, consumed via compose
+# `secrets:` by sabnzbd_exporter and homepage instead of being copied into
+# each of their .env files. See docs/COMPOSE_CONVENTIONS.md.
+readonly SABNZBD_API_KEY_SECRET="configs/sabnzbd/secrets/api_key.txt"             # pragma: allowlist secret
 readonly QBITTORRENT_SECRETS="configs/qbittorrent/.env.secrets"                   # pragma: allowlist secret
 readonly QBITTORRENT_EXPORTER_SECRETS="configs/qbittorrent_exporter/.env.secrets" # pragma: allowlist secret
 readonly HOMEPAGE_SECRETS="configs/homepage/.env.secrets"                         # pragma: allowlist secret
@@ -789,10 +793,16 @@ rotate_sabnzbd() {
   # SABnzbd, LazyLibrarian, and Mylar persist their configs on shutdown, and
   # the arr apps' DownloadClients tables are edited on disk; stop everything
   # in the blast radius for the duration of the edits.
+  # homepage and sabnzbd_exporter read the API key secret file at startup, so
+  # they need a restart to pick up the new value. A plain stop/start suffices
+  # now that the key is a bind-mounted file rather than an env_file entry
+  # (env_file values bake in at container creation, so the old code left both
+  # serving a stale key until the next --force-recreate).
   echo "[SABnzbd] Stopping consumers for config and database edits..."
-  stop_existing sabnzbd lazylibrarian mylar sonarr radarr lidarr readarr whisparr
+  stop_existing sabnzbd lazylibrarian mylar sonarr radarr lidarr readarr whisparr \
+    homepage sabnzbd_exporter
 
-  echo "[SABnzbd] Updating config and root env credentials..."
+  echo "[SABnzbd] Updating config and service env credentials..."
   python3 - <<PYEOF
 import re
 import configparser
@@ -814,13 +824,24 @@ def set_env(path, key, value):
         lines.append(f"{key}={value}")
     p.write_text("\\n".join(lines) + "\\n")
 
-for path in ('.env', '$SABNZBD_ENV'):
-    set_env(path, 'SABNZBD_USERNAME', 'sabnzbd')
-    set_env(path, 'SABNZBD_PASSWORD', new_password)
-    set_env(path, 'SABNZBD_API_KEY', new_api_key)
-    set_env(path, 'SABNZBD_NZB_KEY', new_nzb_key)
+def write_secret(path, value):
+    # Consumers read the file's contents verbatim (homepage substitutes them
+    # straight into its config), so no trailing newline. Mode 644 because
+    # rootless podman maps this host file to uid 0 inside the container while
+    # the app runs as another UID; 640 and 600 are unreadable to it.
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(value)
+    p.chmod(0o644)
 
-set_env('$HOMEPAGE_SECRETS', 'HOMEPAGE_VAR_SABNZBD_API_KEY', new_api_key)
+set_env('$SABNZBD_ENV', 'SABNZBD_USERNAME', 'sabnzbd')
+set_env('$SABNZBD_ENV', 'SABNZBD_PASSWORD', new_password)
+set_env('$SABNZBD_ENV', 'SABNZBD_NZB_KEY', new_nzb_key)
+
+# Replaces the former SABNZBD_API_KEY writes to the root .env and
+# configs/sabnzbd/.env.secrets, and the HOMEPAGE_VAR_SABNZBD_API_KEY write to
+# configs/homepage/.env.secrets. One value, one file, three consumers.
+write_secret('$SABNZBD_API_KEY_SECRET', new_api_key)
 
 def set_ini_key(path, key, value):
     p = Path(path)

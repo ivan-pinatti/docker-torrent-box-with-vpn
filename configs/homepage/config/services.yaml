@@ -1,0 +1,182 @@
+- Overview:
+    - Metrics:
+        widget:
+          type: iframe
+          name: metrics
+          src: "/admin/grafana/d/homepage-overview/homepage-overview?kiosk&from=now-4h&to=now&refresh=30s"
+          allowScrolling: "yes"
+          refreshInterval: 60000
+
+- Servarr:
+    - Sonarr:
+        icon: sonarr.png
+        href: /sonarr/
+        description: TV Shows
+        widget:
+          type: sonarr
+          url: http://sonarr:8989
+          key: "{{HOMEPAGE_VAR_SONARR_API_KEY}}"
+
+    - Radarr:
+        icon: radarr.png
+        href: /radarr/
+        description: Movies
+        widget:
+          type: radarr
+          url: https://radarr-https:7879/radarr
+          key: "{{HOMEPAGE_VAR_RADARR_API_KEY}}"
+
+    - Lidarr:
+        icon: lidarr.png
+        href: /lidarr/
+        description: Music
+        widget:
+          type: lidarr
+          url: https://lidarr-https:6868/lidarr
+          key: "{{HOMEPAGE_VAR_LIDARR_API_KEY}}"
+
+    - Readarr:
+        icon: readarr.png
+        href: /readarr/
+        description: Books
+        widget:
+          type: readarr
+          url: https://readarr-https:8788/readarr
+          key: "{{HOMEPAGE_VAR_READARR_API_KEY}}"
+
+    - Mylar:
+        icon: mylar.png
+        href: /mylar/
+        description: Comics
+        widget:
+          type: mylar
+          url: https://mylar-https:8091/mylar
+          key: "{{HOMEPAGE_VAR_MYLAR_API_KEY}}"
+
+    - Whisparr:
+        icon: whisparr.png
+        href: /whisparr/
+        description: Adult Series
+        widget:
+          type: radarr
+          url: https://whisparr-https:9898/whisparr
+          key: "{{HOMEPAGE_VAR_WHISPARR_API_KEY}}"
+
+    - Bazarr:
+        icon: bazarr.png
+        href: /bazarr/
+        description: Subtitles
+        widget:
+          type: bazarr
+          url: http://bazarr:6767/bazarr
+          key: "{{HOMEPAGE_VAR_BAZARR_API_KEY}}"
+
+- Indexers & Downloaders:
+    - qBittorrent:
+        icon: qbittorrent.png
+        href: /qbittorrent/
+        description: Torrent Client
+        widget:
+          type: qbittorrent
+          url: https://172.28.0.10:8085
+          username: "{{HOMEPAGE_VAR_QBITTORRENT_USER}}"
+          password: "{{HOMEPAGE_VAR_QBITTORRENT_PASS}}"
+
+    - SABnzbd:
+        icon: sabnzbd.png
+        href: /sabnzbd/
+        description: Usenet Client
+        widget:
+          type: sabnzbd
+          url: http://172.28.0.10:8086
+          key: "{{HOMEPAGE_FILE_SABNZBD_API_KEY}}"
+
+    - Prowlarr:
+        icon: prowlarr.png
+        href: /prowlarr/
+        description: Indexers
+        widget:
+          type: prowlarr
+          url: https://prowlarr-https:6969/prowlarr
+          key: "{{HOMEPAGE_VAR_PROWLARR_API_KEY}}"
+
+    - NZBHydra2:
+        icon: nzbhydra2.png
+        href: /nzbhydra2/
+        description: Usenet Indexer
+
+    - JDownloader2:
+        icon: jdownloader2.png
+        href: /jdownloader2/
+        description: Direct Download Client
+
+- Media & Library:
+    - Jellyfin:
+        icon: jellyfin.png
+        href: /jellyfin/
+        description: Media Server
+        widget:
+          type: jellyfin
+          url: http://jellyfin:8096/jellyfin
+          key: "{{HOMEPAGE_VAR_JELLYFIN_KEY}}"
+          enableBlocks: true
+
+    - Audiobookshelf:
+        icon: audiobookshelf.png
+        href: /audiobookshelf/
+        description: Audiobooks & Podcasts
+        widget:
+          type: audiobookshelf
+          url: http://audiobookshelf:13378
+          key: "{{HOMEPAGE_VAR_AUDIOBOOKSHELF_API_KEY}}"
+
+    - Calibre Web:
+        icon: calibre-web.png
+        href: /calibre_web/
+        description: eBook Reader
+        widget:
+          type: calibreweb
+          url: https://calibre-web-https:8084
+          username: "{{HOMEPAGE_VAR_CALIBREWEB_USER}}"
+          password: "{{HOMEPAGE_VAR_CALIBREWEB_PASS}}"
+
+    - Calibre:
+        icon: calibre.png
+        href: /calibre/
+        description: eBook Manager
+
+    - LazyLibrarian:
+        icon: lazylibrarian.png
+        href: /lazylibrarian/
+        description: Books & Audiobooks
+
+    - KOReader Sync:
+        icon: mdi-book-sync
+        href: /korsync/
+        description: Reading Progress Sync
+
+- Observability:
+    - Grafana:
+        icon: grafana.png
+        href: /admin/grafana/
+        description: Dashboards
+        widget:
+          type: grafana
+          url: http://grafana:3000/admin/grafana
+          version: 2
+          alerts: grafana
+          headers:
+            Authorization: "{{HOMEPAGE_VAR_GRAFANA_AUTH}}"
+
+    - Prometheus:
+        icon: prometheus.png
+        href: /admin/prometheus/
+        description: Metrics
+        widget:
+          type: prometheus
+          url: http://prometheus:9090/admin/prometheus
+
+    - cAdvisor:
+        icon: cadvisor.png
+        href: /admin/cadvisor/containers/
+        description: Container Metrics

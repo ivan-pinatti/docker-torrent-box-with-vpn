@@ -3,16 +3,16 @@
 import pytest
 import requests
 import urllib3
-from dotenv import dotenv_values
 
 from conftest import (
-    REPO_ROOT,
     SERVICES,
     base_url,
     env,
     is_enabled,
     read_api_key,
+    read_secret,
     service_base_url,
+    service_env,
     skip_if_not_running,
     wait_for_healthy,
 )
@@ -27,8 +27,9 @@ BASE = base_url(https=True)
 
 def _qbittorrent_password():
     """qBittorrent's rotated password lives in its own .env.secrets, not root .env."""
-    secrets = dotenv_values(REPO_ROOT / "configs/qbittorrent/.env.secrets")
-    return secrets.get("PASSWORD") or env("QBITTORRENT_PASSWORD", "qbittorrent")
+    return service_env("qbittorrent").get("PASSWORD") or env(
+        "QBITTORRENT_PASSWORD", "qbittorrent"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -117,19 +118,22 @@ def test_sabnzbd_api_auth(running_containers):
         pytest.skip("sabnzbd profile is disabled")
     skip_if_not_running("sabnzbd", running_containers)
 
-    api_key = read_api_key("sabnzbd") or env("SABNZBD_API_KEY")
+    api_key = read_api_key("sabnzbd") or read_secret("sabnzbd", "api_key.txt")
     if not api_key:
         pytest.skip("No SABnzbd API key found")
 
+    # mode=queue, not mode=version: version is unauthenticated and answers
+    # even for a bogus key, so asserting on it proved nothing about auth.
     resp = requests.get(
         f"{BASE}/sabnzbd/api",
-        params={"mode": "version", "output": "json", "apikey": api_key},
+        params={"mode": "queue", "output": "json", "apikey": api_key},
         verify=False,
         timeout=TIMEOUT,
     )
     assert resp.status_code == 200
+    assert "API Key Incorrect" not in resp.text, "SABnzbd rejected the API key"
     data = resp.json()
-    assert "version" in data, f"SABnzbd API returned no version: {data}"
+    assert "queue" in data, f"SABnzbd API returned no queue: {data}"
 
 
 # ---------------------------------------------------------------------------

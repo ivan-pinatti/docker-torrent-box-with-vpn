@@ -29,6 +29,19 @@ networks:
       config:
         - subnet: ${OBSERVABILITY_SUBNET}
 
+secrets:
+  # Secrets shared by services living in different compose files are declared
+  # here, once. `include:` makes them resolvable from every included file, so
+  # a consumer only needs `secrets: [name]` in its own service block. Secrets
+  # used by a single service stay declared in that service's compose file.
+  #
+  # Each consumer aliases the value to whatever variable name its image wants,
+  # which is the thing env_file cannot do (it delivers name=value and cannot
+  # rename), and why these used to be copied into three separate .env files.
+  sabnzbd_api_key:
+    file: ./configs/sabnzbd/secrets/api_key.txt
+    x-podman.relabel: z
+
 include:
   - docker-compose-media-library.yml
   - docker-compose-nzb.yml
