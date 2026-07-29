@@ -295,6 +295,12 @@ services:
     environment:
       - QBITTORRENT_PORT=${QBITTORRENT_HTTPS_PORT}
       - QBITTORRENT_HOST=${GLUETUN_SERVICES_IP}
+      # exporter_extended.py already implements the FILE__<VAR> convention
+      # itself (reads the path, strips the contents), so no shim is needed
+      # here the way sabnzbd_exporter needed one.
+      - FILE__QBITTORRENT_USER=/run/secrets/qbittorrent_username
+      - FILE__QBITTORRENT_PASS=/run/secrets/qbittorrent_password
+    secrets: [qbittorrent_username, qbittorrent_password]
     volumes:
       - ${CONFIG_FOLDER}/qbittorrent_exporter/exporter_extended.py:/app/exporter_extended.py:ro,z
     healthcheck:

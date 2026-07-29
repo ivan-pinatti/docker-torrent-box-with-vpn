@@ -12,7 +12,6 @@ from conftest import (
     read_api_key,
     read_secret,
     service_base_url,
-    service_env,
     skip_if_not_running,
     wait_for_healthy,
 )
@@ -26,8 +25,8 @@ BASE = base_url(https=True)
 
 
 def _qbittorrent_password():
-    """qBittorrent's rotated password lives in its own .env.secrets, not root .env."""
-    return service_env("qbittorrent").get("PASSWORD") or env(
+    """qBittorrent's rotated password lives in its own secret file, not root .env."""
+    return read_secret("qbittorrent", "password.txt") or env(
         "QBITTORRENT_PASSWORD", "qbittorrent"
     )
 

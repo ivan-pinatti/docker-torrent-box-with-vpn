@@ -144,10 +144,13 @@ services:
       ]
     environment:
       # HOMEPAGE_FILE_* holds a path, not a value: homepage substitutes the
-      # file's contents into {{HOMEPAGE_FILE_X}} in its config. This replaces
-      # the HOMEPAGE_VAR_SABNZBD_API_KEY copy that lived in .env.secrets.
+      # file's contents into {{HOMEPAGE_FILE_X}} in its config. These replace
+      # the HOMEPAGE_VAR_SABNZBD_API_KEY / HOMEPAGE_VAR_QBITTORRENT_* copies
+      # that lived in .env.secrets.
       - HOMEPAGE_FILE_SABNZBD_API_KEY=/run/secrets/sabnzbd_api_key
-    secrets: [sabnzbd_api_key]
+      - HOMEPAGE_FILE_QBITTORRENT_USER=/run/secrets/qbittorrent_username
+      - HOMEPAGE_FILE_QBITTORRENT_PASS=/run/secrets/qbittorrent_password
+    secrets: [sabnzbd_api_key, qbittorrent_username, qbittorrent_password]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/homepage/config:/app/config:z

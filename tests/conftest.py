@@ -15,19 +15,6 @@ REPO_ROOT = Path(__file__).parent.parent
 ENV = dotenv_values(REPO_ROOT / ".env")
 
 
-def service_env(service: str) -> dict:
-    """Resolve a service's env the way compose does: template then secrets.
-
-    The root .env holds no secrets (they reach only compose's interpolation
-    namespace, not the container), so per-service files have to be layered on
-    top of it or credentials come back empty.
-    """
-    resolved = dict(ENV)
-    for name in (".env", ".env.secrets"):
-        resolved.update(dotenv_values(REPO_ROOT / "configs" / service / name) or {})
-    return resolved
-
-
 def read_secret(owner: str, name: str):
     """Read a value delivered to containers via compose `secrets:`.
 

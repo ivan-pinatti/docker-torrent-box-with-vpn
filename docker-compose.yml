@@ -41,6 +41,12 @@ secrets:
   sabnzbd_api_key:
     file: ./configs/sabnzbd/secrets/api_key.txt
     x-podman.relabel: z
+  qbittorrent_username:
+    file: ./configs/qbittorrent/secrets/username.txt
+    x-podman.relabel: z
+  qbittorrent_password:
+    file: ./configs/qbittorrent/secrets/password.txt
+    x-podman.relabel: z
 
 include:
   - docker-compose-media-library.yml

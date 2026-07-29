@@ -90,10 +90,12 @@ readonly SABNZBD_ENV="configs/sabnzbd/.env.secrets"
 # Single source of truth for SABnzbd's API key, consumed via compose
 # `secrets:` by sabnzbd_exporter and homepage instead of being copied into
 # each of their .env files. See docs/COMPOSE_CONVENTIONS.md.
-readonly SABNZBD_API_KEY_SECRET="configs/sabnzbd/secrets/api_key.txt"             # pragma: allowlist secret
-readonly QBITTORRENT_SECRETS="configs/qbittorrent/.env.secrets"                   # pragma: allowlist secret
-readonly QBITTORRENT_EXPORTER_SECRETS="configs/qbittorrent_exporter/.env.secrets" # pragma: allowlist secret
-readonly HOMEPAGE_SECRETS="configs/homepage/.env.secrets"                         # pragma: allowlist secret
+readonly SABNZBD_API_KEY_SECRET="configs/sabnzbd/secrets/api_key.txt" # pragma: allowlist secret
+# Single source of truth for qBittorrent's password, consumed via compose
+# `secrets:` by qbittorrent_exporter and homepage. See
+# docs/COMPOSE_CONVENTIONS.md.
+readonly QBITTORRENT_PASSWORD_SECRET="configs/qbittorrent/secrets/password.txt" # pragma: allowlist secret
+readonly HOMEPAGE_SECRETS="configs/homepage/.env.secrets"                       # pragma: allowlist secret
 readonly LAZYLIBRARIAN_CONFIG="configs/lazylibrarian/config/config.ini"
 readonly MYLAR_CONFIG="configs/mylar/config/mylar/config.ini"
 readonly NOTIFIARR_CONFIG="configs/notifiarr/config/notifiarr.conf"
@@ -704,8 +706,12 @@ PYEOF
   # The arr apps' DownloadClients tables, and LazyLibrarian's and Mylar's
   # config files, are edited on disk; stop everything in the blast radius so
   # nothing rewrites the files mid-edit or reloads stale state.
+  # homepage and qbittorrent_exporter read the password from a bind-mounted
+  # secret file, so a plain stop/start is enough for them to pick up the new
+  # value (unlike env_file, which bakes in at container creation).
   echo "[qBittorrent] Stopping consumers for config and database edits..."
-  stop_existing sonarr radarr lidarr readarr whisparr lazylibrarian mylar
+  stop_existing sonarr radarr lidarr readarr whisparr lazylibrarian mylar \
+    homepage qbittorrent_exporter
 
   echo "[Sonarr DB] Updating qBittorrent password in DownloadClients..."
   update_arr_qbt_password "$SONARR_DB" "$new_password"
@@ -722,27 +728,27 @@ PYEOF
   echo "[Whisparr DB] Updating qBittorrent password in DownloadClients..."
   update_arr_qbt_password "$WHISPARR_DB" "$new_password"
 
-  echo "[Config] Updating qBittorrent password in .env.secrets files..."
+  echo "[Config] Updating qBittorrent password..."
   python3 - <<PYEOF
 from pathlib import Path
 
 new_password = '$new_password'
 
-def set_env(path, key, value):
+def write_secret(path, value):
+    # Consumers read the file's contents verbatim (homepage substitutes them
+    # straight into its config), so no trailing newline. Mode 644 because
+    # rootless podman maps this host file to uid 0 inside the container while
+    # the app runs as another UID; 640 and 600 are unreadable to it.
     p = Path(path)
-    lines = p.read_text().splitlines() if p.exists() else []
-    needle = f"{key}="
-    for i, line in enumerate(lines):
-        if line.startswith(needle):
-            lines[i] = f"{key}={value}"
-            break
-    else:
-        lines.append(f"{key}={value}")
-    p.write_text("\\n".join(lines) + "\\n")
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(value)
+    p.chmod(0o644)
 
-set_env('$QBITTORRENT_SECRETS', 'PASSWORD', new_password)
-set_env('$QBITTORRENT_EXPORTER_SECRETS', 'QBITTORRENT_PASS', new_password)
-set_env('$HOMEPAGE_SECRETS', 'HOMEPAGE_VAR_QBITTORRENT_PASS', new_password)
+# Replaces the former PASSWORD/QBITTORRENT_PASS/HOMEPAGE_VAR_QBITTORRENT_PASS
+# writes to three separate .env.secrets files. One value, one file, three
+# consumers (qbittorrent itself never read PASSWORD from env; its WebUI
+# credential is the PBKDF2 hash set above via the API).
+write_secret('$QBITTORRENT_PASSWORD_SECRET', new_password)
 
 def set_ini_line(path, key, value):
     p = Path(path)

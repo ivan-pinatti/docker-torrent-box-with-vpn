@@ -210,19 +210,42 @@ def test_rotate_qbittorrent_password_propagates(running_containers):
         stored = _read_qbt_password_from_db(db_path)
         assert stored == new_password, f"{svc} DB still holds old qBittorrent password"
 
-    # .env.secrets consumers were updated
-    for rel_path, var in (
-        ("configs/homepage/.env.secrets", "HOMEPAGE_VAR_QBITTORRENT_PASS"),
-        ("configs/qbittorrent/.env.secrets", "PASSWORD"),
-        ("configs/qbittorrent_exporter/.env.secrets", "QBITTORRENT_PASS"),
-    ):
-        path = REPO_ROOT / rel_path
-        if path.exists():
-            assert f"{var}={new_password}" in path.read_text(), (
-                f"{rel_path} was not updated with the new password"
-            )
+    # The shared secret file (read by qbittorrent_exporter and homepage) was
+    # updated, without a trailing newline, at mode 644
+    secret_path = REPO_ROOT / "configs/qbittorrent/secrets/password.txt"
+    assert secret_path.read_text() == new_password, (
+        "configs/qbittorrent/secrets/password.txt was not updated with the new password"
+    )
+    assert oct(secret_path.stat().st_mode)[-3:] == "644", (
+        "configs/qbittorrent/secrets/password.txt has the wrong mode for rootless podman"
+    )
 
-    # Homepage was recreated by the script and must work with the new password
+    # Homepage and the exporter were restarted by the script (stop_existing
+    # includes them) and must both work with the new password. The exporter
+    # image has no curl, so container_http (which shells out to curl) can't
+    # be used here; wget is what its healthcheck uses too.
+    if "qbittorrent_exporter" in running_containers:
+        result = subprocess.run(  # nosec B607 - podman is a trusted, fixed CLI in this stack
+            [
+                "podman",
+                "exec",
+                "qbittorrent_exporter",
+                "wget",
+                "-qO-",
+                "http://127.0.0.1:17871/metrics",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=TIMEOUT,
+        )
+        assert result.returncode == 0, (
+            f"qbittorrent_exporter metrics unreachable: {result.stderr}"
+        )
+        assert "qbittorrent_up{" in result.stdout, (
+            "qbittorrent_exporter metrics did not report a scrape after "
+            "rotation:\n" + result.stdout[:500]
+        )
+
     if "homepage" in running_containers:
         assert wait_for_homepage_ready(), "homepage API did not respond after rotation"
         failures = homepage_widget_failures(only_services={"qbittorrent"})
@@ -236,18 +259,9 @@ def test_rotate_qbittorrent_password_propagates(running_containers):
         db_path = REPO_ROOT / ARR_DB_PATHS[svc]
         if db_path.exists():
             _set_qbt_password_in_db(db_path, old_password)
-    for rel_path, var in (
-        ("configs/homepage/.env.secrets", "HOMEPAGE_VAR_QBITTORRENT_PASS"),
-        ("configs/qbittorrent/.env.secrets", "PASSWORD"),
-        ("configs/qbittorrent_exporter/.env.secrets", "QBITTORRENT_PASS"),
-    ):
-        path = REPO_ROOT / rel_path
-        if path.exists():
-            lines = path.read_text().splitlines()
-            for i, line in enumerate(lines):
-                if line.startswith(f"{var}="):
-                    lines[i] = f"{var}={old_password}"
-            path.write_text("\n".join(lines) + "\n")
+    # No trailing newline: consumers (homepage) read the file verbatim
+    secret_path.write_text(old_password)
+    secret_path.chmod(0o644)
 
     assert _qbt_api_ok(), "qBittorrent API not reachable after restore"
 
@@ -261,6 +275,204 @@ def test_rotate_qbittorrent_password_propagates(running_containers):
         )
     if "qbittorrent_exporter" in running_containers:
         recreate_container("qbittorrent_exporter")
+
+
+# ---------------------------------------------------------------------------
+# SABnzbd credential rotation
+# ---------------------------------------------------------------------------
+
+SABNZBD_INI = REPO_ROOT / "configs/sabnzbd/config/sabnzbd.ini"
+SABNZBD_API_KEY_FILE = REPO_ROOT / "configs/sabnzbd/secrets/api_key.txt"
+
+
+def _sabnzbd_ini_value(key: str) -> str:
+    for line in SABNZBD_INI.read_text().splitlines():
+        if line.startswith(f"{key} = "):
+            return line.split(" = ", 1)[1].strip()
+    return ""
+
+
+def _set_sabnzbd_ini(key: str, value: str):
+    lines = SABNZBD_INI.read_text().splitlines()
+    for i, line in enumerate(lines):
+        if line.startswith(f"{key} = "):
+            lines[i] = f"{key} = {value}"
+    SABNZBD_INI.write_text("\n".join(lines) + "\n")
+
+
+def _read_sabnzbd_creds_from_db(db_path) -> tuple[str, str]:
+    """Return (password, apiKey) stored in an arr DB's SabnzbdSettings."""
+    conn = sqlite3.connect(str(db_path))
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT Settings FROM DownloadClients WHERE ConfigContract='SabnzbdSettings' LIMIT 1"
+    )
+    row = cur.fetchone()
+    conn.close()
+    assert row is not None, f"No SabnzbdSettings row in {db_path}"
+    settings = json.loads(row[0])
+    return settings.get("password", ""), settings.get("apiKey", "")
+
+
+def _set_sabnzbd_creds_in_db(db_path, password: str, api_key: str):
+    conn = sqlite3.connect(str(db_path))
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT Id, Settings FROM DownloadClients WHERE ConfigContract='SabnzbdSettings'"
+    )
+    for row_id, settings_json in cur.fetchall():
+        settings = json.loads(settings_json)
+        settings["password"] = password
+        settings["apiKey"] = api_key
+        cur.execute(
+            "UPDATE DownloadClients SET Settings = ? WHERE Id = ?",
+            (json.dumps(settings), row_id),
+        )
+    conn.commit()
+    conn.close()
+
+
+def test_rotate_sabnzbd_credentials_propagate(running_containers):
+    """Rotating SABnzbd's password/API key/NZB key updates every consumer.
+
+    The API key is the interesting case: it used to live in three separate
+    .env.secrets copies (SABNZBD_API_KEY, SABNZBD_APIKEYS,
+    HOMEPAGE_VAR_SABNZBD_API_KEY); now it lives in a single compose secret
+    file consumed by sabnzbd_exporter and homepage. This verifies that shared
+    file is what actually changes, that root .env and .env.secrets never get
+    it back, and that both consumers keep working with the new value.
+
+    lazylibrarian/mylar also receive the new credentials but, matching the
+    existing convention for single-owner rotations in this file (grafana,
+    jellyfin, jdownloader2, ...), are not restored: only the state qBittorrent's
+    equivalent test restores (SABnzbd itself, the arr DBs, and the shared
+    consumers) is restored here.
+    """
+    if not is_enabled("sabnzbd"):
+        pytest.skip("sabnzbd profile is disabled")
+    skip_if_not_running("sabnzbd", running_containers)
+
+    old_password = _sabnzbd_ini_value("password")
+    old_api_key = _sabnzbd_ini_value("api_key")
+    old_nzb_key = _sabnzbd_ini_value("nzb_key")
+
+    sonarr_db = REPO_ROOT / ARR_DB_PATHS["sonarr"]
+    db_old_password, db_old_api_key = _read_sabnzbd_creds_from_db(sonarr_db)
+    assert db_old_password == old_password, (
+        "Sonarr DB out of sync with sabnzbd.ini before rotation"
+    )
+    assert db_old_api_key == old_api_key, (
+        "Sonarr DB out of sync with sabnzbd.ini before rotation"
+    )
+
+    result = _run_script("rotate-passwords.sh", "sabnzbd")
+    assert result.returncode == 0, (
+        f"rotate-passwords.sh sabnzbd exited {result.returncode}:\n{result.stderr}"
+    )
+
+    new_password = _sabnzbd_ini_value("password")
+    new_api_key = _sabnzbd_ini_value("api_key")
+    new_nzb_key = _sabnzbd_ini_value("nzb_key")
+    assert new_password != old_password, "sabnzbd.ini password was not changed"
+    assert new_api_key != old_api_key, "sabnzbd.ini api_key was not changed"
+    assert new_nzb_key != old_nzb_key, "sabnzbd.ini nzb_key was not changed"
+
+    # .env.secrets holds password/nzb_key, but the API key must never come back
+    secrets_text = (REPO_ROOT / "configs/sabnzbd/.env.secrets").read_text()
+    assert f"SABNZBD_PASSWORD={new_password}" in secrets_text, (
+        "configs/sabnzbd/.env.secrets was not updated with the new password"
+    )
+    assert f"SABNZBD_NZB_KEY={new_nzb_key}" in secrets_text, (
+        "configs/sabnzbd/.env.secrets was not updated with the new NZB key"
+    )
+    assert "SABNZBD_API_KEY" not in secrets_text, (
+        "SABNZBD_API_KEY leaked back into configs/sabnzbd/.env.secrets"
+    )
+    assert "SABNZBD_API_KEY" not in (REPO_ROOT / ".env").read_text(), (
+        "SABNZBD_API_KEY leaked back into the root .env"
+    )
+
+    # The shared secret file (read by sabnzbd_exporter and homepage) holds the
+    # new key, without a trailing newline, at mode 644
+    assert SABNZBD_API_KEY_FILE.read_text() == new_api_key, (
+        "configs/sabnzbd/secrets/api_key.txt was not updated with the new API key"
+    )
+    assert oct(SABNZBD_API_KEY_FILE.stat().st_mode)[-3:] == "644", (
+        "configs/sabnzbd/secrets/api_key.txt has the wrong mode for rootless podman"
+    )
+
+    # All arr DBs were updated
+    for svc in ARR_APPS_WITH_QBT:
+        if not is_enabled(svc):
+            continue
+        db_path = REPO_ROOT / ARR_DB_PATHS[svc]
+        stored_password, stored_api_key = _read_sabnzbd_creds_from_db(db_path)
+        assert stored_password == new_password, (
+            f"{svc} DB still holds old SABnzbd password"
+        )
+        assert stored_api_key == new_api_key, (
+            f"{svc} DB still holds old SABnzbd API key"
+        )
+
+    # Homepage and the exporter were restarted by the script (stop_existing
+    # includes them) and must both work with the new key
+    if "sabnzbd_exporter" in running_containers:
+        status, body = container_http(
+            "sabnzbd_exporter", "http://127.0.0.1:9387/metrics", timeout=TIMEOUT
+        )
+        assert status == 200
+        assert "sabnzbd_queue_size{" in body, (
+            "sabnzbd_exporter metrics did not report a scrape after rotation:\n"
+            + body[:500]
+        )
+
+    if "homepage" in running_containers:
+        assert wait_for_homepage_ready(), "homepage API did not respond after rotation"
+        failures = homepage_widget_failures(only_services={"sabnzbd"})
+        assert not failures, (
+            "Homepage SABnzbd widget broken after rotation:\n" + "\n".join(failures)
+        )
+
+    # Restore the original credentials. SABnzbd only reads its config at
+    # startup, so it must be stopped for the ini edit.
+    subprocess.run(  # nosec B607 - podman is a trusted, fixed CLI in this stack
+        ["podman", "stop", "sabnzbd"], check=True, capture_output=True
+    )
+    _set_sabnzbd_ini("password", old_password)
+    _set_sabnzbd_ini("api_key", old_api_key)
+    _set_sabnzbd_ini("nzb_key", old_nzb_key)
+    subprocess.run(  # nosec B607 - podman is a trusted, fixed CLI in this stack
+        ["podman", "start", "sabnzbd"], check=True, capture_output=True
+    )
+    assert wait_for_healthy("sabnzbd"), "sabnzbd did not become healthy after restore"
+
+    secrets_path = REPO_ROOT / "configs/sabnzbd/.env.secrets"
+    lines = secrets_path.read_text().splitlines()
+    for i, line in enumerate(lines):
+        if line.startswith("SABNZBD_PASSWORD="):
+            lines[i] = f"SABNZBD_PASSWORD={old_password}"
+        elif line.startswith("SABNZBD_NZB_KEY="):
+            lines[i] = f"SABNZBD_NZB_KEY={old_nzb_key}"
+    secrets_path.write_text("\n".join(lines) + "\n")
+
+    # No trailing newline: consumers (homepage) read the file verbatim
+    SABNZBD_API_KEY_FILE.write_text(old_api_key)
+    SABNZBD_API_KEY_FILE.chmod(0o644)
+
+    for svc in ARR_APPS_WITH_QBT:
+        db_path = REPO_ROOT / ARR_DB_PATHS[svc]
+        if db_path.exists():
+            _set_sabnzbd_creds_in_db(db_path, old_password, old_api_key)
+
+    if "homepage" in running_containers:
+        recreate_container("homepage")
+        assert wait_for_homepage_ready(), "homepage API did not respond after restore"
+        failures = homepage_widget_failures(only_services={"sabnzbd"})
+        assert not failures, (
+            "Homepage SABnzbd widget broken after restore:\n" + "\n".join(failures)
+        )
+    if "sabnzbd_exporter" in running_containers:
+        recreate_container("sabnzbd_exporter")
 
 
 # ---------------------------------------------------------------------------

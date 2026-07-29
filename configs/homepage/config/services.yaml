@@ -79,8 +79,8 @@
         widget:
           type: qbittorrent
           url: https://172.28.0.10:8085
-          username: "{{HOMEPAGE_VAR_QBITTORRENT_USER}}"
-          password: "{{HOMEPAGE_VAR_QBITTORRENT_PASS}}"
+          username: "{{HOMEPAGE_FILE_QBITTORRENT_USER}}"
+          password: "{{HOMEPAGE_FILE_QBITTORRENT_PASS}}"
 
     - SABnzbd:
         icon: sabnzbd.png
