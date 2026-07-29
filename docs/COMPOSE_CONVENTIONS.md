@@ -207,6 +207,49 @@ Rules that are easy to get wrong:
   `!secrets/*.example`, so real values stay ignored while the `.example`
   templates commit. `scripts/seed-secrets.sh` seeds them on bootstrap.
 
+## Runtime config bootstrap pattern
+
+Some apps own a plain-text config file that they read at startup and rewrite
+on shutdown (`config.xml` for the servarr apps, `config.ini` for
+lazylibrarian and mylar, `nzbhydra.yml`, Jackett's `ServerConfig.json`, even a
+plain `.env` like grafana's). Tracking the live file directly means every API
+key, web UI password, or forwarded credential (SABnzbd, qBittorrent, NZBGet,
+Prowlarr, ComicVine, ...) it accumulates sits in git in the clear, and the
+apps rewriting it on their own schedule turns ordinary `git diff` noise into
+a risk (see the pre-commit stash corruption note under "Editing runtime app
+state" in `CLAUDE.md`).
+
+The fix mirrors the secrets override pattern above, minus the split-file
+part, since these aren't loaded via `env_file`:
+
+- `configs/<app>/<path-to-file>.example`, committed, same structure as the
+  live file, with every credential-bearing field (API keys, web UI/service
+  passwords, SSL cert passwords, third-party API keys) swapped for an
+  obviously-fake placeholder. Everything else — ports, `UrlBase`, feature
+  flags, indexer hostnames — is copied verbatim: it isn't a secret, and
+  matches the plain-commit case for files like `prometheus.yml`.
+- The live file (`config.xml`, `config.ini`, `nzbhydra.yml`, `.env`, ...)
+  is gitignored: the per-app `.gitignore`'s allowlist (`!config/...`)
+  points at the `.example` path instead of the live one.
+- `scripts/seed-configs.sh <live-file>` copies `<live-file>.example` to
+  `<live-file>` the first time it's missing, mirroring
+  `scripts/seed-secrets.sh`'s copy-if-missing behavior (including the
+  interactive skip/diff/replace prompt when the live file already exists,
+  and doing nothing in a non-interactive run). One call per app is wired into
+  the `bootstrap:` Makefile target, ordered before `generate_certificate`
+  needs the file to exist.
+
+Where a cross-app credential appears in more than one `.example` (e.g.
+Prowlarr's API key, forwarded into lazylibrarian's and mylar's Torznab
+indexer entries), the same placeholder value is reused across all of them,
+so a fresh bootstrap is at least internally consistent even though the real
+wiring still has to happen through each app's own UI.
+
+`make generate_certificate` already patches the SSL cert password into every
+seeded file that needs one — via `xmlstarlet` for the XML configs, `yq` for
+`nzbhydra.yml` — so the placeholder value in the `.example` is never what a
+running container actually sees.
+
 ## Shared anchors
 
 `docker-compose-servarr.yml`'s `x-servarr-common` anchor bundles the keys

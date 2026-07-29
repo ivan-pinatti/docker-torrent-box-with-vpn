@@ -12,7 +12,7 @@ search_delay = 1
 grabbag_dir = None
 highcount = 0
 maintainseriesfolder = False
-destination_dir = /comics
+destination_dir = /data/media/comics
 multiple_dest_dirs = None
 create_folders = True
 delete_remove_dir = False
@@ -69,10 +69,13 @@ problem_dates_seconds = 60
 default_dates = store_date
 scan_on_series_changes = True
 clear_provider_table = False
-config_version = 12
+config_version = 15
 minimal_ini = False
 ignore_search_words = [".exe", ".iso", "pdf-xpost", "pdf", "ebook"]
 search_tier_cutoff = 14
+keep_html_cache = False
+cleanup_strays = False
+custom_issue_exceptions = []
 
 [Update]
 newcom_dir = None
@@ -82,7 +85,7 @@ locmove = False
 [PostProcess]
 folder_cache_location = None
 post_processing = True
-file_opts = move
+file_opts = hardlink
 snatchedtorrent_notify = False
 local_torrent_pp = False
 post_processing_script = None
@@ -96,20 +99,20 @@ snatch_script = None
 enable_pre_scripts = False
 pre_shell_location = None
 pre_scripts = None
-enable_check_folder = True
+enable_check_folder = False
 check_folder = /comics
 manual_pp_folder = None
 
 [Scheduler]
-rss_checkinterval = 20
+rss_checkinterval = 30
 search_interval = 360
-download_scan_interval = 5
+download_scan_interval = 15
 check_github_interval = 360
 blocklist_timer = 3600
 
 [Weekly]
 alt_pull = 2
-pull_refresh = 2023-04-26 16:43:00
+pull_refresh = 2026-05-09 22:50:00
 weekfolder = False
 weekfolder_loc = None
 weekfolder_format = 0
@@ -124,7 +127,7 @@ auto_mass_add = False
 http_port = 8091
 http_host = 0.0.0.0
 http_username = mylar
-http_password = mylar
+http_password = changeme
 http_root = /mylar
 enable_https = True
 https_cert = /certs/server.crt
@@ -136,14 +139,15 @@ authentication = 2
 login_timeout = 43800
 alphaindex = True
 cherrypy_logging = False
+instance_name = None
 
 [API]
 api_enabled = True
-api_key = c1195c0cbf9b4900a7a6f8c1b92ef926
+api_key = 00000000000000000000000000000005
 
 [CV]
 cvapi_rate = 2
-comicvine_api = None
+comicvine_api = 0000000000000000000000000000000000000000
 ignored_publishers =
 cv_verify = True
 cv_only = True
@@ -151,6 +155,7 @@ cv_onetimer = True
 cvinfo = False
 cv_user_agent = Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.246
 imprint_mapping_type = CV
+comicvine_url = https://comicvine.gamespot.com/api/
 
 [Logs]
 log_dir = /config/mylar/logs
@@ -256,57 +261,49 @@ gotify_token = None
 gotify_onsnatch = False
 
 [Providers]
-provider_order = 0, NZBHydra2 (Torznab), 1, NZBHydra2 (Newznab), 2, The Pirate Bay (Prowlarr)
+provider_order = 0, The Pirate Bay (Prowlarr), 1, 1337x (Prowlarr), 2, Knaben (Prowlarr), 3, NZBHydra2 (Newznab), 4, DDL(GetComics)
 usenet_retention = 1500
 
 [Client]
-nzb_downloader = 1
+nzb_downloader = 0
 torrent_downloader = 5
 
 [SABnzbd]
-sab_host = None
-sab_username = None
-sab_password = None
-sab_apikey = None
-sab_category = None
+sab_host = https://172.28.0.10:8087/sabnzbd
+sab_username = sabnzbd
+sab_password = changeme
+sab_apikey = 00000000000000000000000000000004
+sab_category = comics
 sab_priority = Default
-sab_to_mylar = False
+sab_to_mylar = True
 sab_directory = None
-sab_version = None
+sab_version = 5.0.1
 sab_moving_delay = 5
-sab_client_post_processing = False
+sab_client_post_processing = True
+sab_remove_completed = True
+sab_remove_failed = True
 
 [NZBGet]
 nzbget_host = https://127.0.0.1
 nzbget_port = 6791
 nzbget_username = nzbget
-nzbget_password = nzbget
+nzbget_password = changeme
 nzbget_priority = Default
 nzbget_category = Comics
 nzbget_directory = None
-nzbget_client_post_processing = True
+nzbget_client_post_processing = False
+nzbget_sub = None
 
 [Blackhole]
-blackhole_dir = None
-
-[NZBsu]
-nzbsu = False
-nzbsu_uid = None
-nzbsu_apikey = None
-nzbsu_verify = True
-
-[DOGnzb]
-dognzb = False
-dognzb_apikey = None
-dognzb_verify = True
+blackhole_dir = /data/torrents/blackhole
 
 [Newznab]
 newznab = True
-extra_newznabs = NZBHydra2 (Newznab), https://127.0.0.1:5077/nzbhydra2, 0, VTGV071VA2H4BF20VT5A7ES48R, 7030, 1, 1
+extra_newznabs = NZBHydra2 (Newznab), https://nzbhydra2:5077/nzbhydra2, 0, 99999999999999999999999999999999, , 1, 1
 
 [Torznab]
 enable_torznab = True
-extra_torznabs = NZBHydra2 (Torznab), https://127.0.0.1:5077/nzbhydra2, 0, VTGV071VA2H4BF20VT5A7ES48R, 7030, 1, 2, The Pirate Bay (Prowlarr), https://127.0.0.1:6969/prowlarr/1/api, 1, ecf771aa4bcd4bf9be0fc180f601f818, 7030, 1, 3
+extra_torznabs = The Pirate Bay (Prowlarr), http://prowlarr-https:9696/prowlarr/1/api, 0, 44444444444444444444444444444444, 7030, 1, 4, 1337x (Prowlarr), http://prowlarr-https:9696/prowlarr/3/api, 0, 44444444444444444444444444444444, 7030, 1, 5, EBookBay (Prowlarr), http://prowlarr-https:9696/prowlarr/16/api, 0, 44444444444444444444444444444444, 7030, 0, 6, Knaben (Prowlarr), http://prowlarr-https:9696/prowlarr/14/api, 0, 44444444444444444444444444444444, 7030, 1, 7
 torznab_name = None
 torznab_host = None
 torznab_apikey = None
@@ -335,9 +332,9 @@ search_storyarcs = False
 storyarc_location = None
 
 [Metatagging]
-enable_meta = True
+enable_meta = False
 cmtagger_path = None
-cbr2cbz_only = False
+cbr2cbz_only = True
 ct_tag_cr = True
 ct_tag_cbl = True
 ct_cbz_overwrite = True
@@ -347,6 +344,8 @@ ct_settingspath = /config/mylar/.ComicTagger
 cmtag_volume = True
 cmtag_start_year_as_volume = False
 setdefaultvolume = False
+cv_batch_limit_protection = True
+cv_batch_limit_threshold = 200
 
 [Torrents]
 enable_torrents = True
@@ -357,18 +356,30 @@ public_verify = True
 
 [DDL]
 allow_packs = False
-enable_ddl = False
-enable_getcomics = False
+enable_ddl = True
+enable_getcomics = True
 pack_priority = False
 ddl_query_delay = 15
 ddl_location = None
 ddl_autoresume = True
 enable_flaresolverr = False
 flaresolverr_url = None
+enable_external_server = False
+external_server = None
+external_username = None
+external_apikey = None
+ddl_prefer_upscaled = True
+ddl_priority_order = ["mega", "mediafire", "pixeldrain", "main"]
+enable_proxy = False
+http_proxy = None
+https_proxy = None
+jd2_enable = True
+jd2_dest_dir = /data/downloads/comics
+jd2_url = http://172.28.0.10:3128
 
 [AutoSnatch]
-auto_snatch = False
-auto_snatch_script = None
+auto_snatch = True
+auto_snatch_script = /app/mylar3/post-processing/torrent-auto-snatch/getlftp.sh
 pp_sshhost = None
 pp_sshport = 22
 pp_sshuser = None
@@ -434,18 +445,34 @@ deluge_download_directory =
 deluge_done_directory =
 
 [qBittorrent]
-qbittorrent_host = https://127.0.0.1:8085
+qbittorrent_host = https://172.28.0.10:8085
 qbittorrent_username = qbittorrent
-qbittorrent_password = qbittorrent
+qbittorrent_password = changeme
 qbittorrent_label = mylar
-qbittorrent_folder = /downloads/mylar
+qbittorrent_folder = /data/torrents/comics
 qbittorrent_loadaction = default
+qbittorrent_ignore_ssl = True
 
 [OPDS]
 opds_enable = False
-opds_authentication = False
+opds_authentication = True
 opds_endpoint = opds
-opds_username = None
-opds_password = None
-opds_metainfo = False
+opds_username = mylar
+opds_password = changeme
+opds_metainfo = True
 opds_pagesize = 30
+
+[DCPP]
+enable_airdcpp = False
+airdcpp_host =
+airdcpp_username =
+airdcpp_password =
+airdcpp_download_dir =
+airdcpp_hubs =
+airdcpp_version =
+airdcpp_announce_hub =
+airdcpp_announce_bots =
+
+[CBLImport]
+cbl_import_issuesonly = True
+cbl_import_ignorearchived = False

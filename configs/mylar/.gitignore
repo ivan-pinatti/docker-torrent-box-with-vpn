@@ -16,6 +16,6 @@ secrets/*
 !config/
 config/*
 !config/mylar/
-!config/mylar/*
-!config/mylar/config.ini
+config/mylar/*
+!config/mylar/config.ini.example
 !config/mylar/mylar.db

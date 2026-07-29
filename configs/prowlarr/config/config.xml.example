@@ -1,17 +1,18 @@
 <Config>
   <LogLevel>info</LogLevel>
-  <UrlBase>/readarr</UrlBase>
+  <UrlBase>/prowlarr</UrlBase>
   <UpdateMechanism>Docker</UpdateMechanism>
   <BindAddress>*</BindAddress>
-  <Port>8787</Port>
-  <SslPort>8788</SslPort>
+  <Port>9696</Port>
+  <SslPort>6969</SslPort>
   <EnableSsl>True</EnableSsl>
   <LaunchBrowser>True</LaunchBrowser>
-  <ApiKey>e506218147094782bdc16c17fbfe62dd</ApiKey>
+  <ApiKey>44444444444444444444444444444444</ApiKey>
   <AuthenticationMethod>Forms</AuthenticationMethod>
-  <Branch>develop</Branch>
+  <AuthenticationRequired>Enabled</AuthenticationRequired>
+  <Branch>master</Branch>
   <SslCertPath>/certs/server.pfx</SslCertPath>
-  <SslCertPassword>0123456789</SslCertPassword>
+  <SslCertPassword>changeme</SslCertPassword>
+  <InstanceName>Prowlarr</InstanceName>
   <AnalyticsEnabled>False</AnalyticsEnabled>
-  <InstanceName>Readarr</InstanceName>
 </Config>

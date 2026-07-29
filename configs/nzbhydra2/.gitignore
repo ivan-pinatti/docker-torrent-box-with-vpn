@@ -9,4 +9,4 @@
 # config file
 !config/
 config/*
-!config/nzbhydra.yml
+!config/nzbhydra.yml.example

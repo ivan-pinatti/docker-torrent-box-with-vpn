@@ -4,7 +4,7 @@
 # Except .gitignore and dotenv file
 !.gitignore
 !.prometheus.yml
-!.env
+!.env.example
 !.env.secrets.example
 
 # Secret files consumed via compose `secrets:`. Real values stay ignored

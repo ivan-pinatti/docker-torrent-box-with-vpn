@@ -9,5 +9,5 @@
 # config file
 !config/
 config/*
-!config/config.ini
+!config/config.ini.example
 !config/lazylibrarian.db

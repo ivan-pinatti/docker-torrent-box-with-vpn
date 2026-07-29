@@ -2,16 +2,18 @@
 
 ## General / Security
 
-- [ ] Replace tracked live configs with a curated basic setup for fresh
+- [x] Replace tracked live configs with a curated basic setup for fresh
   clones. The runtime SQLite databases were untracked and gitignored on
   2026-07-09: pre-commit's stash cycle rewrote them mid-commit on 2026-07-07
   while services were running, corrupting the sonarr, radarr, lidarr, and
   readarr databases (recovered from app backups; corrupt copies preserved
-  under `backup/db-corruption-20260709-150443/`). Old database contents are
-  still in git history; purging them requires a history rewrite
-  (`git filter-repo`) plus a force push. Until the baseline config exists,
-  live configs stay uncommitted and commits should be avoided while the
-  stack is running
+  under `backup/db-corruption-20260709-150443/`). config.xml/config.ini/
+  nzbhydra.yml/ServerConfig.json/grafana's .env are now handled the same way,
+  via `.example` templates seeded by `scripts/seed-configs.sh` on
+  `make bootstrap`; see "Runtime config bootstrap pattern" in
+  docs/COMPOSE_CONVENTIONS.md. Old database and config contents are still in
+  git history; purging them requires a history rewrite (`git filter-repo`)
+  plus a force push, deferred separately
 - [ ] Enhance the library update process
 - [ ] Research Dependabot/Renovate for Docker image versions; docker-compose
   image versions should be managed by Renovate rather than living in the

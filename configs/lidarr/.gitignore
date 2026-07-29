@@ -15,7 +15,7 @@ secrets/*
 # config file
 !config/
 config/*
-!config/config.xml
+!config/config.xml.example
 !config/lidarr.db
 
 # arr-scripts bootstrap directories

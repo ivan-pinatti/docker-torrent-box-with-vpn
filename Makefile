@@ -139,6 +139,17 @@ bootstrap:
 	@./scripts/seed-secrets.sh configs/jellyfin
 	@./scripts/seed-secrets.sh configs/audiobookshelf
 	@./scripts/seed-secrets.sh configs/calibre-web
+	@./scripts/seed-configs.sh configs/grafana/.env
+	@./scripts/seed-configs.sh configs/sonarr/config/config.xml
+	@./scripts/seed-configs.sh configs/radarr/config/config.xml
+	@./scripts/seed-configs.sh configs/lidarr/config/config.xml
+	@./scripts/seed-configs.sh configs/readarr/config/config.xml
+	@./scripts/seed-configs.sh configs/prowlarr/config/config.xml
+	@./scripts/seed-configs.sh configs/whisparr/config/config.xml
+	@./scripts/seed-configs.sh configs/lazylibrarian/config/config.ini
+	@./scripts/seed-configs.sh configs/mylar/config/mylar/config.ini
+	@./scripts/seed-configs.sh configs/jackett/config/Jackett/ServerConfig.json
+	@./scripts/seed-configs.sh configs/nzbhydra2/config/nzbhydra.yml
 	@./scripts/permissions.py repair --runtime $(RUNTIME) --recursive
 	@$(MAKE) --no-print-directory configure_jellyfin_network
 	@echo "Bootstrap complete. You can now run: make start"

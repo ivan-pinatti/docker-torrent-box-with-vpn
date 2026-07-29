@@ -5,13 +5,14 @@
   <SslCertPath>/certs/server.pfx</SslCertPath>
   <Port>8686</Port>
   <UrlBase>/lidarr</UrlBase>
-  <ApiKey>ebd2e05991db449b979c12ab20a8eff8</ApiKey>
+  <ApiKey>22222222222222222222222222222222</ApiKey>
   <AuthenticationMethod>Forms</AuthenticationMethod>
   <UpdateMechanism>Docker</UpdateMechanism>
   <SslPort>6868</SslPort>
   <LaunchBrowser>True</LaunchBrowser>
   <Branch>master</Branch>
-  <SslCertPassword>0123456789</SslCertPassword>
+  <SslCertPassword>changeme</SslCertPassword>
   <AnalyticsEnabled>False</AnalyticsEnabled>
   <InstanceName>Lidarr</InstanceName>
+  <AuthenticationRequired>Enabled</AuthenticationRequired>
 </Config>

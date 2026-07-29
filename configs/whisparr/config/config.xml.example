@@ -1,0 +1,21 @@
+<Config>
+  <BindAddress>0.0.0.0</BindAddress>
+  <Port>6969</Port>
+  <SslPort>9898</SslPort>
+  <EnableSsl>True</EnableSsl>
+  <LaunchBrowser>True</LaunchBrowser>
+  <ApiKey>55555555555555555555555555555555</ApiKey>
+  <AuthenticationMethod>Forms</AuthenticationMethod>
+  <AuthenticationRequired>Enabled</AuthenticationRequired>
+  <Branch>eros</Branch>
+  <LogLevel>info</LogLevel>
+  <SslCertPath>/certs/server.pfx</SslCertPath>
+  <SslCertPassword>changeme</SslCertPassword>
+  <UrlBase>/whisparr</UrlBase>
+  <InstanceName>Whisparr</InstanceName>
+  <UpdateMechanism>Docker</UpdateMechanism>
+  <AnalyticsEnabled>False</AnalyticsEnabled>
+  <WhisparrMetadata>https://api.whisparr.com/v3/{route}</WhisparrMetadata>
+  <GithubOwnerRepo>whisparr/whisparr</GithubOwnerRepo>
+  <LogSizeLimit>1</LogSizeLimit>
+</Config>
