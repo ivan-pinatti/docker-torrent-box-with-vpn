@@ -1,3 +1,12 @@
+# GNU Make reads the whole file for rules before giving up on a missing
+# include, so this rule lets *any* make target auto-create certs/cert.conf
+# from its .example on a fresh clone, instead of every invocation dying with
+# "No rule to make target 'certs/cert.conf'" before bootstrap ever runs.
+# seed-configs.sh only copies when the file is missing, so a real cert.conf
+# is never touched even if make considers it stale by mtime.
+certs/cert.conf: certs/cert.conf.example
+	@./scripts/seed-configs.sh certs/cert.conf
+
 include .env certs/cert.conf
 
 JELLYFIN_BASE_URL ?= /jellyfin
@@ -128,6 +137,7 @@ bootstrap:
 	@./scripts/seed-secrets.sh configs/calibre
 	@./scripts/seed-secrets.sh configs/nzbget
 	@./scripts/seed-secrets.sh configs/sabnzbd
+	@./scripts/seed-secrets.sh configs/jdownloader2
 	@./scripts/seed-secrets.sh configs/sonarr
 	@./scripts/seed-secrets.sh configs/radarr
 	@./scripts/seed-secrets.sh configs/readarr
@@ -271,13 +281,20 @@ down:
 	@rm -f $(VPN_STATE_FILE)
 
 configure_jellyfin_network:
-	@echo "Configuring Jellyfin network settings..."
-	@if [ "$(RUNTIME)" = "podman" ]; then runner="podman unshare"; else runner=""; fi; \
-	$$runner xmlstarlet --quiet ed --inplace \
-		--update '/NetworkConfiguration/BaseUrl' --value "$(JELLYFIN_BASE_URL)" \
-		--delete '/NetworkConfiguration/KnownProxies/string' \
-		--subnode '/NetworkConfiguration/KnownProxies' --type elem --name string --value "$(JELLYFIN_KNOWN_PROXY)" \
-		"configs/jellyfin/config/network.xml"
+	@if [ ! -f configs/jellyfin/config/network.xml ]; then \
+		echo "Skipping Jellyfin network config: configs/jellyfin/config/network.xml doesn't exist yet."; \
+		echo "Jellyfin, unlike the other apps, generates its whole config tree on its own first"; \
+		echo "start rather than from a committed seed, so bootstrap can't configure it before that"; \
+		echo "happens. Run 'make start' once, then 'make configure_jellyfin_network'."; \
+	else \
+		echo "Configuring Jellyfin network settings..."; \
+		if [ "$(RUNTIME)" = "podman" ]; then runner="podman unshare"; else runner=""; fi; \
+		$$runner xmlstarlet --quiet ed --inplace \
+			--update '/NetworkConfiguration/BaseUrl' --value "$(JELLYFIN_BASE_URL)" \
+			--delete '/NetworkConfiguration/KnownProxies/string' \
+			--subnode '/NetworkConfiguration/KnownProxies' --type elem --name string --value "$(JELLYFIN_KNOWN_PROXY)" \
+			"configs/jellyfin/config/network.xml"; \
+	fi
 
 generate_certificate:
 	@echo -n "Generating self-signed certificate..."
@@ -295,7 +312,7 @@ generate_certificate:
 	@echo -n "Readarr... 		";	xmlstarlet --quiet ed --inplace --update '/Config/SslCertPassword' --value "${CERT_PASSWORD}" "configs/readarr/config/config.xml"; 			echo OK!  # pragma: allowlist secret
 	@echo -n "Sonarr... 		";	xmlstarlet --quiet ed --inplace --update '/Config/SslCertPassword' --value "${CERT_PASSWORD}" "configs/sonarr/config/config.xml"; 			echo OK!  # pragma: allowlist secret
 	@echo -n "Whisparr...		";	xmlstarlet --quiet ed --inplace --update '/Config/SslCertPassword' --value "${CERT_PASSWORD}" "configs/whisparr/config/config.xml"; 		echo OK!  # pragma: allowlist secret
-	@echo -n "Jellyfin...		";	xmlstarlet --quiet ed --inplace --update '/NetworkConfiguration/CertificatePassword' --value "${CERT_PASSWORD}" "configs/jellyfin/config/network.xml"; echo OK!  # pragma: allowlist secret
+	@echo -n "Jellyfin...		"; if [ ! -f "configs/jellyfin/config/network.xml" ]; then echo "SKIPPED (network.xml doesn't exist yet; run 'make start' once, then 'make generate_certificate' again)"; else xmlstarlet --quiet ed --inplace --update '/NetworkConfiguration/CertificatePassword' --value "${CERT_PASSWORD}" "configs/jellyfin/config/network.xml"; echo OK!; fi  # pragma: allowlist secret
 	@echo -n "NZBHydra...		"; 	sslKey="${CERT_PASSWORD}" yq -i '(.main.sslKeyStorePassword) = strenv(sslKey)' "configs/nzbhydra2/config/nzbhydra.yml"; 	echo OK!
 
 rotate_certificate:

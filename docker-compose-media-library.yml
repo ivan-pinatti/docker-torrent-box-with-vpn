@@ -256,3 +256,18 @@ services:
     healthcheck:
       <<: *healthcheck-defaults
       test: wget -q -O /dev/null http://127.0.0.1:${KORSYNC_HTTP_PORT}/health || exit 1
+
+networks:
+  # media is the one network `make start`'s "ensure required networks exist"
+  # step pre-creates (see 8225992) that was never also declared external here
+  # with a fixed name, unlike apps/services/observability in
+  # docker-compose-observability.yml and docker-compose-nzb.yml. Without this,
+  # compose creates its own separate ${COMPOSE_PROJECT_NAME}_media network
+  # (COMPOSE_PROJECT_NAME defaults to the checkout's directory name), which
+  # only happened to collide harmlessly with the pre-created network's name in
+  # a checkout literally named docker-torrent-box-with-vpn. Any other checkout
+  # directory name hits a subnet collision between the two differently-named
+  # networks both claiming ${MEDIA_SUBNET}.
+  media:
+    external: true
+    name: docker-torrent-box-with-vpn_media

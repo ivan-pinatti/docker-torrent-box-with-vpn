@@ -458,9 +458,9 @@ HTTP proxy handles VPN egress.
 
 At this moment the stack only supports self-signed certificates.
 
-Go back to the `.env` file and look for the section about the certificate if you
-want to change any parameter.
-An example is like;
+Certificate subject fields live in `certs/cert.conf`, not `.env`. Running any
+`make` target seeds it from `certs/cert.conf.example` the first time, so edit
+it after that first run if you want to change a parameter:
 
 ```dotenv
 # Certificate details
@@ -469,11 +469,11 @@ CERT_STATE=Classified
 CERT_CITY=Classified
 CERT_ORGANIZATION=Classified
 CERT_OU=Classified
-CERT_FQDN=${DOMAIN} # it will use the previously declared DOMAIN variable
+CERT_FQDN=${DOMAIN} # it will use the previously declared DOMAIN variable from .env
 ```
 
-After you have configured the parameters in the `.env` file, you can generate a
-certificate by running the command:
+After you have configured the parameters in `certs/cert.conf`, you can generate
+a certificate by running the command:
 
 ```shell
 make generate_certificate
@@ -620,9 +620,12 @@ make bootstrap
 ```
 
 This remaps managed data, config, and storage paths into the container user
-namespace, and applies the initial Jellyfin base URL/trusted proxy settings from
-`JELLYFIN_BASE_URL` and `JELLYFIN_KNOWN_PROXY`. See
-[docs/HARDENING.md](docs/HARDENING.md) for the full permissions explanation.
+namespace, and seeds every app's config from its committed `.example`
+templates. It also tries to apply the Jellyfin base URL/trusted proxy settings
+from `JELLYFIN_BASE_URL` and `JELLYFIN_KNOWN_PROXY`, but skips that step with a
+message on a fresh clone; see [App Links](#app-links) for why and how to apply
+it after the first start. See [docs/HARDENING.md](docs/HARDENING.md) for the
+full permissions explanation.
 
 ### 6.1. Build custom images
 
@@ -759,8 +762,12 @@ Not all apps are fully working through the reverse proxy (Nginx). I am still wor
 
 Jellyfin defaults to Nginx subpath access at `https://<domain>/jellyfin/`.
 This is controlled by `JELLYFIN_BASE_URL=/jellyfin`; `make bootstrap` applies
-the initial `JELLYFIN_BASE_URL` and `JELLYFIN_KNOWN_PROXY` values to Jellyfin's
-`network.xml`. Re-run `make configure_jellyfin_network` only when you
+the `JELLYFIN_BASE_URL` and `JELLYFIN_KNOWN_PROXY` values to Jellyfin's
+`network.xml`. Unlike the other apps, Jellyfin generates its whole config tree
+on its own first start rather than from a committed seed, so `network.xml`
+does not exist yet on a fresh clone and `make bootstrap` skips this step with a
+message the first time. Run `make start` once, then `make
+configure_jellyfin_network` to apply it; re-run the same command whenever you
 intentionally change those values later. To make a dedicated hostname available
 through Nginx, set
 `JELLYFIN_PROXY_DOMAIN`, for example `jellyfin.example.com`. Direct ports `8096`
