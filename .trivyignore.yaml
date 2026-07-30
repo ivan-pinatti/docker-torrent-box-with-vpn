@@ -1,0 +1,30 @@
+# Trivy misconfiguration suppressions, scoped to the files they apply to.
+#
+# Trivy's inline `#trivy:ignore:<id>` comments only work for findings that
+# attach to a specific line. DS-0002 and DS-0026 are whole-file Dockerfile
+# checks, so an inline comment is silently ignored and the suppression has to
+# live here. Verified against trivy 0.71.2.
+#
+# Read by MegaLinter via REPOSITORY_TRIVY_ARGUMENTS in .mega-linter.yml, which
+# passes --ignorefile explicitly: trivy auto-detects a plain `.trivyignore`
+# but not the YAML form, and only the YAML form supports per-path scoping.
+#
+# The equivalent checkov skips (CKV_DOCKER_3, CKV_DOCKER_2) are inline in the
+# Dockerfiles themselves, because checkov's comment form does work for these.
+---
+misconfigurations:
+  - id: DS-0002
+    paths:
+      - "build/lazylibrarian/Dockerfile"
+      - "build/mylar/Dockerfile"
+    statement: >-
+      linuxserver.io images run s6-overlay as root and drop to PUID/PGID
+      themselves. A USER instruction would break init before the app starts.
+
+  - id: DS-0026
+    paths:
+      - "build/lazylibrarian/Dockerfile"
+      - "build/mylar/Dockerfile"
+    statement: >-
+      Healthchecks are defined per service in the compose files, where they can
+      probe the real HTTP endpoint and port.

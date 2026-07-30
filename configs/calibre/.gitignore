@@ -19,10 +19,13 @@ config/*
 config/.config/*
 !config/.config/calibre
 config/.config/calibre/*
-!config/.config/calibre/gui.json
-!config/.config/calibre/gui.py.json
-!config/.config/calibre/global.py.json
-!config/.config/calibre/dynamic.pickle.json
+# Calibre rewrites these on shutdown: window geometry, per-install UUID,
+# library usage counters. Only the sanitized seeds are committed; `make
+# bootstrap` copies them into place.
+!config/.config/calibre/gui.json.example
+!config/.config/calibre/gui.py.json.example
+!config/.config/calibre/global.py.json.example
+!config/.config/calibre/dynamic.pickle.json.example
 
 # pre-start init scripts
 !custom-cont-init.d/

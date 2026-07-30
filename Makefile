@@ -155,6 +155,10 @@ bootstrap:
 	@./scripts/seed-configs.sh configs/notifiarr/.env
 	@./scripts/seed-configs.sh configs/sabnzbd/config/sabnzbd.ini
 	@./scripts/seed-configs.sh configs/bazarr/config/config/config.yaml
+	@./scripts/seed-configs.sh configs/calibre/config/.config/calibre/gui.json
+	@./scripts/seed-configs.sh configs/calibre/config/.config/calibre/gui.py.json
+	@./scripts/seed-configs.sh configs/calibre/config/.config/calibre/global.py.json
+	@./scripts/seed-configs.sh configs/calibre/config/.config/calibre/dynamic.pickle.json
 	@./scripts/permissions.py repair --runtime $(RUNTIME) --recursive
 	@$(MAKE) --no-print-directory configure_jellyfin_network
 	@echo "Bootstrap complete. You can now run: make start"

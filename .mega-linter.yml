@@ -55,6 +55,10 @@ REPOSITORY_BETTERLEAKS_PR_COMMITS_SCAN: true
 # nothing for a bare `apikey = <32 hex>` in an .ini or an XML
 # <CertificatePassword>.
 REPOSITORY_TRIVY_FILTER_REGEX_EXCLUDE: (^configs/[^/]+/\.env($|\.)|^configs/[^/]+/secrets/|\.example$|^\.secrets\.baseline$)
+# DS-0002 and DS-0026 on build/*/Dockerfile are suppressed with a reason in
+# .trivyignore.yaml. Passed explicitly: trivy auto-detects a plain
+# .trivyignore but not the YAML form, and only YAML supports path scoping.
+REPOSITORY_TRIVY_ARGUMENTS: "--ignorefile .trivyignore.yaml"
 
 # patches/ holds vendored upstream source bind-mounted into containers to
 # apply local fixes; it is not code we author, so it should not be linted,

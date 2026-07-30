@@ -121,6 +121,10 @@ APP_GENERATED_NO_SEED = {
 RUNTIME_STATE = [
     "configs/bazarr/config/config/config.yaml",
     "configs/bazarr/config/db/bazarr.db",
+    "configs/calibre/config/.config/calibre/gui.json",
+    "configs/calibre/config/.config/calibre/gui.py.json",
+    "configs/calibre/config/.config/calibre/global.py.json",
+    "configs/calibre/config/.config/calibre/dynamic.pickle.json",
     "configs/calibre-web/config/app.db",
     "configs/calibre-web/config/client_secrets.json",
     "configs/jellyfin/config/network.xml",
