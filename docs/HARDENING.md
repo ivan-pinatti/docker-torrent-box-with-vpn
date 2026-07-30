@@ -155,16 +155,25 @@ and write its PID file.
 
 ## Keeping credentials out of git
 
-Three layers, because no single one covers the whole problem.
+Several layers, because no single one covers the whole problem.
 
-| Layer | Scope | Gap it leaves |
+| Layer | When | Scope |
 | --- | --- | --- |
-| `configs/*/.gitignore` | Each starts with a blanket `*` and re-includes only the files that belong in git | A single `!` negation silently re-arms a live file for `git add -A` |
-| gitleaks and detect-secrets (pre-commit) | The staged diff | Never revisits a file committed earlier; detect-secrets also does not parse `key = value` .ini credentials |
-| betterleaks via MegaLinter (`make sanity_full`, and CI) | Every blob in the full git history | Pattern-based, so a credential in an unrecognised shape can still pass |
+| `configs/*/.gitignore` | always | Each starts with a blanket `*` and re-includes only the files that belong in git |
+| gitleaks (pre-commit) | every commit | The staged diff only |
+| betterleaks (MegaLinter, CI) | every pull request | Only the PR's commits, via `REPOSITORY_BETTERLEAKS_PR_COMMITS_SCAN` |
+| betterleaks (MegaLinter, outside a PR) | `make sanity_full` | Full git history, about 250ms for this repo |
 
-Both scanner layers read `.gitleaks.toml`, so a rule added there applies to the
-fast staged-diff check and the full-history check alike.
+Nothing rescans the whole history on every commit. The per-commit and per-PR
+layers are both incremental; the full sweep only happens outside a pull
+request, and at this repo's size it is not worth optimising away.
+
+Both layers read `.gitleaks.toml`, so a rule added there applies to the fast
+staged-diff check and the CI check alike. MegaLinter is configured to run
+betterleaks in `git` mode rather than its default filesystem `dir` mode,
+because `dir` walks the disk: this working tree holds live credentials by
+design in gitignored paths, and a local `dir` run reports thousands of findings
+that are not in git and never will be.
 
 ### Why the custom rules exist
 
@@ -185,6 +194,16 @@ them either, being oriented at verifying provider credentials.
 on `main`. It stores `commit:path:rule:line` fingerprints, never secret values.
 Those credentials cannot be fixed by editing the working tree and removing them
 would mean rewriting published history, so they are rotated instead.
+
+One trap worth knowing: a path allowlist pattern containing `$` inside an
+alternation, such as `\.env($|\.)`, silently matches nothing. Write the
+prefix form instead. A trailing `$` outside a group behaves normally.
+
+To audit a branch by hand:
+
+```shell
+betterleaks git . -c .gitleaks.toml --log-opts="main..HEAD"
+```
 
 ### Live application state
 

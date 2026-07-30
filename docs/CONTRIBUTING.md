@@ -69,9 +69,9 @@ pull requests before sending changes upstream.
 
 - 2 spaces for indentation rather than tabs
 - Use `make sanity_fast` for the normal local validation path
-- Use `make sanity_full` before pushing: the pre-commit gitleaks hook only sees
-  the staged diff, and MegaLinter's betterleaks pass is what scans the full git
-  history. See docs/HARDENING.md
+- Use `make sanity_full` before pushing. The pre-commit gitleaks hook only sees
+  the staged diff; MegaLinter's betterleaks pass scans commits, narrowed to the
+  pull request's own commits when running on a PR. See docs/HARDENING.md
 - Use `make sanity_full` when you need the full repository security/IaC pass
 - Dependabot handles weekly hook and workflow version bump PRs; major updates
   are left for manual review

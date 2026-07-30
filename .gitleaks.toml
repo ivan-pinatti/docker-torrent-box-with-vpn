@@ -67,7 +67,11 @@ description = "Deliberate placeholders, and upstream documentation examples"
 # Files whose committed credentials are fake by design. Mirrors the
 # placeholder_credentials anchor in .pre-commit-config.yaml; keep them in step.
 paths = [
-  '''^configs/[^/]+/\.env($|\.)''',
+  # Prefix match, deliberately not '\.env($|\.)': the path allowlist silently
+  # fails to match any pattern with `$` inside an alternation, so that form let
+  # every configs/*/.env through. Verified against betterleaks 1.6.0; a
+  # trailing `$` outside a group works fine.
+  '''^configs/[^/]+/\.env''',
   '''^configs/[^/]+/secrets/''',
   '''\.example$''',
   '''^\.secrets\.baseline$''',
@@ -75,12 +79,14 @@ paths = [
   '''^patches/''',
   # TRaSH Guides quality-profile IDs: 32-hex, publicly documented, not secrets.
   '''^configs/recyclarr/config/.*\.yml$''',
-  # Untracked runtime payloads, only present locally. `betterleaks git` never
-  # sees these; excluding them keeps a manual `betterleaks dir .` fast.
-  '''^(?:data|media|storage|cache|logs|shared)/''',
-  '''^tests/\.venv/''',
-  '''^configs/gluetun/servers\.json$''',
 ]
+
+# Note there is deliberately no entry for configs/*/config/. That tree is where
+# a real credential lands if one is ever committed, and excluding it is the
+# blind spot this configuration exists to close. MegaLinter is configured to
+# run betterleaks in `git` mode instead of its default filesystem `dir` mode,
+# so the live gitignored state in that tree is never scanned in the first
+# place and needs no allowlist entry.
 
 regexes = [
   # Repeating-digit placeholders, as used by the committed .example configs

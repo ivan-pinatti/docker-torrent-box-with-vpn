@@ -26,11 +26,28 @@ SPELL_LYCHEE_FILTER_REGEX_INCLUDE: (^README\.md$|^LICENSE\.md$|^docs/.*\.md$|^\.
 ENV_DOTENV_LINTER_FILTER_REGEX_INCLUDE: (^\.env\.example$)
 JSON_JSONLINT_FILTER_REGEX_INCLUDE: (^\.cspell\.json$|^\.devcontainer/.*\.json$)
 
-# betterleaks is the secret scanner that actually covers this repo's shapes.
-# It scans the full git history rather than a diff, which is the gap the
-# gitleaks pre-commit hook leaves, and it reads .gitleaks.toml, so the custom
-# rules there apply to both. Findings that exist only in already-published
-# history are recorded in .gitleaksignore. See docs/HARDENING.md.
+# betterleaks is the secret scanner that covers this repo's credential shapes.
+#
+# Run in `git` mode rather than MegaLinter's default filesystem `dir` mode.
+# `dir` walks the disk, and this working tree holds live credentials by design
+# in gitignored paths: app databases, generated configs, certs, backups. A
+# local `dir` run reported 3090 findings across 247 files, none of them
+# tracked. `git` mode reads commits, which is the actual question.
+#
+# On a pull request, PR_COMMITS_SCAN narrows that to just the PR's commits, so
+# routine runs stay incremental; the full history is only walked outside a PR,
+# and that costs ~250ms for this repo.
+#
+# CONFIG_FILE is set because betterleaks looks for .betterleaks.toml by
+# default, while the gitleaks pre-commit hook uses .gitleaks.toml. Pointing
+# both at one file keeps the custom rules in step.
+#
+# Findings that exist only in already-published history are recorded as
+# fingerprints in .gitleaksignore. See docs/HARDENING.md.
+REPOSITORY_BETTERLEAKS_CONFIG_FILE: .gitleaks.toml
+REPOSITORY_BETTERLEAKS_COMMAND_REMOVE_ARGUMENTS: ["dir"]
+REPOSITORY_BETTERLEAKS_ARGUMENTS: ["git"]
+REPOSITORY_BETTERLEAKS_PR_COMMITS_SCAN: true
 #
 # Trivy stays enabled for defence in depth, now including configs/*/config/,
 # but it is not the thing catching app credentials. Verified against Trivy
