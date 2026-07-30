@@ -10,3 +10,9 @@
 !templates/
 templates/*
 !templates/default.conf.template
+
+# nginx.conf is a hand-maintained static config with no per-install secrets
+# and nothing nginx rewrites at runtime, so unlike the servarr/downloader
+# configs it is tracked directly rather than through a seeded .example, the
+# same as configs/{homepage,recyclarr,alloy,loki,prometheus}/config/.
+!nginx.conf

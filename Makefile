@@ -114,12 +114,39 @@ CONFIG_BACKUP_EXCLUDES := $(COMMON_BACKUP_EXCLUDES) \
 
 all: generate_certificate update_images start
 
-bootstrap:
+# configs/flaresolverr/config/chromedriver is bind-mounted as a specific file
+# (not the whole directory: see docker-compose-servarr.yml) so a working
+# binary survives container recreation instead of being re-downloaded and
+# re-patched every time. On a fresh clone this path doesn't exist, which
+# breaks in two different ways depending what's there:
+#   - missing entirely: podman auto-vivifies a directory at the mount point,
+#     which fails the mount at container start.
+#   - present but empty: FlareSolverr's own utils.py checks only
+#     `os.path.exists("/app/chromedriver")` to decide whether it's already
+#     running the image's pre-baked driver, so it never re-downloads; it
+#     just tries to exec the empty file and crashes with "Exec format error".
+# The only fix is to seed a real binary before first start. It has to be the
+# image's own bundled chromedriver: that's the exact build FlareSolverr's
+# undetected_chromedriver patches in place on first successful run (verified
+# by extracting /app/chromedriver from the pinned image and comparing it
+# against an already-working install: same file, pre-patch).
+configs/flaresolverr/config/chromedriver:
+	@mkdir -p configs/flaresolverr/config
+	@if [ ! -s configs/flaresolverr/config/chromedriver ]; then \
+		echo "[configs/flaresolverr/config/chromedriver] Extracting from the flaresolverr image..."; \
+		$(RUNTIME) run --rm --entrypoint cat "docker.io/flaresolverr/flaresolverr:$(FLARESOLVERR_VERSION)" /app/chromedriver \
+			> configs/flaresolverr/config/chromedriver; \
+		chmod 755 configs/flaresolverr/config/chromedriver; \
+		echo "[configs/flaresolverr/config/chromedriver] Seeded from the flaresolverr image."; \
+	fi
+
+bootstrap: configs/flaresolverr/config/chromedriver
 	@echo "Remapping directory ownership into the container user namespace..."
 	@echo "  (rootless Podman: host uid maps to uid=0 inside containers;"
 	@echo "   app processes run as service-specific non-root UIDs)"
 	@mkdir -p \
 		configs/audiobookshelf/metadata/backups \
+		configs/flaresolverr/config \
 		data/media \
 		data/media/calibre-library \
 		data/recycle \
@@ -303,6 +330,14 @@ generate_certificate:
 		-addext "subjectAltName = DNS:${CERT_FQDN}, DNS:${JELLYFIN_PROXY_DOMAIN}, DNS:localhost, IP:127.0.0.1, IP:${LAN_IP}, IP:${GLUETUN_SERVICES_IP}, IP:${GLUETUN_OBSERVABILITY_IP}" \
 		-keyout certs/server.key -out certs/server.crt
 	@openssl pkcs12 -export -out ${CERTIFICATES_FOLDER}/server.pfx -inkey ${CERTIFICATES_FOLDER}/server.key -in ${CERTIFICATES_FOLDER}/server.crt -password pass:${CERT_PASSWORD}
+	# openssl writes server.key and server.pfx as 600 regardless of umask,
+	# since both contain private key material. Many services here read them
+	# as a container UID that isn't the owner, so all three must be 644 (see
+	# the "Use your own certificate" note in the README); without this,
+	# whichever service's crypto stack cares about read access fails at
+	# startup with an opaque low-level I/O error rather than "permission
+	# denied", e.g. Sonarr's ValidateSslCertificate: "BIO routines::system lib".
+	@chmod 644 certs/server.key certs/server.crt certs/server.pfx
 	@echo Hash for the certificate is...
 	@openssl x509 -noout -fingerprint -sha256 -inform pem -in ${CERTIFICATES_FOLDER}/server.crt
 	@echo Updating certificate password in Apps configs...
