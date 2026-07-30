@@ -9,4 +9,3 @@
 # data file
 !data/
 data/*
-!data/koreader-sync.db

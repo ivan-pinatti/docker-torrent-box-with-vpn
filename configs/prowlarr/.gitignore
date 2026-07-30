@@ -16,4 +16,3 @@ secrets/*
 !config/
 config/*
 !config/config.xml.example
-!config/prowlarr.db

@@ -1,23 +1,26 @@
 {
-  "lazylibrarian": {
-    "save_path": "/downloads/completed/eBooks"
-  },
-  "lidarr": {
-    "save_path": "/downloads/completed/Lidarr"
-  },
-  "mylar": {
-    "save_path": "/downloads/completed/Mylar"
-  },
-  "prowlarr": {
-    "save_path": ""
-  },
-  "radarr": {
-    "save_path": "/downloads/completed/Radarr"
-  },
-  "readarr": {
-    "save_path": "/downloads/completed/Readarr"
-  },
-  "sonarr": {
-    "save_path": "/downloads/completed/Sonarr"
-  }
+    "lidarr": {
+        "save_path": "/data/torrents/music"
+    },
+    "prowlarr": {
+        "save_path": ""
+    },
+    "radarr": {
+        "save_path": "/data/torrents/movies"
+    },
+    "lazylibrarian": {
+        "save_path": "/data/torrents/ebooks"
+    },
+    "readarr": {
+        "save_path": "/data/torrents/ebooks"
+    },
+    "sonarr": {
+        "save_path": "/data/torrents/tv"
+    },
+    "whisparr": {
+        "save_path": "/data/torrents/mature"
+    },
+    "mylar": {
+        "save_path": "/data/torrents/comics"
+    }
 }

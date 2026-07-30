@@ -1,0 +1,11 @@
+title: Torrent Box
+theme: dark
+color: slate
+target: _self
+hideVersion: false
+disableSSLVerify: true
+
+layout:
+  Overview:
+    style: row
+    columns: 1

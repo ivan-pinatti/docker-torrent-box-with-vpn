@@ -150,6 +150,11 @@ bootstrap:
 	@./scripts/seed-configs.sh configs/mylar/config/mylar/config.ini
 	@./scripts/seed-configs.sh configs/jackett/config/Jackett/ServerConfig.json
 	@./scripts/seed-configs.sh configs/nzbhydra2/config/nzbhydra.yml
+	@./scripts/seed-configs.sh configs/qbittorrent/config/qBittorrent/qBittorrent.conf
+	@./scripts/seed-configs.sh configs/calibre-web/config/client_secrets.json
+	@./scripts/seed-configs.sh configs/notifiarr/.env
+	@./scripts/seed-configs.sh configs/sabnzbd/config/sabnzbd.ini
+	@./scripts/seed-configs.sh configs/bazarr/config/config/config.yaml
 	@./scripts/permissions.py repair --runtime $(RUNTIME) --recursive
 	@$(MAKE) --no-print-directory configure_jellyfin_network
 	@echo "Bootstrap complete. You can now run: make start"

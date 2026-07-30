@@ -1,0 +1,228 @@
+# yaml-language-server: $schema=https://schemas.recyclarr.dev/latest/config-schema.json
+
+sonarr:
+  sonarr_main:
+    base_url: !secret sonarr_url
+    api_key: !secret sonarr_apikey
+
+    quality_definition:
+      type: series
+
+    media_naming:
+      series: default
+      season: default
+      episodes:
+        rename: true
+        standard: default
+        daily: default
+        anime: default
+
+    quality_profiles:
+      - trash_id: 72dae194fc92bf828f32cde7744e51a1  # WEB-1080p
+        name: "WEB-1080p (Acceptable for Sony XBR65X900F)"
+        reset_unmatched_scores:
+          enabled: true
+      - trash_id: d1498e7d189fbe6c7110ceaabb7473e6  # WEB-2160p
+        name: "WEB-2160p (Perfect fit Sony XBR65X900F)"
+        reset_unmatched_scores:
+          enabled: true
+      - trash_id: 20e0fc959f1f1704bed501f23bdae76f  # [Anime] Remux-1080p
+        reset_unmatched_scores:
+          enabled: true
+
+    custom_formats:
+      - trash_ids:
+          - 15a05bc7c1a36e2b57fd628f8977e2fc  # AV1
+        assign_scores_to:
+          - name: WEB-1080p (Acceptable for Sony XBR65X900F)
+            score: -10000
+          - name: WEB-2160p (Perfect fit Sony XBR65X900F)
+            score: -10000
+          - name: "[Anime] Remux-1080p"
+            score: -10000
+
+      - trash_ids:
+          - 9b27ab6498ec0f31a3353992e19434ca  # DV (w/o HDR fallback)
+        assign_scores_to:
+          - name: WEB-1080p (Acceptable for Sony XBR65X900F)
+            score: -10000
+          - name: WEB-2160p (Perfect fit Sony XBR65X900F)
+            score: -10000
+
+      - trash_ids:
+          - c9eafd50846d299b862ca9bb6ea91950  # x265
+        assign_scores_to:
+          - name: WEB-2160p (Perfect fit Sony XBR65X900F)
+            score: 500
+          - name: WEB-1080p (Acceptable for Sony XBR65X900F)
+            score: 300
+
+      - trash_ids:
+          - 505d871304820ba7106b693be6fe4a9e  # HDR
+        assign_scores_to:
+          - name: WEB-2160p (Perfect fit Sony XBR65X900F)
+            score: 400
+
+      - trash_ids:
+          - b2550eb333d27b75833e25b8c2557b38  # 10bit
+        assign_scores_to:
+          - name: WEB-2160p (Perfect fit Sony XBR65X900F)
+            score: 200
+          - name: WEB-1080p (Acceptable for Sony XBR65X900F)
+            score: 100
+
+      - trash_ids:
+          - 7c3a61a9c6cb04f52f1544be6d44a026  # DV Boost
+        assign_scores_to:
+          - name: WEB-2160p (Perfect fit Sony XBR65X900F)
+            score: 250
+
+      - trash_ids:
+          - 0c4b99df9206d2cfac3c05ab897dd62a  # HDR10+ Boost
+        assign_scores_to:
+          - name: WEB-2160p (Perfect fit Sony XBR65X900F)
+            score: 100
+
+      - trash_ids:
+          - 9b64dff695c2115facf1b6ea59c9bd07  # x265 (no HDR/DV)
+        assign_scores_to:
+          - name: WEB-2160p (Perfect fit Sony XBR65X900F)
+            score: -1000
+
+      - trash_ids:
+          - 47435ece6b99a0b477caf360e79ba0bb  # x265 (HD) — overrides TRaSH default -10000 for 1080p x265
+        assign_scores_to:
+          - name: WEB-1080p (Acceptable for Sony XBR65X900F)
+            score: 300
+
+      - trash_ids:
+          - cddfb4e32db826151d97352b8e37c648  # x264
+        assign_scores_to:
+          - name: WEB-2160p (Perfect fit Sony XBR65X900F)
+            score: -5000
+          - name: WEB-1080p (Acceptable for Sony XBR65X900F)
+            score: 0
+
+radarr:
+  radarr_main:
+    base_url: !secret radarr_url
+    api_key: !secret radarr_apikey
+
+    quality_definition:
+      type: movie
+
+    media_naming:
+      folder: default
+      movie:
+        rename: true
+        standard: standard
+
+    quality_profiles:
+      - trash_id: d1d67249d3890e49bc12e275d989a7e9  # HD Bluray + WEB
+        name: "HD Bluray + WEB (Acceptable for Sony XBR65X900F)"
+        reset_unmatched_scores:
+          enabled: true
+      - trash_id: 64fb5f9858489bdac2af690e27c8f42f  # UHD Bluray + WEB
+        name: "UHD Bluray + WEB (Perfect fit Sony XBR65X900F)"
+        reset_unmatched_scores:
+          enabled: true
+      - trash_id: 9ca12ea80aa55ef916e3751f4b874151  # Remux + WEB 1080p
+        reset_unmatched_scores:
+          enabled: true
+      - trash_id: fd161a61e3ab826d3a22d53f935696dd  # Remux + WEB 2160p
+        reset_unmatched_scores:
+          enabled: true
+      - trash_id: 722b624f9af1e492284c4bc842153a38  # [Anime] Remux-1080p
+        reset_unmatched_scores:
+          enabled: true
+
+    custom_formats:
+      - trash_ids:
+          - cae4ca30163749b891686f95532519bd  # AV1
+        assign_scores_to:
+          - name: HD Bluray + WEB (Acceptable for Sony XBR65X900F)
+            score: -10000
+          - name: UHD Bluray + WEB (Perfect fit Sony XBR65X900F)
+            score: -10000
+          - name: Remux + WEB 1080p
+            score: -10000
+          - name: Remux + WEB 2160p
+            score: -10000
+          - name: "[Anime] Remux-1080p"
+            score: -10000
+
+      - trash_ids:
+          - 923b6abef9b17f937fab56cfcf89e1f1  # DV (w/o HDR fallback)
+        assign_scores_to:
+          - name: HD Bluray + WEB (Acceptable for Sony XBR65X900F)
+            score: -10000
+          - name: UHD Bluray + WEB (Perfect fit Sony XBR65X900F)
+            score: -10000
+          - name: Remux + WEB 1080p
+            score: -10000
+          - name: Remux + WEB 2160p
+            score: -10000
+
+      - trash_ids:
+          - 9170d55c319f4fe40da8711ba9d8050d  # x265
+        assign_scores_to:
+          - name: UHD Bluray + WEB (Perfect fit Sony XBR65X900F)
+            score: 500
+          - name: HD Bluray + WEB (Acceptable for Sony XBR65X900F)
+            score: 300
+
+      - trash_ids:
+          - 493b6d1dbec3c3364c59d7607f7e3405  # HDR
+        assign_scores_to:
+          - name: UHD Bluray + WEB (Perfect fit Sony XBR65X900F)
+            score: 400
+          - name: Remux + WEB 2160p
+            score: 200
+
+      - trash_ids:
+          - a5d148168c4506b55cf53984107c396e  # 10bit
+        assign_scores_to:
+          - name: UHD Bluray + WEB (Perfect fit Sony XBR65X900F)
+            score: 200
+          - name: HD Bluray + WEB (Acceptable for Sony XBR65X900F)
+            score: 100
+          - name: Remux + WEB 2160p
+            score: 100
+
+      - trash_ids:
+          - b337d6812e06c200ec9a2d3cfa9d20a7  # DV Boost
+        assign_scores_to:
+          - name: UHD Bluray + WEB (Perfect fit Sony XBR65X900F)
+            score: 250
+          - name: Remux + WEB 2160p
+            score: 150
+
+      - trash_ids:
+          - caa37d0df9c348912df1fb1d88f9273a  # HDR10+ Boost
+        assign_scores_to:
+          - name: UHD Bluray + WEB (Perfect fit Sony XBR65X900F)
+            score: 100
+          - name: Remux + WEB 2160p
+            score: 50
+
+      - trash_ids:
+          - 839bea857ed2c0a8e084f3cbdbd65ecb  # x265 (no HDR/DV)
+        assign_scores_to:
+          - name: UHD Bluray + WEB (Perfect fit Sony XBR65X900F)
+            score: -1000
+
+      - trash_ids:
+          - dc98083864ea246d05a42df0d05f81cc  # x265 (HD) — overrides TRaSH default -10000 for 1080p x265
+        assign_scores_to:
+          - name: HD Bluray + WEB (Acceptable for Sony XBR65X900F)
+            score: 300
+
+      - trash_ids:
+          - 2899d84dc9372de3408e6d8cc18e9666  # x264
+        assign_scores_to:
+          - name: UHD Bluray + WEB (Perfect fit Sony XBR65X900F)
+            score: -5000
+          - name: HD Bluray + WEB (Acceptable for Sony XBR65X900F)
+            score: 0
+          - name: Remux + WEB 1080p
+            score: -500

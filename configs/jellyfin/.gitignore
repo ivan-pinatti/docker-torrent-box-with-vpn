@@ -12,10 +12,8 @@
 secrets/*
 !secrets/*.example
 
-# config file
+# Jellyfin's config tree stays entirely ignored. Jellyfin generates it on
+# first run and owns it thereafter: config/config/network.xml holds the real
+# <CertificatePassword>, and config/data/jellyfin.db holds users, devices,
+# and playback history. Nothing here is a template.
 !config/
-config/*
-!config/config/
-!config/config/**
-!config/data/
-!config/data/jellyfin.db

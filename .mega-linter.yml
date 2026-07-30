@@ -12,6 +12,7 @@ ENABLE_LINTERS:
   - PYTHON_RUFF
   - SPELL_CSPELL
   - SPELL_LYCHEE
+  - REPOSITORY_BETTERLEAKS
   - REPOSITORY_CHECKOV
   - REPOSITORY_TRIVY
   - YAML_YAMLLINT
@@ -25,9 +26,18 @@ SPELL_LYCHEE_FILTER_REGEX_INCLUDE: (^README\.md$|^LICENSE\.md$|^docs/.*\.md$|^\.
 ENV_DOTENV_LINTER_FILTER_REGEX_INCLUDE: (^\.env\.example$)
 JSON_JSONLINT_FILTER_REGEX_INCLUDE: (^\.cspell\.json$|^\.devcontainer/.*\.json$)
 
-# Runtime state is intentionally tracked for some services, but it is not useful
-# input for repository-wide security/IaC scanners.
-REPOSITORY_TRIVY_FILTER_REGEX_EXCLUDE: (^configs/.*/\.env$|^configs/.*/config/|^configs/recyclarr/config/.*\.yml$|^media/eBooks/metadata\.db$|^\.secrets\.baseline$)
+# betterleaks is the secret scanner that actually covers this repo's shapes.
+# It scans the full git history rather than a diff, which is the gap the
+# gitleaks pre-commit hook leaves, and it reads .gitleaks.toml, so the custom
+# rules there apply to both. Findings that exist only in already-published
+# history are recorded in .gitleaksignore. See docs/HARDENING.md.
+#
+# Trivy stays enabled for defence in depth, now including configs/*/config/,
+# but it is not the thing catching app credentials. Verified against Trivy
+# 0.58.1: it detects AWS keys, GitHub PATs and PEM private keys, and reports
+# nothing for a bare `apikey = <32 hex>` in an .ini or an XML
+# <CertificatePassword>.
+REPOSITORY_TRIVY_FILTER_REGEX_EXCLUDE: (^configs/[^/]+/\.env($|\.)|^configs/[^/]+/secrets/|\.example$|^\.secrets\.baseline$)
 
 # patches/ holds vendored upstream source bind-mounted into containers to
 # apply local fixes; it is not code we author, so it should not be linted,

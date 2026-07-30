@@ -1,0 +1,63 @@
+# betterleaks / gitleaks fingerprint allowlist.
+#
+# Every entry is a credential that exists only in already-published history on
+# `main`, in an app config file this branch has since replaced with a sanitised
+# `.example` seed. The files are no longer tracked, so nothing here can be
+# fixed by editing the working tree, and removing them would mean rewriting
+# published `main` history. They are recorded here so the scanner reports only
+# NEW leaks; the credentials themselves must be rotated instead. See
+# docs/HARDENING.md.
+#
+# A fingerprint is commit:path:rule:line, so this file holds no secret values.
+# Regenerate with:
+#   betterleaks git . --report-format json --report-path out.json
+#   jq -r '.[].Fingerprint' out.json
+
+
+# configs/bazarr/config/config/config.ini
+2d3213ba11346b730da0470ea5bc01adbfe02f54:configs/bazarr/config/config/config.ini:config-hex-credential:100
+2d3213ba11346b730da0470ea5bc01adbfe02f54:configs/bazarr/config/config/config.ini:config-hex-credential:62
+2d3213ba11346b730da0470ea5bc01adbfe02f54:configs/bazarr/config/config/config.ini:config-hex-credential:63
+2d3213ba11346b730da0470ea5bc01adbfe02f54:configs/bazarr/config/config/config.ini:config-hex-credential:81
+2d3213ba11346b730da0470ea5bc01adbfe02f54:configs/bazarr/config/config/config.ini:generic-api-key:57
+
+# configs/jackett/config/Jackett/ServerConfig.json
+d7f19d0947f74556ea91e9a6ec0ce51adc966c46:configs/jackett/config/Jackett/ServerConfig.json:generic-api-key:5
+d7f19d0947f74556ea91e9a6ec0ce51adc966c46:configs/jackett/config/Jackett/ServerConfig.json:generic-api-key:6
+
+# configs/lazylibrarian/config/config.ini
+2d3213ba11346b730da0470ea5bc01adbfe02f54:configs/lazylibrarian/config/config.ini:generic-api-key:120
+4e08cb69b5f7f464ad0ceee9b33c14b490370979:configs/lazylibrarian/config/config.ini:config-hex-credential:15
+eb05b15f4cb11b35785416f2d105bb4d66fee344:configs/lazylibrarian/config/config.ini:config-hex-credential:70
+eb05b15f4cb11b35785416f2d105bb4d66fee344:configs/lazylibrarian/config/config.ini:generic-api-key:486
+eb05b15f4cb11b35785416f2d105bb4d66fee344:configs/lazylibrarian/config/config.ini:generic-api-key:542
+eb05b15f4cb11b35785416f2d105bb4d66fee344:configs/lazylibrarian/config/config.ini:generic-api-key:587
+
+# configs/lidarr/config/config.xml
+2d3213ba11346b730da0470ea5bc01adbfe02f54:configs/lidarr/config/config.xml:xml-credential-element:14
+d7f19d0947f74556ea91e9a6ec0ce51adc966c46:configs/lidarr/config/config.xml:xml-credential-element:8
+
+# configs/mylar/config/mylar/config.ini
+2d3213ba11346b730da0470ea5bc01adbfe02f54:configs/mylar/config/mylar/config.ini:config-hex-credential:142
+
+# configs/nzbhydra2/config/nzbhydra.yml
+2d3213ba11346b730da0470ea5bc01adbfe02f54:configs/nzbhydra2/config/nzbhydra.yml:generic-api-key:326
+cdfd561b0fef435a3fff766d11fe9727505ad934:configs/nzbhydra2/config/nzbhydra.yml:generic-api-key:326
+cdfd561b0fef435a3fff766d11fe9727505ad934:configs/nzbhydra2/config/nzbhydra.yml:generic-api-key:779
+ee2ed5260c17fb828931fd90e96139cc606ed7fb:configs/nzbhydra2/config/nzbhydra.yml:generic-api-key:428
+ee2ed5260c17fb828931fd90e96139cc606ed7fb:configs/nzbhydra2/config/nzbhydra.yml:generic-api-key:744
+
+# configs/prowlarr/config/config.xml
+2d3213ba11346b730da0470ea5bc01adbfe02f54:configs/prowlarr/config/config.xml:xml-credential-element:10
+2d3213ba11346b730da0470ea5bc01adbfe02f54:configs/prowlarr/config/config.xml:xml-credential-element:15
+
+# configs/radarr/config/config.xml
+2d3213ba11346b730da0470ea5bc01adbfe02f54:configs/radarr/config/config.xml:xml-credential-element:14
+eb05b15f4cb11b35785416f2d105bb4d66fee344:configs/radarr/config/config.xml:xml-credential-element:10
+
+# configs/readarr/config/config.xml
+2d3213ba11346b730da0470ea5bc01adbfe02f54:configs/readarr/config/config.xml:xml-credential-element:14
+eb05b15f4cb11b35785416f2d105bb4d66fee344:configs/readarr/config/config.xml:xml-credential-element:10
+
+# configs/sonarr/config/config.xml
+eb05b15f4cb11b35785416f2d105bb4d66fee344:configs/sonarr/config/config.xml:xml-credential-element:8

@@ -17,6 +17,9 @@ secrets/*
 config/*
 !config/qBittorrent
 config/qBittorrent/*
-!config/qBittorrent/qBittorrent.conf
+# qBittorrent.conf itself stays ignored: qBittorrent rewrites it on shutdown,
+# and WebUI\Password_PBKDF2 in it is the live WebUI credential. Only the
+# seed template is committed, and `make bootstrap` copies it into place.
+!config/qBittorrent/qBittorrent.conf.example
 !config/qBittorrent/categories.json
 !config/qBittorrent/watched_folders.json

@@ -1,4 +1,103 @@
+# gitleaks / betterleaks configuration.
+#
+# Read by three places, so keep it tool-agnostic:
+#   - the gitleaks pre-commit hook (staged diff only, fast feedback)
+#   - MegaLinter's REPOSITORY_BETTERLEAKS (full git history, pre-push and CI)
+#   - any manual `gitleaks dir .` run
+#
+# The custom rules below exist because the default ruleset is oriented at
+# provider-issued tokens (AWS keys, GitHub PATs, PEM blocks) and its one generic
+# rule, generic-api-key, misses several shapes this stack actually produces.
+# Verified against betterleaks 1.6.0 and gitleaks 8.30.1: without these rules,
+# four of the nine credential shapes found in this repo's own config files went
+# undetected.
+
+title = "docker-torrent-box-with-vpn"
+
+[extend]
+useDefault = true
+
+# generic-api-key requires entropy >= 3.5 and only accepts [0-9a-z-_.=] in the
+# value, so a 32-hex API key sitting just below that threshold slips through.
+# Servarr, Bazarr, SABnzbd and NZBHydra2 all issue exactly this shape.
+[[rules]]
+id = "config-hex-credential"
+description = "Hex credential assigned to a credential-named key"
+regex = '''(?i)\b(?:api[_-]?key|apikey|secret(?:_key)?|token|passkey|password|passwd)\b\s*[:=]\s*["']?([0-9a-f]{32,})\b'''
+keywords = ["apikey", "api_key", "secret", "token", "password", "passkey", "passwd"]
+
+# generic-api-key's value class excludes punctuation, so a generated password
+# containing symbols is invisible to it. rotate-passwords.sh can emit these when
+# ROTATE_PASSWORD_SPECIAL_CHARS=true.
+[[rules]]
+id = "config-symbolic-password"
+description = "Password containing symbols assigned in a config file"
+# The value class excludes interpolation and call syntax so that shell and
+# Python code does not match, and the allowlist then drops anything that is
+# purely a bare identifier. Without both, every `password = get_password()` and
+# `password={new_password}` in scripts/ and tests/ is reported.
+regex = '''(?i)\b(?:password|passwd|pass)\b\s*[:=]\s*["']?([^\s"'${}()<>/|\\\[\]]{12,})'''
+keywords = ["password", "passwd", "pass"]
+entropy = 3.2
+
+  [rules.allowlist]
+  description = "Bare identifiers are code, not credentials"
+  regexes = ['''^[A-Za-z0-9_.-]+$''']
+
+# Servarr and Jellyfin keep credentials in XML elements rather than key=value
+# pairs, for example Jellyfin's <CertificatePassword> in network.xml.
+[[rules]]
+id = "xml-credential-element"
+description = "Credential inside an XML element"
+regex = '''(?i)<[a-z0-9_]*(?:password|secret|apikey|api_key|token)>([^<\s]{10,})</'''
+keywords = ["password", "secret", "apikey", "token"]
+entropy = 3.0
+
+# Bazarr stores subtitle-provider sessions as a raw cookie string, which carries
+# the account's username and password in cleartext.
+[[rules]]
+id = "session-cookie"
+description = "Session cookie with embedded credentials"
+regex = '''(?i)\bcookies?\b\s*[:=]\s*["']?([A-Za-z0-9_]+=[^\s;"']{8,})'''
+keywords = ["cookie", "cookies"]
+
 [allowlist]
+description = "Deliberate placeholders, and upstream documentation examples"
+
+# Files whose committed credentials are fake by design. Mirrors the
+# placeholder_credentials anchor in .pre-commit-config.yaml; keep them in step.
 paths = [
+  '''^configs/[^/]+/\.env($|\.)''',
+  '''^configs/[^/]+/secrets/''',
+  '''\.example$''',
   '''^\.secrets\.baseline$''',
+  '''^\.cspell\.json$''',
+  '''^patches/''',
+  # TRaSH Guides quality-profile IDs: 32-hex, publicly documented, not secrets.
+  '''^configs/recyclarr/config/.*\.yml$''',
+  # Untracked runtime payloads, only present locally. `betterleaks git` never
+  # sees these; excluding them keeps a manual `betterleaks dir .` fast.
+  '''^(?:data|media|storage|cache|logs|shared)/''',
+  '''^tests/\.venv/''',
+  '''^configs/gluetun/servers\.json$''',
+]
+
+regexes = [
+  # Repeating-digit placeholders, as used by the committed .example configs
+  # (Sonarr 6666..., Radarr 1111..., and so on). Written out because these
+  # patterns are compiled by Go's RE2, which has no backreferences, so the
+  # obvious '''^(.)\1{7,}$''' is rejected at load time.
+  '''^(?:0{8,}|1{8,}|2{8,}|3{8,}|4{8,}|5{8,}|6{8,}|7{8,}|8{8,}|9{8,})$''',
+  '''0123456789abcdef0123456789abcdef''',
+  '''fedcba9876543210fedcba9876543210''',
+  '''(?i)changeme''',
+  # NZBGet ships this API key in a comment in its own default nzbget.conf.
+  # The file cannot carry an inline allow comment: NZBGet rewrites it on
+  # shutdown and drops anything added.
+  '''3544646bfd1c535a9654645609800901''',
+  # Proton VPN example WireGuard pair that the README carried from commit
+  # 8d0c224 until it was replaced with an all-zero key. Confirmed fake: neither
+  # ever matched configs/gluetun/.secret.
+  '''KLjfIMiuxPskM4\+DaSUDmL2uSIYKJ9Wap\+CHvs0Lfkw=''',
+  '''jbTC1lYeHxiz1LNSJHQMKDTq6sHgcWxkBwXvt7GWo1E=''',
 ]

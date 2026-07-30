@@ -52,29 +52,21 @@ Newznab protocol for usenet indexing.
 
 ---
 
-## Libgen providers
+## Book sources
 
-The classic libgen mirrors (`libgen.li`, `libgen.bz`, `libgen.vg`, `libgen.la`,
-`libgen.gl`) use `index.php` as the search endpoint and return the `tablelibgen`
-HTML table that LazyLibrarian's parser expects.
+The committed `config.ini.example` ships only the indexer plumbing: NZBHydra2
+over Newznab, and numbered Torznab entries pointing at Prowlarr. It configures
+no direct book sources, so LazyLibrarian starts with nothing enabled beyond
+what you add yourself.
 
-The newer `libgen.ad` frontend uses a different design and is not compatible with
-LazyLibrarian's parser. Use the mirrors listed below.
+LazyLibrarian supports several source types of its own (`[GEN_*]` generic
+providers, plus per-service sections). Adding one means deciding what you are
+entitled to download from it, which is your call to make rather than something
+this repo should preselect. Refer to the
+[upstream LazyLibrarian wiki](https://gitlab.com/LazyLibrarian/LazyLibrarian/-/wikis/home)
+for the section keys each provider type expects.
 
-Five mirrors are configured in `[GEN_0]` through `[GEN_4]`:
-
-| Section | Host | Search endpoint |
-| --------- | ------ | ----------------- |
-| `GEN_0` | `libgen.li` | `index.php` |
-| `GEN_1` | `libgen.bz` | `index.php` |
-| `GEN_2` | `libgen.vg` | `index.php` |
-| `GEN_3` | `libgen.la` | `index.php` |
-| `GEN_4` | `libgen.gl` | `index.php` |
-
-All five are aliases of the same database. Having multiple entries provides
-automatic fallback if one mirror is slow or temporarily unreachable.
-
-### Editing the config
+## Editing the config
 
 LazyLibrarian writes its in-memory config back to disk on shutdown. Editing
 `config.ini` while the container is running and then restarting will cause
@@ -86,47 +78,3 @@ podman stop lazylibrarian
 # edit config.ini
 podman start lazylibrarian
 ```
-
----
-
-## Z-Library
-
-Z-Library requires a registered account. Configure credentials in
-`configs/lazylibrarian/config/config.ini` under `[BOK]`:
-
-```ini
-[BOK]
-bok = True
-bok_host = z-lib.fm
-bok_email = your@email.com
-bok_pass = yourpassword
-```
-
-Alternatively, use session tokens from your browser cookies after logging in at
-the configured host (more secure than storing a password):
-
-```ini
-[BOK]
-bok = True
-bok_host = z-lib.fm
-bok_remix_userid = 12345678
-bok_remix_userkey = xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-```
-
-Z-Library rotates mirror domains periodically; update `bok_host` if the
-configured mirror stops working.
-
----
-
-## Anna's Archive
-
-Pre-configured in `[ANNA]`:
-
-```ini
-[ANNA]
-anna = True
-anna_host = annas-archive.gl,annas-archive.pk,annas-archive.gd
-```
-
-Multiple hosts are tried in order. Update this list if any mirror becomes
-unreachable.

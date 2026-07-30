@@ -1,0 +1,6 @@
+# Ignore runtime files written by gluetun (servers.json, forwarded_port, etc.)
+# .secret contains the WireGuard private key — never commit it
+*
+!.env
+!.env.secrets.example
+!.gitignore

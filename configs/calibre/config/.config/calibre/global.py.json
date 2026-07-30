@@ -1,9 +1,9 @@
 {
   "add_formats_to_existing": false,
   "case_sensitive": false,
-  "check_for_dupes_on_ctl": false,
-  "database_path": "/config/library1.db",
-  "filename_pattern": "(?P<title>.+) - (?P<author>[^_]+)",
+  "check_for_dupes_on_ctl": true,
+  "database_path": "/data/media/calibre-library/metadata.db",
+  "filename_pattern": "(?P<author>.+) - (?P<title>.+)",
   "input_format_order": [
     "EPUB",
     "AZW3",
@@ -26,7 +26,7 @@
   "installation_uuid": "3b11d634-240e-40f6-b436-52aa4628c6ef",
   "isbndb_com_key": "",
   "language": "en",
-  "library_path": "/ebooks",
+  "library_path": "/data/media/calibre-library",
   "limit_search_columns": false,
   "limit_search_columns_to": [
     "title",
@@ -35,8 +35,8 @@
     "series",
     "publisher"
   ],
-  "manage_device_metadata": "manual",
-  "mark_new_books": false,
+  "manage_device_metadata": "on_connect",
+  "mark_new_books": true,
   "migrated": false,
   "network_timeout": 5,
   "new_book_tags": [],

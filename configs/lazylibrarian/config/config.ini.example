@@ -95,14 +95,6 @@ qbittorrent_ignore_ssl = True
 [ABB]
 abb = True
 
-[BOK]
-bok_host = z-lib.fm
-
-[ANNA]
-anna_host = annas-archive.gl,annas-archive.pk,annas-archive.gd
-anna = True
-anna_dltypes = A,C,E,M
-
 [SEARCHSCAN]
 wishlist_interval = 24
 
@@ -159,7 +151,7 @@ updated = 2026-06-30
 dltypes = A,C,E,M
 
 [Torznab_1]
-dispname = The Pirate Bay (Prowlarr)
+dispname = Torznab Indexer 1 (Prowlarr)
 enabled = True
 host = http://prowlarr-https:9696/prowlarr/1/api
 api = 44444444444444444444444444444444
@@ -172,7 +164,7 @@ dltypes = A,C,E,M
 seeders = 1
 
 [Torznab_2]
-dispname = 1337x (Prowlarr)
+dispname = Torznab Indexer 2 (Prowlarr)
 enabled = True
 host = http://prowlarr-https:9696/prowlarr/3/api
 api = 44444444444444444444444444444444
@@ -185,7 +177,7 @@ dlpriority = 46
 seeders = 1
 
 [Torznab_3]
-dispname = EBookBay (Prowlarr)
+dispname = Torznab Indexer 3 (Prowlarr)
 host = http://prowlarr-https:9696/prowlarr/16/api
 api = 44444444444444444444444444444444
 generalsearch = search
@@ -197,7 +189,7 @@ dlpriority = 26
 seeders = 1
 
 [Torznab_4]
-dispname = Knaben (Prowlarr)
+dispname = Torznab Indexer 4 (Prowlarr)
 enabled = True
 host = http://prowlarr-https:9696/prowlarr/14/api
 api = 44444444444444444444444444444444
@@ -210,7 +202,7 @@ dlpriority = 26
 seeders = 1
 
 [Torznab_5]
-dispname = LimeTorrents (Prowlarr)
+dispname = Torznab Indexer 5 (Prowlarr)
 enabled = True
 host = http://prowlarr-https:9696/prowlarr/11/api
 api = 44444444444444444444444444444444
@@ -219,33 +211,3 @@ bookcat = 7020
 updated = 2026-07-29
 dlpriority = 31
 seeders = 1
-
-[GEN_0]
-dispname = libgen.li
-enabled = True
-host = libgen.li
-search = index.php
-
-[GEN_1]
-dispname = libgen.bz
-enabled = True
-host = libgen.bz
-search = index.php
-
-[GEN_2]
-dispname = libgen.vg
-enabled = True
-host = libgen.vg
-search = index.php
-
-[GEN_3]
-dispname = libgen.la
-enabled = True
-host = libgen.la
-search = index.php
-
-[GEN_4]
-dispname = libgen.gl
-enabled = True
-host = libgen.gl
-search = index.php

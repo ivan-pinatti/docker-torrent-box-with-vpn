@@ -55,3 +55,31 @@ patched files are bind-mounted as read-only volumes in `docker-compose-servarr.y
 
 Enable the toggle in Mylar under Settings after start. The upstream pull request
 tracking this fix is [MylarComics/mylar3#23](https://github.com/MylarComics/mylar3/pull/23).
+
+### Status: merged upstream, waiting on a stable release
+
+PR #23 merged into mylar3's `nightly` branch on 2026-07-23 (commit
+`70ff41c3014e48daf88763134d976ef042244db`). Diffing our five patched files
+against `nightly`'s current tip confirms the qBittorrent SSL logic is
+byte-for-byte identical to what we carry, so the patch can be deleted
+outright once the base image contains it.
+
+`MYLAR_VERSION=latest` in `.env` pulls `linuxserver/mylar3:latest`, which
+tracks the `stable` branch, not `nightly`. As of 2026-07-24, `stable`'s HEAD
+(`70edba407fff224dba292f1e3b721215d26cd96e`, dated 2026-05-27) is 9 commits
+behind the fix, so it is not yet in a stable release.
+
+Before removing the patch, re-check whether `stable` has caught up:
+
+```shell
+gh api repos/MylarComics/mylar3/compare/stable...70ff41c3014e48daf88763134d976ef042244db
+```
+
+Once the fix commit is an ancestor of `stable` (`ahead_by: 0`), the next
+`linuxserver/mylar3` stable image release will contain it. At that point:
+
+1. Delete `patches/mylar/`.
+2. Remove the five bind-mounted volumes from `docker-compose-servarr.yml`.
+3. Delete this "Status" section, and the related lines in `README.md` known
+   issue #3 and `docs/TODO.md`'s Mylar section.
+4. Recreate the `mylar` container to pick up the base image's built-in fix.

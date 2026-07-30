@@ -16,7 +16,6 @@ secrets/*
 !config/
 config/*
 !config/config.xml.example
-!config/lidarr.db
 
 # arr-scripts bootstrap directories
 !custom-cont-init.d/

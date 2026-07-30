@@ -1,0 +1,5 @@
+---
+# pve:
+#   url: https://proxmox.host.or.ip:8006
+#   token: username@pam!Token ID
+#   secret: secret  # pragma: allowlist secret

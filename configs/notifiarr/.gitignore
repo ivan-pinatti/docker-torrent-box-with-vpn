@@ -1,0 +1,15 @@
+# Ignore everything in this directory
+*
+
+# Except .gitignore and the dotenv template.
+# The live .env stays ignored here, unlike other services: Notifiarr's env is
+# where its Notifiarr.com API key and the per-app servarr API keys live, so the
+# real file is never committed. `make bootstrap` seeds it from .env.example.
+!.gitignore
+!.env.example
+
+# config file
+!config/
+config/*
+!config/notifiarr/
+!config/notifiarr/*

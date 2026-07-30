@@ -12,12 +12,13 @@
 secrets/*
 !secrets/*.example
 
-# config file
+# Bazarr's config tree is live state and stays ignored: config.yaml holds its
+# real API key, the Sonarr/Radarr keys, subtitle-provider logins and session
+# cookies, and config/db/bazarr.db holds the subtitle history. Only the
+# sanitised seed is committed; `make bootstrap` copies it into place.
 !config/
 config/*
 !config/config/
 config/config/*
-!config/config/config.ini
-!config/db/
-config/db/*
-!config/db/bazarr.db
+!config/config/config.yaml.example
+!config/

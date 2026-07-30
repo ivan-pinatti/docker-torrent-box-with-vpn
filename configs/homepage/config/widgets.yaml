@@ -1,0 +1,26 @@
+- resources:
+    cpu: true
+    memory: true
+    disk:
+      - /
+    uptime: true
+
+- openmeteo:
+    label: Toronto
+    latitude: 43.6532
+    longitude: -79.3832
+    timezone: America/Toronto
+    units: metric
+    cache: 5
+
+- datetime:
+    text_size: lg
+    locale: en-GB
+    format:
+      day: "2-digit"
+      month: "2-digit"
+      year: "numeric"
+
+- search:
+    provider: duckduckgo
+    target: _blank

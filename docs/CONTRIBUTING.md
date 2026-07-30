@@ -69,6 +69,9 @@ pull requests before sending changes upstream.
 
 - 2 spaces for indentation rather than tabs
 - Use `make sanity_fast` for the normal local validation path
+- Use `make sanity_full` before pushing: the pre-commit gitleaks hook only sees
+  the staged diff, and MegaLinter's betterleaks pass is what scans the full git
+  history. See docs/HARDENING.md
 - Use `make sanity_full` when you need the full repository security/IaC pass
 - Dependabot handles weekly hook and workflow version bump PRs; major updates
   are left for manual review
@@ -88,6 +91,9 @@ these conventions:
 - Each user-facing script has a Makefile wrapper whose target name is the
   snake_case mirror of the script name, for example `rotate_nginx_logs` runs
   `scripts/rotate-nginx-logs.sh`.
+- Never commit live application state. Runtime databases and configs the app
+  rewrites on shutdown stay gitignored; commit a sanitised `<file>.example`
+  seed instead. See docs/HARDENING.md.
 - Never hardcode secrets. Secret values are written only to gitignored files
   (`.env.secrets`, `certs/cert.conf`), secrets printed to the terminal are
   masked, and lines that trip secret scanners on variable names carry a

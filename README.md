@@ -383,7 +383,7 @@ remembered value.
 ```ini
 [Interface]
 # Key for <name>
-PrivateKey = KLjfIMiuxPskM4+DaSUDmL2uSIYKJ9Wap+CHvs0Lfkw=
+PrivateKey = AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
 Address = 10.2.0.2/32
 DNS = 10.2.0.1
 
@@ -391,7 +391,7 @@ DNS = 10.2.0.1
 # SE#302
 PublicKey = ...
 AllowedIPs = 0.0.0.0/0
-Endpoint = 62.93.166.123:51820
+Endpoint = 203.0.113.1:51820
 ```
 
 **Step 2 — Write the private key to the secret file:**
@@ -399,7 +399,7 @@ Endpoint = 62.93.166.123:51820
 Paste only the `PrivateKey` value (single line, no prefix) into `configs/gluetun/.secret`:
 
 ```shell
-echo "KLjfIMiuxPskM4+DaSUDmL2uSIYKJ9Wap+CHvs0Lfkw=" > configs/gluetun/.secret  # pragma: allowlist secret
+echo "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" > configs/gluetun/.secret  # pragma: allowlist secret
 ```
 
 > This file is bind-mounted into Gluetun and excluded from git by
@@ -958,7 +958,9 @@ services, dashboards, and alert rules.
    `make rotate_certificate` keep the password in sync like the other apps.
 3. Mylar doesn't work with qBittorrent using a self-signed certificate out of the box. A patch adds
    an "Ignore SSL warnings" toggle in Settings; see
-   [MylarComics/mylar3#23](https://github.com/MylarComics/mylar3/pull/23) for the upstream PR.
+   [MylarComics/mylar3#23](https://github.com/MylarComics/mylar3/pull/23) for the upstream PR. The
+   PR merged into mylar3's `nightly` branch but hasn't reached a stable release yet; see
+   `docs/MYLAR.md` for what to check before removing the patch.
 4. Lazylibarian doesn't work with qBittorrent using a self-signed certificate.
 5. **Readarr upstream has been retired** — the project's metadata service went offline and the team
    shut the project down. The Docker image (`linuxserver/readarr`) still works but will not receive

@@ -153,6 +153,48 @@ not its contents. `make bootstrap` handles the one-time recursive chown of
 `configs/whisparr/config` so the app process can read its own ASP.NET data-protection keys
 and write its PID file.
 
+## Keeping credentials out of git
+
+Three layers, because no single one covers the whole problem.
+
+| Layer | Scope | Gap it leaves |
+| --- | --- | --- |
+| `configs/*/.gitignore` | Each starts with a blanket `*` and re-includes only the files that belong in git | A single `!` negation silently re-arms a live file for `git add -A` |
+| gitleaks and detect-secrets (pre-commit) | The staged diff | Never revisits a file committed earlier; detect-secrets also does not parse `key = value` .ini credentials |
+| betterleaks via MegaLinter (`make sanity_full`, and CI) | Every blob in the full git history | Pattern-based, so a credential in an unrecognised shape can still pass |
+
+Both scanner layers read `.gitleaks.toml`, so a rule added there applies to the
+fast staged-diff check and the full-history check alike.
+
+### Why the custom rules exist
+
+The default gitleaks ruleset targets provider-issued tokens (AWS keys, GitHub
+PATs, PEM blocks). Its one generic rule, `generic-api-key`, requires entropy
+>= 3.5 and accepts only `[0-9a-z-_.=]` in the value. Measured against the nine
+credential shapes found in this repo's own config files, it caught five. The
+four custom rules in `.gitleaks.toml` cover the rest: 32-hex API keys just below
+the entropy threshold, passwords containing symbols, credentials held in XML
+elements, and Bazarr's raw provider session cookies.
+
+Two other scanners were measured on the same nine shapes and are not a
+substitute. Trivy (already enabled) detects AWS keys, GitHub PATs and PEM
+private keys, but none of the nine. TruffleHog and Secretlint detect none of
+them either, being oriented at verifying provider credentials.
+
+`.gitleaksignore` records findings that exist only in already-published history
+on `main`. It stores `commit:path:rule:line` fingerprints, never secret values.
+Those credentials cannot be fixed by editing the working tree and removing them
+would mean rewriting published history, so they are rotated instead.
+
+### Live application state
+
+Runtime databases, and configs an app rewrites on shutdown, must never be
+tracked. `tests/test_prerequisites.py` asserts this per path, so a reintroduced
+`.gitignore` negation fails the test suite rather than reaching a commit. When
+an app config needs a committed seed, track a sanitised `<file>.example` and let
+`scripts/seed-configs.sh` copy it into place on `make bootstrap`; the same test
+file asserts every seeded path has a tracked `.example`.
+
 ## Verification
 
 ```bash

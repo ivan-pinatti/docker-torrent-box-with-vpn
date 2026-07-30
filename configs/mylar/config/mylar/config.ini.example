@@ -261,7 +261,7 @@ gotify_token = None
 gotify_onsnatch = False
 
 [Providers]
-provider_order = 0, The Pirate Bay (Prowlarr), 1, 1337x (Prowlarr), 2, Knaben (Prowlarr), 3, NZBHydra2 (Newznab), 4, DDL(GetComics)
+provider_order = 0, Torznab Indexer 1 (Prowlarr), 1, Torznab Indexer 2 (Prowlarr), 2, Torznab Indexer 4 (Prowlarr), 3, NZBHydra2 (Newznab)
 usenet_retention = 1500
 
 [Client]
@@ -303,7 +303,7 @@ extra_newznabs = NZBHydra2 (Newznab), https://nzbhydra2:5077/nzbhydra2, 0, 99999
 
 [Torznab]
 enable_torznab = True
-extra_torznabs = The Pirate Bay (Prowlarr), http://prowlarr-https:9696/prowlarr/1/api, 0, 44444444444444444444444444444444, 7030, 1, 4, 1337x (Prowlarr), http://prowlarr-https:9696/prowlarr/3/api, 0, 44444444444444444444444444444444, 7030, 1, 5, EBookBay (Prowlarr), http://prowlarr-https:9696/prowlarr/16/api, 0, 44444444444444444444444444444444, 7030, 0, 6, Knaben (Prowlarr), http://prowlarr-https:9696/prowlarr/14/api, 0, 44444444444444444444444444444444, 7030, 1, 7
+extra_torznabs = Torznab Indexer 1 (Prowlarr), http://prowlarr-https:9696/prowlarr/1/api, 0, 44444444444444444444444444444444, 7030, 1, 4, Torznab Indexer 2 (Prowlarr), http://prowlarr-https:9696/prowlarr/3/api, 0, 44444444444444444444444444444444, 7030, 1, 5, Torznab Indexer 3 (Prowlarr), http://prowlarr-https:9696/prowlarr/16/api, 0, 44444444444444444444444444444444, 7030, 0, 6, Torznab Indexer 4 (Prowlarr), http://prowlarr-https:9696/prowlarr/14/api, 0, 44444444444444444444444444444444, 7030, 1, 7
 torznab_name = None
 torznab_host = None
 torznab_apikey = None
@@ -356,8 +356,8 @@ public_verify = True
 
 [DDL]
 allow_packs = False
-enable_ddl = True
-enable_getcomics = True
+enable_ddl = False
+enable_getcomics = False
 pack_priority = False
 ddl_query_delay = 15
 ddl_location = None

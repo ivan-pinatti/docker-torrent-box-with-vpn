@@ -1,0 +1,7 @@
+# Ignore everything in this directory
+*
+
+# Except .gitignore and dotenv file
+!.gitignore
+!.env
+!.env.secrets.example

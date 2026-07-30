@@ -1,0 +1,12 @@
+# Ignore everything in this directory
+*
+
+# Except .gitignore and dotenv file
+!.gitignore
+!.env
+!.env.secrets.example
+
+# config file
+!config/
+config/*
+!config/loki.yml

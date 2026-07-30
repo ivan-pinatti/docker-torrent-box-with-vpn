@@ -1,9 +1,33 @@
 {
-  "database location dialog": "/ebooks",
+  "add books dialog dir": "/data/media/ebooks",
+  "add books dialog dir-last-used-filter-spec-all-files": false,
+  "auto add path choose": "/data/media/ebooks",
+  "catalogs_to_be_synced": {
+    "__class__": "set",
+    "__value__": []
+  },
+  "choose calibre library": "/data/media/calibre-library",
+  "database location dialog": "/data/media/calibre-library",
   "notified-version-updates": {
     "__class__": "set",
-    "__value__": ["6.17", "6.16"]
+    "__value__": [
+      "6.16",
+      "9.11",
+      "9.10",
+      "6.17"
+    ]
   },
+  "recursive book import root dir dialog": "/data/media/ebooks",
+  "sort_history": [
+    [
+      "timestamp",
+      false
+    ],
+    [
+      "timestamp",
+      false
+    ]
+  ],
   "welcome_wizard_device": "kobo",
   "welcome_wizard_was_run": true
 }

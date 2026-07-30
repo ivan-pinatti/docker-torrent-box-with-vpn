@@ -2,6 +2,27 @@
 default_install_hook_types: [pre-commit, pre-push]
 minimum_pre_commit_version: 4.0.1
 
+# Two separate exclude sets, for two unrelated reasons. Keep them apart:
+# collapsing them back into one anchor is what previously let the secret
+# scanners and the formatters share a pattern that suited neither.
+#
+# placeholder_credentials covers files whose committed content is
+# deliberately fake: templates (.env), compose-secret seeds
+# (secrets/*.example), and .example configs all ship `changeme` and
+# repeating-digit API keys on purpose, so the secret scanners would report
+# nothing but placeholders. Real values never live in a committed file
+# matching this pattern.
+#
+# app_managed covers files the applications own and rewrite on shutdown.
+# Structural and whitespace hooks skip these, because reformatting them
+# fights the app. The secret scanners deliberately do NOT skip them: this
+# is exactly where a real credential lands if one is ever committed.
+#
+# Both patterns anchor every alternative. An earlier version wrote
+# `^(a|configs/.*/config/|c)$`, where the trailing `$` applied to the whole
+# group, so the `configs/.*/config/` branch could only ever match a path
+# ending in a slash, and therefore matched no file at all.
+
 repos:
   - repo: https://github.com/Yelp/detect-secrets
     rev: v1.5.0
@@ -9,42 +30,42 @@ repos:
       - id: detect-secrets
         args: ["--baseline", ".secrets.baseline"]
         require_serial: true
-        exclude: '^(configs/.*/\.env\.secrets\.example|\.secrets\.baseline)$|^patches/'
+        exclude: &placeholder_credentials '^(configs/[^/]+/\.env(\..*)?|configs/[^/]+/secrets/.*|.*\.example|\.secrets\.baseline)$|^patches/'
 
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.30.1
     hooks:
       - id: gitleaks
-        exclude: &runtime_placeholders '^(configs/.*/\.env|configs/.*/config/|configs/recyclarr/config/.*\.yml|media/eBooks/metadata\.db|\.secrets\.baseline)$'
+        exclude: *placeholder_credentials
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
       - id: check-added-large-files
         args: ["--maxkb=1024"]
-        exclude: *runtime_placeholders
+        exclude: &app_managed '^(configs/calibre/config/.*|configs/nzbget/config/nzbget\.conf|configs/qbittorrent/config/.*|configs/recyclarr/config/.*\.yml|\.secrets\.baseline)$'
       - id: check-case-conflict
       - id: check-illegal-windows-names
       - id: check-json
-        exclude: *runtime_placeholders
+        exclude: *app_managed
       - id: check-merge-conflict
       - id: check-symlinks
       - id: check-xml
-        exclude: *runtime_placeholders
+        exclude: *app_managed
       - id: check-yaml
         # docker-compose.routes/*.yml use Compose's `!reset` merge tag, which
         # PyYAML (this hook's parser) doesn't recognize as a constructor.
         # yamllint still validates their structure and style.
-        exclude: '^(docker-compose\.routes/.*\.ya?ml|configs/.*/\.env|configs/.*/config/|configs/recyclarr/config/.*\.yml|media/eBooks/metadata\.db|\.secrets\.baseline)$'
+        exclude: '^(docker-compose\.routes/.*\.ya?ml|configs/recyclarr/config/.*\.yml|\.secrets\.baseline)$'
       - id: destroyed-symlinks
       - id: detect-private-key
       - id: end-of-file-fixer
-        exclude: '^(configs/.*/\.env|configs/.*/config/|configs/.*/secrets/.*|configs/recyclarr/config/.*\.yml|media/eBooks/metadata\.db|\.secrets\.baseline)$|^patches/'
+        exclude: &app_managed_or_patches '^(configs/calibre/config/.*|configs/nzbget/config/nzbget\.conf|configs/qbittorrent/config/.*|configs/recyclarr/config/.*\.yml|\.secrets\.baseline)$|^patches/'
       - id: mixed-line-ending
-        exclude: '^(configs/.*/\.env|configs/.*/config/|configs/.*/secrets/.*|configs/recyclarr/config/.*\.yml|media/eBooks/metadata\.db|\.secrets\.baseline)$|^patches/'
+        exclude: *app_managed_or_patches
       - id: trailing-whitespace
         args: ["--markdown-linebreak-ext=md"]
-        exclude: '^(configs/.*/\.env|configs/.*/config/|configs/.*/secrets/.*|configs/recyclarr/config/.*\.yml|media/eBooks/metadata\.db|\.secrets\.baseline)$|^patches/'
+        exclude: *app_managed_or_patches
       - id: check-ast
         files: ^tests/
       - id: debug-statements
@@ -76,7 +97,7 @@ repos:
     rev: v1.38.0
     hooks:
       - id: yamllint
-        exclude: *runtime_placeholders
+        exclude: *app_managed
 
   - repo: https://github.com/streetsidesoftware/cspell-cli
     rev: v9.7.0

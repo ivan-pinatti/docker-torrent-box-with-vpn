@@ -1,7 +1,33 @@
+# This is required to proxy Grafana Live WebSocket connections.
+map $http_upgrade $connection_upgrade {
+  default upgrade;
+  '' close;
+}
+
+# Suppress internal Grafana API calls (ds/query, live, etc.) from access logs.
+# Page-level navigation still gets logged; background polling does not.
+map $request_uri $grafana_log_enabled {
+    ~^/admin/grafana/api/  0;
+    default                1;
+}
+
+proxy_cache_path /var/cache/nginx/proxy levels=1:2 keys_zone=proxy_cache:10m max_size=${NGINX_PROXY_CACHE_MAX_SIZE} inactive=${NGINX_PROXY_CACHE_INACTIVE} use_temp_path=off;
+
 server {
   listen ${NGINX_HTTP_PORT};
   server_name _;
-  return 301 https://$host$request_uri;
+
+  location = /stub_status {
+    stub_status;
+    access_log off;
+    allow 127.0.0.1;
+    allow 172.29.0.0/24;
+    deny all;
+  }
+
+  location / {
+    return 301 https://$host$request_uri;
+  }
 }
 
 server {
@@ -12,153 +38,676 @@ server {
   ssl_protocols         TLSv1.2 TLSv1.3;
   ssl_ciphers           HIGH:!aNULL:!MD5;
 
+  proxy_cache            proxy_cache;
+  proxy_cache_methods    GET HEAD;
+  proxy_cache_revalidate on;
+  proxy_cache_min_uses   2;
+  proxy_cache_use_stale  error timeout updating http_500 http_502 http_503 http_504;
+  proxy_cache_lock       on;
+  proxy_no_cache         $http_authorization $http_pragma;
+  proxy_cache_bypass     $http_authorization $http_pragma;
+  add_header             X-Cache-Status $upstream_cache_status always;
+
+  location = /stub_status {
+    stub_status;
+    access_log off;
+    allow 127.0.0.1;
+    allow 172.29.0.0/24;
+    deny all;
+  }
+
+  set $homepage_upstream      http://homepage:${HOMEPAGE_HTTP_PORT};
+  set $bazarr_upstream        ${BAZARR_UPSTREAM_SCHEME}://${BAZARR_UPSTREAM_HOST}:${BAZARR_UPSTREAM_PORT};
+  set $cadvisor_upstream      http://cadvisor:${CADVISOR_HTTP_PORT};
+  set $flaresolverr_upstream  ${FLARESOLVERR_UPSTREAM_SCHEME}://${FLARESOLVERR_UPSTREAM_HOST}:${FLARESOLVERR_UPSTREAM_PORT};
+  set $grafana_upstream       http://grafana:3000;
+  set $gluetun_upstream       http://gluetun:8000;
+  set $jellyfin_upstream      http://jellyfin:${JELLYFIN_UPSTREAM_PORT};
+  set $lidarr_upstream        ${LIDARR_UPSTREAM_SCHEME}://${LIDARR_UPSTREAM_HOST}:${LIDARR_UPSTREAM_PORT};
+  set $node_exporter_upstream http://node_exporter:${NODE_EXPORTER_HTTP_PORT};
+  set $prometheus_upstream    http://prometheus:9090;
+  set $prowlarr_upstream      ${PROWLARR_UPSTREAM_SCHEME}://${PROWLARR_UPSTREAM_HOST}:${PROWLARR_UPSTREAM_PORT};
+  set $qbittorrent_upstream   https://${GLUETUN_SERVICES_IP}:${QBITTORRENT_HTTPS_PORT};
+  set $radarr_upstream        ${RADARR_UPSTREAM_SCHEME}://${RADARR_UPSTREAM_HOST}:${RADARR_UPSTREAM_PORT};
+  set $readarr_upstream       ${READARR_UPSTREAM_SCHEME}://${READARR_UPSTREAM_HOST}:${READARR_UPSTREAM_PORT};
+  set $nzbhydra2_upstream     ${NZBHYDRA2_UPSTREAM_SCHEME}://${NZBHYDRA2_UPSTREAM_HOST}:${NZBHYDRA2_UPSTREAM_PORT};
+  set $sabnzbd_upstream       ${SABNZBD_UPSTREAM_SCHEME}://${SABNZBD_UPSTREAM_HOST}:${SABNZBD_UPSTREAM_PORT};
+  set $sonarr_upstream        ${SONARR_UPSTREAM_SCHEME}://${SONARR_UPSTREAM_HOST}:${SONARR_UPSTREAM_PORT};
+  set $whisparr_upstream        ${WHISPARR_UPSTREAM_SCHEME}://${WHISPARR_UPSTREAM_HOST}:${WHISPARR_UPSTREAM_PORT};
+  set $audiobookshelf_upstream  ${AUDIOBOOKSHELF_UPSTREAM_SCHEME}://${AUDIOBOOKSHELF_UPSTREAM_HOST}:${AUDIOBOOKSHELF_UPSTREAM_PORT};
+  set $korsync_upstream          ${KORSYNC_UPSTREAM_SCHEME}://${KORSYNC_UPSTREAM_HOST}:${KORSYNC_UPSTREAM_PORT};
+  set $calibre_upstream         ${CALIBRE_UPSTREAM_SCHEME}://${CALIBRE_UPSTREAM_HOST}:${CALIBRE_UPSTREAM_PORT};
+  set $calibreweb_upstream      ${CALIBREWEB_UPSTREAM_SCHEME}://${CALIBREWEB_UPSTREAM_HOST}:${CALIBREWEB_UPSTREAM_PORT};
+  set $calibre_content_upstream ${CALIBRE_CONTENT_UPSTREAM_SCHEME}://${CALIBRE_CONTENT_UPSTREAM_HOST}:${CALIBRE_CONTENT_UPSTREAM_PORT};
+  set $lazylibrarian_upstream   ${LAZYLIBRARIAN_UPSTREAM_SCHEME}://${LAZYLIBRARIAN_UPSTREAM_HOST}:${LAZYLIBRARIAN_UPSTREAM_PORT};
+  set $mylar_upstream           ${MYLAR_UPSTREAM_SCHEME}://${MYLAR_UPSTREAM_HOST}:${MYLAR_UPSTREAM_PORT};
+  # jDownloader2 runs with SECURE_CONNECTION=1 (self-signed certificate), so
+  # the upstream is https even though the port variable is named HTTP.
+  set $jdownloader2_upstream    https://${GLUETUN_SERVICES_IP}:${JDOWNLOADER2_HTTP_PORT};
+
+## Homepage
+  location / {
+    proxy_pass                  $homepage_upstream;
+    proxy_redirect              off;
+    proxy_http_version          1.1;
+    proxy_pass_request_headers  on;
+    proxy_set_header            Upgrade $http_upgrade;
+    proxy_set_header            Connection $http_connection;
+    proxy_set_header            Host $host;
+    proxy_set_header            X-Real-IP $remote_addr;
+    proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header            X-Forwarded-Proto $scheme;
+    proxy_set_header            X-Forwarded-Protocol $scheme;
+    proxy_set_header            X-Forwarded-Host $server_name;
+    access_log                  /var/log/nginx/services/homepage-access.log  stripsecrets;
+    error_log                   /var/log/nginx/services/homepage-error.log  warn;
+  }
+
+## Servarr
   location /bazarr/ {
-    proxy_pass        http://127.0.0.1:${BAZARR_HTTP_PORT};
-    # proxy_pass        https://127.0.0.1:${BAZARR_HTTPS_PORT};
-    proxy_redirect    off;
-    proxy_set_header  Host $host;
-    proxy_set_header  X-Real-IP $remote_addr;
-    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header  X-Forwarded-Host $server_name;
-  }
-
-  location /calibre/ {
-    # proxy_pass        http://127.0.0.1:${CALIBRE_DESKTOP_HTTP_PORT}/;
-    proxy_pass        https://127.0.0.1:${CALIBRE_DESKTOP_HTTPS_PORT}/;
-    proxy_redirect    off;
-    proxy_set_header  Host $host;
-    proxy_set_header  X-Real-IP $remote_addr;
-    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header  X-Forwarded-Host $server_name;
-  }
-
-  location /calibre_web/ {
-    # proxy_pass        http://127.0.0.1:${CALIBRE_WEB_CONTAINER_HTTP_PORT};
-    proxy_pass        https://127.0.0.1:${CALIBRE_WEB_CONTAINER_HTTPS_PORT};
-    proxy_redirect    off;
-    proxy_set_header  Host $host;
-    proxy_set_header  X-Real-IP $remote_addr;
-    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header  X-Forwarded-Host $server_name;
+    proxy_pass                  $bazarr_upstream;
+    proxy_ssl_verify            off;
+    proxy_redirect              off;
+    proxy_http_version          1.1;
+    proxy_pass_request_headers  on;
+    proxy_set_header            Upgrade $http_upgrade;
+    proxy_set_header            Connection $http_connection;
+    proxy_set_header            Host $host;
+    proxy_set_header            X-Real-IP $remote_addr;
+    proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header            X-Forwarded-Proto $scheme;
+    proxy_set_header            X-Forwarded-Protocol $scheme;
+    proxy_set_header            X-Forwarded-Host $server_name;
+    access_log                  /var/log/nginx/services/bazarr-access.log  stripsecrets;
+    error_log                   /var/log/nginx/services/bazarr-error.log  warn;
   }
 
   location /flaresolverr/ {
-    proxy_pass        http://127.0.0.1:${FLARESOLVERR_HTTP_PORT}/;
-    # proxy_pass        https://127.0.0.1:${FLARESOLVERR_HTTPS_PORT}/;
-    proxy_redirect    off;
-    proxy_set_header  Host $host;
-    proxy_set_header  X-Real-IP $remote_addr;
-    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header  X-Forwarded-Host $server_name;
-  }
-
-  location /jackett/ {
-    proxy_pass        http://127.0.0.1:${JACKETT_HTTP_PORT};
-    # proxy_pass        https://127.0.0.1:${JACKETT_HTTPS_PORT};
-    proxy_redirect    off;
-    proxy_set_header  Host $host;
-    proxy_set_header  X-Real-IP $remote_addr;
-    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header  X-Forwarded-Host $server_name;
-  }
-
-  location /lazylibrarian/ {
-    proxy_pass        http://127.0.0.1:${LAZYLIBRARIAN_HTTP_PORT};
-    # proxy_pass        https://127.0.0.1:${LAZYLIBRARIAN_HTTPS_PORT};
-    proxy_redirect    off;
-    proxy_set_header  Host $host;
-    proxy_set_header  X-Real-IP $remote_addr;
-    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header  X-Forwarded-Host $server_name;
+    rewrite                     ^/flaresolverr/(.*) /$1 break;
+    proxy_pass                  $flaresolverr_upstream;
+    proxy_ssl_verify            off;
+    proxy_redirect              off;
+    proxy_http_version          1.1;
+    proxy_pass_request_headers  on;
+    proxy_set_header            Upgrade $http_upgrade;
+    proxy_set_header            Connection $http_connection;
+    proxy_set_header            Host $host;
+    proxy_set_header            X-Real-IP $remote_addr;
+    proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header            X-Forwarded-Proto $scheme;
+    proxy_set_header            X-Forwarded-Protocol $scheme;
+    proxy_set_header            X-Forwarded-Host $server_name;
+    access_log                  /var/log/nginx/services/flaresolverr-access.log  stripsecrets;
+    error_log                   /var/log/nginx/services/flaresolverr-error.log  warn;
   }
 
   location /lidarr/ {
-    # proxy_pass        http://127.0.0.1:${LIDARR_HTTP_PORT};
-    proxy_pass        https://127.0.0.1:${LIDARR_HTTPS_PORT};
-    proxy_redirect    off;
-    proxy_set_header  Host $host;
-    proxy_set_header  X-Real-IP $remote_addr;
-    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header  X-Forwarded-Host $server_name;
+    proxy_pass                  $lidarr_upstream;
+    proxy_ssl_verify            off;
+    proxy_redirect              off;
+    proxy_http_version          1.1;
+    proxy_pass_request_headers  on;
+    proxy_set_header            Upgrade $http_upgrade;
+    proxy_set_header            Connection $http_connection;
+    proxy_set_header            Host $host;
+    proxy_set_header            X-Real-IP $remote_addr;
+    proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header            X-Forwarded-Proto $scheme;
+    proxy_set_header            X-Forwarded-Protocol $scheme;
+    proxy_set_header            X-Forwarded-Host $server_name;
+    access_log                  /var/log/nginx/services/lidarr-access.log  stripsecrets;
+    error_log                   /var/log/nginx/services/lidarr-error.log  warn;
   }
 
-  location /mylar/ {
-    # proxy_pass        http://127.0.0.1:${MYLAR_HTTP_PORT};
-    proxy_pass        https://127.0.0.1:${MYLAR_HTTPS_PORT};
-    proxy_redirect    off;
-    proxy_set_header  Host $host;
-    proxy_set_header  X-Real-IP $remote_addr;
-    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header  X-Forwarded-Host $server_name;
+  # location /notifiarr/ {
+  #   # proxy_pass                http://gluetun:${NOTIFIARR_HTTP_PORT};
+  #   proxy_pass                  https://gluetun:${NOTIFIARR_HTTPS_PORT};
+  #   proxy_redirect              off;
+  #   proxy_http_version          1.1;
+  #   proxy_pass_request_headers  on;
+  #   proxy_set_header            Upgrade $http_upgrade;
+  #   proxy_set_header            Connection $http_connection;
+  #   proxy_set_header            Host $host;
+  #   proxy_set_header            X-Real-IP $remote_addr;
+  #   proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+  #   proxy_set_header            X-Forwarded-Proto $scheme;
+  #   proxy_set_header            X-Forwarded-Protocol $scheme;
+  #   proxy_set_header            X-Forwarded-Host $server_name;
+  #   access_log                  /var/log/nginx/services/notifiarr-access.log  stripsecrets;
+  # }
+
+  location /prowlarr/ {
+    proxy_pass                  $prowlarr_upstream;
+    proxy_ssl_verify            off;
+    proxy_redirect              off;
+    proxy_http_version          1.1;
+    proxy_pass_request_headers  on;
+    proxy_set_header            Upgrade $http_upgrade;
+    proxy_set_header            Connection $http_connection;
+    proxy_set_header            Host $host;
+    proxy_set_header            X-Real-IP $remote_addr;
+    proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header            X-Forwarded-Proto $scheme;
+    proxy_set_header            X-Forwarded-Protocol $scheme;
+    proxy_set_header            X-Forwarded-Host $server_name;
+    access_log                  /var/log/nginx/services/prowlarr-access.log  stripsecrets;
+    error_log                   /var/log/nginx/services/prowlarr-error.log  warn;
   }
 
-  location /nzbget/ {
-    # proxy_pass        http://127.0.0.1:${NZBGET_HTTP_PORT};
-    proxy_pass        https://127.0.0.1:${NZBGET_HTTPS_PORT};
-    proxy_redirect    off;
-    proxy_set_header  Host $host;
-    proxy_set_header  X-Real-IP $remote_addr;
-    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header  X-Forwarded-Host $server_name;
-  }
-
-    location /nzbhydra2/ {
-    # proxy_pass        http://127.0.0.1:${NZBHYDRA2_HTTP_PORT};
-    proxy_pass        https://127.0.0.1:${NZBHYDRA2_HTTPS_PORT};
-    proxy_redirect    off;
-    proxy_set_header  Host $host;
-    proxy_set_header  X-Real-IP $remote_addr;
-    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header  X-Forwarded-Host $server_name;
-  }
-
-    location /prowlarr/ {
-    # proxy_pass        http://127.0.0.1:${PROWLARR_HTTP_PORT};
-    proxy_pass        https://127.0.0.1:${PROWLARR_HTTPS_PORT};
-    proxy_redirect    off;
-    proxy_set_header  Host $host;
-    proxy_set_header  X-Real-IP $remote_addr;
-    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header  X-Forwarded-Host $server_name;
-  }
-
-    location /qbittorrent/ {
-    # proxy_pass        http://127.0.0.1:${QBITTORRENT_HTTP_PORT}/;
-    proxy_pass        https://127.0.0.1:${QBITTORRENT_HTTPS_PORT}/;
-    proxy_redirect    off;
-    proxy_set_header  Host $host;
-    proxy_set_header  X-Real-IP $remote_addr;
-    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header  X-Forwarded-Host $server_name;
-  }
-
-    location /radarr/ {
-    # proxy_pass        http://127.0.0.1:${RADARR_HTTP_PORT};
-    proxy_pass        https://127.0.0.1:${RADARR_HTTPS_PORT};
-    proxy_redirect    off;
-    proxy_set_header  Host $host;
-    proxy_set_header  X-Real-IP $remote_addr;
-    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header  X-Forwarded-Host $server_name;
+  location /radarr/ {
+    proxy_pass                  $radarr_upstream;
+    proxy_ssl_verify            off;
+    proxy_redirect              off;
+    proxy_http_version          1.1;
+    proxy_pass_request_headers  on;
+    proxy_set_header            Upgrade $http_upgrade;
+    proxy_set_header            Connection $http_connection;
+    proxy_set_header            Host $host;
+    proxy_set_header            X-Real-IP $remote_addr;
+    proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header            X-Forwarded-Proto $scheme;
+    proxy_set_header            X-Forwarded-Protocol $scheme;
+    proxy_set_header            X-Forwarded-Host $server_name;
+    access_log                  /var/log/nginx/services/radarr-access.log  stripsecrets;
+    error_log                   /var/log/nginx/services/radarr-error.log  warn;
   }
 
   location /readarr/ {
-    # proxy_pass        http://127.0.0.1:${READARR_HTTP_PORT};
-    proxy_pass        https://127.0.0.1:${READARR_HTTPS_PORT};
-    proxy_redirect    off;
-    proxy_set_header  Host $host;
-    proxy_set_header  X-Real-IP $remote_addr;
-    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header  X-Forwarded-Host $server_name;
+    proxy_pass                  $readarr_upstream;
+    proxy_ssl_verify            off;
+    proxy_redirect              off;
+    proxy_http_version          1.1;
+    proxy_pass_request_headers  on;
+    proxy_set_header            Upgrade $http_upgrade;
+    proxy_set_header            Connection $http_connection;
+    proxy_set_header            Host $host;
+    proxy_set_header            X-Real-IP $remote_addr;
+    proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header            X-Forwarded-Proto $scheme;
+    proxy_set_header            X-Forwarded-Protocol $scheme;
+    proxy_set_header            X-Forwarded-Host $server_name;
+    access_log                  /var/log/nginx/services/readarr-access.log  stripsecrets;
+    error_log                   /var/log/nginx/services/readarr-error.log  warn;
   }
 
   location /sonarr/ {
-    proxy_pass        http://127.0.0.1:${SONARR_HTTP_PORT};
-    # proxy_pass        https://127.0.0.1:${SONARR_HTTPS_PORT};
-    proxy_redirect    off;
-    proxy_set_header  Host $host;
-    proxy_set_header  X-Real-IP $remote_addr;
-    proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header  X-Forwarded-Host $server_name;
+    proxy_pass                  $sonarr_upstream;
+    proxy_ssl_verify            off;
+    proxy_redirect              off;
+    proxy_http_version          1.1;
+    proxy_pass_request_headers  on;
+    proxy_set_header            Upgrade $http_upgrade;
+    proxy_set_header            Connection $http_connection;
+    proxy_set_header            Host $host;
+    proxy_set_header            X-Real-IP $remote_addr;
+    proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header            X-Forwarded-Proto $scheme;
+    proxy_set_header            X-Forwarded-Protocol $scheme;
+    proxy_set_header            X-Forwarded-Host $server_name;
+    access_log                  /var/log/nginx/services/sonarr-access.log  stripsecrets;
+    error_log                   /var/log/nginx/services/sonarr-error.log  warn;
+  }
+
+  location /whisparr/ {
+    proxy_pass                  $whisparr_upstream;
+    proxy_ssl_verify            off;
+    proxy_redirect              off;
+    proxy_http_version          1.1;
+    proxy_pass_request_headers  on;
+    proxy_set_header            Upgrade $http_upgrade;
+    proxy_set_header            Connection $http_connection;
+    proxy_set_header            Host $host;
+    proxy_set_header            X-Real-IP $remote_addr;
+    proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header            X-Forwarded-Proto $scheme;
+    proxy_set_header            X-Forwarded-Protocol $scheme;
+    proxy_set_header            X-Forwarded-Host $server_name;
+    access_log                  /var/log/nginx/services/whisparr-access.log  stripsecrets;
+    error_log                   /var/log/nginx/services/whisparr-error.log  warn;
+  }
+
+## Observability
+  location /admin/cadvisor/ {
+    proxy_pass                  $cadvisor_upstream;
+    proxy_redirect              ~^/((?!admin/).*)$ /admin/cadvisor/$1;
+    proxy_http_version          1.1;
+    proxy_pass_request_headers  on;
+    proxy_set_header            Host $host;
+    proxy_set_header            X-Real-IP $remote_addr;
+    proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header            X-Forwarded-Proto $scheme;
+    access_log                  /var/log/nginx/services/cadvisor-access.log  stripsecrets;
+    error_log                   /var/log/nginx/services/cadvisor-error.log  warn;
+  }
+
+  location /admin/grafana/ {
+    proxy_pass                  $grafana_upstream;
+    proxy_redirect              off;
+    proxy_http_version          1.1;
+    proxy_pass_request_headers  on;
+    proxy_next_upstream         off;
+    proxy_set_header            Upgrade $http_upgrade;
+    proxy_set_header            Connection $http_connection;
+    proxy_set_header            Host $host;
+    proxy_set_header            X-Real-IP $remote_addr;
+    proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header            X-Forwarded-Proto $scheme;
+    proxy_set_header            X-Forwarded-Protocol $scheme;
+    proxy_set_header            X-Forwarded-Host $server_name;
+    access_log                  /var/log/nginx/services/grafana-access.log  stripsecrets if=$grafana_log_enabled;
+    error_log                   /var/log/nginx/services/grafana-error.log  warn;
+  }
+
+  location /admin/grafana/api/live/ {
+    proxy_pass                  $grafana_upstream;
+    proxy_redirect              off;
+    proxy_http_version          1.1;
+    proxy_set_header            Upgrade $http_upgrade;
+    proxy_set_header            Connection $connection_upgrade;
+    proxy_set_header            Host $host;
+    proxy_set_header            X-Real-IP $remote_addr;
+    proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header            X-Forwarded-Proto $scheme;
+    proxy_set_header            X-Forwarded-Protocol $scheme;
+    proxy_set_header            X-Forwarded-Host $server_name;
+    access_log                  off;
+    error_log                   /var/log/nginx/services/grafana-error.log  warn;
+  }
+
+  location /admin/node_exporter/ {
+    proxy_pass                  $node_exporter_upstream;
+    proxy_redirect              off;
+    proxy_http_version          1.1;
+    proxy_pass_request_headers  on;
+    proxy_set_header            Host $host;
+    proxy_set_header            X-Real-IP $remote_addr;
+    proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header            X-Forwarded-Proto $scheme;
+    access_log                  /var/log/nginx/services/node_exporter-access.log  stripsecrets;
+    error_log                   /var/log/nginx/services/node_exporter-error.log  warn;
+  }
+
+  location /admin/prometheus/ {
+    proxy_pass                  $prometheus_upstream;
+    proxy_redirect              off;
+    proxy_http_version          1.1;
+    proxy_pass_request_headers  on;
+    proxy_set_header            Upgrade $http_upgrade;
+    proxy_set_header            Connection $http_connection;
+    proxy_set_header            Host $host;
+    proxy_set_header            X-Real-IP $remote_addr;
+    proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header            X-Forwarded-Proto $scheme;
+    proxy_set_header            X-Forwarded-Protocol $scheme;
+    proxy_set_header            X-Forwarded-Host $server_name;
+    access_log                  /var/log/nginx/services/prometheus-access.log  stripsecrets;
+    error_log                   /var/log/nginx/services/prometheus-error.log  warn;
+  }
+
+## VPN
+  location /gluetun/ {
+    limit_except GET {
+      deny all;
+    }
+    rewrite                     ^/gluetun/(.*) /$1 break;
+    proxy_pass                  $gluetun_upstream;
+    proxy_redirect              off;
+    proxy_http_version          1.1;
+    proxy_set_header            Host $host;
+    proxy_set_header            X-Real-IP $remote_addr;
+    proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header            X-Forwarded-Proto $scheme;
+    access_log                  /var/log/nginx/services/gluetun-access.log  stripsecrets;
+    error_log                   /var/log/nginx/services/gluetun-error.log  warn;
+  }
+
+# ## Torrent
+#   location /deluge/ {
+#     # proxy_pass                http://gluetun:${DELUGE_HTTP_PORT}/;
+#     proxy_pass                  https://gluetun:${DELUGE_HTTPS_PORT}/;
+#     proxy_redirect              off;
+#     proxy_http_version          1.1;
+#     proxy_pass_request_headers  on;
+#     proxy_set_header            Upgrade $http_upgrade;
+#     proxy_set_header            Connection $http_connection;
+#     proxy_set_header            Host $host;
+#     proxy_set_header            X-Real-IP $remote_addr;
+#     proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+#     proxy_set_header            X-Forwarded-Proto $scheme;
+#     proxy_set_header            X-Forwarded-Protocol $scheme;
+#     proxy_set_header            X-Forwarded-Host $server_name;
+#     access_log                  /var/log/nginx/services/deluge-access.log  stripsecrets;
+
+#     # specific to Deluge
+#     proxy_set_header            X-Deluge-Base "/deluge/";
+#     add_header                  X-Frame-Options SAMEORIGIN;
+#   }
+
+  location /jdownloader2/ {
+    rewrite                     ^/jdownloader2/(.*) /$1 break;
+    proxy_pass                  $jdownloader2_upstream;
+    # jDownloader2's web auth builds redirects (e.g. to /login/) from the
+    # forwarded Host header as a full scheme://host/ URL that knows nothing
+    # about this subpath, so a plain "/" proxy_redirect won't match it;
+    # rewrite it back under /jdownloader2/ or it escapes the proxy prefix.
+    proxy_redirect              $scheme://$host/ $scheme://$host/jdownloader2/;
+    proxy_http_version          1.1;
+    proxy_pass_request_headers  on;
+    proxy_set_header            Upgrade $http_upgrade;
+    proxy_set_header            Connection $http_connection;
+    proxy_set_header            Host $host;
+    proxy_set_header            X-Real-IP $remote_addr;
+    proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header            X-Forwarded-Proto $scheme;
+    proxy_set_header            X-Forwarded-Protocol $scheme;
+    proxy_set_header            X-Forwarded-Host $server_name;
+    access_log                  /var/log/nginx/services/jdownloader2-access.log  stripsecrets;
+    error_log                   /var/log/nginx/services/jdownloader2-error.log  warn;
+  }
+
+  location /qbittorrent/ {
+    # proxy_pass                http://gluetun:${QBITTORRENT_HTTP_PORT}/;
+    rewrite                     ^/qbittorrent/(.*) /$1 break;
+    proxy_pass                  $qbittorrent_upstream;
+    proxy_ssl_verify            off;
+    proxy_redirect              off;
+    proxy_http_version          1.1;
+    proxy_pass_request_headers  on;
+    proxy_set_header            Upgrade $http_upgrade;
+    proxy_set_header            Connection $http_connection;
+    proxy_set_header            Host $host;
+    proxy_set_header            X-Real-IP $remote_addr;
+    proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header            X-Forwarded-Proto $scheme;
+    proxy_set_header            X-Forwarded-Protocol $scheme;
+    proxy_set_header            X-Forwarded-Host $server_name;
+    access_log                  /var/log/nginx/services/qbittorrent-access.log  stripsecrets;
+    error_log                   /var/log/nginx/services/qbittorrent-error.log  warn;
+  }
+
+## NZB
+  location /sabnzbd/ {
+    proxy_pass                  $sabnzbd_upstream;
+    proxy_ssl_verify            off;
+    proxy_redirect              off;
+    proxy_http_version          1.1;
+    proxy_pass_request_headers  on;
+    proxy_set_header            Upgrade $http_upgrade;
+    proxy_set_header            Connection $http_connection;
+    proxy_set_header            Host $host;
+    proxy_set_header            X-Real-IP $remote_addr;
+    proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header            X-Forwarded-Proto $scheme;
+    proxy_set_header            X-Forwarded-Protocol $scheme;
+    proxy_set_header            X-Forwarded-Host $server_name;
+    access_log                  /var/log/nginx/services/sabnzbd-access.log  stripsecrets;
+    error_log                   /var/log/nginx/services/sabnzbd-error.log  warn;
+  }
+
+  # Legacy NZBGet endpoint retained for existing setups only.
+  # location /nzbget/ {
+  #   # proxy_pass                http://gluetun:${NZBGET_HTTP_PORT};
+  #   proxy_pass                  https://gluetun:${NZBGET_HTTPS_PORT};
+  #   proxy_redirect              off;
+  #   proxy_http_version          1.1;
+  #   proxy_pass_request_headers  on;
+  #   proxy_set_header            Upgrade $http_upgrade;
+  #   proxy_set_header            Connection $http_connection;
+  #   proxy_set_header            Host $host;
+  #   proxy_set_header            X-Real-IP $remote_addr;
+  #   proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+  #   proxy_set_header            X-Forwarded-Proto $scheme;
+  #   proxy_set_header            X-Forwarded-Protocol $scheme;
+  #   proxy_set_header            X-Forwarded-Host $server_name;
+  #   access_log                  /var/log/nginx/services/nzbget-access.log  stripsecrets;
+  # }
+
+  location /nzbhydra2/ {
+    proxy_pass                  $nzbhydra2_upstream;
+    proxy_ssl_verify            off;
+    proxy_redirect              off;
+    proxy_http_version          1.1;
+    proxy_pass_request_headers  on;
+    proxy_set_header            Upgrade $http_upgrade;
+    proxy_set_header            Connection $http_connection;
+    proxy_set_header            Host $host;
+    proxy_set_header            X-Real-IP $remote_addr;
+    proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header            X-Forwarded-Proto $scheme;
+    proxy_set_header            X-Forwarded-Protocol $scheme;
+    proxy_set_header            X-Forwarded-Host $server_name;
+    access_log                  /var/log/nginx/services/nzbhydra2-access.log  stripsecrets;
+    error_log                   /var/log/nginx/services/nzbhydra2-error.log  warn;
+  }
+
+## Media Library
+  location /jellyfin/ {
+    client_max_body_size        20M;
+    proxy_pass                  $jellyfin_upstream;
+    proxy_redirect              off;
+    proxy_http_version          1.1;
+    proxy_pass_request_headers  on;
+    proxy_buffering             off;
+    proxy_set_header            Upgrade $http_upgrade;
+    proxy_set_header            Connection $http_connection;
+    proxy_set_header            Host $host;
+    proxy_set_header            X-Real-IP $remote_addr;
+    proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header            X-Forwarded-Proto $scheme;
+    proxy_set_header            X-Forwarded-Protocol $scheme;
+    proxy_set_header            X-Forwarded-Host $http_host;
+    add_header                  X-Content-Type-Options "nosniff" always;
+    add_header                  X-Frame-Options "SAMEORIGIN" always;
+    access_log                  /var/log/nginx/services/jellyfin-access.log  stripsecrets;
+    error_log                   /var/log/nginx/services/jellyfin-error.log  warn;
+  }
+
+  location /jellyfin/socket {
+    proxy_pass                  $jellyfin_upstream;
+    proxy_http_version          1.1;
+    proxy_set_header            Upgrade $http_upgrade;
+    proxy_set_header            Connection "upgrade";
+    proxy_set_header            Host $host;
+    proxy_set_header            X-Real-IP $remote_addr;
+    proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header            X-Forwarded-Proto $scheme;
+    proxy_set_header            X-Forwarded-Protocol $scheme;
+    proxy_set_header            X-Forwarded-Host $http_host;
+    access_log                  /var/log/nginx/services/jellyfin-access.log  stripsecrets;
+    error_log                   /var/log/nginx/services/jellyfin-error.log  warn;
+  }
+
+
+## Media Library (continued)
+  location /audiobookshelf/ {
+    proxy_pass                  $audiobookshelf_upstream;
+    proxy_redirect              off;
+    proxy_http_version          1.1;
+    proxy_pass_request_headers  on;
+    proxy_set_header            Upgrade $http_upgrade;
+    proxy_set_header            Connection $http_connection;
+    proxy_set_header            Host $host;
+    proxy_set_header            X-Real-IP $remote_addr;
+    proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header            X-Forwarded-Proto $scheme;
+    proxy_set_header            X-Forwarded-Protocol $scheme;
+    proxy_set_header            X-Forwarded-Host $server_name;
+    access_log                  /var/log/nginx/services/audiobookshelf-access.log  stripsecrets;
+    error_log                   /var/log/nginx/services/audiobookshelf-error.log  warn;
+  }
+
+  location /korsync/ {
+    rewrite                     ^/korsync(/.*)$ $1 break;
+    proxy_pass                  $korsync_upstream;
+    proxy_redirect              off;
+    proxy_http_version          1.1;
+    proxy_pass_request_headers  on;
+    proxy_set_header            Host $host;
+    proxy_set_header            X-Real-IP $remote_addr;
+    proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header            X-Forwarded-Proto $scheme;
+    proxy_set_header            X-Forwarded-Protocol $scheme;
+    proxy_set_header            X-Forwarded-Host $server_name;
+    access_log                  /var/log/nginx/services/korsync-access.log  stripsecrets;
+    error_log                   /var/log/nginx/services/korsync-error.log  warn;
+  }
+
+  location /calibre/ {
+    rewrite                     ^/calibre(/.*)$ $1 break;
+    proxy_pass                  $calibre_upstream;
+    proxy_ssl_verify            off;
+    proxy_redirect              off;
+    proxy_http_version          1.1;
+    proxy_pass_request_headers  on;
+    proxy_set_header            Upgrade $http_upgrade;
+    proxy_set_header            Connection $http_connection;
+    proxy_set_header            Host $host;
+    proxy_set_header            X-Real-IP $remote_addr;
+    proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header            X-Forwarded-Proto $scheme;
+    proxy_set_header            X-Forwarded-Protocol $scheme;
+    proxy_set_header            X-Forwarded-Host $server_name;
+    access_log                  /var/log/nginx/services/calibre-access.log  stripsecrets;
+    error_log                   /var/log/nginx/services/calibre-error.log  warn;
+  }
+
+  location /calibre_content/ {
+    proxy_pass                  $calibre_content_upstream;
+    proxy_redirect              off;
+    proxy_http_version          1.1;
+    proxy_pass_request_headers  on;
+    proxy_set_header            Upgrade $http_upgrade;
+    proxy_set_header            Connection $http_connection;
+    proxy_set_header            Host $host;
+    proxy_set_header            X-Real-IP $remote_addr;
+    proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header            X-Forwarded-Proto $scheme;
+    proxy_set_header            X-Forwarded-Protocol $scheme;
+    proxy_set_header            X-Forwarded-Host $server_name;
+    access_log                  /var/log/nginx/services/calibre_content-access.log  stripsecrets;
+    error_log                   /var/log/nginx/services/calibre_content-error.log  warn;
+  }
+
+  location /calibre_web/ {
+    proxy_pass                  $calibreweb_upstream;
+    proxy_ssl_verify            off;
+    proxy_redirect              off;
+    proxy_http_version          1.1;
+    proxy_pass_request_headers  on;
+    proxy_set_header            Upgrade $http_upgrade;
+    proxy_set_header            Connection $http_connection;
+    proxy_set_header            Host $host;
+    proxy_set_header            X-Real-IP $remote_addr;
+    proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header            X-Forwarded-Proto $scheme;
+    proxy_set_header            X-Forwarded-Protocol $scheme;
+    proxy_set_header            X-Forwarded-Host $server_name;
+    proxy_set_header            X-Script-Name /calibre_web;
+    access_log                  /var/log/nginx/services/calibre_web-access.log  stripsecrets;
+    error_log                   /var/log/nginx/services/calibre_web-error.log  warn;
+  }
+
+## NZB (continued)
+  location /lazylibrarian/ {
+    proxy_pass                  $lazylibrarian_upstream;
+    proxy_ssl_verify            off;
+    proxy_redirect              off;
+    proxy_http_version          1.1;
+    proxy_pass_request_headers  on;
+    proxy_set_header            Upgrade $http_upgrade;
+    proxy_set_header            Connection $http_connection;
+    proxy_set_header            Host $host;
+    proxy_set_header            X-Real-IP $remote_addr;
+    proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header            X-Forwarded-Proto $scheme;
+    proxy_set_header            X-Forwarded-Protocol $scheme;
+    proxy_set_header            X-Forwarded-Host $server_name;
+    access_log                  /var/log/nginx/services/lazylibrarian-access.log  stripsecrets;
+    error_log                   /var/log/nginx/services/lazylibrarian-error.log  warn;
+  }
+
+  location /mylar/ {
+    proxy_pass                  $mylar_upstream;
+    proxy_ssl_verify            off;
+    proxy_redirect              off;
+    proxy_http_version          1.1;
+    proxy_pass_request_headers  on;
+    proxy_set_header            Upgrade $http_upgrade;
+    proxy_set_header            Connection $http_connection;
+    proxy_set_header            Host $host;
+    proxy_set_header            X-Real-IP $remote_addr;
+    proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header            X-Forwarded-Proto $scheme;
+    proxy_set_header            X-Forwarded-Protocol $scheme;
+    proxy_set_header            X-Forwarded-Host $server_name;
+    access_log                  /var/log/nginx/services/mylar-access.log  stripsecrets;
+    error_log                   /var/log/nginx/services/mylar-error.log  warn;
+  }
+
+# ## Legacy Apps
+#   location /jackett/ {
+#     proxy_pass                  http://gluetun:${JACKETT_HTTP_PORT};
+#     proxy_redirect              off;
+#     proxy_http_version          1.1;
+#     proxy_pass_request_headers  on;
+#     proxy_set_header            Upgrade $http_upgrade;
+#     proxy_set_header            Connection $http_connection;
+#     proxy_set_header            Host $host;
+#     proxy_set_header            X-Real-IP $remote_addr;
+#     proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+#     proxy_set_header            X-Forwarded-Proto $scheme;
+#     proxy_set_header            X-Forwarded-Protocol $scheme;
+#     proxy_set_header            X-Forwarded-Host $server_name;
+#     access_log                  /var/log/nginx/services/jackett-access.log  stripsecrets;
+#   }
+
+}
+
+server {
+  listen ${NGINX_HTTPS_PORT} ssl;
+  server_name ${JELLYFIN_PROXY_DOMAIN};
+
+  ssl_certificate       /certs/server.crt;
+  ssl_certificate_key   /certs/server.key;
+  ssl_protocols         TLSv1.2 TLSv1.3;
+  ssl_ciphers           HIGH:!aNULL:!MD5;
+
+  client_max_body_size 20M;
+  add_header X-Content-Type-Options "nosniff" always;
+  add_header X-Frame-Options "SAMEORIGIN" always;
+
+  set $jellyfin_upstream http://jellyfin:${JELLYFIN_UPSTREAM_PORT};
+
+  location / {
+    proxy_pass                  $jellyfin_upstream;
+    proxy_redirect              off;
+    proxy_http_version          1.1;
+    proxy_pass_request_headers  on;
+    proxy_buffering             off;
+    proxy_set_header            Upgrade $http_upgrade;
+    proxy_set_header            Connection $http_connection;
+    proxy_set_header            Host $host;
+    proxy_set_header            X-Real-IP $remote_addr;
+    proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header            X-Forwarded-Proto $scheme;
+    proxy_set_header            X-Forwarded-Protocol $scheme;
+    proxy_set_header            X-Forwarded-Host $http_host;
+    access_log                  /var/log/nginx/services/jellyfin-access.log  stripsecrets;
+    error_log                   /var/log/nginx/services/jellyfin-error.log  warn;
+  }
+
+  location /socket {
+    proxy_pass                  $jellyfin_upstream;
+    proxy_http_version          1.1;
+    proxy_set_header            Upgrade $http_upgrade;
+    proxy_set_header            Connection "upgrade";
+    proxy_set_header            Host $host;
+    proxy_set_header            X-Real-IP $remote_addr;
+    proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header            X-Forwarded-Proto $scheme;
+    proxy_set_header            X-Forwarded-Protocol $scheme;
+    proxy_set_header            X-Forwarded-Host $http_host;
+    access_log                  /var/log/nginx/services/jellyfin-access.log  stripsecrets;
+    error_log                   /var/log/nginx/services/jellyfin-error.log  warn;
   }
 }

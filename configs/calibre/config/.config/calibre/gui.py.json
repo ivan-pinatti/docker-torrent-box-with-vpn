@@ -3,7 +3,7 @@
   "LRF_ebook_viewer_options": null,
   "asked_library_thing_password": false,
   "auto_download_cover": false,
-  "autolaunch_server": false,
+  "autolaunch_server": true,
   "column_map": [
     "title",
     "ondevice",
@@ -20,7 +20,7 @@
   "cover_flow_queue_length": 6,
   "default_send_to_device_action": "DeviceAction:main::False:False",
   "delete_news_from_library_on_upload": false,
-  "disable_animations": false,
+  "disable_animations": true,
   "disable_tray_notification": false,
   "enforce_cpu_limit": true,
   "get_social_metadata": true,
@@ -52,11 +52,26 @@
   "new_version_notification": true,
   "oldest_news": 60,
   "overwrite_author_title_metadata": true,
-  "plugin_search_history": [],
-  "save_to_disk_template_history": [],
+  "plugin_search_history": [
+    "autoconvert",
+    "wireless device",
+    "device",
+    "drm",
+    "duplicate",
+    "find duplicates",
+    "drm remover"
+  ],
+  "save_to_disk_template_history": [
+    "{authors}/{title}",
+    "{id}",
+    "{author_sort}/{title}/{title} - {authors}"
+  ],
   "scheduler_search_history": [],
   "search_as_you_type": false,
-  "send_to_device_template_history": [],
+  "send_to_device_template_history": [
+    "{id}",
+    "{author_sort}/{title} - {authors}"
+  ],
   "send_to_storage_card_by_default": false,
   "separate_cover_flow": false,
   "shortcuts_search_history": [],
@@ -67,7 +82,9 @@
     "__class__": "set",
     "__value__": []
   },
-  "tweaks_search_history": [],
+  "tweaks_search_history": [
+    "worker_limit"
+  ],
   "upload_news_to_device": true,
   "use_roman_numerals_for_series_number": true,
   "viewer_search_history": [],

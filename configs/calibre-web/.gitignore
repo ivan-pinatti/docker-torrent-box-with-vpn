@@ -15,5 +15,7 @@ secrets/*
 # config file
 !config/
 config/*
-!config/app.db
-!config/client_secrets.json
+# Google OAuth client secrets. Calibre-Web writes real client_id/
+# client_secret here once Google login is configured, so only the empty
+# seed is committed; `make bootstrap` copies it into place.
+!config/client_secrets.json.example
