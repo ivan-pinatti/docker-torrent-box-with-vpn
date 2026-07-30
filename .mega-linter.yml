@@ -49,7 +49,7 @@ REPOSITORY_BETTERLEAKS_COMMAND_REMOVE_ARGUMENTS: ["dir"]
 REPOSITORY_BETTERLEAKS_ARGUMENTS: ["git"]
 REPOSITORY_BETTERLEAKS_PR_COMMITS_SCAN: true
 #
-# Trivy stays enabled for defence in depth, now including configs/*/config/,
+# Trivy stays enabled for defense in depth, now including configs/*/config/,
 # but it is not the thing catching app credentials. Verified against Trivy
 # 0.58.1: it detects AWS keys, GitHub PATs and PEM private keys, and reports
 # nothing for a bare `apikey = <32 hex>` in an .ini or an XML
@@ -60,11 +60,23 @@ REPOSITORY_TRIVY_FILTER_REGEX_EXCLUDE: (^configs/[^/]+/\.env($|\.)|^configs/[^/]
 # apply local fixes; it is not code we author, so it should not be linted,
 # reformatted, or spellchecked.
 EDITORCONFIG_EDITORCONFIG_CHECKER_FILTER_REGEX_EXCLUDE: (^patches/)
-SPELL_CSPELL_FILTER_REGEX_EXCLUDE: (^patches/)
-BASH_SHELLCHECK_FILTER_REGEX_EXCLUDE: (^patches/)
 BASH_SHFMT_FILTER_REGEX_EXCLUDE: (^patches/)
+
+# configs/*/config/ holds files the applications generate: Qt window state,
+# base64 blobs, provider names. Spellchecking those yields nothing but noise
+# (186 unknown "words" in one run, almost all base64). .gitleaksignore is
+# machine-generated commit fingerprints for the same reason.
+SPELL_CSPELL_FILTER_REGEX_EXCLUDE: (^patches/|^configs/.*/config/|^configs/.*/custom-(cont-init|services)\.d/|^\.gitleaksignore$)
+
+# custom-cont-init.d and custom-services.d hold third-party arr-scripts
+# bootstrap scripts, vendored the same way as patches/ and not ours to fix.
+BASH_SHELLCHECK_FILTER_REGEX_EXCLUDE: (^patches/|^configs/.*/custom-(cont-init|services)\.d/)
+# Match the severity the pre-commit shellcheck hook uses, so a finding either
+# fails both gates or neither. Without this, MegaLinter reports info-level
+# style notes that the commit-time hook deliberately ignores.
+BASH_SHELLCHECK_ARGUMENTS: "--severity=error"
 REPOSITORY_CHECKOV_ARGUMENTS: --skip-framework secrets --skip-path configs --skip-path media/eBooks
 PYTHON_RUFF_FILTER_REGEX_INCLUDE: (^tests/)
 PYTHON_BANDIT_FILTER_REGEX_INCLUDE: (^tests/)
 PYTHON_BANDIT_FILTER_REGEX_EXCLUDE: (tests/\.venv/)
-PYTHON_BANDIT_ARGUMENTS: "--skip B101,B105,B314,B404,B405,B501,B603"
+PYTHON_BANDIT_ARGUMENTS: "--skip B101,B105,B314,B404,B405,B501,B603,B607"

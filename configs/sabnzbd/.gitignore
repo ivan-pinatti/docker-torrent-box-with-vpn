@@ -14,7 +14,7 @@ secrets/*
 
 # sabnzbd.ini is where SABnzbd keeps the real login password, api_key, and
 # nzb_key (see the note in .env.secrets.example), and SABnzbd rewrites the file
-# on shutdown, so the live file stays ignored. Only the sanitised seed is
+# on shutdown, so the live file stays ignored. Only the sanitized seed is
 # committed; `make bootstrap` copies it into place.
 !config/
 config/*

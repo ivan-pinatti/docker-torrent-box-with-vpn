@@ -1,7 +1,7 @@
 # betterleaks / gitleaks fingerprint allowlist.
 #
 # Every entry is a credential that exists only in already-published history on
-# `main`, in an app config file this branch has since replaced with a sanitised
+# `main`, in an app config file this branch has since replaced with a sanitized
 # `.example` seed. The files are no longer tracked, so nothing here can be
 # fixed by editing the working tree, and removing them would mean rewriting
 # published `main` history. They are recorded here so the scanner reports only

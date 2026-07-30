@@ -12,6 +12,7 @@
 # four of the nine credential shapes found in this repo's own config files went
 # undetected.
 
+# cspell:ignore Lfkw Miux SIYKJ
 title = "docker-torrent-box-with-vpn"
 
 [extend]
@@ -28,7 +29,7 @@ keywords = ["apikey", "api_key", "secret", "token", "password", "passkey", "pass
 
 # generic-api-key's value class excludes punctuation, so a generated password
 # containing symbols is invisible to it. rotate-passwords.sh can emit these when
-# ROTATE_PASSWORD_SPECIAL_CHARS=true.
+# ROTATE_PASSWORD_SPECIAL_CHARS=true.  # pragma: allowlist secret
 [[rules]]
 id = "config-symbolic-password"
 description = "Password containing symbols assigned in a config file"
@@ -94,16 +95,16 @@ regexes = [
   # patterns are compiled by Go's RE2, which has no backreferences, so the
   # obvious '''^(.)\1{7,}$''' is rejected at load time.
   '''^(?:0{8,}|1{8,}|2{8,}|3{8,}|4{8,}|5{8,}|6{8,}|7{8,}|8{8,}|9{8,})$''',
-  '''0123456789abcdef0123456789abcdef''',
-  '''fedcba9876543210fedcba9876543210''',
+  '''0123456789abcdef0123456789abcdef''',  # pragma: allowlist secret
+  '''fedcba9876543210fedcba9876543210''',  # pragma: allowlist secret
   '''(?i)changeme''',
   # NZBGet ships this API key in a comment in its own default nzbget.conf.
   # The file cannot carry an inline allow comment: NZBGet rewrites it on
   # shutdown and drops anything added.
-  '''3544646bfd1c535a9654645609800901''',
+  '''3544646bfd1c535a9654645609800901''',  # pragma: allowlist secret
   # Proton VPN example WireGuard pair that the README carried from commit
   # 8d0c224 until it was replaced with an all-zero key. Confirmed fake: neither
   # ever matched configs/gluetun/.secret.
-  '''KLjfIMiuxPskM4\+DaSUDmL2uSIYKJ9Wap\+CHvs0Lfkw=''',
-  '''jbTC1lYeHxiz1LNSJHQMKDTq6sHgcWxkBwXvt7GWo1E=''',
+  '''KLjfIMiuxPskM4\+DaSUDmL2uSIYKJ9Wap\+CHvs0Lfkw=''',  # pragma: allowlist secret
+  '''jbTC1lYeHxiz1LNSJHQMKDTq6sHgcWxkBwXvt7GWo1E=''',  # pragma: allowlist secret
 ]

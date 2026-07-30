@@ -50,3 +50,16 @@ max_line_length = 0
 # final newline would become part of the credential and silently break auth.
 [configs/*/secrets/*]
 insert_final_newline = false
+
+# Configuration the applications own and rewrite on shutdown. Normalizing these
+# is pointless (the app overwrites it on the next run) and it fights the
+# whitespace hooks, which skip the same paths in .pre-commit-config.yaml.
+[configs/{calibre,qbittorrent}/config/**]
+insert_final_newline = unset
+end_of_line = unset
+trim_trailing_whitespace = unset
+
+[configs/nzbget/config/nzbget.conf]
+insert_final_newline = unset
+end_of_line = unset
+trim_trailing_whitespace = unset

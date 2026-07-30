@@ -166,7 +166,7 @@ Several layers, because no single one covers the whole problem.
 
 Nothing rescans the whole history on every commit. The per-commit and per-PR
 layers are both incremental; the full sweep only happens outside a pull
-request, and at this repo's size it is not worth optimising away.
+request, and at this repo's size it is not worth optimizing away.
 
 Both layers read `.gitleaks.toml`, so a rule added there applies to the fast
 staged-diff check and the CI check alike. MegaLinter is configured to run
@@ -210,7 +210,7 @@ betterleaks git . -c .gitleaks.toml --log-opts="main..HEAD"
 Runtime databases, and configs an app rewrites on shutdown, must never be
 tracked. `tests/test_prerequisites.py` asserts this per path, so a reintroduced
 `.gitignore` negation fails the test suite rather than reaching a commit. When
-an app config needs a committed seed, track a sanitised `<file>.example` and let
+an app config needs a committed seed, track a sanitized `<file>.example` and let
 `scripts/seed-configs.sh` copy it into place on `make bootstrap`; the same test
 file asserts every seeded path has a tracked `.example`.
 

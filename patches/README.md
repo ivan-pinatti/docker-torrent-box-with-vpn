@@ -4,13 +4,13 @@ Vendored source files from upstream projects, mounted into their containers to
 replace the shipped copies at runtime. Each subdirectory mirrors the upstream
 layout so a bind mount lands the file in the right place.
 
-**These files are not covered by this repository's MIT licence.** They remain
-under their original upstream licences, and are redistributed here under those
+**These files are not covered by this repository's MIT license.** They remain
+under their original upstream licenses, and are redistributed here under those
 terms. See [LICENSE.md](../LICENSE.md).
 
 ## Contents
 
-| Directory | Upstream project | Upstream licence | Contents |
+| Directory | Upstream project | Upstream license | Contents |
 | --- | --- | --- | --- |
 | `mylar/` | [MylarComics/mylar3](https://github.com/mylarcomics/mylar3) | GPL-3.0-or-later | Five complete source files, modified to add qBittorrent HTTPS support (self-signed certificate handling in the torrent client and its config UI) |
 | `jdownloader2/` | [jlesage/docker-jdownloader-2](https://github.com/jlesage/docker-jdownloader-2) | MIT | `10-webauth.sh`, a modified copy of the image's own `cont-init.d` script, reading credentials from mounted compose secrets because the image's documented `CONT_ENV_*` Docker-secrets support does not fire |
@@ -18,7 +18,7 @@ terms. See [LICENSE.md](../LICENSE.md).
 `mylar/mylar/config.py` and `mylar/mylar/webserve.py` carry their original GPL
 headers. Do not strip them. Because these are complete GPL-3.0 files rather
 than small excerpts, anyone redistributing this repository is bound by GPL-3.0
-for the contents of `mylar/`, regardless of the MIT licence covering the rest.
+for the contents of `mylar/`, regardless of the MIT license covering the rest.
 
 ## Why these are vendored rather than forked
 

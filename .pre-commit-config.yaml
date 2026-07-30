@@ -59,8 +59,12 @@ repos:
         exclude: '^(docker-compose\.routes/.*\.ya?ml|configs/recyclarr/config/.*\.yml|\.secrets\.baseline)$'
       - id: destroyed-symlinks
       - id: detect-private-key
+      # configs/*/secrets/ is excluded because those single-line files are
+      # credential templates: seed-secrets.sh copies them into the live
+      # secret, and a trailing newline would land in the credential. The
+      # script strips it defensively, but the files should not churn.
       - id: end-of-file-fixer
-        exclude: &app_managed_or_patches '^(configs/calibre/config/.*|configs/nzbget/config/nzbget\.conf|configs/qbittorrent/config/.*|configs/recyclarr/config/.*\.yml|\.secrets\.baseline)$|^patches/'
+        exclude: &app_managed_or_patches '^(configs/calibre/config/.*|configs/nzbget/config/nzbget\.conf|configs/qbittorrent/config/.*|configs/[^/]+/secrets/.*|configs/recyclarr/config/.*\.yml|\.secrets\.baseline)$|^patches/'
       - id: mixed-line-ending
         exclude: *app_managed_or_patches
       - id: trailing-whitespace
@@ -84,7 +88,8 @@ repos:
     hooks:
       - id: shellcheck
         args: ["--severity=error"]
-        exclude: *vendored_patches
+        # Third-party arr-scripts bootstrap scripts, vendored like patches/.
+        exclude: '^patches/|^configs/.*/custom-(cont-init|services)\.d/'
 
   - repo: https://github.com/jumanjihouse/pre-commit-hooks
     rev: 3.0.0
@@ -103,7 +108,9 @@ repos:
     rev: v9.7.0
     hooks:
       - id: cspell
-        exclude: *vendored_patches
+        # configs/*/config/ is application-generated (Qt state, base64 blobs);
+        # .gitleaksignore is machine-generated commit fingerprints.
+        exclude: '^patches/|^configs/.*/config/|^configs/.*/custom-(cont-init|services)\.d/|^\.gitleaksignore$'
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.11.6

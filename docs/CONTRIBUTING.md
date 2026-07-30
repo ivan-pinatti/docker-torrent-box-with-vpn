@@ -92,7 +92,7 @@ these conventions:
   snake_case mirror of the script name, for example `rotate_nginx_logs` runs
   `scripts/rotate-nginx-logs.sh`.
 - Never commit live application state. Runtime databases and configs the app
-  rewrites on shutdown stay gitignored; commit a sanitised `<file>.example`
+  rewrites on shutdown stay gitignored; commit a sanitized `<file>.example`
   seed instead. See docs/HARDENING.md.
 - Never hardcode secrets. Secret values are written only to gitignored files
   (`.env.secrets`, `certs/cert.conf`), secrets printed to the terminal are

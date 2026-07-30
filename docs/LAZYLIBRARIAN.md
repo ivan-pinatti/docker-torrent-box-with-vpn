@@ -63,7 +63,7 @@ LazyLibrarian supports several source types of its own (`[GEN_*]` generic
 providers, plus per-service sections). Adding one means deciding what you are
 entitled to download from it, which is your call to make rather than something
 this repo should preselect. Refer to the
-[upstream LazyLibrarian wiki](https://gitlab.com/LazyLibrarian/LazyLibrarian/-/wikis/home)
+[upstream LazyLibrarian project](https://gitlab.com/LazyLibrarian/LazyLibrarian)
 for the section keys each provider type expects.
 
 ## Editing the config
