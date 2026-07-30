@@ -101,7 +101,7 @@ services:
       JELLYFIN_PublishedServerUrl: "http://${LAN_IP}"
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/jellyfin/config:/config:z
       - ${DATA_FOLDER}:/data:z
     healthcheck:
@@ -182,7 +182,7 @@ services:
     secrets: [calibre_username, calibre_password]
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/calibre/config:/config:z
       - ${CONFIG_FOLDER}/calibre/custom-cont-init.d:/custom-cont-init.d:z
       - ${DATA_FOLDER}:/data:z
@@ -220,7 +220,7 @@ services:
       DOCKER_MODS: linuxserver/mods:universal-calibre
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/calibre-web/config:/config:z
       - ${DATA_FOLDER}:/data:z
     healthcheck:

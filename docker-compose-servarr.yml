@@ -14,7 +14,7 @@ x-servarr-common: &servarr-common
     TZ: "${TIMEZONE}"
   volumes: &servarr-volumes
     - /etc/localtime:/etc/localtime:ro
-    - ${CERTIFICATES_FOLDER}:/certs:ro
+    - ${CERTIFICATES_FOLDER}:/certs:ro,z
     - ${DATA_FOLDER}:/data:z
 
 x-healthcheck-defaults: &healthcheck-defaults
@@ -87,7 +87,7 @@ services:
       PUID: "${BAZARR_UID}"
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/bazarr/config:/config:z
       - ${DATA_FOLDER}:/data:z
     healthcheck:
@@ -110,7 +110,7 @@ services:
       PUID: "${LIDARR_UID}"
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/lidarr/config:/config:z
       - ${CONFIG_FOLDER}/lidarr/custom-cont-init.d:/custom-cont-init.d:z
       - ${CONFIG_FOLDER}/lidarr/custom-services.d:/custom-services.d:z
@@ -138,7 +138,7 @@ services:
       PUID: "${PROWLARR_UID}"
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/prowlarr/config:/config:z
     healthcheck:
       <<: *healthcheck-defaults
@@ -163,7 +163,7 @@ services:
       PUID: "${RADARR_UID}"
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/radarr/config:/config:z
       - ${DATA_FOLDER}:/data:z
     healthcheck:
@@ -189,7 +189,7 @@ services:
       PUID: "${READARR_UID}"
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/readarr/config:/config:z
       - ${DATA_FOLDER}:/data:z
     healthcheck:
@@ -219,7 +219,7 @@ services:
       TZ: "${TIMEZONE}"
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/recyclarr/config:/config:z
 
   sonarr:
@@ -238,7 +238,7 @@ services:
       PUID: "${SONARR_UID}"
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/sonarr/config:/config:z
       - ${DATA_FOLDER}:/data:z
     healthcheck:
@@ -296,7 +296,7 @@ services:
       PUID: "${WHISPARR_UID}"
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/whisparr/config:/config:z
       - ${DATA_FOLDER}:/data:z
     healthcheck:
@@ -330,7 +330,7 @@ services:
       CALIBRE_CONFIG_DIRECTORY: /config/.calibre
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/lazylibrarian/config:/config:z
       - ${DATA_FOLDER}:/data:z
     healthcheck:
@@ -357,7 +357,7 @@ services:
       PUID: "${MYLAR_UID}"
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/mylar/config:/config:z
       - ${DATA_FOLDER}:/data:z
       - ${MEDIA_FOLDER}/Comics:/comics:z
@@ -386,5 +386,5 @@ services:
   #   env_file: ["${CONFIG_FOLDER}/notifiarr/.env"]
   #   volumes:
   #     - /etc/localtime:/etc/localtime:ro
-  #     - ${CERTIFICATES_FOLDER}:/certs:ro
+  #     - ${CERTIFICATES_FOLDER}:/certs:ro,z
   #     - ${CONFIG_FOLDER}/notifiarr/config:/config:z

@@ -284,7 +284,7 @@ services:
     secrets: [grafana_smtp_user, grafana_smtp_password]
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/grafana/config/grafana.ini:/etc/grafana/grafana.ini:z
       - ${CONFIG_FOLDER}/grafana/config/provisioning/dashboards:/etc/grafana/provisioning/dashboards:z
       - ${CONFIG_FOLDER}/grafana/config/provisioning/datasources:/etc/grafana/provisioning/datasources:z

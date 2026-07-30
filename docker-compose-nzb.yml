@@ -68,7 +68,7 @@ services:
       ]
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/sabnzbd/config:/config:z
       - ${USENET_FOLDER}:/data/usenet:z
     healthcheck:
@@ -109,7 +109,7 @@ services:
     secrets: [nzbget_username, nzbget_password]
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/nzbget/config:/config:z
       - ${USENET_FOLDER}:/data/usenet:z
   nzbhydra2:
@@ -130,7 +130,7 @@ services:
       ["PGID=${NZBHYDRA2_GID}", "PUID=${NZBHYDRA2_UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}", "HAS_IPV6=false"]
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/nzbhydra2/config:/config:z
       - ${TORRENT_BLACKHOLE_FOLDER}:/downloads/torrents/blackhole:z
       - ${USENET_BLACKHOLE_FOLDER}:/downloads/usenet/blackhole:z

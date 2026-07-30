@@ -66,7 +66,7 @@ services:
       ]
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ${CERTIFICATES_FOLDER}:/certs:ro
+      - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/qbittorrent/config:/config:z
       - ${TORRENTS_FOLDER}:/data/torrents:z
     healthcheck:
@@ -133,6 +133,6 @@ services:
   #     ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
   #   volumes:
   #     - /etc/localtime:/etc/localtime:ro
-  #     - ${CERTIFICATES_FOLDER}:/certs:ro
+  #     - ${CERTIFICATES_FOLDER}:/certs:ro,z
   #     - ${CONFIG_FOLDER}/deluge/config:/config:z
   #     - ${TORRENTS_FOLDER}:/data/torrents:z
