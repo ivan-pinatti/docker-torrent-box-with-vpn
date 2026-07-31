@@ -146,6 +146,11 @@ configs/flaresolverr/config/chromedriver:
 		echo "[configs/flaresolverr/config/chromedriver] Seeded from the flaresolverr image."; \
 	fi
 
+# configs/gluetun/.env is deliberately absent from bootstrap's seed-configs.sh
+# list below, unlike every other app's config: seed-gluetun-secret.sh already
+# seeds it earlier in this recipe, since a Proton VPN setup needs to edit it
+# right away. Seeding it again later would hit seed-configs.sh's
+# already-exists prompt on every single bootstrap run.
 bootstrap: configs/flaresolverr/config/chromedriver
 	@echo "Detecting UID/GID/TIMEZONE for .env..."
 	@./scripts/detect-system-values.sh .env
@@ -186,7 +191,6 @@ bootstrap: configs/flaresolverr/config/chromedriver
 	@./scripts/seed-secrets.sh configs/jellyfin
 	@./scripts/seed-secrets.sh configs/audiobookshelf
 	@./scripts/seed-secrets.sh configs/calibre-web
-	@./scripts/seed-configs.sh configs/gluetun/.env
 	@./scripts/seed-configs.sh configs/grafana/.env
 	@./scripts/seed-configs.sh configs/sonarr/config/config.xml
 	@./scripts/seed-configs.sh configs/radarr/config/config.xml

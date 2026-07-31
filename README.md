@@ -420,14 +420,16 @@ echo "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" > configs/gluetun/.secret  #
 > `make bootstrap` checks this file before doing anything else. If it's still
 > missing or the example placeholder above and you're running it in a real
 > terminal, it asks which provider you're using. For Proton VPN it walks you
-> through both this key and the server country below (Step 3) in one go. For
-> any other provider (NordVPN, ExpressVPN, PIA, AirVPN, TorGuard, ...) it
-> points you at [docs/VPN_PROVIDERS.md](docs/VPN_PROVIDERS.md) instead of
-> guessing, since their credentials aren't a WireGuard key at all (OpenVPN
-> username/password, preshared keys, reserved ports) — configure
-> `configs/gluetun/.env` and this file by hand, then re-run `make bootstrap`.
-> In a non-interactive run (CI, a scripted invocation) it always stops with
-> instructions, since there's nowhere to prompt — see
+> through both this key (input is hidden, like a password prompt) and the
+> server country below (Step 3, suggesting a different country each run
+> rather than always the same one) in one go. For any other provider
+> (NordVPN, ExpressVPN, PIA, AirVPN, TorGuard, ...) it points you at
+> [docs/VPN_PROVIDERS.md](docs/VPN_PROVIDERS.md) instead of guessing, since
+> their credentials aren't a WireGuard key at all (OpenVPN username/password,
+> preshared keys, reserved ports), so configure `configs/gluetun/.env` and
+> this file by hand, then re-run `make bootstrap`. In a non-interactive run
+> (CI, a scripted invocation) it always stops with instructions, since
+> there's nowhere to prompt. See
 > [6. Bootstrap directory ownership](#6-bootstrap-directory-ownership).
 
 **Step 3 — Configure server and port forwarding in `configs/gluetun/.env`:**
@@ -442,7 +444,7 @@ never show up as a diff you could accidentally commit. Edit the seeded
 VPN_SERVICE_PROVIDER=protonvpn
 VPN_TYPE=wireguard
 WIREGUARD_PRIVATE_KEY_SECRETFILE=/gluetun/.secret
-SERVER_COUNTRIES=Sweden   # or Netherlands, Switzerland, etc.
+SERVER_COUNTRIES=Netherlands   # or Sweden, Switzerland, etc.
 VPN_PORT_FORWARDING=on
 VPN_PORT_FORWARDING_PROVIDER=protonvpn
 HTTP_CONTROL_SERVER_ADDRESS=:8000

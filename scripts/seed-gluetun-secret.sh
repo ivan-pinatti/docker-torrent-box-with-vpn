@@ -55,8 +55,9 @@ case "$choice" in
   echo ""
   echo "Paste the WireGuard PrivateKey from your Proton VPN config (see"
   echo "README.md section 3.1 for how to generate one), or press Enter to"
-  echo "skip and edit ${SECRET_FILE} manually."
-  read -r -p "PrivateKey: " key
+  echo "skip and edit ${SECRET_FILE} manually. Input is hidden."
+  read -rs -p "PrivateKey: " key
+  echo ""
   if [[ -z "$key" ]]; then
     echo "ERROR: No key entered. Paste your own WireGuard PrivateKey into" >&2
     echo "${SECRET_FILE} before running bootstrap." >&2
@@ -65,16 +66,18 @@ case "$choice" in
   printf '%s' "$key" >"$SECRET_FILE"
   echo "[${SECRET_FILE}] Saved."
 
-  current_country="$(grep '^SERVER_COUNTRIES=' "$ENV_FILE" | cut -d= -f2-)"
+  # A rotating suggestion instead of always defaulting to the same country,
+  # so a fresh clone doesn't nudge every user onto the same Proton server.
+  countries=(Netherlands Switzerland Germany Iceland Norway Romania Spain France Canada Japan)
+  suggested_country="${countries[$((RANDOM % ${#countries[@]}))]}"
   echo ""
   echo "Which server country do you want to connect through? See"
   echo "https://github.com/qdm12/gluetun-wiki/blob/main/setup/providers/protonvpn.md"
-  echo "for the full list, or press Enter to keep the current default."
-  read -r -p "SERVER_COUNTRIES [${current_country}]: " country
-  if [[ -n "$country" ]]; then
-    sed -i "s/^SERVER_COUNTRIES=.*/SERVER_COUNTRIES=${country}/" "$ENV_FILE"
-    echo "[${ENV_FILE}] Set SERVER_COUNTRIES=${country}."
-  fi
+  echo "for the full list, or press Enter to use the suggestion."
+  read -r -p "SERVER_COUNTRIES [${suggested_country}]: " country
+  country="${country:-$suggested_country}"
+  sed -i "s/^SERVER_COUNTRIES=.*/SERVER_COUNTRIES=${country}/" "$ENV_FILE"
+  echo "[${ENV_FILE}] Set SERVER_COUNTRIES=${country}."
   ;;
 2)
   echo "" >&2
