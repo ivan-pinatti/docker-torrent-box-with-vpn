@@ -1,9 +1,16 @@
 # GNU Make reads the whole file for rules before giving up on a missing
-# include, so this rule lets *any* make target auto-create certs/cert.conf
-# from its .example on a fresh clone, instead of every invocation dying with
-# "No rule to make target 'certs/cert.conf'" before bootstrap ever runs.
-# seed-configs.sh only copies when the file is missing, so a real cert.conf
-# is never touched even if make considers it stale by mtime.
+# include, so this rule lets *any* make target auto-create .env and
+# certs/cert.conf from their .example on a fresh clone, instead of every
+# invocation dying with "No rule to make target '.env'" before bootstrap ever
+# runs. seed-configs.sh only copies when the file is missing, so a real .env
+# or cert.conf is never touched even if make considers it stale by mtime.
+# detect-system-values.sh only ever overwrites UID/GID/TIMEZONE while they
+# still match .env.example's own placeholder defaults, so it's likewise safe
+# to run on every invocation without clobbering a value you've customized.
+.env: .env.example
+	@./scripts/seed-configs.sh .env
+	@./scripts/detect-system-values.sh .env
+
 certs/cert.conf: certs/cert.conf.example
 	@./scripts/seed-configs.sh certs/cert.conf
 

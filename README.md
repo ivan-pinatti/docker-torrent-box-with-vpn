@@ -232,7 +232,7 @@ service health layers.
 - [Usage](#usage)
   - [0. Requirements](#0-requirements)
   - [1. Check your parameters](#1-check-your-parameters)
-  - [2.Create dotenv (.env) file](#2create-dotenv-env-file)
+  - [2. Create dotenv (.env) file](#2-create-dotenv-env-file)
   - [3. Edit dotenv (.env) file](#3-edit-dotenv-env-file)
     - [3.1. Gluetun VPN Gateway](#31-gluetun-vpn-gateway)
   - [4. Generate the certificate](#4-generate-the-certificate)
@@ -285,38 +285,43 @@ make check_requirements
 
 It will output all the versions for the requisites, if throws an error please install what is missing.
 
+Running this (or any other `make` target) also creates `.env` from
+`.env.example` automatically if it doesn't exist yet, and fills in `UID`,
+`GID`, and `TIMEZONE` with values detected from your host — see below. You
+don't need to run `cp .env.example .env` yourself first.
+
 ### 1. Check your parameters
 
-It is necessary to set a few parameters to match your environment.
-Check your user id and gid. To get this info, go to your shell and run:
+`.env` already has `UID`, `GID`, and `TIMEZONE` set for you, detected from
+your host the moment it was created (`id -u`/`id -g` for the former,
+`timedatectl`/`/etc/timezone` for the latter). Open `.env` and confirm they
+match what you expect, especially on a host with multiple users or an
+unusual container-runtime uid mapping. To check them yourself:
 
 ```shell
 id
 ```
 
-The result should be something like;
-
 ```shell
 uid=1000(my_user) gid=1000(my_user) groups=1000(my_user)
 ```
-
-After that, check your timezone. For that, run:
 
 ```shell
 cat /etc/timezone
 ```
 
-The result should be something like;
-
 ```shell
 America/Toronto
 ```
 
-Save these values for later reference.
+If they're wrong for your setup, edit `.env` directly; the auto-detection
+only ever runs once, the first time the file is created, and never
+overwrites a value you've since changed.
 
-### 2.Create dotenv (.env) file
+### 2. Create dotenv (.env) file
 
-Copy from the example and generate a new .env file.
+This already happened automatically in step 0. This step only matters if you
+want to regenerate `.env` from scratch, discarding any changes you've made:
 
 ```shell
 cp .env.example .env

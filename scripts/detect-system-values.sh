@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Usage: ./scripts/detect-system-values.sh <env-file>
+# Fills in UID, GID, and TIMEZONE with values detected from the host, but
+# only while they still match .env.example's own placeholder defaults
+# (UID=1000, GID=1000, TIMEZONE=America/Toronto). That makes it safe to call
+# on every `make` invocation without ever touching a value the user has
+# already customized.
+
+if [[ $# -ne 1 ]]; then
+  echo "Usage: $0 <env-file>" >&2
+  exit 1
+fi
+
+readonly ENV_FILE="$1"
+
+[[ -f "$ENV_FILE" ]] || exit 0
+
+detected_uid="$(id -u)"
+detected_gid="$(id -g)"
+detected_timezone="$(timedatectl show --property=Timezone --value 2>/dev/null || true)"
+if [[ -z "$detected_timezone" && -f /etc/timezone ]]; then
+  detected_timezone="$(cat /etc/timezone)"
+fi
+if [[ -z "$detected_timezone" && -L /etc/localtime ]]; then
+  detected_timezone="$(readlink /etc/localtime | sed 's#.*/zoneinfo/##')"
+fi
+
+if [[ "$detected_uid" != "1000" ]] && grep -qx "UID=1000" "$ENV_FILE"; then
+  sed -i "s/^UID=1000\$/UID=${detected_uid}/" "$ENV_FILE"
+  echo "[$ENV_FILE] Set UID=${detected_uid} (detected via 'id -u')."
+fi
+
+if [[ "$detected_gid" != "1000" ]] && grep -qx "GID=1000" "$ENV_FILE"; then
+  sed -i "s/^GID=1000\$/GID=${detected_gid}/" "$ENV_FILE"
+  echo "[$ENV_FILE] Set GID=${detected_gid} (detected via 'id -g')."
+fi
+
+if [[ -n "$detected_timezone" && "$detected_timezone" != "America/Toronto" ]] &&
+  grep -qx "TIMEZONE=America/Toronto" "$ENV_FILE"; then
+  sed -i "s#^TIMEZONE=America/Toronto\$#TIMEZONE=${detected_timezone}#" "$ENV_FILE"
+  echo "[$ENV_FILE] Set TIMEZONE=${detected_timezone} (detected from the host)."
+fi
