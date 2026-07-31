@@ -221,7 +221,7 @@ bootstrap: configs/flaresolverr/config/chromedriver
 	@echo "Waiting for Gluetun to establish the VPN connection..."
 	@elapsed=0; status=""; \
 	while [ "$$elapsed" -lt 90 ]; do \
-		status="$$($(COMPOSE) $(COMPOSE_FILES) exec -T gluetun wget -qO- http://127.0.0.1:8000/v1/vpn/status 2>/dev/null | grep -o '"running"')"; \
+		status="$$($(COMPOSE) $(COMPOSE_FILES) --profile enabled exec -T gluetun wget -qO- http://127.0.0.1:8000/v1/vpn/status 2>/dev/null | grep -o '"running"')"; \
 		[ -n "$$status" ] && break; \
 		sleep 5; elapsed=$$((elapsed + 5)); \
 	done; \
