@@ -408,6 +408,10 @@ echo "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" > configs/gluetun/.secret  #
 > If upgrading from the old dedicated ProtonVPN container, copy your old Proton
 > WireGuard private key into `configs/gluetun/.secret` before removing any
 > legacy files.
+>
+> `make bootstrap` checks this file before doing anything else and refuses to
+> continue if it's still missing or the example placeholder above — see
+> [6. Bootstrap directory ownership](#6-bootstrap-directory-ownership).
 
 **Step 3 — Configure server and port forwarding in `configs/gluetun/.env`:**
 
