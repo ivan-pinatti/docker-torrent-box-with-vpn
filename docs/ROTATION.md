@@ -170,6 +170,13 @@ alphabetical by service.
 - **Calibre-Web**: writes a new password hash for the `calibre` user
   directly to `app.db` (no API exists) and updates the shared secret file
   `configs/calibre-web/secrets/password.txt`, which Homepage reads directly.
+  The write always succeeds (the `user` row ships with the image), but
+  post-rotation validation needs HTTPS reachable, which needs Calibre-Web's
+  own HTTPS and library set up through its admin UI at least once — a
+  real first-run manual step, like Jellyfin's setup wizard. Until that's
+  done, validation skips with a note instead of failing; it also reinstalls
+  its Calibre mod on every restart, so a healthy container can take longer
+  than the usual validation window even after setup is done.
 - **Grafana**: changes the admin password over Grafana's API, then keeps
   `grafana.ini` and the shared secret file
   `configs/grafana/secrets/homepage_auth.txt` (the precomputed Basic-auth

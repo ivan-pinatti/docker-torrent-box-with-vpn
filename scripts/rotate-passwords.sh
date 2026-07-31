@@ -1405,6 +1405,36 @@ calibre_web_login_ok() {
   [[ "$code" == "200" ]]
 }
 
+# HTTPS and the library both have to be configured through Calibre-Web's own
+# admin UI at least once before this container answers on its HTTPS port at
+# all (a real first-run manual step, like Jellyfin's setup wizard) — any
+# curl against it fails at the TLS handshake, not with an HTTP error code,
+# so this can't be told apart from "still starting" by status code alone.
+calibre_web_https_up() {
+  container_curl calibre-web -sk -o /dev/null \
+    "https://127.0.0.1:${CALIBRE_WEB_CONTAINER_HTTPS_PORT}/"
+}
+
+validate_calibre_web() {
+  local password="$1"
+  local status=0
+  if ! retry 180 calibre_web_https_up; then
+    echo "[Calibre-Web] HTTPS still not reachable after 180s; skipping. Either"
+    echo "[Calibre-Web] it's unusually slow to start (it reinstalls its Calibre"
+    echo "[Calibre-Web] mod on every restart), or its own HTTPS/library setup"
+    echo "[Calibre-Web] hasn't been completed yet — see docs/ROTATION.md."
+    echo "$status" >"$VALIDATE_TMPDIR/calibre-web.result"
+    return
+  fi
+  if retry 180 calibre_web_login_ok "$password"; then
+    printf "%-14s  OK\n" "calibre-web"
+  else
+    printf "%-14s  FAILED\n" "calibre-web"
+    status=1
+  fi
+  echo "$status" >"$VALIDATE_TMPDIR/calibre-web.result"
+}
+
 grafana_login_ok() {
   container_curl grafana -s --fail -o /dev/null -u "admin:$1" \
     http://127.0.0.1:3000/api/user
@@ -1502,7 +1532,7 @@ validate_calibre() {
   fi
   echo "[Calibre] Not responding after 90s; restarting the desktop service..."
   podman exec calibre s6-svc -r /run/service/svc-de >/dev/null 2>&1 || true
-  if retry 300 calibre_login_ok "$password"; then
+  if retry 420 calibre_login_ok "$password"; then
     printf "%-14s  OK\n" "calibre"
   else
     printf "%-14s  FAILED\n" "calibre"
@@ -1534,7 +1564,7 @@ VALIDATE_TMPDIR="$(mktemp -d)"
 [[ -n "$SUMMARY_AUDIOBOOKSHELF_NEW" ]] && queue_validation audiobookshelf validate audiobookshelf 180 audiobookshelf_login_ok "$SUMMARY_AUDIOBOOKSHELF_NEW"
 [[ -n "$SUMMARY_BAZARR_NEW" ]] && queue_validation bazarr validate bazarr 180 bazarr_login_ok "$SUMMARY_BAZARR_NEW"
 [[ -n "$SUMMARY_CALIBRE_NEW" ]] && queue_validation calibre validate_calibre "$SUMMARY_CALIBRE_NEW"
-[[ -n "$SUMMARY_CALIBRE_WEB_NEW" ]] && queue_validation calibre-web validate calibre-web 180 calibre_web_login_ok "$SUMMARY_CALIBRE_WEB_NEW"
+[[ -n "$SUMMARY_CALIBRE_WEB_NEW" ]] && queue_validation calibre-web validate_calibre_web "$SUMMARY_CALIBRE_WEB_NEW"
 [[ -n "$SUMMARY_GRAFANA_NEW" ]] && queue_validation grafana validate grafana 180 grafana_login_ok "$SUMMARY_GRAFANA_NEW"
 [[ -n "$SUMMARY_JDOWNLOADER2_NEW" ]] && queue_validation jdownloader2 validate jdownloader2 180 jdownloader2_login_ok "$SUMMARY_JDOWNLOADER2_NEW"
 [[ -n "$SUMMARY_JELLYFIN_NEW" ]] && queue_validation jellyfin validate jellyfin 180 jellyfin_login_ok "$SUMMARY_JELLYFIN_NEW"
