@@ -458,6 +458,11 @@ HTTP proxy handles VPN egress.
 
 At this moment the stack only supports self-signed certificates.
 
+`make bootstrap` generates one automatically if `certs/server.pfx` doesn't
+already exist yet, so this step is only necessary if you want to customize
+the certificate's subject fields first, or if you're supplying your own
+certificate (see 4.1 below) and want to do that before bootstrapping.
+
 Certificate subject fields live in `certs/cert.conf`, not `.env`. Running any
 `make` target seeds it from `certs/cert.conf.example` the first time, so edit
 it after that first run if you want to change a parameter:
@@ -621,7 +626,9 @@ make bootstrap
 
 This remaps managed data, config, and storage paths into the container user
 namespace, and seeds every app's config from its committed `.example`
-templates. It's meant to run once: it also starts the stack (`make start`),
+templates. It's meant to run once: it also generates the self-signed
+certificate (see [Generate the certificate](#4-generate-the-certificate)
+above) if one doesn't already exist, starts the stack (`make start`),
 applies the Jellyfin base URL/trusted proxy settings from `JELLYFIN_BASE_URL`
 and `JELLYFIN_KNOWN_PROXY` now that Jellyfin has generated its own config, and
 finally wires the app-to-app connections that only exist through each app's
