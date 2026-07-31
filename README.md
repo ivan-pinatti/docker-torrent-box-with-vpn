@@ -626,9 +626,18 @@ make bootstrap
 
 This remaps managed data, config, and storage paths into the container user
 namespace, and seeds every app's config from its committed `.example`
-templates. It's meant to run once: it also generates the self-signed
-certificate (see [Generate the certificate](#4-generate-the-certificate)
-above) if one doesn't already exist, starts the stack (`make start`),
+templates. It's meant to run once. It first checks that
+`configs/gluetun/.secret` has been filled in with your own WireGuard key (see
+[3.1. Gluetun VPN Gateway](#31-gluetun-vpn-gateway)) and refuses to start
+anything if it's still missing or the example placeholder, since every
+torrent/usenet app depends on Gluetun's network namespace. It also generates
+the self-signed certificate (see [Generate the certificate](#4-generate-the-certificate)
+above) if one doesn't already exist, starts the stack (`make start`), then
+waits up to 90 seconds for Gluetun to actually report a connected VPN before
+continuing — if that times out (wrong key, or provider/server settings in
+`configs/gluetun/.env` that don't match your account), bootstrap stops with an
+error instead of continuing into confusing failures further down the chain.
+Once Gluetun is confirmed connected, bootstrap
 applies the Jellyfin base URL/trusted proxy settings from `JELLYFIN_BASE_URL`
 and `JELLYFIN_KNOWN_PROXY` now that Jellyfin has generated its own config, and
 finally wires the app-to-app connections that only exist through each app's

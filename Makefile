@@ -141,6 +141,19 @@ configs/flaresolverr/config/chromedriver:
 	fi
 
 bootstrap: configs/flaresolverr/config/chromedriver
+	@echo "Checking Gluetun VPN credentials..."
+	@if [ ! -s configs/gluetun/.secret ]; then \
+		echo "ERROR: configs/gluetun/.secret is missing or empty."; \
+		echo "Gluetun needs your own WireGuard private key before bootstrap can start"; \
+		echo "the stack. See README.md section 3.1 (Gluetun VPN Gateway) for how to get"; \
+		echo "one from your VPN provider and paste it in, then re-run 'make bootstrap'."; \
+		exit 1; \
+	fi
+	@if grep -qx "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" configs/gluetun/.secret; then \
+		echo "ERROR: configs/gluetun/.secret still has README.md's example placeholder key."; \
+		echo "Paste your own WireGuard PrivateKey there before running bootstrap."; \
+		exit 1; \
+	fi
 	@echo "Remapping directory ownership into the container user namespace..."
 	@echo "  (rootless Podman: host uid maps to uid=0 inside containers;"
 	@echo "   app processes run as service-specific non-root UIDs)"
@@ -205,6 +218,22 @@ bootstrap: configs/flaresolverr/config/chromedriver
 	fi
 	@echo "Starting the stack for the first time..."
 	@$(MAKE) --no-print-directory start
+	@echo "Waiting for Gluetun to establish the VPN connection..."
+	@elapsed=0; status=""; \
+	while [ "$$elapsed" -lt 90 ]; do \
+		status="$$($(COMPOSE) $(COMPOSE_FILES) exec -T gluetun wget -qO- http://127.0.0.1:8000/v1/vpn/status 2>/dev/null | grep -o '"running"')"; \
+		[ -n "$$status" ] && break; \
+		sleep 5; elapsed=$$((elapsed + 5)); \
+	done; \
+	if [ -z "$$status" ]; then \
+		echo "ERROR: Gluetun did not report a running VPN connection after 90s."; \
+		echo "This usually means the WireGuard key in configs/gluetun/.secret is wrong,"; \
+		echo "or the provider/server settings in configs/gluetun/.env don't match your"; \
+		echo "account. Check 'podman logs gluetun' for the exact reason, fix"; \
+		echo "configs/gluetun/.env or .secret, then re-run 'make bootstrap'."; \
+		exit 1; \
+	fi
+	@echo "Gluetun VPN connection established."
 	@echo "Applying Jellyfin network settings now that it has generated its config..."
 	@$(MAKE) --no-print-directory configure_jellyfin_network
 	@echo "Wiring app-to-app connections..."
