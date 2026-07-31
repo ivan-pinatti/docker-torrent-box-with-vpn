@@ -2,42 +2,90 @@
 set -euo pipefail
 
 # Usage: ./scripts/seed-gluetun-secret.sh
-# Ensures configs/gluetun/.secret holds a real WireGuard private key before
-# bootstrap starts the stack, since every torrent/usenet app depends on
-# Gluetun's network namespace. If it's missing, empty, or still README.md's
-# example placeholder, and stdin is a real terminal, prompts to paste one in
-# directly. In a non-interactive run (CI, scripted bootstrap) there's nowhere
-# to prompt, so it fails with instructions instead.
+# Ensures Gluetun has a working VPN configuration before bootstrap starts the
+# stack, since every torrent/usenet app depends on its network namespace.
+# Checks configs/gluetun/.secret for a real WireGuard key; if it's missing,
+# empty, or still README.md's example placeholder, and stdin is a real
+# terminal, offers a guided setup. Proton VPN is the only provider walked
+# through fully (WireGuard key plus server country), since it's this
+# project's default and Gluetun's other supported providers use different
+# auth models entirely (OpenVPN username/password, preshared keys, reserved
+# ports) that would be wrong to guess at generically. Any other provider gets
+# pointed at docs/VPN_PROVIDERS.md to configure configs/gluetun/.env and
+# .secret by hand. In a non-interactive run (CI, scripted bootstrap) there's
+# nowhere to prompt, so it always fails fast with instructions.
 
-readonly SECRET_FILE="configs/gluetun/.secret"                      # pragma: allowlist secret
+readonly SECRET_FILE="configs/gluetun/.secret" # pragma: allowlist secret
+readonly ENV_FILE="configs/gluetun/.env"
 readonly PLACEHOLDER="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" # pragma: allowlist secret
 
-needs_key() {
+needs_setup() {
   [[ ! -s "$SECRET_FILE" ]] || grep -qx "$PLACEHOLDER" "$SECRET_FILE"
 }
 
-if ! needs_key; then
+fail_with_instructions() {
+  echo "ERROR: $SECRET_FILE is missing or empty." >&2
+  echo "Gluetun needs your own VPN credentials before bootstrap can start the" >&2
+  echo "stack. See README.md section 3.1 (Gluetun VPN Gateway) for Proton VPN," >&2
+  echo "or docs/VPN_PROVIDERS.md for other providers, then re-run 'make bootstrap'." >&2
+  exit 1
+}
+
+if ! needs_setup; then
   exit 0
 fi
 
 if [[ ! -t 0 ]]; then
-  echo "ERROR: $SECRET_FILE is missing or empty." >&2
-  echo "Gluetun needs your own WireGuard private key before bootstrap can start" >&2
-  echo "the stack. See README.md section 3.1 (Gluetun VPN Gateway) for how to get" >&2
-  echo "one from your VPN provider and paste it in, then re-run 'make bootstrap'." >&2
-  exit 1
+  fail_with_instructions
 fi
+
+# .env is normally seeded later in bootstrap's seed-configs.sh pass, but a
+# Proton setup below edits SERVER_COUNTRIES in it, so it must exist first.
+./scripts/seed-configs.sh "$ENV_FILE" >/dev/null
 
 echo ""
-echo "Gluetun needs your WireGuard private key (see README.md section 3.1 for"
-echo "how to get one from your VPN provider)."
-read -r -p "Paste the PrivateKey value, or press Enter to skip and edit ${SECRET_FILE} manually: " key
+echo "Gluetun needs a VPN configuration before the stack can start."
+echo "Which provider are you using?"
+echo "  1) Proton VPN (guided WireGuard setup)"
+echo "  2) Something else (NordVPN, ExpressVPN, PIA, AirVPN, TorGuard, ...)"
+read -r -p "Choice [1/2]: " choice
 
-if [[ -z "$key" ]]; then
-  echo "ERROR: No key entered. Paste your own WireGuard PrivateKey into" >&2
-  echo "${SECRET_FILE} before running bootstrap." >&2
+case "$choice" in
+1)
+  echo ""
+  echo "Paste the WireGuard PrivateKey from your Proton VPN config (see"
+  echo "README.md section 3.1 for how to generate one), or press Enter to"
+  echo "skip and edit ${SECRET_FILE} manually."
+  read -r -p "PrivateKey: " key
+  if [[ -z "$key" ]]; then
+    echo "ERROR: No key entered. Paste your own WireGuard PrivateKey into" >&2
+    echo "${SECRET_FILE} before running bootstrap." >&2
+    exit 1
+  fi
+  printf '%s' "$key" >"$SECRET_FILE"
+  echo "[${SECRET_FILE}] Saved."
+
+  current_country="$(grep '^SERVER_COUNTRIES=' "$ENV_FILE" | cut -d= -f2-)"
+  echo ""
+  echo "Which server country do you want to connect through? See"
+  echo "https://github.com/qdm12/gluetun-wiki/blob/main/setup/providers/protonvpn.md"
+  echo "for the full list, or press Enter to keep the current default."
+  read -r -p "SERVER_COUNTRIES [${current_country}]: " country
+  if [[ -n "$country" ]]; then
+    sed -i "s/^SERVER_COUNTRIES=.*/SERVER_COUNTRIES=${country}/" "$ENV_FILE"
+    echo "[${ENV_FILE}] Set SERVER_COUNTRIES=${country}."
+  fi
+  ;;
+2)
+  echo "" >&2
+  echo "ERROR: Only Proton VPN can be configured interactively right now." >&2
+  echo "See docs/VPN_PROVIDERS.md for NordVPN, ExpressVPN, PIA, AirVPN," >&2
+  echo "TorGuard, and other providers, then edit ${ENV_FILE} and" >&2
+  echo "${SECRET_FILE} by hand, and re-run 'make bootstrap'." >&2
   exit 1
-fi
-
-printf '%s' "$key" >"$SECRET_FILE"
-echo "[${SECRET_FILE}] Saved."
+  ;;
+*)
+  echo "ERROR: Invalid choice." >&2
+  exit 1
+  ;;
+esac

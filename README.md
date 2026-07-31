@@ -416,9 +416,15 @@ echo "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" > configs/gluetun/.secret  #
 >
 > `make bootstrap` checks this file before doing anything else. If it's still
 > missing or the example placeholder above and you're running it in a real
-> terminal, it prompts you to paste the key in directly; in a non-interactive
-> run (CI, a scripted invocation) it instead stops with instructions, since
-> there's nowhere to prompt — see
+> terminal, it asks which provider you're using. For Proton VPN it walks you
+> through both this key and the server country below (Step 3) in one go. For
+> any other provider (NordVPN, ExpressVPN, PIA, AirVPN, TorGuard, ...) it
+> points you at [docs/VPN_PROVIDERS.md](docs/VPN_PROVIDERS.md) instead of
+> guessing, since their credentials aren't a WireGuard key at all (OpenVPN
+> username/password, preshared keys, reserved ports) — configure
+> `configs/gluetun/.env` and this file by hand, then re-run `make bootstrap`.
+> In a non-interactive run (CI, a scripted invocation) it always stops with
+> instructions, since there's nowhere to prompt — see
 > [6. Bootstrap directory ownership](#6-bootstrap-directory-ownership).
 
 **Step 3 — Configure server and port forwarding in `configs/gluetun/.env`:**
@@ -648,9 +654,9 @@ templates. It's meant to run once. It first checks that
 `configs/gluetun/.secret` has been filled in with your own WireGuard key (see
 [3.1. Gluetun VPN Gateway](#31-gluetun-vpn-gateway)), since every
 torrent/usenet app depends on Gluetun's network namespace — in a terminal it
-prompts you to paste the key in directly if it's still missing or the
-example placeholder; in a non-interactive run it stops with instructions
-instead. It also generates
+walks through a full guided setup for Proton VPN, or points elsewhere for any
+other provider, if it's still missing or the example placeholder; in a
+non-interactive run it stops with instructions instead. It also generates
 the self-signed certificate (see [Generate the certificate](#4-generate-the-certificate)
 above) if one doesn't already exist, starts the stack (`make start`), then
 waits up to 90 seconds for Gluetun to actually report a connected VPN before
