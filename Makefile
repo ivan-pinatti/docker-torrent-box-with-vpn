@@ -4,12 +4,11 @@
 # invocation dying with "No rule to make target '.env'" before bootstrap ever
 # runs. seed-configs.sh only copies when the file is missing, so a real .env
 # or cert.conf is never touched even if make considers it stale by mtime.
-# detect-system-values.sh only ever overwrites UID/GID/TIMEZONE while they
-# still match .env.example's own placeholder defaults, so it's likewise safe
-# to run on every invocation without clobbering a value you've customized.
+# This is bare plumbing only: detecting UID/GID/TIMEZONE is a visible part of
+# `make bootstrap` itself (see its recipe below), not a side effect of
+# whichever target happens to run first, including check_requirements.
 .env: .env.example
 	@./scripts/seed-configs.sh .env
-	@./scripts/detect-system-values.sh .env
 
 certs/cert.conf: certs/cert.conf.example
 	@./scripts/seed-configs.sh certs/cert.conf
@@ -148,6 +147,8 @@ configs/flaresolverr/config/chromedriver:
 	fi
 
 bootstrap: configs/flaresolverr/config/chromedriver
+	@echo "Detecting UID/GID/TIMEZONE for .env..."
+	@./scripts/detect-system-values.sh .env
 	@echo "Checking Gluetun VPN credentials..."
 	@./scripts/seed-gluetun-secret.sh
 	@echo "Remapping directory ownership into the container user namespace..."

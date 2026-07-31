@@ -284,19 +284,20 @@ make check_requirements
 ```
 
 It will output all the versions for the requisites, if throws an error please install what is missing.
-
-Running this (or any other `make` target) also creates `.env` from
-`.env.example` automatically if it doesn't exist yet, and fills in `UID`,
-`GID`, and `TIMEZONE` with values detected from your host — see below. You
-don't need to run `cp .env.example .env` yourself first.
+This target (like every `make` target) needs `.env` to exist to parse at
+all, so it also transparently creates one from `.env.example` if you haven't
+already — that's just plumbing, not something this step configures. The
+values that actually matter to you (`UID`, `GID`, `TIMEZONE`, your VPN
+credentials) get set up during `make bootstrap` in step 6, not here.
 
 ### 1. Check your parameters
 
-`.env` already has `UID`, `GID`, and `TIMEZONE` set for you, detected from
-your host the moment it was created (`id -u`/`id -g` for the former,
-`timedatectl`/`/etc/timezone` for the latter). Open `.env` and confirm they
-match what you expect, especially on a host with multiple users or an
-unusual container-runtime uid mapping. To check them yourself:
+`make bootstrap` (step 6) detects `UID`, `GID`, and `TIMEZONE` from your host
+and writes them into `.env` for you (`id -u`/`id -g` for the former,
+`timedatectl`/`/etc/timezone` for the latter). You don't need to look these
+up yourself, but if you want to sanity-check what it will detect, or your
+setup has multiple users or an unusual container-runtime uid mapping worth
+overriding by hand afterward:
 
 ```shell
 id
@@ -314,14 +315,16 @@ cat /etc/timezone
 America/Toronto
 ```
 
-If they're wrong for your setup, edit `.env` directly; the auto-detection
-only ever runs once, the first time the file is created, and never
-overwrites a value you've since changed.
+Auto-detection only ever fills in a value while it still matches
+`.env.example`'s own placeholder default, so editing `.env` yourself at any
+point (before or after running bootstrap) is always safe — it never
+overwrites a value you've changed.
 
 ### 2. Create dotenv (.env) file
 
-This already happened automatically in step 0. This step only matters if you
-want to regenerate `.env` from scratch, discarding any changes you've made:
+Handled automatically the first time you run any `make` command (see step
+0). This step only matters if you want to regenerate `.env` from scratch,
+discarding any changes you've made:
 
 ```shell
 cp .env.example .env
@@ -650,7 +653,9 @@ make bootstrap
 
 This remaps managed data, config, and storage paths into the container user
 namespace, and seeds every app's config from its committed `.example`
-templates. It's meant to run once. It first checks that
+templates. It's meant to run once. It first detects `UID`, `GID`, and
+`TIMEZONE` from your host and writes them into `.env` (see
+[1. Check your parameters](#1-check-your-parameters) above), then checks that
 `configs/gluetun/.secret` has been filled in with your own WireGuard key (see
 [3.1. Gluetun VPN Gateway](#31-gluetun-vpn-gateway)), since every
 torrent/usenet app depends on Gluetun's network namespace — in a terminal it
