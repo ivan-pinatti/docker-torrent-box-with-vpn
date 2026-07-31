@@ -1,6 +1,7 @@
 # Ignore runtime files written by gluetun (servers.json, forwarded_port, etc.)
-# .secret contains the WireGuard private key — never commit it
+# .secret contains the WireGuard private key — never commit it. .env is
+# seeded from .env.example on first bootstrap and holds your own provider,
+# server, and country choices — also never commit it.
 *
-!.env
-!.env.secrets.example
+!.env.example
 !.gitignore

@@ -414,11 +414,20 @@ echo "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" > configs/gluetun/.secret  #
 > WireGuard private key into `configs/gluetun/.secret` before removing any
 > legacy files.
 >
-> `make bootstrap` checks this file before doing anything else and refuses to
-> continue if it's still missing or the example placeholder above — see
+> `make bootstrap` checks this file before doing anything else. If it's still
+> missing or the example placeholder above and you're running it in a real
+> terminal, it prompts you to paste the key in directly; in a non-interactive
+> run (CI, a scripted invocation) it instead stops with instructions, since
+> there's nowhere to prompt — see
 > [6. Bootstrap directory ownership](#6-bootstrap-directory-ownership).
 
 **Step 3 — Configure server and port forwarding in `configs/gluetun/.env`:**
+
+Like every other app's live config, `configs/gluetun/.env` is seeded from
+`configs/gluetun/.env.example` the first time you run `make bootstrap`, and is
+gitignored from then on — your own provider, country, and server choices
+never show up as a diff you could accidentally commit. Edit the seeded
+`configs/gluetun/.env`, not the `.example`:
 
 ```dotenv
 VPN_SERVICE_PROVIDER=protonvpn
@@ -637,9 +646,11 @@ This remaps managed data, config, and storage paths into the container user
 namespace, and seeds every app's config from its committed `.example`
 templates. It's meant to run once. It first checks that
 `configs/gluetun/.secret` has been filled in with your own WireGuard key (see
-[3.1. Gluetun VPN Gateway](#31-gluetun-vpn-gateway)) and refuses to start
-anything if it's still missing or the example placeholder, since every
-torrent/usenet app depends on Gluetun's network namespace. It also generates
+[3.1. Gluetun VPN Gateway](#31-gluetun-vpn-gateway)), since every
+torrent/usenet app depends on Gluetun's network namespace — in a terminal it
+prompts you to paste the key in directly if it's still missing or the
+example placeholder; in a non-interactive run it stops with instructions
+instead. It also generates
 the self-signed certificate (see [Generate the certificate](#4-generate-the-certificate)
 above) if one doesn't already exist, starts the stack (`make start`), then
 waits up to 90 seconds for Gluetun to actually report a connected VPN before

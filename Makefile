@@ -149,18 +149,7 @@ configs/flaresolverr/config/chromedriver:
 
 bootstrap: configs/flaresolverr/config/chromedriver
 	@echo "Checking Gluetun VPN credentials..."
-	@if [ ! -s configs/gluetun/.secret ]; then \
-		echo "ERROR: configs/gluetun/.secret is missing or empty."; \
-		echo "Gluetun needs your own WireGuard private key before bootstrap can start"; \
-		echo "the stack. See README.md section 3.1 (Gluetun VPN Gateway) for how to get"; \
-		echo "one from your VPN provider and paste it in, then re-run 'make bootstrap'."; \
-		exit 1; \
-	fi
-	@if grep -qx "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" configs/gluetun/.secret; then \
-		echo "ERROR: configs/gluetun/.secret still has README.md's example placeholder key."; \
-		echo "Paste your own WireGuard PrivateKey there before running bootstrap."; \
-		exit 1; \
-	fi
+	@./scripts/seed-gluetun-secret.sh
 	@echo "Remapping directory ownership into the container user namespace..."
 	@echo "  (rootless Podman: host uid maps to uid=0 inside containers;"
 	@echo "   app processes run as service-specific non-root UIDs)"
@@ -196,6 +185,7 @@ bootstrap: configs/flaresolverr/config/chromedriver
 	@./scripts/seed-secrets.sh configs/jellyfin
 	@./scripts/seed-secrets.sh configs/audiobookshelf
 	@./scripts/seed-secrets.sh configs/calibre-web
+	@./scripts/seed-configs.sh configs/gluetun/.env
 	@./scripts/seed-configs.sh configs/grafana/.env
 	@./scripts/seed-configs.sh configs/sonarr/config/config.xml
 	@./scripts/seed-configs.sh configs/radarr/config/config.xml
