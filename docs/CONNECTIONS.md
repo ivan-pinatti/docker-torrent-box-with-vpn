@@ -6,7 +6,9 @@ know about each other on first boot. A handful of connections don't work that
 way: they live in an app's own SQLite database, populated only through its
 live API, which means nothing can pre-seed them the way a template does. This
 document covers what those connections are, how they get created, and what's
-already wired without any of this.
+already wired without any of this. It also covers the related first-run
+setup this script completes for four apps that otherwise ship with no
+usable account at all until a human clicks through their own web UI once.
 
 ## Quick Reference
 
@@ -62,6 +64,56 @@ push indexer sync to them (`syncLevel: fullSync`). Skipped entirely, with a
 note, if Prowlarr's container doesn't exist — the same no-op behavior
 `scripts/rotate-api-keys.sh`'s `update_prowlarr_application()` already has
 for a missing entry.
+
+## First-run setup
+
+Jellyfin, Audiobookshelf, Calibre's content server, and Calibre-Web all ship
+with no usable account at all until their own first-run setup wizard has
+been completed once — normally a manual, one-time click-through in a
+browser. `scripts/wire-connections.sh` attempts to complete each one
+automatically, using the same placeholder username = password = app name
+convention as everywhere else, so `scripts/rotate-*.sh` always has an
+account to rotate. Three of the four (Audiobookshelf, Calibre's content
+server, Calibre-Web) are reliable, verified across repeated fresh-clone
+runs. Jellyfin is not: see its entry below.
+
+- **Jellyfin**: drives the same `/Startup/Configuration` → `/Startup/User`
+  → `/Startup/RemoteAccess` → `/Startup/Complete` sequence the setup wizard
+  itself calls, then creates an API key and writes it to
+  `configs/jellyfin/secrets/api_key.txt` (the only record of Jellyfin's
+  current key). No media libraries are configured — none are required to
+  complete the wizard, and adding them is a real choice left to you.
+  **This one is unreliable** — `/Startup/User` only succeeds once Jellyfin's
+  own `UserManager` has lazily created its internal placeholder user
+  (`InvalidOperationException: Sequence contains no elements` otherwise),
+  and in repeated testing against genuinely fresh containers, that never
+  happened even after 10 continuous minutes of retrying, with no clear
+  trigger identified. When it doesn't complete in the 180s this script
+  waits, it skips with a note (the expected outcome, not a rare edge case)
+  and prints how to finish it: visit `http://localhost:${JELLYFIN_HTTP_PORT}/`
+  once in a browser (which reliably completes the wizard immediately),
+  then re-run `make wire_connections` and `make rotate_all SERVICE=jellyfin`.
+- **Audiobookshelf**: calls its own documented `POST /init` endpoint to
+  create the `root` user.
+- **Calibre's content server**: creates its own SQLite user via the
+  documented, non-interactive `calibre-server --manage-users -- add`
+  command — this is a separate account from the desktop GUI/noVNC login,
+  which already works out of the box from its own committed secret file.
+- **Calibre-Web**: sets `config_calibre_dir` directly in `app.db` (while
+  stopped) to this stack's shared Calibre library, so the container isn't
+  stuck redirecting every request to its own `/admin/dbconfig` setup page.
+  Deliberately does **not** configure Calibre-Web's own HTTPS or rename its
+  default user (image default: `admin`) — both were tried, and reproducibly
+  wiped the entire `user` table (including the built-in "Guest" row) on the
+  next start, for a reason not identified in the time available. Calibre-Web
+  is therefore only ever reachable here over plain HTTP directly, or through
+  nginx's own HTTPS termination.
+
+Every one of these checks first-run state before acting (Jellyfin's
+`StartupWizardCompleted`, Audiobookshelf's `isInit`, a `calibre-server
+--manage-users -- list` check, Calibre-Web's `config_calibre_dir` column),
+so re-running `make wire_connections` after any of these has already been
+set up just confirms it and moves on.
 
 ## What's already wired, and why this script doesn't touch it
 

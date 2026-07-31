@@ -50,6 +50,7 @@ BAZARR_HTTP_PORT="$(env_value BAZARR_HTTP_PORT)"
 CALIBRE_GUI_WEB_HTTP_PORT="$(env_value CALIBRE_GUI_WEB_HTTP_PORT)"
 CALIBRE_DESKTOP_HTTPS_PORT="$(env_value CALIBRE_DESKTOP_HTTPS_PORT)"
 CALIBRE_WEB_CONTAINER_HTTPS_PORT="$(env_value CALIBRE_WEB_CONTAINER_HTTPS_PORT)"
+CALIBRE_WEB_CONTAINER_HTTP_PORT="$(env_value CALIBRE_WEB_CONTAINER_HTTP_PORT)"
 JDOWNLOADER2_HTTP_PORT="$(env_value JDOWNLOADER2_HTTP_PORT)"
 JELLYFIN_HTTP_PORT="$(env_value JELLYFIN_HTTP_PORT)"
 LAZYLIBRARIAN_HTTP_PORT="$(env_value LAZYLIBRARIAN_HTTP_PORT)"
@@ -67,7 +68,8 @@ SABNZBD_HTTPS_PORT="$(env_value SABNZBD_HTTPS_PORT)"
 SONARR_HTTP_PORT="$(env_value SONARR_HTTP_PORT)"
 WHISPARR_HTTPS_PORT="$(env_value WHISPARR_HTTPS_PORT)"
 readonly AUDIOBOOKSHELF_HTTP_PORT BAZARR_HTTP_PORT CALIBRE_GUI_WEB_HTTP_PORT \
-  CALIBRE_DESKTOP_HTTPS_PORT CALIBRE_WEB_CONTAINER_HTTPS_PORT JDOWNLOADER2_HTTP_PORT \
+  CALIBRE_DESKTOP_HTTPS_PORT CALIBRE_WEB_CONTAINER_HTTPS_PORT \
+  CALIBRE_WEB_CONTAINER_HTTP_PORT JDOWNLOADER2_HTTP_PORT \
   JELLYFIN_HTTP_PORT LAZYLIBRARIAN_HTTP_PORT \
   LIDARR_HTTPS_PORT MYLAR_HTTPS_PORT NZBHYDRA2_HTTPS_PORT PROWLARR_HTTPS_PORT \
   QBITTORRENT_HTTPS_PORT GLUETUN_SERVICES_IP RADARR_HTTPS_PORT \
@@ -103,7 +105,10 @@ readonly GRAFANA_INI="configs/grafana/config/grafana.ini"
 # via compose `secrets:`. See docs/COMPOSE_CONVENTIONS.md.
 readonly GRAFANA_HOMEPAGE_AUTH_SECRET="configs/grafana/secrets/homepage_auth.txt" # pragma: allowlist secret
 readonly CALIBREWEB_DB="configs/calibre-web/config/app.db"
-readonly CALIBREWEB_USER="calibre"
+# The image's own hardcoded default username, not this project's usual
+# per-app placeholder — see scripts/wire-connections.sh's
+# ensure_calibre_web_setup() for why it's never renamed.
+readonly CALIBREWEB_USER="admin"
 # Single source of truth for Calibre-Web's password, consumed via compose
 # `secrets:` by homepage. See docs/COMPOSE_CONVENTIONS.md.
 readonly CALIBREWEB_PASSWORD_SECRET="configs/calibre-web/secrets/password.txt" # pragma: allowlist secret
@@ -515,8 +520,13 @@ rotate_calibre_web() {
   echo "[Calibre-Web] Stopping container to update app.db..."
   podman stop calibre-web >/dev/null
 
+  # The 'admin' row has been observed to disappear from Calibre-Web's own
+  # user table sometime after its first real library gets configured and
+  # the app runs a while, for a reason not identified in the time
+  # available (see docs/ROTATION.md) — check rowcount rather than silently
+  # claiming success when the UPDATE matched nothing.
   echo "[Calibre-Web] Writing new password hash for user '${CALIBREWEB_USER}'..."
-  python3 - <<PYEOF
+  if python3 - <<PYEOF; then
 import hashlib
 import secrets
 import sqlite3
@@ -528,14 +538,19 @@ digest = hashlib.pbkdf2_hmac("sha256", new_password.encode(), salt.encode(), ite
 pw_hash = f"pbkdf2:sha256:{iterations}\${salt}\${digest}"
 
 conn = sqlite3.connect('$CALIBREWEB_DB')
-conn.execute("UPDATE user SET password = ? WHERE name = ?", (pw_hash, '$CALIBREWEB_USER'))
-conn.commit()
-conn.close()
+try:
+    cur = conn.execute("UPDATE user SET password = ? WHERE name = ?", (pw_hash, '$CALIBREWEB_USER'))
+    conn.commit()
+    updated = cur.rowcount > 0
+except sqlite3.OperationalError:
+    updated = False
+finally:
+    conn.close()
+raise SystemExit(0 if updated else 1)
 PYEOF
+    podman start calibre-web >/dev/null
 
-  podman start calibre-web >/dev/null
-
-  python3 - <<PYEOF
+    python3 - <<PYEOF
 from pathlib import Path
 
 def write_secret(path, value):
@@ -551,10 +566,13 @@ def write_secret(path, value):
 write_secret('$CALIBREWEB_PASSWORD_SECRET', '$new_password')
 PYEOF
 
-  # homepage is handled separately, by RECREATE_CONSUMERS below.
-
-  SUMMARY_CALIBRE_WEB_USER="$CALIBREWEB_USER"
-  SUMMARY_CALIBRE_WEB_NEW="$new_password"
+    # homepage is handled separately, by RECREATE_CONSUMERS below.
+    SUMMARY_CALIBRE_WEB_USER="$CALIBREWEB_USER"
+    SUMMARY_CALIBRE_WEB_NEW="$new_password"
+  else
+    podman start calibre-web >/dev/null
+    echo "[Calibre-Web] No user '${CALIBREWEB_USER}' in app.db, skipping."
+  fi
 }
 
 rotate_grafana() {
@@ -648,7 +666,7 @@ rotate_jellyfin() {
   echo "[Jellyfin] Looking up the '${JELLYFIN_USERNAME}' user id..."
   user_id=$(container_curl jellyfin -s --fail \
     -H "Authorization: MediaBrowser Token=\"${api_key}\"" \
-    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}/jellyfin/Users" |
+    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}/Users" |
     jq -r --arg name "$JELLYFIN_USERNAME" '.[] | select(.Name == $name) | .Id')
   if [[ -z "$user_id" ]]; then
     echo "[Jellyfin] User '${JELLYFIN_USERNAME}' not found. Aborting Jellyfin rotation." >&2
@@ -660,7 +678,7 @@ rotate_jellyfin() {
     -H "Authorization: MediaBrowser Token=\"${api_key}\"" \
     -H "Content-Type: application/json" \
     -d "{\"NewPw\":\"${new_password}\"}" \
-    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}/jellyfin/Users/${user_id}/Password"
+    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}/Users/${user_id}/Password"
 
   SUMMARY_JELLYFIN_USER="$JELLYFIN_USERNAME"
   SUMMARY_JELLYFIN_NEW="$new_password"
@@ -1410,34 +1428,28 @@ calibre_content_server_ok() {
 
 calibre_web_login_ok() {
   local code
-  code=$(container_curl calibre-web -sk -o /dev/null -w '%{http_code}' \
+  code=$(container_curl calibre-web -s -o /dev/null -w '%{http_code}' \
     -u "${CALIBREWEB_USER}:$1" \
-    "https://127.0.0.1:${CALIBRE_WEB_CONTAINER_HTTPS_PORT}/opds/stats")
+    "http://127.0.0.1:${CALIBRE_WEB_CONTAINER_HTTP_PORT}/opds/stats")
   [[ "$code" == "200" ]]
 }
 
-# HTTPS and the library both have to be configured through Calibre-Web's own
-# admin UI at least once before this container answers on its HTTPS port at
-# all (a real first-run manual step, like Jellyfin's setup wizard) — any
-# curl against it fails at the TLS handshake, not with an HTTP error code,
-# so this can't be told apart from "still starting" by status code alone.
-calibre_web_https_up() {
-  container_curl calibre-web -sk -o /dev/null \
-    "https://127.0.0.1:${CALIBRE_WEB_CONTAINER_HTTPS_PORT}/"
-}
-
+# Calibre-Web is only ever configured for plain HTTP here (see
+# scripts/wire-connections.sh's ensure_calibre_web_setup() for why its
+# HTTPS is deliberately never enabled), but it still reinstalls its Calibre
+# mod on every restart, so a normal boot window plus one self-heal attempt
+# mirrors validate_calibre()'s handling of the same slow-restart image.
 validate_calibre_web() {
   local password="$1"
   local status=0
-  if ! retry 180 calibre_web_https_up; then
-    echo "[Calibre-Web] HTTPS still not reachable after 180s; skipping. Either"
-    echo "[Calibre-Web] it's unusually slow to start (it reinstalls its Calibre"
-    echo "[Calibre-Web] mod on every restart), or its own HTTPS/library setup"
-    echo "[Calibre-Web] hasn't been completed yet — see docs/ROTATION.md."
+  if retry 90 calibre_web_login_ok "$password"; then
+    printf "%-14s  OK\n" "calibre-web"
     echo "$status" >"$VALIDATE_TMPDIR/calibre-web.result"
     return
   fi
-  if retry 180 calibre_web_login_ok "$password"; then
+  echo "[Calibre-Web] Not responding after 90s; restarting..."
+  podman restart calibre-web >/dev/null 2>&1 || true
+  if retry 300 calibre_web_login_ok "$password"; then
     printf "%-14s  OK\n" "calibre-web"
   else
     printf "%-14s  FAILED\n" "calibre-web"
@@ -1474,7 +1486,7 @@ jellyfin_login_ok() {
     -H 'Authorization: MediaBrowser Client="rotate-passwords", Device="script", DeviceId="rotate-passwords", Version="1.0"' \
     -H "Content-Type: application/json" \
     -d "{\"Username\":\"${JELLYFIN_USERNAME}\",\"Pw\":\"$1\"}" \
-    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}/jellyfin/Users/AuthenticateByName")
+    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}/Users/AuthenticateByName")
   [[ "$code" == "200" ]]
 }
 

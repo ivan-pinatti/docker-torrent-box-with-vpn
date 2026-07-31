@@ -518,11 +518,11 @@ rotate_jellyfin() {
   echo "[Jellyfin] Creating a new API key..."
   container_curl jellyfin -s --fail -X POST \
     -H "Authorization: MediaBrowser Token=\"${old_key}\"" \
-    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}/jellyfin/Auth/Keys?App=homepage" >/dev/null
+    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}/Auth/Keys?App=homepage" >/dev/null
 
   new_key=$(container_curl jellyfin -s --fail \
     -H "Authorization: MediaBrowser Token=\"${old_key}\"" \
-    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}/jellyfin/Auth/Keys" |
+    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}/Auth/Keys" |
     jq -r --arg old "$old_key" \
       '[.Items[] | select(.AccessToken != $old)] | sort_by(.DateCreated) | last.AccessToken')
 
@@ -536,7 +536,7 @@ rotate_jellyfin() {
   echo "[Jellyfin] Revoking the old API key..."
   container_curl jellyfin -s --fail -X DELETE \
     -H "Authorization: MediaBrowser Token=\"${new_key}\"" \
-    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}/jellyfin/Auth/Keys/${old_key}" >/dev/null
+    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}/Auth/Keys/${old_key}" >/dev/null
 
   SUMMARY_JELLYFIN_OLD="$old_key"
   SUMMARY_JELLYFIN_NEW="$new_key"
@@ -725,7 +725,7 @@ nzbhydra_key_ok() {
 jellyfin_key_ok() {
   container_curl jellyfin -s --fail -o /dev/null \
     -H "Authorization: MediaBrowser Token=\"$1\"" \
-    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}/jellyfin/Auth/Keys"
+    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}/Auth/Keys"
 }
 
 VALIDATION_FAILURES=()

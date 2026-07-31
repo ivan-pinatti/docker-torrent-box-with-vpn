@@ -633,17 +633,17 @@ applies the Jellyfin base URL/trusted proxy settings from `JELLYFIN_BASE_URL`
 and `JELLYFIN_KNOWN_PROXY` now that Jellyfin has generated its own config, and
 finally wires the app-to-app connections that only exist through each app's
 own live API (qBittorrent/SABnzbd as download clients in the Servarr apps,
-those apps registered in Prowlarr) — see
-[docs/CONNECTIONS.md](docs/CONNECTIONS.md) for exactly what that covers, and
-`make wire_connections` to re-run just that step later (after enabling an app
-that was disabled, for instance). Finally, it rotates every seeded API key
-and password (`make rotate_all`), so a fresh clone is fully secured the
-moment bootstrap finishes. The exceptions are Jellyfin, Audiobookshelf, and
-Calibre's content server: each needs its own first-run setup wizard
-completed (a one-time manual step involving real choices, like Jellyfin's
-media libraries) before it has an account to rotate at all, so those
-credentials are skipped with a note until then; `make rotate_all
-SERVICE=<name>` picks each one up once its wizard is done. See
+those apps registered in Prowlarr), and attempts the first-run setup that
+Jellyfin, Audiobookshelf, Calibre's content server, and Calibre-Web each
+otherwise need through their own web UI before they have any usable account
+at all. That reliably succeeds for three of the four; Jellyfin's is
+unreliable for reasons not fully understood, and usually needs a one-time
+visit to `http://localhost:${JELLYFIN_HTTP_PORT}/` in a browser (which
+completes it immediately) — see [docs/CONNECTIONS.md](docs/CONNECTIONS.md)
+for exactly what this covers, and `make wire_connections` to re-run just
+that step later (after enabling an app that was disabled, for instance).
+Finally, it rotates every seeded API key and password (`make rotate_all`),
+so a fresh clone is fully secured the moment bootstrap finishes. See
 [docs/ROTATION.md](docs/ROTATION.md) to rotate again later, and
 [docs/HARDENING.md](docs/HARDENING.md) for the full
 permissions explanation.
@@ -806,6 +806,7 @@ canonical URL.
 | Bazarr         | <http://localhost:6767/>         | bazarr       | bazarr       |
 | KOReader Sync  | <http://localhost:3000/>         | -            | -            |
 | Calibre        | <http://localhost:8080/>         | calibre      | calibre      |
+| Calibre-Web    | <http://localhost:8083/>         | admin        | rotated      |
 | FlareSolverr   | <http://localhost:8191/>         | -            | -            |
 | Lidarr         | <http://localhost:8686/>         | lidarr       | lidarr       |
 | Nginx          | <http://localhost:80/>           | -            | -            |
@@ -823,7 +824,6 @@ canonical URL.
 | -------------- | -------------------------------------- | ------------- | ------------- |
 | Audiobookshelf | <http://localhost:13378/>              | root          | -             |
 | Calibre        | <https://localhost:8181/>              | calibre       | calibre       |
-| Calibre-Web    | <https://localhost:8084/>              | calibre       | calibre       |
 | LazyLibrarian  | <https://localhost:5299/lazylibrarian> | lazylibrarian | lazylibrarian |
 | Lidarr         | <https://localhost:6868/>              | lidarr        | lidarr        |
 | Nginx          | <https://localhost:443/>               | -             | -             |
@@ -842,7 +842,7 @@ canonical URL.
 | Audiobookshelf     | <https://localhost/audiobookshelf/>            | root          | -             |
 | Bazarr             | <https://localhost/bazarr/>                    | bazarr        | bazarr        |
 | Calibre            | <https://localhost/calibre/>                   | calibre       | calibre       |
-| Calibre-Web        | <https://localhost/calibre_web/>               | calibre       | calibre       |
+| Calibre-Web        | <https://localhost/calibre_web/>               | admin         | rotated       |
 | FlareSolverr       | <https://localhost/flaresolverr/>              | -             | -             |
 | Gluetun VPN status | <https://localhost/gluetun/v1/vpn/status>      | -             | -             |
 | Gluetun port       | <https://localhost/gluetun/v1/portforward>     | -             | -             |

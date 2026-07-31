@@ -116,12 +116,14 @@ The non-Servarr targets:
   the Jellyfin API, writes it to `configs/jellyfin/secrets/api_key.txt`
   (the only record of Jellyfin's current key; there is no config.xml
   equivalent), and revokes the old one. This requires an admin account,
-  which only exists once Jellyfin's own first-run setup wizard has been
-  completed at `http://localhost:${JELLYFIN_HTTP_PORT}/` — nothing in this
-  stack automates that wizard, since it involves real choices (media
-  libraries, metadata language, remote access). Until it's done, rotation
-  skips Jellyfin with a note instead of failing; `make rotate_all
-  SERVICE=jellyfin` picks it up once you've completed the wizard.
+  which `scripts/wire-connections.sh`'s `ensure_jellyfin_setup()` *attempts*
+  to create through Jellyfin's own first-run Startup API (username and
+  password both `jellyfin`) as part of `make wire_connections`/
+  `make bootstrap` — but that attempt is unreliable (see
+  [docs/CONNECTIONS.md](CONNECTIONS.md)) and often doesn't succeed. When it
+  hasn't, rotation skips Jellyfin with a note instead of failing; visit
+  `http://localhost:${JELLYFIN_HTTP_PORT}/` once in a browser to complete
+  the wizard reliably, then `make rotate_all SERVICE=jellyfin` picks it up.
 
 Apps whose key was rewritten on disk are restarted or recreated
 automatically so they load the new key, and Homepage is restarted (it reads
@@ -144,10 +146,10 @@ alphabetical by service.
   to the `users` table in `absdatabase.sqlite` (no rotation API exists
   without the current password). Homepage talks to Audiobookshelf with a
   JWT API token, not the password, so no consumer update is needed. That
-  row only exists once Audiobookshelf's own first-run setup wizard has been
-  completed — nothing in this stack automates that, so rotation skips with
-  a note until it's done, the same as Jellyfin and Calibre's content server
-  above.
+  row is created automatically by `ensure_audiobookshelf_setup()` (via
+  Audiobookshelf's own `/init` endpoint, username `root`) as part of
+  `make wire_connections`/`make bootstrap`. If it genuinely doesn't exist
+  yet, rotation still skips with a note rather than failing.
 - **Bazarr**: writes the MD5 hash of the new password to `config.yaml`
   (Bazarr stores MD5 by design).
 - **Calibre**: rotates two independent logins that share one password here
@@ -157,11 +159,12 @@ alphabetical by service.
   read via `FILE__PASSWORD` and re-read on every start, so a restart
   suffices). Also updates LazyLibrarian's `calibre_pass` in its
   `config.ini`. The content server's `users` table (and the row for its
-  user) only exists once the content server has been started and a user
-  created through Calibre's own flow at least once — nothing in this stack
-  automates that first-run step, so that half of the rotation skips with a
-  note until it's done; the GUI/noVNC login and LazyLibrarian's copy still
-  rotate normally either way. The content server only starts once the
+  user, username `calibre`) is created automatically by
+  `ensure_calibre_content_server_user()` (a non-interactive
+  `calibre-server --manage-users` call) as part of `make wire_connections`/
+  `make bootstrap`. If it genuinely doesn't exist yet, that half of the
+  rotation still skips with a note; the GUI/noVNC login and LazyLibrarian's
+  copy rotate normally either way. The content server only starts once the
   desktop GUI is up, and the GUI reliably wedges on its single instance
   lock after a stop/start or recreate cycle; validation gives it a normal
   boot window, then self-heals once by running `podman exec calibre s6-svc
@@ -174,16 +177,30 @@ alphabetical by service.
   desktop-streaming data websocket inside the `lscr.io/linuxserver/calibre`
   image itself — a pre-existing collision unrelated to credential rotation,
   not something this script can work around.
-- **Calibre-Web**: writes a new password hash for the `calibre` user
-  directly to `app.db` (no API exists) and updates the shared secret file
-  `configs/calibre-web/secrets/password.txt`, which Homepage reads directly.
-  The write always succeeds (the `user` row ships with the image), but
-  post-rotation validation needs HTTPS reachable, which needs Calibre-Web's
-  own HTTPS and library set up through its admin UI at least once — a
-  real first-run manual step, like Jellyfin's setup wizard. Until that's
-  done, validation skips with a note instead of failing; it also reinstalls
-  its Calibre mod on every restart, so a healthy container can take longer
-  than the usual validation window even after setup is done.
+- **Calibre-Web**: writes a new password hash for the `admin` user (the
+  image's own hardcoded default — not this project's usual per-app
+  placeholder) directly to `app.db` (no API exists) and updates the shared
+  secret file `configs/calibre-web/secrets/password.txt`, which Homepage
+  reads directly. `ensure_calibre_web_setup()` sets `config_calibre_dir` to
+  this stack's shared Calibre library automatically as part of
+  `make wire_connections`/`make bootstrap`, so the container isn't stuck
+  redirecting every request to its own `/admin/dbconfig` setup page.
+  It deliberately does **not** configure Calibre-Web's own HTTPS or rename
+  its default user: doing either was tried, and reproducibly wiped the
+  entire `user` table (including the built-in "Guest" row) on the next
+  container start in live testing, for a reason not identified in the time
+  available. Calibre-Web is therefore only ever reachable here over plain
+  HTTP (`CALIBRE_WEB_CONTAINER_HTTP_PORT`, or through nginx's own HTTPS
+  termination); it also reinstalls its Calibre mod on every restart, so
+  validation gives it a normal boot window, then one restart-and-retry,
+  mirroring Calibre's own handling of the same slow-restart image.
+  Separately, the `admin` row has been observed to disappear from
+  Calibre-Web's own user table sometime after its first real library is
+  configured and the app runs a while — organically, unrelated to any
+  write this stack makes, and not yet root-caused. Rotation checks the
+  actual row count rather than trusting a successful `UPDATE` with no
+  matching rows, and skips with a note (rather than silently claiming
+  success) if the user is gone when it runs.
 - **Grafana**: changes the admin password over Grafana's API, then keeps
   `grafana.ini` and the shared secret file
   `configs/grafana/secrets/homepage_auth.txt` (the precomputed Basic-auth
@@ -204,8 +221,9 @@ alphabetical by service.
 - **Jellyfin**: sets a new password for the `jellyfin` user over Jellyfin's
   API, authenticated with the admin API key read from
   `configs/jellyfin/secrets/api_key.txt`. That key is unaffected by a
-  password rotation, so no consumer update is needed. Same setup-wizard
-  requirement and skip-with-a-note behavior as API key rotation above.
+  password rotation, so no consumer update is needed. Same unreliable
+  account-creation attempt and skip-with-a-note fallback as API key
+  rotation above.
 - **LazyLibrarian** and **Mylar**: WebUI passwords in their `config.ini`.
 - **NZBHydra2**: writes a new bcrypt hash to `nzbhydra.yml`.
 - **qBittorrent**: logs into the WebUI API with the current password (read
