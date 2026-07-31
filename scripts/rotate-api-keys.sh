@@ -184,12 +184,19 @@ rotate_arr_apikey() {
 
 # Update one application entry in Prowlarr with a new downstream API key.
 # The entry is looked up by name; apps without a Prowlarr application entry
-# are skipped.
+# are skipped, and so is a Prowlarr container that doesn't exist at all
+# (PROWLARR_PROFILE=disabled) rather than letting `podman exec` fail the
+# whole rotation under `set -e`.
 # Args: prowlarr_key app_name new_downstream_key
 update_prowlarr_application() {
   local prowlarr_key="$1"
   local app_name="$2"
   local new_key="$3"
+
+  if ! podman container exists prowlarr 2>/dev/null; then
+    echo "[Prowlarr] Container doesn't exist, skipping application update for '${app_name}'."
+    return 0
+  fi
 
   local app_json
   app_json=$(container_curl prowlarr -sk \
@@ -239,8 +246,12 @@ rotate_sonarr() {
   echo "[Bazarr] Updating sonarr.apikey in config.yaml..."
   yq -i ".sonarr.apikey = \"$new_key\"" "$BAZARR_CONFIG"
 
-  echo "[recyclarr] Updating sonarr_apikey in secrets.yml..."
-  yq -i ".sonarr_apikey = \"$new_key\"" "$RECYCLARR_SECRETS"
+  if [[ -f "$RECYCLARR_SECRETS" ]]; then
+    echo "[recyclarr] Updating sonarr_apikey in secrets.yml..."
+    yq -i ".sonarr_apikey = \"$new_key\"" "$RECYCLARR_SECRETS"
+  else
+    echo "[recyclarr] $RECYCLARR_SECRETS doesn't exist, skipping."
+  fi
 
   write_secret_file "$SONARR_API_KEY_SECRET" "$new_key"
 
@@ -261,8 +272,12 @@ rotate_radarr() {
   echo "[Bazarr] Updating radarr.apikey in config.yaml..."
   yq -i ".radarr.apikey = \"$new_key\"" "$BAZARR_CONFIG"
 
-  echo "[recyclarr] Updating radarr_apikey in secrets.yml..."
-  yq -i ".radarr_apikey = \"$new_key\"" "$RECYCLARR_SECRETS"
+  if [[ -f "$RECYCLARR_SECRETS" ]]; then
+    echo "[recyclarr] Updating radarr_apikey in secrets.yml..."
+    yq -i ".radarr_apikey = \"$new_key\"" "$RECYCLARR_SECRETS"
+  else
+    echo "[recyclarr] $RECYCLARR_SECRETS doesn't exist, skipping."
+  fi
 
   write_secret_file "$RADARR_API_KEY_SECRET" "$new_key"
 
@@ -482,7 +497,21 @@ PYEOF
 
 rotate_jellyfin() {
   # Jellyfin API keys are created and revoked through its own API; the value
-  # cannot be chosen, so the flow is: create new, adopt it, revoke old.
+  # cannot be chosen, so the flow is: create new, adopt it, revoke old. That
+  # API only works once Jellyfin's own first-run setup wizard has created an
+  # admin account, which nothing in this stack automates (unlike the arr
+  # apps' WebUI login, it involves real choices: media libraries, metadata
+  # language, remote access) — skip with a note rather than aborting the
+  # whole rotation run over a step that's inherently manual.
+  if [[ "$(container_curl jellyfin -s --fail \
+    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}/System/Info/Public" |
+    jq -r '.StartupWizardCompleted')" != "true" ]]; then
+    echo "[Jellyfin] Setup wizard not completed yet, skipping API key rotation."
+    echo "[Jellyfin] Finish it at http://localhost:${JELLYFIN_HTTP_PORT}/, then re-run"
+    echo "[Jellyfin] 'make rotate_all SERVICE=jellyfin'."
+    return 0
+  fi
+
   local old_key new_key
   old_key=$(cat "$JELLYFIN_API_KEY_SECRET")
 
@@ -540,34 +569,61 @@ SUMMARY_NZBHYDRA2_NEW=""
 SUMMARY_JELLYFIN_OLD=""
 SUMMARY_JELLYFIN_NEW=""
 
+# Rotate one service, but only when its compose profile is enabled (and, for
+# arr apps, only when the container it needs stopped/exec'd into actually
+# exists). Mirrors rotate-passwords.sh's rotate_if_enabled(): in "all" mode a
+# disabled service is skipped with a note; an explicitly requested disabled
+# service is an error.
+# Args: profile_var_prefix container_name rotate_function
+rotate_if_enabled() {
+  local profile_var="$1" container_name="$2" func="$3"
+  if [[ "$(env_value "${profile_var}_PROFILE")" != "enabled" ]]; then
+    if [[ "$TARGET" == "all" ]]; then
+      echo "[$container_name] Skipped, ${profile_var}_PROFILE is disabled"
+      return
+    fi
+    echo "ERROR: ${profile_var}_PROFILE is disabled in .env; not rotating $container_name" >&2
+    exit 1
+  fi
+  if ! podman container exists "$container_name" 2>/dev/null; then
+    if [[ "$TARGET" == "all" ]]; then
+      echo "[$container_name] Skipped, container doesn't exist"
+      return
+    fi
+    echo "ERROR: container '$container_name' doesn't exist; not rotating it" >&2
+    exit 1
+  fi
+  "$func"
+}
+
 # ---------------------------------------------------------------------------
 # Dispatch
 # ---------------------------------------------------------------------------
 
 case "$TARGET" in
-sonarr) rotate_sonarr ;;
-radarr) rotate_radarr ;;
-lidarr) rotate_lidarr ;;
-readarr) rotate_readarr ;;
-whisparr) rotate_whisparr ;;
-prowlarr) rotate_prowlarr ;;
-bazarr) rotate_bazarr ;;
-lazylibrarian) rotate_lazylibrarian ;;
-mylar) rotate_mylar ;;
-nzbhydra2) rotate_nzbhydra2 ;;
-jellyfin) rotate_jellyfin ;;
+sonarr) rotate_if_enabled SONARR sonarr rotate_sonarr ;;
+radarr) rotate_if_enabled RADARR radarr rotate_radarr ;;
+lidarr) rotate_if_enabled LIDARR lidarr rotate_lidarr ;;
+readarr) rotate_if_enabled READARR readarr rotate_readarr ;;
+whisparr) rotate_if_enabled WHISPARR whisparr rotate_whisparr ;;
+prowlarr) rotate_if_enabled PROWLARR prowlarr rotate_prowlarr ;;
+bazarr) rotate_if_enabled BAZARR bazarr rotate_bazarr ;;
+lazylibrarian) rotate_if_enabled LAZYLIBRARIAN lazylibrarian rotate_lazylibrarian ;;
+mylar) rotate_if_enabled MYLAR mylar rotate_mylar ;;
+nzbhydra2) rotate_if_enabled NZBHYDRA2 nzbhydra2 rotate_nzbhydra2 ;;
+jellyfin) rotate_if_enabled JELLYFIN jellyfin rotate_jellyfin ;;
 all)
-  rotate_sonarr
-  rotate_radarr
-  rotate_lidarr
-  rotate_readarr
-  rotate_whisparr
-  rotate_prowlarr
-  rotate_bazarr
-  rotate_lazylibrarian
-  rotate_mylar
-  rotate_nzbhydra2
-  rotate_jellyfin
+  rotate_if_enabled SONARR sonarr rotate_sonarr
+  rotate_if_enabled RADARR radarr rotate_radarr
+  rotate_if_enabled LIDARR lidarr rotate_lidarr
+  rotate_if_enabled READARR readarr rotate_readarr
+  rotate_if_enabled WHISPARR whisparr rotate_whisparr
+  rotate_if_enabled PROWLARR prowlarr rotate_prowlarr
+  rotate_if_enabled BAZARR bazarr rotate_bazarr
+  rotate_if_enabled LAZYLIBRARIAN lazylibrarian rotate_lazylibrarian
+  rotate_if_enabled MYLAR mylar rotate_mylar
+  rotate_if_enabled NZBHYDRA2 nzbhydra2 rotate_nzbhydra2
+  rotate_if_enabled JELLYFIN jellyfin rotate_jellyfin
   ;;
 *)
   echo "Unknown target: $TARGET" >&2
@@ -696,7 +752,7 @@ echo "======================================================================"
 [[ -n "$SUMMARY_PROWLARR_NEW" ]] && validate prowlarr 180 arr_key_ok prowlarr https "$PROWLARR_HTTPS_PORT" prowlarr v1 "$SUMMARY_PROWLARR_NEW"
 [[ -n "$SUMMARY_BAZARR_NEW" ]] && validate bazarr 180 bazarr_key_ok "$SUMMARY_BAZARR_NEW"
 [[ -n "$SUMMARY_LAZYLIBRARIAN_NEW" ]] && validate lazylibrarian 180 lazylibrarian_key_ok "$SUMMARY_LAZYLIBRARIAN_NEW"
-[[ -n "$SUMMARY_MYLAR_NEW" ]] && validate mylar 180 mylar_key_ok "$SUMMARY_MYLAR_NEW"
+[[ -n "$SUMMARY_MYLAR_NEW" ]] && validate mylar 300 mylar_key_ok "$SUMMARY_MYLAR_NEW"
 [[ -n "$SUMMARY_NZBHYDRA2_NEW" ]] && validate nzbhydra2 240 nzbhydra_key_ok "$SUMMARY_NZBHYDRA2_NEW"
 [[ -n "$SUMMARY_JELLYFIN_NEW" ]] && validate jellyfin 120 jellyfin_key_ok "$SUMMARY_JELLYFIN_NEW"
 echo "======================================================================"

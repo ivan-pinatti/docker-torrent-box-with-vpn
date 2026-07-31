@@ -18,4 +18,5 @@
   <WhisparrMetadata>https://api.whisparr.com/v3/{route}</WhisparrMetadata>
   <GithubOwnerRepo>whisparr/whisparr</GithubOwnerRepo>
   <LogSizeLimit>1</LogSizeLimit>
+  <CertificateValidation>DisabledForLocalAddresses</CertificateValidation>
 </Config>

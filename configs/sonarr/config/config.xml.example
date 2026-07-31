@@ -16,4 +16,5 @@
   <EnableSsl>True</EnableSsl>
   <SslCertPath>/certs/server.pfx</SslCertPath>
   <SslCertPassword>changeme</SslCertPassword>
+  <CertificateValidation>DisabledForLocalAddresses</CertificateValidation>
 </Config>

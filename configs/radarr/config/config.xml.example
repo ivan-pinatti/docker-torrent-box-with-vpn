@@ -15,4 +15,5 @@
   <AnalyticsEnabled>False</AnalyticsEnabled>
   <InstanceName>Radarr</InstanceName>
   <AuthenticationRequired>Enabled</AuthenticationRequired>
+  <CertificateValidation>DisabledForLocalAddresses</CertificateValidation>
 </Config>

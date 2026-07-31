@@ -1,9 +1,16 @@
 # Credential and Certificate Rotation
 
-The stack ships with pre-configured API keys and passwords. Rotate all of them
-before exposing anything beyond your own machine. The scripts below rotate a
-credential in the app that owns it and then sync the new value into every
-consumer, so the integrations keep working.
+The stack ships with pre-configured API keys and passwords. `make bootstrap`
+already rotates all of them once, as its last step (after starting the stack
+and wiring app-to-app connections — see [docs/CONNECTIONS.md](CONNECTIONS.md)
+— since some rotations, qBittorrent's in particular, read the current
+credential out of a DownloadClients entry that only exists once wiring has
+run). Everything below is for rotating again later: on a recurring schedule,
+after enabling a service that was disabled during bootstrap, or before
+exposing anything beyond your own machine if the initial rotation was
+skipped. The scripts below rotate a credential in the app that owns it and
+then sync the new value into every consumer, so the integrations keep
+working.
 
 ## Quick Reference
 
@@ -108,7 +115,13 @@ The non-Servarr targets:
 - **Jellyfin** keys cannot be chosen, so the script creates a new key over
   the Jellyfin API, writes it to `configs/jellyfin/secrets/api_key.txt`
   (the only record of Jellyfin's current key; there is no config.xml
-  equivalent), and revokes the old one.
+  equivalent), and revokes the old one. This requires an admin account,
+  which only exists once Jellyfin's own first-run setup wizard has been
+  completed at `http://localhost:${JELLYFIN_HTTP_PORT}/` — nothing in this
+  stack automates that wizard, since it involves real choices (media
+  libraries, metadata language, remote access). Until it's done, rotation
+  skips Jellyfin with a note instead of failing; `make rotate_all
+  SERVICE=jellyfin` picks it up once you've completed the wizard.
 
 Apps whose key was rewritten on disk are restarted or recreated
 automatically so they load the new key, and Homepage is restarted (it reads
@@ -130,7 +143,11 @@ alphabetical by service.
 - **Audiobookshelf**: writes a new bcrypt hash for the `root` user directly
   to the `users` table in `absdatabase.sqlite` (no rotation API exists
   without the current password). Homepage talks to Audiobookshelf with a
-  JWT API token, not the password, so no consumer update is needed.
+  JWT API token, not the password, so no consumer update is needed. That
+  row only exists once Audiobookshelf's own first-run setup wizard has been
+  completed — nothing in this stack automates that, so rotation skips with
+  a note until it's done, the same as Jellyfin and Calibre's content server
+  above.
 - **Bazarr**: writes the MD5 hash of the new password to `config.yaml`
   (Bazarr stores MD5 by design).
 - **Calibre**: rotates two independent logins that share one password here
@@ -139,11 +156,16 @@ alphabetical by service.
   auth via the shared secret file `configs/calibre/secrets/password.txt`,
   read via `FILE__PASSWORD` and re-read on every start, so a restart
   suffices). Also updates LazyLibrarian's `calibre_pass` in its
-  `config.ini`. The content server only starts once the desktop GUI is up,
-  and the GUI reliably wedges on its single instance lock after a
-  stop/start or recreate cycle; validation gives it a normal boot window,
-  then self-heals once by running `podman exec calibre s6-svc -r
-  /run/service/svc-de` before giving it a second window, so an operator
+  `config.ini`. The content server's `users` table (and the row for its
+  user) only exists once the content server has been started and a user
+  created through Calibre's own flow at least once — nothing in this stack
+  automates that first-run step, so that half of the rotation skips with a
+  note until it's done; the GUI/noVNC login and LazyLibrarian's copy still
+  rotate normally either way. The content server only starts once the
+  desktop GUI is up, and the GUI reliably wedges on its single instance
+  lock after a stop/start or recreate cycle; validation gives it a normal
+  boot window, then self-heals once by running `podman exec calibre s6-svc
+  -r /run/service/svc-de` before giving it a second window, so an operator
   does not need to notice and run that command by hand.
 - **Calibre-Web**: writes a new password hash for the `calibre` user
   directly to `app.db` (no API exists) and updates the shared secret file
@@ -168,7 +190,8 @@ alphabetical by service.
 - **Jellyfin**: sets a new password for the `jellyfin` user over Jellyfin's
   API, authenticated with the admin API key read from
   `configs/jellyfin/secrets/api_key.txt`. That key is unaffected by a
-  password rotation, so no consumer update is needed.
+  password rotation, so no consumer update is needed. Same setup-wizard
+  requirement and skip-with-a-note behavior as API key rotation above.
 - **LazyLibrarian** and **Mylar**: WebUI passwords in their `config.ini`.
 - **NZBHydra2**: writes a new bcrypt hash to `nzbhydra.yml`.
 - **qBittorrent**: logs into the WebUI API with the current password (read

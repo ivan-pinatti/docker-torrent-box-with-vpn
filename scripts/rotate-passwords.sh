@@ -264,48 +264,67 @@ rotate_arr_password() {
 }
 
 # Update qBittorrent password in one arr app's DownloadClients SQLite table.
-# Args: db_path new_password
+# A disabled arr app has never started and so has no DownloadClients table
+# (or, if it's the very first table access, sqlite3.connect() will have
+# just created an empty 0-byte file for it) — skip with a note rather than
+# crash the whole rotation over an app that was never wired up.
+# Args: app_name db_path new_password
 update_arr_qbt_password() {
-  local db_path="$1"
-  local new_password="$2"
+  local app_name="$1"
+  local db_path="$2"
+  local new_password="$3"
 
-  python3 - <<PYEOF
+  if ! python3 - <<PYEOF; then
 import sqlite3, json
 conn = sqlite3.connect('$db_path')
-cur = conn.cursor()
-cur.execute("SELECT Id, Settings FROM DownloadClients WHERE ConfigContract='QBittorrentSettings'")
-rows = cur.fetchall()
-for row in rows:
-    s = json.loads(row[1])
-    s['password'] = '$new_password'
-    cur.execute('UPDATE DownloadClients SET Settings = ? WHERE Id = ?', (json.dumps(s), row[0]))
-conn.commit()
-conn.close()
+try:
+    cur = conn.cursor()
+    cur.execute("SELECT Id, Settings FROM DownloadClients WHERE ConfigContract='QBittorrentSettings'")
+    rows = cur.fetchall()
+    for row in rows:
+        s = json.loads(row[1])
+        s['password'] = '$new_password'
+        cur.execute('UPDATE DownloadClients SET Settings = ? WHERE Id = ?', (json.dumps(s), row[0]))
+    conn.commit()
+except sqlite3.OperationalError:
+    raise SystemExit(1)
+finally:
+    conn.close()
 PYEOF
+    echo "[$app_name DB] No DownloadClients table yet (app never started), skipping."
+  fi
 }
 
 # Update SABnzbd credentials in one arr app's DownloadClients SQLite table.
-# Args: db_path new_password new_api_key
+# Same disabled-app caveat as update_arr_qbt_password() above.
+# Args: app_name db_path new_password new_api_key
 update_arr_sabnzbd_credentials() {
-  local db_path="$1"
-  local new_password="$2"
-  local new_api_key="$3"
+  local app_name="$1"
+  local db_path="$2"
+  local new_password="$3"
+  local new_api_key="$4"
 
-  python3 - <<PYEOF
+  if ! python3 - <<PYEOF; then
 import json
 import sqlite3
 conn = sqlite3.connect('$db_path')
-cur = conn.cursor()
-cur.execute("SELECT Id, Settings FROM DownloadClients WHERE ConfigContract='SabnzbdSettings'")
-for row_id, raw_settings in cur.fetchall():
-    settings = json.loads(raw_settings)
-    settings['username'] = 'sabnzbd'
-    settings['password'] = '$new_password'
-    settings['apiKey'] = '$new_api_key'
-    cur.execute('UPDATE DownloadClients SET Settings = ? WHERE Id = ?', (json.dumps(settings, indent=2), row_id))
-conn.commit()
-conn.close()
+try:
+    cur = conn.cursor()
+    cur.execute("SELECT Id, Settings FROM DownloadClients WHERE ConfigContract='SabnzbdSettings'")
+    for row_id, raw_settings in cur.fetchall():
+        settings = json.loads(raw_settings)
+        settings['username'] = 'sabnzbd'
+        settings['password'] = '$new_password'
+        settings['apiKey'] = '$new_api_key'
+        cur.execute('UPDATE DownloadClients SET Settings = ? WHERE Id = ?', (json.dumps(settings, indent=2), row_id))
+    conn.commit()
+except sqlite3.OperationalError:
+    raise SystemExit(1)
+finally:
+    conn.close()
 PYEOF
+    echo "[$app_name DB] No DownloadClients table yet (app never started), skipping."
+  fi
 }
 
 # ---------------------------------------------------------------------------
@@ -372,20 +391,34 @@ PYEOF
   echo "[Audiobookshelf] Stopping container to update absdatabase.sqlite..."
   podman stop audiobookshelf >/dev/null
 
+  # The users table only gets its 'root' row once Audiobookshelf's own
+  # first-run setup wizard has been completed — nothing in this stack
+  # automates that, so skip with a note rather than silently updating zero
+  # rows and reporting a password that was never actually written anywhere.
   echo "[Audiobookshelf] Writing new password hash for user '${AUDIOBOOKSHELF_USER}'..."
-  python3 - <<PYEOF
+  if python3 - <<PYEOF; then
 import sqlite3
 
 conn = sqlite3.connect('$AUDIOBOOKSHELF_DB')
-conn.execute("UPDATE users SET pash = ? WHERE username = ?", ('$new_hash', '$AUDIOBOOKSHELF_USER'))
-conn.commit()
-conn.close()
+try:
+    cur = conn.execute("UPDATE users SET pash = ? WHERE username = ?", ('$new_hash', '$AUDIOBOOKSHELF_USER'))
+    conn.commit()
+    updated = cur.rowcount > 0
+except sqlite3.OperationalError:
+    updated = False
+finally:
+    conn.close()
+raise SystemExit(0 if updated else 1)
 PYEOF
-
-  podman start audiobookshelf >/dev/null
-
-  SUMMARY_AUDIOBOOKSHELF_USER="$AUDIOBOOKSHELF_USER"
-  SUMMARY_AUDIOBOOKSHELF_NEW="$new_password"
+    podman start audiobookshelf >/dev/null
+    SUMMARY_AUDIOBOOKSHELF_USER="$AUDIOBOOKSHELF_USER"
+    SUMMARY_AUDIOBOOKSHELF_NEW="$new_password"
+  else
+    podman start audiobookshelf >/dev/null
+    echo "[Audiobookshelf] No user '${AUDIOBOOKSHELF_USER}' yet, skipping."
+    echo "[Audiobookshelf] Complete its setup wizard first, then re-run"
+    echo "[Audiobookshelf] 'make rotate_all SERVICE=audiobookshelf'."
+  fi
 }
 
 rotate_bazarr() {
@@ -421,15 +454,31 @@ rotate_calibre() {
     podman stop calibre >/dev/null
   fi
 
-  echo "[Calibre] Writing new password for content server user '${CALIBRE_USER}' to server-users.sqlite..."
-  python3 - <<PYEOF
+  # server-users.sqlite only gets its `users` table (and a row for
+  # CALIBRE_USER) once the content server has been started and a user
+  # created through Calibre's own flow at least once — nothing in this
+  # stack automates that first-run step, so skip with a note here rather
+  # than crash the whole rotation over an app that hasn't been used yet.
+  if python3 - <<PYEOF; then
 import sqlite3
 
 conn = sqlite3.connect('$CALIBRE_USERS_DB')
-conn.execute("UPDATE users SET pw = ? WHERE name = ?", ('$new_password', '$CALIBRE_USER'))
-conn.commit()
-conn.close()
+try:
+    cur = conn.execute("UPDATE users SET pw = ? WHERE name = ?", ('$new_password', '$CALIBRE_USER'))
+    conn.commit()
+    updated = cur.rowcount > 0
+except sqlite3.OperationalError:
+    updated = False
+finally:
+    conn.close()
+raise SystemExit(0 if updated else 1)
 PYEOF
+    echo "[Calibre] Wrote new password for content server user '${CALIBRE_USER}' to server-users.sqlite."
+  else
+    echo "[Calibre] No content server user '${CALIBRE_USER}' in server-users.sqlite yet, skipping."
+    echo "[Calibre] Start Calibre's content server and create that user first, then re-run"
+    echo "[Calibre] 'make rotate_all SERVICE=calibre'."
+  fi
 
   echo "[Calibre] Writing new password for desktop GUI user '${CALIBRE_USER}' to the secret file..."
   python3 - <<PYEOF
@@ -574,7 +623,20 @@ PYEOF
 rotate_jellyfin() {
   # Jellyfin's login password is changed through its API with the admin API
   # key that Homepage holds. No other consumer stores the password (Homepage
-  # authenticates with the API key).
+  # authenticates with the API key). That flow only works once Jellyfin's own
+  # first-run setup wizard has created an admin account, which nothing in
+  # this stack automates (it involves real choices: media libraries,
+  # metadata language, remote access) — skip with a note rather than
+  # aborting, mirroring rotate-api-keys.sh's rotate_jellyfin().
+  if [[ "$(container_curl jellyfin -s --fail \
+    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}/System/Info/Public" |
+    jq -r '.StartupWizardCompleted')" != "true" ]]; then
+    echo "[Jellyfin] Setup wizard not completed yet, skipping password rotation."
+    echo "[Jellyfin] Finish it at http://localhost:${JELLYFIN_HTTP_PORT}/, then re-run"
+    echo "[Jellyfin] 'make rotate_all SERVICE=jellyfin'."
+    return 0
+  fi
+
   local new_password api_key user_id
   new_password=$(gen_password)
   api_key=$(cat "$JELLYFIN_API_KEY_SECRET" 2>/dev/null)
@@ -724,19 +786,19 @@ PYEOF
   stop_existing sonarr radarr lidarr readarr whisparr lazylibrarian mylar
 
   echo "[Sonarr DB] Updating qBittorrent password in DownloadClients..."
-  update_arr_qbt_password "$SONARR_DB" "$new_password"
+  update_arr_qbt_password Sonarr "$SONARR_DB" "$new_password"
 
   echo "[Radarr DB] Updating qBittorrent password in DownloadClients..."
-  update_arr_qbt_password "$RADARR_DB" "$new_password"
+  update_arr_qbt_password Radarr "$RADARR_DB" "$new_password"
 
   echo "[Lidarr DB] Updating qBittorrent password in DownloadClients..."
-  update_arr_qbt_password "$LIDARR_DB" "$new_password"
+  update_arr_qbt_password Lidarr "$LIDARR_DB" "$new_password"
 
   echo "[Readarr DB] Updating qBittorrent password in DownloadClients..."
-  update_arr_qbt_password "$READARR_DB" "$new_password"
+  update_arr_qbt_password Readarr "$READARR_DB" "$new_password"
 
   echo "[Whisparr DB] Updating qBittorrent password in DownloadClients..."
-  update_arr_qbt_password "$WHISPARR_DB" "$new_password"
+  update_arr_qbt_password Whisparr "$WHISPARR_DB" "$new_password"
 
   echo "[Config] Updating qBittorrent password..."
   python3 - <<PYEOF
@@ -902,15 +964,15 @@ if p.exists():
 PYEOF
 
   echo "[Sonarr DB] Updating SABnzbd credentials in DownloadClients..."
-  update_arr_sabnzbd_credentials "$SONARR_DB" "$new_password" "$new_api_key"
+  update_arr_sabnzbd_credentials Sonarr "$SONARR_DB" "$new_password" "$new_api_key"
   echo "[Radarr DB] Updating SABnzbd credentials in DownloadClients..."
-  update_arr_sabnzbd_credentials "$RADARR_DB" "$new_password" "$new_api_key"
+  update_arr_sabnzbd_credentials Radarr "$RADARR_DB" "$new_password" "$new_api_key"
   echo "[Lidarr DB] Updating SABnzbd credentials in DownloadClients..."
-  update_arr_sabnzbd_credentials "$LIDARR_DB" "$new_password" "$new_api_key"
+  update_arr_sabnzbd_credentials Lidarr "$LIDARR_DB" "$new_password" "$new_api_key"
   echo "[Readarr DB] Updating SABnzbd credentials in DownloadClients..."
-  update_arr_sabnzbd_credentials "$READARR_DB" "$new_password" "$new_api_key"
+  update_arr_sabnzbd_credentials Readarr "$READARR_DB" "$new_password" "$new_api_key"
   echo "[Whisparr DB] Updating SABnzbd credentials in DownloadClients..."
-  update_arr_sabnzbd_credentials "$WHISPARR_DB" "$new_password" "$new_api_key"
+  update_arr_sabnzbd_credentials Whisparr "$WHISPARR_DB" "$new_password" "$new_api_key"
 
   start_stopped
 

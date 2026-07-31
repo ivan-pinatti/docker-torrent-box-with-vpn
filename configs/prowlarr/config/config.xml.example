@@ -15,4 +15,5 @@
   <SslCertPassword>changeme</SslCertPassword>
   <InstanceName>Prowlarr</InstanceName>
   <AnalyticsEnabled>False</AnalyticsEnabled>
+  <CertificateValidation>DisabledForLocalAddresses</CertificateValidation>
 </Config>

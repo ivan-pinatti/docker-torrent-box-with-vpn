@@ -15,4 +15,5 @@
   <AnalyticsEnabled>False</AnalyticsEnabled>
   <InstanceName>Lidarr</InstanceName>
   <AuthenticationRequired>Enabled</AuthenticationRequired>
+  <CertificateValidation>DisabledForLocalAddresses</CertificateValidation>
 </Config>

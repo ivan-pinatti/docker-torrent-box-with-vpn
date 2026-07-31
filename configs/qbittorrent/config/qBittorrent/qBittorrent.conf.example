@@ -79,7 +79,7 @@ WebUI\HTTPS\KeyPath=/certs/server.key
 WebUI\HostHeaderValidation=true
 WebUI\LocalHostAuth=true
 WebUI\MaxAuthenticationFailCount=5
-WebUI\Password_PBKDF2="@ByteArray(ABEiM0RVZneImaq7zN3u/w==:0DYg2C/ShbVK1EEsk8moQJLz61uNyJ/HvJYJCsID1W7XXZJ/Cupn+r3mORrVZPZ1wSQjGVCaff44dEMRJU3IcA==)"
+WebUI\Password_PBKDF2="@ByteArray(j8IY8aHvCzXvVs/ycHdFNA==:cyfOmF1b0qAejGpTpZjfWGHFRI1oTeRFGr9n4d1+foYoot+GgsPv8sA8jBHtIacOlf9R21P+9b/NwXjSGZVdkA==)"
 WebUI\Port=8085
 WebUI\ReverseProxySupportEnabled=false
 WebUI\RootFolder=

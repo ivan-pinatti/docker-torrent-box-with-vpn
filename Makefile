@@ -60,7 +60,7 @@ STOP_COMPOSE_FILES := --file docker-compose.yml $(foreach route_file,$(STOP_ROUT
 	configure_jellyfin_network \
 	detect_secrets_create_baseline down generate_certificate \
 	heal_vpn_dependents \
-	rotate_all rotate_api_keys rotate_certificate rotate_passwords \
+	rotate_all rotate_api_keys rotate_certificate rotate_passwords wire_connections \
 	disk_status korsync_users permissions_check permissions_repair permissions_smoke permissions_host_smoke prune_cache rotate_nginx_logs \
 	install_requirements pull_docker_images pre_commit \
 	restore-configs restore-full \
@@ -197,8 +197,17 @@ bootstrap: configs/flaresolverr/config/chromedriver
 	@./scripts/seed-configs.sh configs/calibre/config/.config/calibre/global.py.json
 	@./scripts/seed-configs.sh configs/calibre/config/.config/calibre/dynamic.pickle.json
 	@./scripts/permissions.py repair --runtime $(RUNTIME) --recursive
+	@echo "Starting the stack for the first time..."
+	@$(MAKE) --no-print-directory start
+	@echo "Applying Jellyfin network settings now that it has generated its config..."
 	@$(MAKE) --no-print-directory configure_jellyfin_network
-	@echo "Bootstrap complete. You can now run: make start"
+	@echo "Wiring app-to-app connections..."
+	@$(MAKE) --no-print-directory wire_connections
+	@echo "Rotating every seeded API key and password..."
+	@$(MAKE) --no-print-directory rotate_all
+	@echo "Bootstrap complete: the stack is running, wired, and every credential"
+	@echo "has been rotated away from its seeded default. See docs/CONNECTIONS.md"
+	@echo "for what was wired, and docs/ROTATION.md to rotate again later."
 
 backup: backup-configs
 
@@ -468,6 +477,14 @@ rotate_api_keys:
 
 rotate_passwords:
 	@./scripts/rotate-passwords.sh $(or $(SERVICE),all)
+
+# Wires qBittorrent/SABnzbd into Sonarr/Radarr/Lidarr/Readarr/Whisparr as
+# download clients, and those apps (plus LazyLibrarian/Mylar) into Prowlarr
+# as Applications, all through each app's own live API. Idempotent: safe to
+# re-run any time, including after a rotation. See docs/CONNECTIONS.md for
+# what this covers and what's already wired without it.
+wire_connections:
+	@./scripts/wire-connections.sh
 
 start: permissions_repair
 	@if [ "$(RUNTIME)" = "podman" ]; then \

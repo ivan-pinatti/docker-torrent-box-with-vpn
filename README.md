@@ -621,11 +621,25 @@ make bootstrap
 
 This remaps managed data, config, and storage paths into the container user
 namespace, and seeds every app's config from its committed `.example`
-templates. It also tries to apply the Jellyfin base URL/trusted proxy settings
-from `JELLYFIN_BASE_URL` and `JELLYFIN_KNOWN_PROXY`, but skips that step with a
-message on a fresh clone; see [App Links](#app-links) for why and how to apply
-it after the first start. See [docs/HARDENING.md](docs/HARDENING.md) for the
-full permissions explanation.
+templates. It's meant to run once: it also starts the stack (`make start`),
+applies the Jellyfin base URL/trusted proxy settings from `JELLYFIN_BASE_URL`
+and `JELLYFIN_KNOWN_PROXY` now that Jellyfin has generated its own config, and
+finally wires the app-to-app connections that only exist through each app's
+own live API (qBittorrent/SABnzbd as download clients in the Servarr apps,
+those apps registered in Prowlarr) — see
+[docs/CONNECTIONS.md](docs/CONNECTIONS.md) for exactly what that covers, and
+`make wire_connections` to re-run just that step later (after enabling an app
+that was disabled, for instance). Finally, it rotates every seeded API key
+and password (`make rotate_all`), so a fresh clone is fully secured the
+moment bootstrap finishes. The exceptions are Jellyfin, Audiobookshelf, and
+Calibre's content server: each needs its own first-run setup wizard
+completed (a one-time manual step involving real choices, like Jellyfin's
+media libraries) before it has an account to rotate at all, so those
+credentials are skipped with a note until then; `make rotate_all
+SERVICE=<name>` picks each one up once its wizard is done. See
+[docs/ROTATION.md](docs/ROTATION.md) to rotate again later, and
+[docs/HARDENING.md](docs/HARDENING.md) for the full
+permissions explanation.
 
 ### 6.1. Build custom images
 
@@ -680,9 +694,10 @@ crontab -e
 
 ### 8. Rotate your keys
 
-All the services are pre-configured, therefore they already have API keys and
-passwords set. It is **strongly recommended rotating all of them** for the sake
-of security. With the stack running:
+`make bootstrap` already rotates every seeded API key and password once, as
+its last step, so nothing here is required after a fresh clone. Rotate again
+any time after that, for example on a recurring schedule, or after enabling a
+service that was disabled during bootstrap. With the stack running:
 
 ```shell
 make rotate_all                   # rotate API keys and passwords everywhere
