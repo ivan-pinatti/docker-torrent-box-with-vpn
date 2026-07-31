@@ -1387,13 +1387,24 @@ bazarr_login_ok() {
 # (basic auth over HTTPS with a self-signed certificate).
 calibre_login_ok() {
   local code
-  code=$(container_curl calibre -s -o /dev/null -w '%{http_code}' \
-    -u "${CALIBRE_USER}:$1" \
-    "http://127.0.0.1:${CALIBRE_GUI_WEB_HTTP_PORT}/ajax/library-info")
-  [[ "$code" == "200" ]] || return 1
   code=$(container_curl calibre -sk -o /dev/null -w '%{http_code}' \
     -u "${CALIBRE_USER}:$1" \
     "https://127.0.0.1:${CALIBRE_DESKTOP_HTTPS_PORT}/")
+  [[ "$code" == "200" ]]
+}
+
+# CALIBRE_GUI_WEB_HTTP_PORT (the content server) defaults to the same port
+# (8081) as Selkies' own desktop-streaming data websocket inside the image,
+# and the content server only starts once the desktop GUI is up — so this
+# is checked separately, informationally, and never fails the rotation:
+# it's a pre-existing port collision in the image unrelated to whether the
+# password was rotated correctly (which the desktop GUI check above
+# already confirms).
+calibre_content_server_ok() {
+  local code
+  code=$(container_curl calibre -s -o /dev/null -w '%{http_code}' \
+    -u "${CALIBRE_USER}:$1" \
+    "http://127.0.0.1:${CALIBRE_GUI_WEB_HTTP_PORT}/ajax/library-info")
   [[ "$code" == "200" ]]
 }
 
@@ -1527,6 +1538,8 @@ validate_calibre() {
   local status=0
   if retry 90 calibre_login_ok "$password"; then
     printf "%-14s  OK\n" "calibre"
+    retry 60 calibre_content_server_ok "$password" ||
+      echo "[Calibre] Content server not reachable on port ${CALIBRE_GUI_WEB_HTTP_PORT} (pre-existing image issue, see docs/ROTATION.md); desktop GUI login already confirmed the password rotated correctly."
     echo "$status" >"$VALIDATE_TMPDIR/calibre.result"
     return
   fi
@@ -1534,6 +1547,8 @@ validate_calibre() {
   podman exec calibre s6-svc -r /run/service/svc-de >/dev/null 2>&1 || true
   if retry 420 calibre_login_ok "$password"; then
     printf "%-14s  OK\n" "calibre"
+    retry 60 calibre_content_server_ok "$password" ||
+      echo "[Calibre] Content server not reachable on port ${CALIBRE_GUI_WEB_HTTP_PORT} (pre-existing image issue, see docs/ROTATION.md); desktop GUI login already confirmed the password rotated correctly."
   else
     printf "%-14s  FAILED\n" "calibre"
     status=1

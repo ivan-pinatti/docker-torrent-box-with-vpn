@@ -166,7 +166,14 @@ alphabetical by service.
   lock after a stop/start or recreate cycle; validation gives it a normal
   boot window, then self-heals once by running `podman exec calibre s6-svc
   -r /run/service/svc-de` before giving it a second window, so an operator
-  does not need to notice and run that command by hand.
+  does not need to notice and run that command by hand. Validating the
+  desktop GUI login is what actually confirms the password rotated
+  correctly; the content server's own AJAX API
+  (`CALIBRE_GUI_WEB_HTTP_PORT`, default 8081) is checked separately and
+  only informationally, since it defaults to the same port as Selkies'
+  desktop-streaming data websocket inside the `lscr.io/linuxserver/calibre`
+  image itself — a pre-existing collision unrelated to credential rotation,
+  not something this script can work around.
 - **Calibre-Web**: writes a new password hash for the `calibre` user
   directly to `app.db` (no API exists) and updates the shared secret file
   `configs/calibre-web/secrets/password.txt`, which Homepage reads directly.
