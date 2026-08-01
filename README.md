@@ -420,9 +420,10 @@ echo "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" > configs/gluetun/.secret  #
 > `make bootstrap` checks this file before doing anything else. If it's still
 > missing or the example placeholder above and you're running it in a real
 > terminal, it asks which provider you're using. For Proton VPN it walks you
-> through both this key (input is hidden, like a password prompt) and the
-> server country below (Step 3, suggesting a different country each run
-> rather than always the same one) in one go. For any other provider
+> through both this key (input shows `*` per character instead of the key
+> itself) and the server country below (Step 3, suggesting a different
+> country each run rather than always the same one) in one go. For any other
+> provider
 > (NordVPN, ExpressVPN, PIA, AirVPN, TorGuard, ...) it points you at
 > [docs/VPN_PROVIDERS.md](docs/VPN_PROVIDERS.md) instead of guessing, since
 > their credentials aren't a WireGuard key at all (OpenVPN username/password,

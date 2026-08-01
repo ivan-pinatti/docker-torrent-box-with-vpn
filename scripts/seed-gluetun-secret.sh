@@ -19,6 +19,32 @@ readonly SECRET_FILE="configs/gluetun/.secret" # pragma: allowlist secret
 readonly ENV_FILE="configs/gluetun/.env"
 readonly PLACEHOLDER="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" # pragma: allowlist secret
 
+# Reads one line from the terminal, printing '*' per character instead of
+# the character itself, and supporting backspace. All the echoed prompt and
+# asterisks go straight to /dev/tty so this function's own stdout stays
+# clean for command substitution: callers do key="$(read_masked "prompt")".
+read_masked() {
+  local prompt="$1"
+  local input="" char
+  printf '%s' "$prompt" >/dev/tty
+  while IFS= read -rsn1 char; do
+    if [[ -z "$char" ]]; then
+      break
+    fi
+    if [[ "$char" == $'\x7f' ]]; then
+      if [[ -n "$input" ]]; then
+        input="${input%?}"
+        printf '\b \b' >/dev/tty
+      fi
+      continue
+    fi
+    input+="$char"
+    printf '*' >/dev/tty
+  done
+  printf '\n' >/dev/tty
+  printf '%s' "$input"
+}
+
 needs_setup() {
   [[ ! -s "$SECRET_FILE" ]] || grep -qx "$PLACEHOLDER" "$SECRET_FILE"
 }
@@ -55,9 +81,8 @@ case "$choice" in
   echo ""
   echo "Paste the WireGuard PrivateKey from your Proton VPN config (see"
   echo "README.md section 3.1 for how to generate one), or press Enter to"
-  echo "skip and edit ${SECRET_FILE} manually. Input is hidden."
-  read -rs -p "PrivateKey: " key
-  echo ""
+  echo "skip and edit ${SECRET_FILE} manually. Input is masked."
+  key="$(read_masked "PrivateKey: ")"
   if [[ -z "$key" ]]; then
     echo "ERROR: No key entered. Paste your own WireGuard PrivateKey into" >&2
     echo "${SECRET_FILE} before running bootstrap." >&2

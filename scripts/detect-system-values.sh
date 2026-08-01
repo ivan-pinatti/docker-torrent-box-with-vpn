@@ -2,11 +2,11 @@
 set -euo pipefail
 
 # Usage: ./scripts/detect-system-values.sh <env-file>
-# Fills in UID, GID, and TIMEZONE with values detected from the host, but
-# only while they still match .env.example's own placeholder defaults
-# (UID=1000, GID=1000, TIMEZONE=America/Toronto). That makes it safe to call
-# on every `make` invocation without ever touching a value the user has
-# already customized.
+# Fills in UID, GID, TIMEZONE, and LAN_IP with values detected from the
+# host, but only while they still match .env.example's own placeholder
+# defaults (UID=1000, GID=1000, TIMEZONE=America/Toronto,
+# LAN_IP=192.168.1.x). That makes it safe to call on every `make` invocation
+# without ever touching a value the user has already customized.
 
 if [[ $# -ne 1 ]]; then
   echo "Usage: $0 <env-file>" >&2
@@ -26,6 +26,10 @@ fi
 if [[ -z "$detected_timezone" && -L /etc/localtime ]]; then
   detected_timezone="$(readlink /etc/localtime | sed 's#.*/zoneinfo/##')"
 fi
+detected_lan_ip="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if ($i=="src") print $(i+1)}')"
+if [[ -z "$detected_lan_ip" ]]; then
+  detected_lan_ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+fi
 
 if [[ "$detected_uid" != "1000" ]] && grep -qx "UID=1000" "$ENV_FILE"; then
   sed -i "s/^UID=1000\$/UID=${detected_uid}/" "$ENV_FILE"
@@ -41,4 +45,9 @@ if [[ -n "$detected_timezone" && "$detected_timezone" != "America/Toronto" ]] &&
   grep -qx "TIMEZONE=America/Toronto" "$ENV_FILE"; then
   sed -i "s#^TIMEZONE=America/Toronto\$#TIMEZONE=${detected_timezone}#" "$ENV_FILE"
   echo "[$ENV_FILE] Set TIMEZONE=${detected_timezone} (detected from the host)."
+fi
+
+if [[ -n "$detected_lan_ip" ]] && grep -qx "LAN_IP=192.168.1.x" "$ENV_FILE"; then
+  sed -i "s/^LAN_IP=192.168.1.x\$/LAN_IP=${detected_lan_ip}/" "$ENV_FILE"
+  echo "[$ENV_FILE] Set LAN_IP=${detected_lan_ip} (detected via 'ip route')."
 fi

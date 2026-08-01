@@ -370,6 +370,13 @@ configure_jellyfin_network:
 	fi
 
 generate_certificate:
+	@if [ "$(LAN_IP)" = "192.168.1.x" ]; then \
+		echo "ERROR: LAN_IP in .env is still the example placeholder (192.168.1.x)."; \
+		echo "OpenSSL rejects it as an invalid IP address in the certificate's"; \
+		echo "subjectAltName. Set LAN_IP to your host's real LAN address in .env,"; \
+		echo "then re-run 'make generate_certificate'."; \
+		exit 1; \
+	fi
 	@echo -n "Generating self-signed certificate..."
 	@openssl req -new -newkey rsa:4096 -days 3650 -nodes -x509 \
 		-subj "/C=${CERT_COUNTRY}/ST=${CERT_STATE}/L=${CERT_CITY}/O=${CERT_ORGANIZATION}/OU=${CERT_OU}/CN=${CERT_FQDN}" \
