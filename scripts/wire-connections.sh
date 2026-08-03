@@ -69,10 +69,11 @@ MYLAR_HTTPS_PORT="$(env_value MYLAR_HTTPS_PORT)"
 JELLYFIN_HTTP_PORT="$(env_value JELLYFIN_HTTP_PORT)"
 JELLYFIN_BASE_URL="$(env_value JELLYFIN_BASE_URL)"
 AUDIOBOOKSHELF_HTTP_PORT="$(env_value AUDIOBOOKSHELF_HTTP_PORT)"
+CALIBREWEB_VERSION="$(env_value CALIBREWEB_VERSION)"
 readonly GLUETUN_SERVICES_IP QBITTORRENT_HTTPS_PORT SABNZBD_HTTP_PORT \
   SONARR_HTTP_PORT RADARR_HTTPS_PORT LIDARR_HTTPS_PORT READARR_HTTPS_PORT \
   WHISPARR_HTTPS_PORT PROWLARR_HTTPS_PORT LAZYLIBRARIAN_HTTP_PORT MYLAR_HTTPS_PORT \
-  JELLYFIN_BASE_URL \
+  JELLYFIN_BASE_URL CALIBREWEB_VERSION \
   JELLYFIN_HTTP_PORT AUDIOBOOKSHELF_HTTP_PORT
 
 readonly SONARR_XML="configs/sonarr/config/config.xml"
@@ -88,7 +89,8 @@ readonly QBITTORRENT_USERNAME_FILE="configs/qbittorrent/secrets/username.txt"
 readonly QBITTORRENT_PASSWORD_FILE="configs/qbittorrent/secrets/password.txt" # pragma: allowlist secret
 readonly SABNZBD_API_KEY_FILE="configs/sabnzbd/secrets/api_key.txt"           # pragma: allowlist secret
 
-readonly JELLYFIN_API_KEY_FILE="configs/jellyfin/secrets/api_key.txt" # pragma: allowlist secret
+readonly JELLYFIN_API_KEY_FILE="configs/jellyfin/secrets/api_key.txt"             # pragma: allowlist secret
+readonly AUDIOBOOKSHELF_API_KEY_FILE="configs/audiobookshelf/secrets/api_key.txt" # pragma: allowlist secret
 readonly CALIBRE_USERS_DB_CONTAINER_PATH="/config/.config/calibre/server-users.sqlite"
 readonly CALIBRE_PASSWORD_FILE="configs/calibre/secrets/password.txt" # pragma: allowlist secret
 readonly CALIBREWEB_DB="configs/calibre-web/config/app.db"
@@ -189,13 +191,21 @@ wait_job() {
 detect_jellyfin_base_url() {
   local host_url="http://127.0.0.1:${JELLYFIN_HTTP_PORT}"
   local info
+  # `jq -e '.StartupWizardCompleted'` looked right but isn't: jq -e's exit
+  # status reflects the truthiness of the printed value, not whether the key
+  # exists, so it reports failure on a genuinely fresh instance where the
+  # value is a real, valid `false`. Confirmed live: this made
+  # detect_jellyfin_base_url report "not reachable" for the full 180s retry
+  # against a perfectly reachable, freshly booted Jellyfin, so first-run
+  # setup (and the BaseUrl fix) never even started. `has(...)` only checks
+  # the key is present, regardless of its value.
   info=$(container_curl jellyfin -s "${host_url}/System/Info/Public" 2>/dev/null)
-  if echo "$info" | jq -e '.StartupWizardCompleted' >/dev/null 2>&1; then
+  if echo "$info" | jq -e 'has("StartupWizardCompleted")' >/dev/null 2>&1; then
     JELLYFIN_DETECTED_BASE_URL="$host_url"
     return 0
   fi
   info=$(container_curl jellyfin -s "${host_url}${JELLYFIN_BASE_URL}/System/Info/Public" 2>/dev/null)
-  if echo "$info" | jq -e '.StartupWizardCompleted' >/dev/null 2>&1; then
+  if echo "$info" | jq -e 'has("StartupWizardCompleted")' >/dev/null 2>&1; then
     JELLYFIN_DETECTED_BASE_URL="${host_url}${JELLYFIN_BASE_URL}"
     return 0
   fi
@@ -279,7 +289,17 @@ ensure_jellyfin_homepage_wiring() {
     return 0
   fi
 
-  if [[ ! -s "$JELLYFIN_API_KEY_FILE" ]]; then
+  # A non-empty file isn't proof of a real key: bootstrap seeds this file
+  # from api_key.txt.example (a placeholder Jellyfin has never issued and
+  # never will validate), so checking for content alone treats that
+  # placeholder as already done and skips creating a real one forever,
+  # confirmed live. Checking it against Jellyfin's own live key list is the
+  # only way to tell a real, working key from a leftover placeholder.
+  local existing_keys current_key
+  existing_keys=$(container_curl jellyfin -sS --fail -H "Authorization: MediaBrowser Token=\"${token}\"" \
+    "${base_url}/Auth/Keys" | jq -r '.Items[].AccessToken')
+  current_key=$(cat "$JELLYFIN_API_KEY_FILE" 2>/dev/null || true)
+  if ! grep -qxF "$current_key" <<<"$existing_keys"; then
     echo "[Jellyfin] Creating initial API key..."
     container_curl jellyfin -sS --fail -X POST -H "Authorization: MediaBrowser Token=\"${token}\"" \
       "${base_url}/Auth/Keys?App=homepage" >/dev/null
@@ -327,16 +347,62 @@ ensure_audiobookshelf_setup() {
   fi
   local status
   status=$(podman exec audiobookshelf wget -qO- "${base_url}/status")
-  if [[ "$(echo "$status" | jq -r '.isInit')" == "true" ]]; then
-    echo "[Audiobookshelf] Already initialized, skipping."
+  if [[ "$(echo "$status" | jq -r '.isInit')" != "true" ]]; then
+    echo "[Audiobookshelf] Creating initial root user..."
+    local init_payload='{"newRoot":{"username":"root","password":"audiobookshelf"}}' # pragma: allowlist secret
+    podman exec audiobookshelf wget -qO- --header='Content-Type: application/json' \
+      --post-data="$init_payload" "${base_url}/init" >/dev/null
+  fi
+
+  ensure_audiobookshelf_api_key "$base_url"
+  echo "[Audiobookshelf] Done."
+}
+
+# Homepage's widget uses a real, non-expiring API key (Audiobookshelf's own
+# Settings > API Keys feature, POST /api/api-keys with no expiresIn), not
+# the short-lived JWT /login returns, per rotate-passwords.sh's own comment
+# that "Homepage talks to it with a JWT API token, not the password, so no
+# consumer cascade is needed" — a comment that assumed this key already got
+# created somewhere, but nothing ever did. bootstrap seeds this file from
+# api_key.txt.example ("changeme"), which is not a key Audiobookshelf will
+# ever accept, so the widget silently ran on a placeholder forever,
+# confirmed live. Only attempts this with the placeholder root/audiobookshelf
+# login: if that's been rotated since, this can't authenticate and skips
+# with a note, matching ensure_jellyfin_homepage_wiring's same fallback.
+ensure_audiobookshelf_api_key() {
+  local base_url="$1"
+  local login_response token
+  local login_payload='{"username":"root","password":"audiobookshelf"}' # pragma: allowlist secret
+  login_response=$(podman exec audiobookshelf wget -qO- --header='Content-Type: application/json' \
+    --post-data="$login_payload" "${base_url}/login" 2>/dev/null)
+  token=$(echo "$login_response" | jq -r '.user.token // empty')
+  if [[ -z "$token" ]]; then
+    echo "[Audiobookshelf] Could not authenticate as the placeholder root user, skipping API key check."
     return 0
   fi
 
-  echo "[Audiobookshelf] Creating initial root user..."
-  local init_payload='{"newRoot":{"username":"root","password":"audiobookshelf"}}' # pragma: allowlist secret
-  podman exec audiobookshelf wget -qO- --header='Content-Type: application/json' \
-    --post-data="$init_payload" "${base_url}/init" >/dev/null
-  echo "[Audiobookshelf] Done."
+  # GET /api/api-keys only ever returns each key's id/metadata, never the
+  # secret value again after creation, so there's no way to compare the
+  # file's content directly the way ensure_jellyfin_homepage_wiring does; a
+  # name unique to this script is enough to tell "already made one" from
+  # "never made one, or it's still the seeded placeholder".
+  if podman exec audiobookshelf wget -qO- --header="Authorization: Bearer ${token}" \
+    "${base_url}/api/api-keys" | jq -e '.apiKeys[] | select(.name == "wire-connections")' >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "[Audiobookshelf] Creating initial API key..."
+  local user_id
+  user_id=$(echo "$login_response" | jq -r '.user.id')
+  local key_response
+  key_response=$(podman exec audiobookshelf wget -qO- --header="Authorization: Bearer ${token}" \
+    --header='Content-Type: application/json' \
+    --post-data="$(jq -n --arg userId "$user_id" '{name: "wire-connections", userId: $userId, isActive: true}')" \
+    "${base_url}/api/api-keys")
+  local api_key
+  api_key=$(echo "$key_response" | jq -r '.apiKey.apiKey')
+  printf '%s' "$api_key" >"$AUDIOBOOKSHELF_API_KEY_FILE"
+  chmod 644 "$AUDIOBOOKSHELF_API_KEY_FILE"
 }
 
 # calibre-server --manage-users is a real, non-interactive CLI command
@@ -381,22 +447,64 @@ calibre_web_db_ready() {
 import sqlite3, sys
 conn = sqlite3.connect('$CALIBREWEB_DB')
 row = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='settings'").fetchone()
-if not row:
-    sys.exit(1)
-# Calibre-Web's own init_db() (cps/ub.py) creates the whole schema via
-# Base.metadata.create_all() first, then seeds the default admin and Guest
-# rows through two later, separate INSERT+commit calls. The settings table
-# existing only proves the schema DDL landed; it does not prove those later
-# inserts have committed yet. Stopping the container in that gap (confirmed
-# live: a real run captured app.db with a full schema and zero rows in the
-# user table) ships an app.db with no admin and no Guest user at all, so
-# every request 500s trying to load the anonymous user (ub.py's
-# AnonymousUser.loadSettings() dereferences a None row). Waiting for a user
-# row too closes that window.
+conn.close()
+sys.exit(0 if row else 1)
+PYEOF
+}
+
+calibre_web_user_count() {
+  python3 - <<PYEOF
+import sqlite3
+conn = sqlite3.connect('$CALIBREWEB_DB')
 row = conn.execute("SELECT COUNT(*) FROM user").fetchone()
 conn.close()
-sys.exit(0 if row and row[0] > 0 else 1)
+print(row[0] if row else 0)
 PYEOF
+}
+
+# Calibre-Web's own init_db() (cps/ub.py) only seeds the default admin and
+# Guest rows when app.db does not already exist as a file; if one exists
+# (even schema-only, zero rows), it takes the migrate-and-clean branch
+# instead and never seeds anything, on this run or any future one. An
+# app.db in exactly that state (confirmed live, cause not fully identified:
+# most likely the "universal-calibre" mod's package install outlasting a
+# liveness probe mid-init_db(), between the schema DDL and the two
+# INSERT+commit calls that follow it) is otherwise permanent: no amount of
+# restarting or waiting fixes it, since the file already exists. Repairs it
+# by asking Calibre-Web's own code for a real default row set (same image,
+# scratch path, so the exact column defaults/hashing match what a genuine
+# first boot would have produced) and copying those rows into the real
+# app.db in place of whatever (typically nothing) is there now.
+ensure_calibre_web_users() {
+  if [[ "$(calibre_web_user_count)" -gt 0 ]]; then
+    return 0
+  fi
+  echo "[Calibre-Web] app.db has no users (never seeded or lost mid-init), repairing..."
+  local scratch
+  scratch=$(mktemp -d)
+  podman run --rm -v "${scratch}:/scratch:z" --entrypoint python3 \
+    "docker.io/linuxserver/calibre-web:${CALIBREWEB_VERSION}" -c "
+import sys
+sys.path.insert(0, '/app/calibre-web')
+from cps import ub
+ub.init_db('/scratch/fresh_app.db')
+" >/dev/null
+  python3 - <<PYEOF
+import sqlite3
+fresh = sqlite3.connect('${scratch}/fresh_app.db')
+cols = [r[1] for r in fresh.execute("PRAGMA table_info(user)")]
+rows = fresh.execute(f"SELECT {','.join(cols)} FROM user ORDER BY id").fetchall()
+fresh.close()
+
+conn = sqlite3.connect('$CALIBREWEB_DB')
+conn.execute("DELETE FROM user")
+placeholders = ','.join('?' for _ in cols)
+conn.executemany(f"INSERT INTO user ({','.join(cols)}) VALUES ({placeholders})", rows)
+conn.commit()
+conn.close()
+PYEOF
+  rm -rf "$scratch"
+  echo "[Calibre-Web] Restored the default admin/Guest users."
 }
 
 ensure_calibre_web_setup() {
@@ -422,7 +530,7 @@ conn.close()
 print('yes' if row and row[0] else 'no')
 PYEOF
   )
-  if [[ "$configured" == "yes" ]]; then
+  if [[ "$configured" == "yes" && "$(calibre_web_user_count)" -gt 0 ]]; then
     echo "[Calibre-Web] Already configured, skipping."
     return 0
   fi
@@ -433,6 +541,7 @@ PYEOF
   # UID; the one-time `permissions.py repair` earlier in bootstrap ran
   # before this file existed, so it isn't host-writable yet without this.
   ./scripts/permissions.py repair --runtime podman --recursive >/dev/null 2>&1 || true
+  ensure_calibre_web_users
   python3 - <<PYEOF
 import sqlite3
 conn = sqlite3.connect('$CALIBREWEB_DB')
