@@ -518,6 +518,11 @@ wire_arr_app() {
   local qbit_category="$6" sab_category="$7"
   local xml="configs/${app_name}/config/config.xml"
 
+  if ! podman container exists "$container" 2>/dev/null; then
+    echo "[$app_name] Container does not exist, skipping."
+    return 0
+  fi
+
   if ! retry 180 "[$app_name]" container_curl "$container" -sk --fail -H "X-Api-Key: $(get_xml_apikey "$xml")" \
     "${scheme}://127.0.0.1:${port}/${app_name}/api/${api_ver}/system/status"; then
     echo "[$app_name] Not reachable, skipping."
