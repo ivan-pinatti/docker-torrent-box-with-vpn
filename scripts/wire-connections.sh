@@ -111,16 +111,22 @@ container_curl() {
 }
 
 # Retry a command every 5 seconds until it succeeds or timeout (in seconds).
-# Apps can still be warming up right after `make start`.
+# Apps can still be warming up right after `make start`. Prints a heartbeat
+# every 30s so a long wait (Jellyfin's Startup/User retry alone can run up
+# to 180s) doesn't sit silent with no sign anything is happening.
+# Args: timeout label command...
 retry() {
-  local timeout="$1"
-  shift
+  local timeout="$1" label="$2"
+  shift 2
   local elapsed=0
   until "$@" >/dev/null 2>&1; do
     sleep 5
     elapsed=$((elapsed + 5))
     if [[ $elapsed -ge $timeout ]]; then
       return 1
+    fi
+    if ((elapsed % 30 == 0)); then
+      echo "${label} ...still waiting (${elapsed}s/${timeout}s)"
     fi
   done
 }
@@ -132,27 +138,23 @@ retry() {
 # because several of them poll for up to 180s while an app is still warming
 # up: run sequentially, worst case adds up (Jellyfin alone can burn 360s);
 # run in parallel, the whole batch takes as long as its single slowest job.
-# Each job's output is captured to a temp file rather than printed live, so
-# concurrent jobs don't interleave their echo lines, and printed back out
-# afterward in the same fixed, readable order the sequential version used.
-declare -A JOB_OUT
+# Output streams live rather than being captured and printed after the job
+# finishes: every echo in these functions already prefixes its own app name
+# (e.g. "[Jellyfin] ..."), so interleaved lines from concurrent jobs stay
+# attributable, and a slow job (Calibre-Web, Jellyfin) no longer looks like
+# nothing is happening for minutes at a time.
 declare -A JOB_PID
 
 start_job() {
   local name="$1"
   shift
-  local out
-  out="$(mktemp)"
-  JOB_OUT["$name"]="$out"
-  ("$@" >"$out" 2>&1) &
+  "$@" &
   JOB_PID["$name"]=$!
 }
 
 wait_job() {
   local name="$1"
   wait "${JOB_PID[$name]}" || true
-  cat "${JOB_OUT[$name]}"
-  rm -f "${JOB_OUT[$name]}"
 }
 
 # ---------------------------------------------------------------------------
@@ -178,7 +180,7 @@ ensure_jellyfin_setup() {
   fi
 
   local base_url="http://127.0.0.1:${JELLYFIN_HTTP_PORT}"
-  if ! retry 180 container_curl jellyfin -s --fail "${base_url}/System/Info/Public"; then
+  if ! retry 180 "[Jellyfin]" container_curl jellyfin -s --fail "${base_url}/System/Info/Public"; then
     echo "[Jellyfin] Not reachable, skipping."
     return 0
   fi
@@ -201,7 +203,7 @@ ensure_jellyfin_setup() {
   # is not simply a matter of waiting longer. Retrying for a bounded 180s
   # is a best effort, not a guarantee; when it fails, skip with a note
   # rather than block the rest of setup on it (see docs/CONNECTIONS.md).
-  if ! retry 180 container_curl jellyfin -s --fail -X POST -H "Content-Type: application/json" \
+  if ! retry 180 "[Jellyfin]" container_curl jellyfin -s --fail -X POST -H "Content-Type: application/json" \
     -d '{"Name":"jellyfin","Password":"jellyfin"}' "${base_url}/Startup/User"; then # pragma: allowlist secret
     echo "[Jellyfin] Startup/User did not succeed after 180s, skipping the rest of setup."
     echo "[Jellyfin] This step is unreliable; visit http://localhost:${JELLYFIN_HTTP_PORT}/"
@@ -242,7 +244,7 @@ ensure_audiobookshelf_setup() {
   fi
 
   local base_url="http://127.0.0.1:${AUDIOBOOKSHELF_HTTP_PORT}"
-  if ! retry 180 podman exec audiobookshelf wget -qO- "${base_url}/status"; then
+  if ! retry 180 "[Audiobookshelf]" podman exec audiobookshelf wget -qO- "${base_url}/status"; then
     echo "[Audiobookshelf] Not reachable, skipping."
     return 0
   fi
@@ -315,7 +317,7 @@ ensure_calibre_web_setup() {
   # app.db's own schema (created by Calibre-Web itself on first boot) may
   # not exist yet the moment the container is created, especially since it
   # reinstalls its Calibre mod on every start.
-  if ! retry 180 calibre_web_db_ready; then
+  if ! retry 180 "[Calibre-Web]" calibre_web_db_ready; then
     echo "[Calibre-Web] app.db not initialized yet after 180s, skipping."
     return 0
   fi
@@ -516,7 +518,7 @@ wire_arr_app() {
   local qbit_category="$6" sab_category="$7"
   local xml="configs/${app_name}/config/config.xml"
 
-  if ! retry 180 container_curl "$container" -sk --fail -H "X-Api-Key: $(get_xml_apikey "$xml")" \
+  if ! retry 180 "[$app_name]" container_curl "$container" -sk --fail -H "X-Api-Key: $(get_xml_apikey "$xml")" \
     "${scheme}://127.0.0.1:${port}/${app_name}/api/${api_ver}/system/status"; then
     echo "[$app_name] Not reachable, skipping."
     return 0
@@ -542,7 +544,7 @@ wire_prowlarr_apps() {
     echo "[Prowlarr] Container doesn't exist (PROWLARR_PROFILE=disabled), skipping."
     return 0
   fi
-  if ! retry 180 container_curl prowlarr -sk --fail -H "X-Api-Key: $(get_xml_apikey "$PROWLARR_XML")" \
+  if ! retry 180 "[Prowlarr]" container_curl prowlarr -sk --fail -H "X-Api-Key: $(get_xml_apikey "$PROWLARR_XML")" \
     "https://127.0.0.1:${PROWLARR_HTTPS_PORT}/prowlarr/api/v1/system/status"; then
     echo "[Prowlarr] Not reachable, skipping."
     return 0
@@ -618,14 +620,18 @@ ensure_prowlarr_application() {
 # docs/ROTATION.md for the sibling rotation scripts.
 # ---------------------------------------------------------------------------
 
-# All ten jobs are launched together up front so every section runs
-# concurrently, but each section's header is only printed right before that
-# section's own wait_job calls. Printing all headers up front (as an earlier
-# version of this script did) attributed every job's elapsed time to
-# whichever header happened to print last, since headers are near-instant
-# echoes while the real waiting only happens in wait_job: e.g. Jellyfin's
-# first-run setup showed up looking like it happened during "Wiring Prowlarr
-# applications". Splitting start/wait per section keeps the timing honest.
+# All ten jobs are launched together, immediately after this one combined
+# header, and their output streams live rather than being sorted into
+# separate per-section headers: every echo in these functions already
+# prefixes its own app name (e.g. "[Jellyfin] ..."), so a single stream of
+# self-labeled lines from ten concurrent jobs stays readable without needing
+# a fixed section to sort each line under. Waiting on the jobs afterward
+# just lets the script exit only once everything is actually done; the
+# order below doesn't gate when each job's output appears on screen.
+echo "======================================================================"
+echo " First-run setup, download client wiring, and Prowlarr registration"
+echo " (running concurrently; each line is prefixed with its own app name)"
+echo "======================================================================"
 start_job audiobookshelf ensure_audiobookshelf_setup
 start_job calibre ensure_calibre_content_server_user
 start_job calibre-web ensure_calibre_web_setup
@@ -637,26 +643,10 @@ start_job sonarr wire_arr_app sonarr sonarr http "$SONARR_HTTP_PORT" v3 sonarr t
 start_job whisparr wire_arr_app whisparr whisparr https "$WHISPARR_HTTPS_PORT" v3 whisparr mature
 start_job prowlarr wire_prowlarr_apps
 
-echo "======================================================================"
-echo " First-run setup"
-echo "======================================================================"
-for name in audiobookshelf calibre calibre-web jellyfin; do
+for name in audiobookshelf calibre calibre-web jellyfin \
+  lidarr radarr readarr sonarr whisparr prowlarr; do
   wait_job "$name"
 done
-
-echo ""
-echo "======================================================================"
-echo " Wiring download clients"
-echo "======================================================================"
-for name in lidarr radarr readarr sonarr whisparr; do
-  wait_job "$name"
-done
-
-echo ""
-echo "======================================================================"
-echo " Wiring Prowlarr applications"
-echo "======================================================================"
-wait_job prowlarr
 
 echo ""
 echo "======================================================================"
