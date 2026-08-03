@@ -308,8 +308,21 @@ calibre_web_db_ready() {
 import sqlite3, sys
 conn = sqlite3.connect('$CALIBREWEB_DB')
 row = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='settings'").fetchone()
+if not row:
+    sys.exit(1)
+# Calibre-Web's own init_db() (cps/ub.py) creates the whole schema via
+# Base.metadata.create_all() first, then seeds the default admin and Guest
+# rows through two later, separate INSERT+commit calls. The settings table
+# existing only proves the schema DDL landed; it does not prove those later
+# inserts have committed yet. Stopping the container in that gap (confirmed
+# live: a real run captured app.db with a full schema and zero rows in the
+# user table) ships an app.db with no admin and no Guest user at all, so
+# every request 500s trying to load the anonymous user (ub.py's
+# AnonymousUser.loadSettings() dereferences a None row). Waiting for a user
+# row too closes that window.
+row = conn.execute("SELECT COUNT(*) FROM user").fetchone()
 conn.close()
-sys.exit(0 if row else 1)
+sys.exit(0 if row and row[0] > 0 else 1)
 PYEOF
 }
 
