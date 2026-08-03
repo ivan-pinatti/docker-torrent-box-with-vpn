@@ -50,6 +50,7 @@ if [[ "$boundary" -gt 80 ]]; then
   echo "This only lasts until the next reboot. To make it permanent, add"
   echo "'net.ipv4.ip_unprivileged_port_start=80' to /etc/sysctl.conf (see"
   echo "README.md's rootless-ports note for the exact line)."
+  read -r -p "Press Enter once you've read that: " _
 fi
 
 sed -i "s/^NGINX_HTTP_PORT=${DEFAULT_HTTP_PORT}\$/NGINX_HTTP_PORT=80/" "$ENV_FILE"
