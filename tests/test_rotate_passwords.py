@@ -342,10 +342,11 @@ def test_rotate_sabnzbd_credentials_propagate(running_containers):
     file is what actually changes, that root .env and .env.secrets never get
     it back, and that both consumers keep working with the new value.
 
-    lazylibrarian/mylar also receive the new credentials but, matching the
-    existing convention for single-owner rotations in this file (grafana,
-    jellyfin, jdownloader2, ...), are not restored: only the state qBittorrent's
-    equivalent test restores (SABnzbd itself, the arr DBs, and the shared
+    lazylibrarian/mylar also receive the new credentials, and this checks
+    both, but matching the existing convention for single-owner rotations in
+    this file (grafana, jellyfin, jdownloader2, ...), neither is restored:
+    only the state qBittorrent's equivalent test restores (SABnzbd itself,
+    the arr DBs, and the shared
     consumers) is restored here.
     """
     if not is_enabled("sabnzbd"):
@@ -408,6 +409,33 @@ def test_rotate_sabnzbd_credentials_propagate(running_containers):
         )
         assert stored_api_key == new_api_key, (
             f"{svc} DB still holds old SABnzbd API key"
+        )
+
+    # LazyLibrarian and Mylar also receive the new credentials (see the
+    # docstring above), but nothing here previously asserted that: this is
+    # exactly the gap that let rotate-passwords.sh write LazyLibrarian's
+    # SABnzbd credentials under the wrong key names (sabnzbd_user/
+    # sabnzbd_pass/sabnzbd_apikey instead of its real sab_user/sab_pass/
+    # sab_api) go unnoticed, silently leaving sab_pass/sab_api at their
+    # seeded placeholders on every real bootstrap.
+    ll_config = REPO_ROOT / "configs/lazylibrarian/config/config.ini"
+    if ll_config.exists():
+        ll_text = ll_config.read_text()
+        assert f"sab_pass = {new_password}" in ll_text, (
+            "LazyLibrarian config.ini does not hold the new SABnzbd password"
+        )
+        assert f"sab_api = {new_api_key}" in ll_text, (
+            "LazyLibrarian config.ini does not hold the new SABnzbd API key"
+        )
+
+    mylar_config = REPO_ROOT / "configs/mylar/config/mylar/config.ini"
+    if mylar_config.exists():
+        mylar_text = mylar_config.read_text()
+        assert f"sab_password = {new_password}" in mylar_text, (
+            "Mylar config.ini does not hold the new SABnzbd password"
+        )
+        assert f"sab_apikey = {new_api_key}" in mylar_text, (
+            "Mylar config.ini does not hold the new SABnzbd API key"
         )
 
     # Homepage and the exporter were restarted by the script (RESTART_CONSUMERS,

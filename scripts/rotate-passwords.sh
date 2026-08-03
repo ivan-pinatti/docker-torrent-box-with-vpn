@@ -956,9 +956,18 @@ if Path('$LAZYLIBRARIAN_CONFIG').exists():
     parser.read('$LAZYLIBRARIAN_CONFIG')
     if not parser.has_section('SABNZBD'):
         parser.add_section('SABNZBD')
-    parser.set('SABNZBD', 'sabnzbd_user', 'sabnzbd')
-    parser.set('SABNZBD', 'sabnzbd_pass', new_password)
-    parser.set('SABNZBD', 'sabnzbd_apikey', new_api_key)
+    # LazyLibrarian's real keys are sab_user/sab_pass/sab_api, not the
+    # sabnzbd_user/sabnzbd_pass/sabnzbd_apikey this wrote before: those
+    # bogus keys got silently added alongside the real ones (configparser
+    # doesn't error on an unrecognized option name), leaving sab_pass/
+    # sab_api at their seeded placeholders forever. Confirmed live: after a
+    # real rotation, neither the bogus keys nor updated real ones were on
+    # disk, meaning LazyLibrarian's own startup save (which only knows its
+    # real schema) silently dropped the unrecognized ones on its next
+    # config write, per CLAUDE.md's note on apps clobbering host edits.
+    parser.set('SABNZBD', 'sab_user', 'sabnzbd')
+    parser.set('SABNZBD', 'sab_pass', new_password)
+    parser.set('SABNZBD', 'sab_api', new_api_key)
     if not parser.has_section('USENET'):
         parser.add_section('USENET')
     parser.set('USENET', 'nzb_downloader_sabnzbd', 'True')
