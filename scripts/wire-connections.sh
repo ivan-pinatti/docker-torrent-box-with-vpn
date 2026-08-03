@@ -618,39 +618,44 @@ ensure_prowlarr_application() {
 # docs/ROTATION.md for the sibling rotation scripts.
 # ---------------------------------------------------------------------------
 
-echo "======================================================================"
-echo " First-run setup"
-echo "======================================================================"
+# All ten jobs are launched together up front so every section runs
+# concurrently, but each section's header is only printed right before that
+# section's own wait_job calls. Printing all headers up front (as an earlier
+# version of this script did) attributed every job's elapsed time to
+# whichever header happened to print last, since headers are near-instant
+# echoes while the real waiting only happens in wait_job: e.g. Jellyfin's
+# first-run setup showed up looking like it happened during "Wiring Prowlarr
+# applications". Splitting start/wait per section keeps the timing honest.
 start_job audiobookshelf ensure_audiobookshelf_setup
 start_job calibre ensure_calibre_content_server_user
 start_job calibre-web ensure_calibre_web_setup
 start_job jellyfin ensure_jellyfin_setup
-
-echo ""
-echo "======================================================================"
-echo " Wiring download clients"
-echo "======================================================================"
 start_job lidarr wire_arr_app lidarr lidarr https "$LIDARR_HTTPS_PORT" v1 lidarr music
 start_job radarr wire_arr_app radarr radarr https "$RADARR_HTTPS_PORT" v3 radarr movies
 start_job readarr wire_arr_app readarr readarr https "$READARR_HTTPS_PORT" v1 readarr ebooks
 start_job sonarr wire_arr_app sonarr sonarr http "$SONARR_HTTP_PORT" v3 sonarr tv
 start_job whisparr wire_arr_app whisparr whisparr https "$WHISPARR_HTTPS_PORT" v3 whisparr mature
+start_job prowlarr wire_prowlarr_apps
+
+echo "======================================================================"
+echo " First-run setup"
+echo "======================================================================"
+for name in audiobookshelf calibre calibre-web jellyfin; do
+  wait_job "$name"
+done
+
+echo ""
+echo "======================================================================"
+echo " Wiring download clients"
+echo "======================================================================"
+for name in lidarr radarr readarr sonarr whisparr; do
+  wait_job "$name"
+done
 
 echo ""
 echo "======================================================================"
 echo " Wiring Prowlarr applications"
 echo "======================================================================"
-start_job prowlarr wire_prowlarr_apps
-
-# All ten jobs above were launched together and are running concurrently;
-# waiting on them here just picks up each one's already-captured output in a
-# fixed, readable order, it doesn't serialize the work itself.
-for name in audiobookshelf calibre calibre-web jellyfin; do
-  wait_job "$name"
-done
-for name in lidarr radarr readarr sonarr whisparr; do
-  wait_job "$name"
-done
 wait_job prowlarr
 
 echo ""
