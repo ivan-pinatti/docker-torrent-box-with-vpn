@@ -852,7 +852,7 @@ canonical URL.
 | Calibre-Web    | <http://localhost:8083/>         | admin        | rotated      |
 | FlareSolverr   | <http://localhost:8191/>         | -            | -            |
 | Lidarr         | <http://localhost:8686/>         | lidarr       | lidarr       |
-| Nginx          | <http://localhost:80/>           | -            | -            |
+| Nginx          | <http://localhost:8080/>         | -            | -            |
 | jDownloader2   | <https://localhost:5800/>        | jdownloader2 | rotated      |
 | SABnzbd        | <http://localhost:8086/sabnzbd/> | sabnzbd      | sabnzbd      |
 | Plex           | <http://localhost:32400/>        | -            | -            |
@@ -860,6 +860,7 @@ canonical URL.
 | Radarr         | <http://localhost:7878/>         | radarr       | radarr       |
 | Readarr        | <http://localhost:8787/>         | readarr      | readarr      |
 | Sonarr         | <http://localhost:8989/>         | sonarr       | sonarr       |
+| Whisparr       | <http://localhost:6969/>         | whisparr     | whisparr     |
 
 ## **HTTPS**
 
@@ -869,7 +870,7 @@ canonical URL.
 | Calibre        | <https://localhost:8181/>              | calibre       | calibre       |
 | LazyLibrarian  | <https://localhost:5299/lazylibrarian> | lazylibrarian | lazylibrarian |
 | Lidarr         | <https://localhost:6868/>              | lidarr        | lidarr        |
-| Nginx          | <https://localhost:443/>               | -             | -             |
+| Nginx          | <https://localhost:8443/>              | -             | -             |
 | Mylar          | <https://localhost:8091/mylar/>        | mylar         | mylar         |
 | SABnzbd        | <https://localhost:8087/sabnzbd/>      | sabnzbd       | sabnzbd       |
 | NzbHydra2      | <https://localhost:5077/nzbhydra2/>    | nzbhydra2     | nzbhydra2     |
@@ -877,30 +878,38 @@ canonical URL.
 | qBitTorrent    | <https://localhost:8085/>              | qbittorrent   | qbittorrent   |
 | Radarr         | <https://localhost:7879/>              | radarr        | radarr        |
 | Readarr        | <https://localhost:8788/>              | readarr       | readarr       |
+| Whisparr       | <https://localhost:9898/>              | whisparr      | whisparr      |
 
 ## **HTTPS through reverse proxy (Nginx)**
 
-| **App**            | **Link**                                       | **User**      | **Password**  |
-| ------------------ | ---------------------------------------------- | ------------- | ------------- |
-| Audiobookshelf     | <https://localhost/audiobookshelf/>            | root          | -             |
-| Bazarr             | <https://localhost/bazarr/>                    | bazarr        | bazarr        |
-| Calibre            | <https://localhost/calibre/>                   | calibre       | calibre       |
-| Calibre-Web        | <https://localhost/calibre_web/>               | admin         | rotated       |
-| FlareSolverr       | <https://localhost/flaresolverr/>              | -             | -             |
-| Gluetun VPN status | <https://localhost/gluetun/v1/vpn/status>      | -             | -             |
-| Gluetun port       | <https://localhost/gluetun/v1/portforward>     | -             | -             |
-| Gluetun exit IP    | <https://localhost/gluetun/v1/publicip/ip>     | -             | -             |
-| Jellyfin           | <https://localhost/jellyfin/>                  | jellyfin      | -             |
-| KOReader Sync      | <https://localhost/korsync/>                   | -             | -             |
-| Lazylibrarian      | <https://localhost/lazylibrarian/>             | lazylibrarian | lazylibrarian |
-| Lidarr             | <https://localhost/lidarr/>                    | lidarr        | lidarr        |
-| Mylar              | <https://localhost/mylar/>                     | mylar         | mylar         |
-| SABnzbd            | <https://localhost/sabnzbd/>                   | sabnzbd       | sabnzbd       |
-| NzbHydra2          | <https://localhost/nzbhydra2/>                 | nzbhydra2     | nzbhydra2     |
-| Prowlarr           | <https://localhost/prowlarr/>                  | prowlarr      | prowlarr      |
-| qBitTorrent        | <https://localhost/qbittorrent/>               | qbittorrent   | qbittorrent   |
-| Radarr             | <https://localhost/radarr/>                    | radarr        | radarr        |
-| Readarr            | <https://localhost/readarr/>                   | readarr       | readarr       |
+> The port is required: the default `NGINX_HTTPS_PORT` is `8443`, not the
+> standard `443` (see the rootless-ports note above), so a link like
+> `https://localhost/sonarr/` with no port will fail to connect. Substitute
+> your own `NGINX_HTTPS_PORT` below if you changed it from the default.
+
+| **App**            | **Link**                                        | **User**      | **Password**  |
+| ------------------ | ----------------------------------------------- | ------------- | ------------- |
+| Audiobookshelf     | <https://localhost:8443/audiobookshelf/>        | root          | -             |
+| Bazarr             | <https://localhost:8443/bazarr/>                | bazarr        | bazarr        |
+| Calibre            | <https://localhost:8443/calibre/>               | calibre       | calibre       |
+| Calibre-Web        | <https://localhost:8443/calibre_web/>           | admin         | rotated       |
+| FlareSolverr       | <https://localhost:8443/flaresolverr/>          | -             | -             |
+| Gluetun VPN status | <https://localhost:8443/gluetun/v1/vpn/status>  | -             | -             |
+| Gluetun port       | <https://localhost:8443/gluetun/v1/portforward> | -             | -             |
+| Gluetun exit IP    | <https://localhost:8443/gluetun/v1/publicip/ip> | -             | -             |
+| Jellyfin           | <https://localhost:8443/jellyfin/>              | jellyfin      | -             |
+| KOReader Sync      | <https://localhost:8443/korsync/>               | -             | -             |
+| Lazylibrarian      | <https://localhost:8443/lazylibrarian/>         | lazylibrarian | lazylibrarian |
+| Lidarr             | <https://localhost:8443/lidarr/>                | lidarr        | lidarr        |
+| Mylar              | <https://localhost:8443/mylar/>                 | mylar         | mylar         |
+| SABnzbd            | <https://localhost:8443/sabnzbd/>               | sabnzbd       | sabnzbd       |
+| NzbHydra2          | <https://localhost:8443/nzbhydra2/>             | nzbhydra2     | nzbhydra2     |
+| Prowlarr           | <https://localhost:8443/prowlarr/>              | prowlarr      | prowlarr      |
+| qBitTorrent        | <https://localhost:8443/qbittorrent/>           | qbittorrent   | qbittorrent   |
+| Radarr             | <https://localhost:8443/radarr/>                | radarr        | radarr        |
+| Readarr            | <https://localhost:8443/readarr/>               | readarr       | readarr       |
+| Sonarr             | <https://localhost:8443/sonarr/>                | sonarr        | sonarr        |
+| Whisparr           | <https://localhost:8443/whisparr/>              | whisparr      | whisparr      |
 
 ---
 
