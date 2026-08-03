@@ -161,7 +161,10 @@ _\* ERC-20 accepts ETH, USDT, and USDC · BEP-20 accepts BNB, USDT, and USDC · 
 > **Using ports 80 and 443 with rootless Podman or rootless Docker:** Both runtimes in rootless mode
 > run as your regular user, and the Linux kernel blocks unprivileged users from binding ports below
 > 1024 by default. The default configuration therefore uses `8080` and `8443` so everything works
-> out of the box without any extra steps.
+> out of the box without any extra steps. `make bootstrap` asks about this interactively (defaulting
+> to the rootless-safe `8080`/`8443`), running the `sysctl` command below with `sudo` on your behalf
+> if you opt in to the standard ports; the rest of this note is for setting it up by hand instead,
+> or afterward if you skipped the prompt.
 >
 > If you prefer the standard ports, set `NGINX_HTTP_PORT=80` and `NGINX_HTTPS_PORT=443` in your
 > `.env`, then lower the kernel's port boundary. To apply it for the current session only (resets on

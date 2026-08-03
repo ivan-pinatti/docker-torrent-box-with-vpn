@@ -156,6 +156,7 @@ bootstrap: configs/flaresolverr/config/chromedriver
 	@./scripts/detect-system-values.sh .env
 	@echo "Checking Gluetun VPN credentials..."
 	@./scripts/seed-gluetun-secret.sh
+	@./scripts/seed-nginx-ports.sh
 	@echo "Remapping directory ownership into the container user namespace..."
 	@echo "  (rootless Podman: host uid maps to uid=0 inside containers;"
 	@echo "   app processes run as service-specific non-root UIDs)"
