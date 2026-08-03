@@ -216,7 +216,7 @@ ensure_jellyfin_setup() {
   local base_url="$JELLYFIN_DETECTED_BASE_URL"
   if [[ "$(container_curl jellyfin -sS --fail "${base_url}/System/Info/Public" | jq -r '.StartupWizardCompleted')" == "true" ]]; then
     echo "[Jellyfin] Setup wizard already completed, skipping."
-    ensure_jellyfin_base_url "$base_url"
+    ensure_jellyfin_homepage_wiring "$base_url"
     return 0
   fi
 
@@ -250,37 +250,23 @@ ensure_jellyfin_setup() {
     "${base_url}/Startup/RemoteAccess" >/dev/null
   container_curl jellyfin -sS --fail -X POST "${base_url}/Startup/Complete" >/dev/null
 
-  echo "[Jellyfin] Creating initial API key..."
-  local token
-  token=$(container_curl jellyfin -sS --fail -X POST \
-    -H "Content-Type: application/json" \
-    -H 'X-Emby-Authorization: MediaBrowser Client="wire-connections", Device="bootstrap", DeviceId="bootstrap", Version="1.0.0"' \
-    -d '{"Username":"jellyfin","Pw":"jellyfin"}' \
-    "${base_url}/Users/AuthenticateByName" | jq -r '.AccessToken')
-
-  container_curl jellyfin -sS --fail -X POST -H "Authorization: MediaBrowser Token=\"${token}\"" \
-    "${base_url}/Auth/Keys?App=homepage" >/dev/null
-  local api_key
-  api_key=$(container_curl jellyfin -sS --fail -H "Authorization: MediaBrowser Token=\"${token}\"" \
-    "${base_url}/Auth/Keys" | jq -r '.Items | sort_by(.DateCreated) | last.AccessToken')
-  printf '%s' "$api_key" >"$JELLYFIN_API_KEY_FILE"
-  chmod 644 "$JELLYFIN_API_KEY_FILE"
-
-  ensure_jellyfin_base_url "$base_url"
+  ensure_jellyfin_homepage_wiring "$base_url"
   echo "[Jellyfin] Done."
 }
 
-# nginx's /jellyfin/ location proxies the request URI through unchanged (no
-# rewrite), so it only works if Jellyfin itself has been told its own
-# BaseUrl is /jellyfin; nothing before this ever configured that (Jellyfin
-# has no env var for it, only its Network Configuration API or a direct
-# network.xml write), so every request under that prefix 404'd, confirmed
-# live down to the exact reported URL. Called both right after first-run
-# setup and (since that only runs once per Jellyfin instance) on every
-# later run too, via the "setup wizard already completed" branch above, so
-# this still applies to any Jellyfin that finished setup before this fix
-# existed. BaseUrl only takes effect after a restart.
-ensure_jellyfin_base_url() {
+# Both of these only ever ran once, right after first-run setup completed:
+# the API key Homepage's widget needs, and nginx's BaseUrl requirement (see
+# that block's own comment below). Gating them behind "wizard not yet
+# completed" means neither can ever self-heal on a later run if it silently
+# failed the one time it ran, which is exactly what happened live: after
+# repeated Jellyfin resets during testing, the API key file was left empty
+# with the wizard already marked complete, so Homepage's widget kept
+# getting HTTP 401 with an empty api_key forever, with nothing to fix it
+# short of wiping Jellyfin's whole config again. Called both right after
+# first-run setup and on every later run too, via the "setup wizard already
+# completed" branch above, so both stay correct no matter what state a
+# given Jellyfin instance was already in.
+ensure_jellyfin_homepage_wiring() {
   local base_url="$1"
   local token
   token=$(container_curl jellyfin -sS --fail -X POST \
@@ -289,10 +275,28 @@ ensure_jellyfin_base_url() {
     -d '{"Username":"jellyfin","Pw":"jellyfin"}' \
     "${base_url}/Users/AuthenticateByName" 2>/dev/null | jq -r '.AccessToken // empty')
   if [[ -z "$token" ]]; then
-    echo "[Jellyfin] Could not authenticate as the placeholder user, skipping BaseUrl check."
+    echo "[Jellyfin] Could not authenticate as the placeholder user, skipping API key/BaseUrl check."
     return 0
   fi
 
+  if [[ ! -s "$JELLYFIN_API_KEY_FILE" ]]; then
+    echo "[Jellyfin] Creating initial API key..."
+    container_curl jellyfin -sS --fail -X POST -H "Authorization: MediaBrowser Token=\"${token}\"" \
+      "${base_url}/Auth/Keys?App=homepage" >/dev/null
+    local api_key
+    api_key=$(container_curl jellyfin -sS --fail -H "Authorization: MediaBrowser Token=\"${token}\"" \
+      "${base_url}/Auth/Keys" | jq -r '.Items | sort_by(.DateCreated) | last.AccessToken')
+    printf '%s' "$api_key" >"$JELLYFIN_API_KEY_FILE"
+    chmod 644 "$JELLYFIN_API_KEY_FILE"
+  fi
+
+  # nginx's /jellyfin/ location proxies the request URI through unchanged
+  # (no rewrite), so it only works if Jellyfin itself has been told its own
+  # BaseUrl is /jellyfin; nothing before this ever configured that
+  # (Jellyfin has no env var for it, only its Network Configuration API or
+  # a direct network.xml write), so every request under that prefix 404'd,
+  # confirmed live down to the exact reported URL. BaseUrl only takes
+  # effect after a restart.
   local network_config
   network_config=$(container_curl jellyfin -sS --fail -H "Authorization: MediaBrowser Token=\"${token}\"" \
     "${base_url}/System/Configuration/network")

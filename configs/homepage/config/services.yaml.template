@@ -143,7 +143,7 @@
         description: eBook Reader
         widget:
           type: calibreweb
-          url: https://calibre-web-https:8084
+          url: http://calibre-web-http:8083
           username: "{{HOMEPAGE_FILE_CALIBREWEB_USER}}"
           password: "{{HOMEPAGE_FILE_CALIBREWEB_PASS}}"
 
