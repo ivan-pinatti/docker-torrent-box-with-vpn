@@ -558,6 +558,15 @@ wire_prowlarr_apps() {
   local prowlarr_key
   prowlarr_key=$(get_xml_apikey "$PROWLARR_XML")
 
+  # Every other arr app gets this from wire_arr_app; Prowlarr itself never
+  # went through that dispatch, so without this its own WebUI login was
+  # never initialized (username stays empty), which rotate_prowlarr's
+  # password-only PUT can't fix on its own since it never sets a username.
+  # Confirmed live: password rotation silently "succeeded" but login
+  # validation then failed for the full 180s retry, since the real
+  # username was still empty, not "prowlarr".
+  ensure_arr_host_prereqs prowlarr prowlarr https "$PROWLARR_HTTPS_PORT" v1 "$prowlarr_key"
+
   ensure_prowlarr_application "LazyLibrarian" "LazyLibrarian" "LazyLibrarianSettings" \
     "http://lazylibrarian:${LAZYLIBRARIAN_HTTP_PORT}/lazylibrarian" \
     "$(get_ini_apikey "$LAZYLIBRARIAN_INI")" "$prowlarr_key"

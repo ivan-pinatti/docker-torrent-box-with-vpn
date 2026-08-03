@@ -51,6 +51,14 @@ if [[ "$boundary" -gt 80 ]]; then
   echo "'net.ipv4.ip_unprivileged_port_start=80' to /etc/sysctl.conf (see"
   echo "README.md's rootless-ports note for the exact line)."
   read -r -p "Press Enter once you've read that: " _
+else
+  # Already lowered (e.g. a previous bootstrap run on this same host already
+  # did it, and it hasn't rebooted since), so there's nothing for sudo to do
+  # this time. Say so explicitly instead of silently skipping straight to
+  # the .env update, which otherwise looks like the sudo/disclaimer step
+  # never ran at all.
+  echo "The kernel's unprivileged port boundary is already ${boundary} (<=80),"
+  echo "so no sudo is needed this time."
 fi
 
 sed -i "s/^NGINX_HTTP_PORT=${DEFAULT_HTTP_PORT}\$/NGINX_HTTP_PORT=80/" "$ENV_FILE"
