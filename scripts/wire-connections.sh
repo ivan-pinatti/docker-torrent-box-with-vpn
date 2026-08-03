@@ -7,10 +7,11 @@ set -euo pipefail
 # live API: qBittorrent and SABnzbd as download clients inside Sonarr, Radarr,
 # Lidarr, Readarr, and Whisparr, and those apps (plus LazyLibrarian and Mylar)
 # registered as Applications in Prowlarr, if it's enabled. Prowlarr also gets
-# LinuxTracker added as its one default indexer, a public tracker that only
-# carries Linux ISOs, so the Applications above have something real to sync
-# to and Prowlarr's search actually returns results out of the box. Along the
-# way it
+# Internet Archive added as its one default indexer, a legal public source
+# (a nonprofit digital library) whose categories actually cover what the arr
+# apps search for (Movies/TV/Audio/Books/PC), so the Applications above have
+# something real to sync to and Prowlarr's search actually returns results
+# out of the box. Along the way it
 # also creates each arr app's initial WebUI login (the placeholder
 # username/password the README's login table documents) and relaxes
 # CertificateValidation for internal addresses, since download client
@@ -867,12 +868,17 @@ wire_prowlarr_apps() {
     "https://whisparr:${WHISPARR_HTTPS_PORT}/whisparr" "$(get_xml_apikey "$WHISPARR_XML")" "$prowlarr_key"
 
   # A fresh Prowlarr has zero indexers, so there's nothing for the
-  # Applications above to actually sync until at least one exists. LinuxTracker
-  # is a public torrent tracker that only carries Linux distribution ISOs, so
-  # it's a safe default to add automatically: no account/API key needed, and
-  # nothing it indexes raises the copyright concerns a general-purpose public
-  # tracker would.
-  ensure_prowlarr_indexer linuxtracker "LinuxTracker" "https://linuxtracker.org/" "$prowlarr_key"
+  # Applications above to actually sync until at least one exists. Internet
+  # Archive is a public, legal source (a nonprofit digital library; public
+  # domain and openly-licensed works only) that Prowlarr's own bundled
+  # definition tags with real Movies/TV/Audio/Books/PC categories (verified
+  # live against its own /indexer/schema), unlike LinuxTracker (tried first,
+  # confirmed live to only carry a PC/ISO category), which Prowlarr's own
+  # Application sync silently excludes from every arr app for since none of
+  # them search PC/software content: LinuxTracker satisfied "have a legal
+  # indexer" but never actually verified any app-to-app connection, since it
+  # had nothing in common with what any arr app searches for.
+  ensure_prowlarr_indexer internetarchive "Internet Archive" "https://archive.org/" "$prowlarr_key"
 }
 
 # Args: definition_name display_name base_url prowlarr_api_key
