@@ -6,7 +6,11 @@ set -euo pipefail
 # Wires the app-to-app connections that can only exist through each app's own
 # live API: qBittorrent and SABnzbd as download clients inside Sonarr, Radarr,
 # Lidarr, Readarr, and Whisparr, and those apps (plus LazyLibrarian and Mylar)
-# registered as Applications in Prowlarr, if it's enabled. Along the way it
+# registered as Applications in Prowlarr, if it's enabled. Prowlarr also gets
+# LinuxTracker added as its one default indexer, a public tracker that only
+# carries Linux ISOs, so the Applications above have something real to sync
+# to and Prowlarr's search actually returns results out of the box. Along the
+# way it
 # also creates each arr app's initial WebUI login (the placeholder
 # username/password the README's login table documents) and relaxes
 # CertificateValidation for internal addresses, since download client
@@ -597,6 +601,44 @@ wire_prowlarr_apps() {
 
   ensure_prowlarr_application whisparr "Whisparr" "Whisparr" "WhisparrSettings" \
     "https://whisparr:${WHISPARR_HTTPS_PORT}/whisparr" "$(get_xml_apikey "$WHISPARR_XML")" "$prowlarr_key"
+
+  # A fresh Prowlarr has zero indexers, so there's nothing for the
+  # Applications above to actually sync until at least one exists. LinuxTracker
+  # is a public torrent tracker that only carries Linux distribution ISOs, so
+  # it's a safe default to add automatically: no account/API key needed, and
+  # nothing it indexes raises the copyright concerns a general-purpose public
+  # tracker would.
+  ensure_prowlarr_indexer linuxtracker "LinuxTracker" "https://linuxtracker.org/" "$prowlarr_key"
+}
+
+# Args: definition_name display_name base_url prowlarr_api_key
+ensure_prowlarr_indexer() {
+  local definition_name="$1" display_name="$2" base_url="$3" prowlarr_api_key="$4"
+  local indexer_url="https://127.0.0.1:${PROWLARR_HTTPS_PORT}/prowlarr/api/v1/indexer"
+
+  local existing
+  existing=$(container_curl prowlarr -sk --fail -H "X-Api-Key: ${prowlarr_api_key}" "$indexer_url" |
+    jq --arg name "$display_name" 'map(select(.name == $name)) | first')
+  if [[ -n "$existing" && "$existing" != "null" ]]; then
+    echo "[Prowlarr] Indexer '${display_name}' already exists, skipping."
+    return 0
+  fi
+
+  echo "[Prowlarr] Adding indexer '${display_name}'..."
+  local schema
+  schema=$(container_curl prowlarr -sk --fail -H "X-Api-Key: ${prowlarr_api_key}" "${indexer_url}/schema" |
+    jq --arg def "$definition_name" 'map(select(.definitionName == $def)) | first')
+
+  local payload
+  payload=$(echo "$schema" | jq \
+    --arg baseUrl "$base_url" \
+    '.appProfileId = 1 |
+    .fields |= (map(select(.name != "baseUrl")) + [{"name": "baseUrl", "value": $baseUrl}])')
+
+  container_curl prowlarr -sk --fail -X POST \
+    -H "X-Api-Key: ${prowlarr_api_key}" -H "Content-Type: application/json" \
+    -d "$payload" "$indexer_url" >/dev/null
+  echo "[Prowlarr] Added."
 }
 
 # Args: container display_name implementation config_contract app_url app_api_key prowlarr_api_key
