@@ -567,35 +567,57 @@ wire_prowlarr_apps() {
   # username was still empty, not "prowlarr".
   ensure_arr_host_prereqs prowlarr prowlarr https "$PROWLARR_HTTPS_PORT" v1 "$prowlarr_key"
 
-  ensure_prowlarr_application "LazyLibrarian" "LazyLibrarian" "LazyLibrarianSettings" \
-    "http://lazylibrarian:${LAZYLIBRARIAN_HTTP_PORT}/lazylibrarian" \
+  # https, not http, despite the port variable's name: LazyLibrarian
+  # repurposes its single configured port for HTTPS once https_enabled=True
+  # (the shipped default in config.ini.example), the same way Calibre-Web
+  # does, rather than adding a second port. nginx's own upstream definition
+  # already accounts for this (LAZYLIBRARIAN_UPSTREAM_SCHEME=https paired
+  # with LAZYLIBRARIAN_HTTP_PORT); this call didn't, and Prowlarr's POST
+  # failed outright when it tried to verify connectivity to the wrong
+  # scheme, aborting the rest of this function under set -e, confirmed live
+  # by the "Connection reset by peer" a plain http request gets back.
+  ensure_prowlarr_application lazylibrarian "LazyLibrarian" "LazyLibrarian" "LazyLibrarianSettings" \
+    "https://lazylibrarian:${LAZYLIBRARIAN_HTTP_PORT}/lazylibrarian" \
     "$(get_ini_apikey "$LAZYLIBRARIAN_INI")" "$prowlarr_key"
 
-  ensure_prowlarr_application "Lidarr" "Lidarr" "LidarrSettings" \
+  ensure_prowlarr_application lidarr "Lidarr" "Lidarr" "LidarrSettings" \
     "https://lidarr:${LIDARR_HTTPS_PORT}/lidarr" "$(get_xml_apikey "$LIDARR_XML")" "$prowlarr_key"
 
-  ensure_prowlarr_application "Mylar" "Mylar" "MylarSettings" \
+  ensure_prowlarr_application mylar "Mylar" "Mylar" "MylarSettings" \
     "https://mylar:${MYLAR_HTTPS_PORT}/mylar" "$(get_ini_apikey "$MYLAR_INI")" "$prowlarr_key"
 
-  ensure_prowlarr_application "Radarr" "Radarr" "RadarrSettings" \
+  ensure_prowlarr_application radarr "Radarr" "Radarr" "RadarrSettings" \
     "https://radarr:${RADARR_HTTPS_PORT}/radarr" "$(get_xml_apikey "$RADARR_XML")" "$prowlarr_key"
 
-  ensure_prowlarr_application "Readarr" "Readarr" "ReadarrSettings" \
+  ensure_prowlarr_application readarr "Readarr" "Readarr" "ReadarrSettings" \
     "https://readarr:${READARR_HTTPS_PORT}/readarr" "$(get_xml_apikey "$READARR_XML")" "$prowlarr_key"
 
-  ensure_prowlarr_application "Sonarr" "Sonarr" "SonarrSettings" \
+  ensure_prowlarr_application sonarr "Sonarr" "Sonarr" "SonarrSettings" \
     "http://sonarr:${SONARR_HTTP_PORT}/sonarr" "$(get_xml_apikey "$SONARR_XML")" "$prowlarr_key"
 
-  ensure_prowlarr_application "Whisparr" "Whisparr" "WhisparrSettings" \
+  ensure_prowlarr_application whisparr "Whisparr" "Whisparr" "WhisparrSettings" \
     "https://whisparr:${WHISPARR_HTTPS_PORT}/whisparr" "$(get_xml_apikey "$WHISPARR_XML")" "$prowlarr_key"
 }
 
-# Args: display_name implementation config_contract app_url app_api_key
+# Args: container display_name implementation config_contract app_url app_api_key prowlarr_api_key
 ensure_prowlarr_application() {
-  local display_name="$1" implementation="$2" config_contract="$3"
-  local app_url="$4" app_api_key="$5"
-  local prowlarr_api_key="$6"
+  local container="$1" display_name="$2" implementation="$3" config_contract="$4"
+  local app_url="$5" app_api_key="$6"
+  local prowlarr_api_key="$7"
   local base_url="https://127.0.0.1:${PROWLARR_HTTPS_PORT}/prowlarr/api/v1/applications"
+
+  # A disabled app's container doesn't exist, so there's nothing to
+  # register and no point asking Prowlarr to test connectivity to a host
+  # that isn't there. Every entry in this dispatch runs sequentially in
+  # one function, so skipping cleanly here (like every other ensure_*
+  # helper in this file already does) matters beyond just this one app:
+  # one entry failing outright used to abort every entry after it too,
+  # confirmed live when a wrong URL scheme for one app silently prevented
+  # every other app from ever being registered.
+  if ! podman container exists "$container" 2>/dev/null; then
+    echo "[Prowlarr] ${display_name} container doesn't exist, skipping registration."
+    return 0
+  fi
 
   local existing
   existing=$(container_curl prowlarr -sk --fail -H "X-Api-Key: ${prowlarr_api_key}" "$base_url" |
