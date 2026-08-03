@@ -74,7 +74,8 @@ echo "Gluetun needs a VPN configuration before the stack can start."
 echo "Which provider are you using?"
 echo "  1) Proton VPN (guided WireGuard setup)"
 echo "  2) Something else (NordVPN, ExpressVPN, PIA, AirVPN, TorGuard, ...)"
-read -r -p "Choice [1/2]: " choice
+read -r -p "Choice [1/2] [1]: " choice
+choice="${choice:-1}"
 
 case "$choice" in
 1)

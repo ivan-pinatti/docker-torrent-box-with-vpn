@@ -125,6 +125,36 @@ retry() {
   done
 }
 
+# Every unit below (one app's first-run setup, one arr app's download client
+# wiring, Prowlarr's application registrations) touches its own container and
+# its own config/database, with no dependency on any other unit's result, so
+# they all run as background jobs instead of one after another. That matters
+# because several of them poll for up to 180s while an app is still warming
+# up: run sequentially, worst case adds up (Jellyfin alone can burn 360s);
+# run in parallel, the whole batch takes as long as its single slowest job.
+# Each job's output is captured to a temp file rather than printed live, so
+# concurrent jobs don't interleave their echo lines, and printed back out
+# afterward in the same fixed, readable order the sequential version used.
+declare -A JOB_OUT
+declare -A JOB_PID
+
+start_job() {
+  local name="$1"
+  shift
+  local out
+  out="$(mktemp)"
+  JOB_OUT["$name"]="$out"
+  ("$@" >"$out" 2>&1) &
+  JOB_PID["$name"]=$!
+}
+
+wait_job() {
+  local name="$1"
+  wait "${JOB_PID[$name]}" || true
+  cat "${JOB_OUT[$name]}"
+  rm -f "${JOB_OUT[$name]}"
+}
+
 # ---------------------------------------------------------------------------
 # First-run setup
 #
@@ -475,12 +505,74 @@ ensure_sabnzbd_client() {
 }
 
 # ---------------------------------------------------------------------------
+# Arr app dispatch: host prereqs plus both download clients for one app.
+# curl's -k is harmless against a plain http:// URL (Sonarr's own scheme),
+# so every caller can pass it uniformly rather than branching on scheme.
+# ---------------------------------------------------------------------------
+
+# Args: app_name container scheme port api_ver qbit_category sab_category
+wire_arr_app() {
+  local app_name="$1" container="$2" scheme="$3" port="$4" api_ver="$5"
+  local qbit_category="$6" sab_category="$7"
+  local xml="configs/${app_name}/config/config.xml"
+
+  if ! retry 180 container_curl "$container" -sk --fail -H "X-Api-Key: $(get_xml_apikey "$xml")" \
+    "${scheme}://127.0.0.1:${port}/${app_name}/api/${api_ver}/system/status"; then
+    echo "[$app_name] Not reachable, skipping."
+    return 0
+  fi
+
+  local key
+  key=$(get_xml_apikey "$xml")
+  ensure_arr_host_prereqs "$app_name" "$container" "$scheme" "$port" "$api_ver" "$key"
+  ensure_qbittorrent_client "$app_name" "$container" "$scheme" "$port" "$api_ver" "$key" "$qbit_category"
+  ensure_sabnzbd_client "$app_name" "$container" "$scheme" "$port" "$api_ver" "$key" "$sab_category"
+}
+
+# ---------------------------------------------------------------------------
 # Prowlarr Applications (Sonarr/Radarr/Lidarr/Readarr/Whisparr/LazyLibrarian/
 # Mylar registered so Prowlarr can push indexer sync to them). Skipped
 # entirely if the prowlarr container doesn't exist, matching how
 # scripts/rotate-api-keys.sh's update_prowlarr_application() already treats
 # a missing entry as a no-op rather than an error.
 # ---------------------------------------------------------------------------
+
+wire_prowlarr_apps() {
+  if ! podman container exists prowlarr 2>/dev/null; then
+    echo "[Prowlarr] Container doesn't exist (PROWLARR_PROFILE=disabled), skipping."
+    return 0
+  fi
+  if ! retry 180 container_curl prowlarr -sk --fail -H "X-Api-Key: $(get_xml_apikey "$PROWLARR_XML")" \
+    "https://127.0.0.1:${PROWLARR_HTTPS_PORT}/prowlarr/api/v1/system/status"; then
+    echo "[Prowlarr] Not reachable, skipping."
+    return 0
+  fi
+
+  local prowlarr_key
+  prowlarr_key=$(get_xml_apikey "$PROWLARR_XML")
+
+  ensure_prowlarr_application "LazyLibrarian" "LazyLibrarian" "LazyLibrarianSettings" \
+    "http://lazylibrarian:${LAZYLIBRARIAN_HTTP_PORT}/lazylibrarian" \
+    "$(get_ini_apikey "$LAZYLIBRARIAN_INI")" "$prowlarr_key"
+
+  ensure_prowlarr_application "Lidarr" "Lidarr" "LidarrSettings" \
+    "https://lidarr:${LIDARR_HTTPS_PORT}/lidarr" "$(get_xml_apikey "$LIDARR_XML")" "$prowlarr_key"
+
+  ensure_prowlarr_application "Mylar" "Mylar" "MylarSettings" \
+    "https://mylar:${MYLAR_HTTPS_PORT}/mylar" "$(get_ini_apikey "$MYLAR_INI")" "$prowlarr_key"
+
+  ensure_prowlarr_application "Radarr" "Radarr" "RadarrSettings" \
+    "https://radarr:${RADARR_HTTPS_PORT}/radarr" "$(get_xml_apikey "$RADARR_XML")" "$prowlarr_key"
+
+  ensure_prowlarr_application "Readarr" "Readarr" "ReadarrSettings" \
+    "https://readarr:${READARR_HTTPS_PORT}/readarr" "$(get_xml_apikey "$READARR_XML")" "$prowlarr_key"
+
+  ensure_prowlarr_application "Sonarr" "Sonarr" "SonarrSettings" \
+    "http://sonarr:${SONARR_HTTP_PORT}/sonarr" "$(get_xml_apikey "$SONARR_XML")" "$prowlarr_key"
+
+  ensure_prowlarr_application "Whisparr" "Whisparr" "WhisparrSettings" \
+    "https://whisparr:${WHISPARR_HTTPS_PORT}/whisparr" "$(get_xml_apikey "$WHISPARR_XML")" "$prowlarr_key"
+}
 
 # Args: display_name implementation config_contract app_url app_api_key
 ensure_prowlarr_application() {
@@ -529,101 +621,37 @@ ensure_prowlarr_application() {
 echo "======================================================================"
 echo " First-run setup"
 echo "======================================================================"
-ensure_audiobookshelf_setup
-ensure_calibre_content_server_user
-ensure_calibre_web_setup
-ensure_jellyfin_setup
+start_job audiobookshelf ensure_audiobookshelf_setup
+start_job calibre ensure_calibre_content_server_user
+start_job calibre-web ensure_calibre_web_setup
+start_job jellyfin ensure_jellyfin_setup
 
 echo ""
 echo "======================================================================"
 echo " Wiring download clients"
 echo "======================================================================"
-
-if retry 180 container_curl lidarr -sk --fail -H "X-Api-Key: $(get_xml_apikey "$LIDARR_XML")" \
-  "https://127.0.0.1:${LIDARR_HTTPS_PORT}/lidarr/api/v1/system/status"; then
-  key=$(get_xml_apikey "$LIDARR_XML")
-  ensure_arr_host_prereqs lidarr lidarr https "$LIDARR_HTTPS_PORT" v1 "$key"
-  ensure_qbittorrent_client lidarr lidarr https "$LIDARR_HTTPS_PORT" v1 "$key" lidarr
-  ensure_sabnzbd_client lidarr lidarr https "$LIDARR_HTTPS_PORT" v1 "$key" music
-else
-  echo "[lidarr] Not reachable, skipping."
-fi
-
-if retry 180 container_curl radarr -sk --fail -H "X-Api-Key: $(get_xml_apikey "$RADARR_XML")" \
-  "https://127.0.0.1:${RADARR_HTTPS_PORT}/radarr/api/v3/system/status"; then
-  key=$(get_xml_apikey "$RADARR_XML")
-  ensure_arr_host_prereqs radarr radarr https "$RADARR_HTTPS_PORT" v3 "$key"
-  ensure_qbittorrent_client radarr radarr https "$RADARR_HTTPS_PORT" v3 "$key" radarr
-  ensure_sabnzbd_client radarr radarr https "$RADARR_HTTPS_PORT" v3 "$key" movies
-else
-  echo "[radarr] Not reachable, skipping."
-fi
-
-if retry 180 container_curl readarr -sk --fail -H "X-Api-Key: $(get_xml_apikey "$READARR_XML")" \
-  "https://127.0.0.1:${READARR_HTTPS_PORT}/readarr/api/v1/system/status"; then
-  key=$(get_xml_apikey "$READARR_XML")
-  ensure_arr_host_prereqs readarr readarr https "$READARR_HTTPS_PORT" v1 "$key"
-  ensure_qbittorrent_client readarr readarr https "$READARR_HTTPS_PORT" v1 "$key" readarr
-  ensure_sabnzbd_client readarr readarr https "$READARR_HTTPS_PORT" v1 "$key" ebooks
-else
-  echo "[readarr] Not reachable, skipping."
-fi
-
-if retry 180 container_curl sonarr -s --fail -H "X-Api-Key: $(get_xml_apikey "$SONARR_XML")" \
-  "http://127.0.0.1:${SONARR_HTTP_PORT}/sonarr/api/v3/system/status"; then
-  key=$(get_xml_apikey "$SONARR_XML")
-  ensure_arr_host_prereqs sonarr sonarr http "$SONARR_HTTP_PORT" v3 "$key"
-  ensure_qbittorrent_client sonarr sonarr http "$SONARR_HTTP_PORT" v3 "$key" sonarr
-  ensure_sabnzbd_client sonarr sonarr http "$SONARR_HTTP_PORT" v3 "$key" tv
-else
-  echo "[sonarr] Not reachable, skipping."
-fi
-
-if retry 180 container_curl whisparr -sk --fail -H "X-Api-Key: $(get_xml_apikey "$WHISPARR_XML")" \
-  "https://127.0.0.1:${WHISPARR_HTTPS_PORT}/whisparr/api/v3/system/status"; then
-  key=$(get_xml_apikey "$WHISPARR_XML")
-  ensure_arr_host_prereqs whisparr whisparr https "$WHISPARR_HTTPS_PORT" v3 "$key"
-  ensure_qbittorrent_client whisparr whisparr https "$WHISPARR_HTTPS_PORT" v3 "$key" whisparr
-  ensure_sabnzbd_client whisparr whisparr https "$WHISPARR_HTTPS_PORT" v3 "$key" mature
-else
-  echo "[whisparr] Not reachable, skipping."
-fi
+start_job lidarr wire_arr_app lidarr lidarr https "$LIDARR_HTTPS_PORT" v1 lidarr music
+start_job radarr wire_arr_app radarr radarr https "$RADARR_HTTPS_PORT" v3 radarr movies
+start_job readarr wire_arr_app readarr readarr https "$READARR_HTTPS_PORT" v1 readarr ebooks
+start_job sonarr wire_arr_app sonarr sonarr http "$SONARR_HTTP_PORT" v3 sonarr tv
+start_job whisparr wire_arr_app whisparr whisparr https "$WHISPARR_HTTPS_PORT" v3 whisparr mature
 
 echo ""
 echo "======================================================================"
 echo " Wiring Prowlarr applications"
 echo "======================================================================"
+start_job prowlarr wire_prowlarr_apps
 
-if ! podman container exists prowlarr 2>/dev/null; then
-  echo "[Prowlarr] Container doesn't exist (PROWLARR_PROFILE=disabled), skipping."
-elif ! retry 180 container_curl prowlarr -sk --fail -H "X-Api-Key: $(get_xml_apikey "$PROWLARR_XML")" \
-  "https://127.0.0.1:${PROWLARR_HTTPS_PORT}/prowlarr/api/v1/system/status"; then
-  echo "[Prowlarr] Not reachable, skipping."
-else
-  prowlarr_key=$(get_xml_apikey "$PROWLARR_XML")
-
-  ensure_prowlarr_application "LazyLibrarian" "LazyLibrarian" "LazyLibrarianSettings" \
-    "http://lazylibrarian:${LAZYLIBRARIAN_HTTP_PORT}/lazylibrarian" \
-    "$(get_ini_apikey "$LAZYLIBRARIAN_INI")" "$prowlarr_key"
-
-  ensure_prowlarr_application "Lidarr" "Lidarr" "LidarrSettings" \
-    "https://lidarr:${LIDARR_HTTPS_PORT}/lidarr" "$(get_xml_apikey "$LIDARR_XML")" "$prowlarr_key"
-
-  ensure_prowlarr_application "Mylar" "Mylar" "MylarSettings" \
-    "https://mylar:${MYLAR_HTTPS_PORT}/mylar" "$(get_ini_apikey "$MYLAR_INI")" "$prowlarr_key"
-
-  ensure_prowlarr_application "Radarr" "Radarr" "RadarrSettings" \
-    "https://radarr:${RADARR_HTTPS_PORT}/radarr" "$(get_xml_apikey "$RADARR_XML")" "$prowlarr_key"
-
-  ensure_prowlarr_application "Readarr" "Readarr" "ReadarrSettings" \
-    "https://readarr:${READARR_HTTPS_PORT}/readarr" "$(get_xml_apikey "$READARR_XML")" "$prowlarr_key"
-
-  ensure_prowlarr_application "Sonarr" "Sonarr" "SonarrSettings" \
-    "http://sonarr:${SONARR_HTTP_PORT}/sonarr" "$(get_xml_apikey "$SONARR_XML")" "$prowlarr_key"
-
-  ensure_prowlarr_application "Whisparr" "Whisparr" "WhisparrSettings" \
-    "https://whisparr:${WHISPARR_HTTPS_PORT}/whisparr" "$(get_xml_apikey "$WHISPARR_XML")" "$prowlarr_key"
-fi
+# All ten jobs above were launched together and are running concurrently;
+# waiting on them here just picks up each one's already-captured output in a
+# fixed, readable order, it doesn't serialize the work itself.
+for name in audiobookshelf calibre calibre-web jellyfin; do
+  wait_job "$name"
+done
+for name in lidarr radarr readarr sonarr whisparr; do
+  wait_job "$name"
+done
+wait_job prowlarr
 
 echo ""
 echo "======================================================================"
