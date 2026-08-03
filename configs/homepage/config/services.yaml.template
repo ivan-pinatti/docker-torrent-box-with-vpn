@@ -1,3 +1,10 @@
+# The definitive list of every app this project can show on Homepage.
+# scripts/generate-homepage-services.py reads this file plus .env's *_PROFILE
+# flags and writes the actual configs/homepage/config/services.yaml,
+# dropping any entry whose app is disabled and any section left empty as a
+# result (e.g. the whole "Observability" section when the monitoring
+# profile group is off). Edit this file, not services.yaml directly: the
+# generator overwrites it on every `make start`.
 - Overview:
     - Metrics:
         widget:

@@ -120,15 +120,16 @@ _\* ERC-20 accepts ETH, USDT, and USDC · BEP-20 accepts BNB, USDT, and USDC · 
 
 ## Requisites
 
-| **App**                        | **Version** | **Site**                                                    |
-| ------------------------------ | ----------- | ----------------------------------------------------------- |
-| Podman _(recommended)_         | >4.x        | <https://podman.io/docs/installation>                       |
-| podman-compose _(recommended)_ | >1.x        | <https://github.com/containers/podman-compose>              |
-| Docker _(alternative)_         | >26.x       | <https://docs.docker.com/engine/install/>                   |
-| Linux Kernel                   | >5.6        | WireGuard kernel module required (`modinfo wireguard`)      |
-| Makefile                       | >4.x        | -                                                           |
-| Yq                             | >4.44.x     | <https://github.com/mikefarah/yq>                           |
-| XML starlet                    | >1.6.x      | <https://xmlstar.sourceforge.net/doc/UG/xmlstarlet-ug.html> |
+| **App**                        | **Version** | **Site**                                                                              |
+| ------------------------------ | ----------- | ------------------------------------------------------------------------------------- |
+| Podman _(recommended)_         | >4.x        | <https://podman.io/docs/installation>                                                 |
+| podman-compose _(recommended)_ | >1.x        | <https://github.com/containers/podman-compose>                                        |
+| Docker _(alternative)_         | >26.x       | <https://docs.docker.com/engine/install/>                                             |
+| Linux Kernel                   | >5.6        | WireGuard kernel module required (`modinfo wireguard`)                                |
+| Makefile                       | >4.x        | -                                                                                     |
+| Yq                             | >4.44.x     | <https://github.com/mikefarah/yq>                                                     |
+| XML starlet                    | >1.6.x      | <https://xmlstar.sourceforge.net/doc/UG/xmlstarlet-ug.html>                           |
+| Python 3 (with PyYAML)         | >3.9        | `pip install --user pyyaml`, or your distro's `python3-yaml`/`python3-pyyaml` package |
 
 > **Why Podman over Docker?**
 >
@@ -544,6 +545,7 @@ It will look like this;
 BAZARR_PROFILE=enabled
 FLARESOLVERR_PROFILE=enabled
 GLUETUN_PROFILE=enabled
+LIDARR_PROFILE=enabled
 NGINX_PROFILE=enabled
 PROWLARR_PROFILE=enabled
 QBITTORRENT_PROFILE=enabled
@@ -553,7 +555,6 @@ SABNZBD_PROFILE=enabled
 SONARR_PROFILE=enabled
 
 # Optional (disabled by default)
-LIDARR_PROFILE=disabled
 NZBHYDRA2_PROFILE=disabled
 PLEX_PROFILE=disabled
 
@@ -562,6 +563,14 @@ JACKETT_PROFILE=disabled
 NZBGET_PROFILE=disabled
 
 ```
+
+Homepage's dashboard follows these profiles automatically: `make start` (and so
+`make bootstrap`) regenerates `configs/homepage/config/services.yaml` from
+`services.yaml.template`, dropping any app whose profile is disabled, and
+dropping an entire section if every app in it ends up disabled (for example,
+the whole Observability section when the monitoring profile group is off).
+Flip a profile and restart to see Homepage pick it up; see the comment at the
+top of `services.yaml.template` if you want to add your own entries.
 
 SABnzbd is exposed directly on `SABNZBD_HTTP_PORT=8086` and
 `SABNZBD_HTTPS_PORT=8087`, with `/sabnzbd` as its URL base. The bundled config

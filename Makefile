@@ -532,6 +532,8 @@ wire_connections:
 	@./scripts/wire-connections.sh
 
 start: permissions_repair
+	@echo "Generating Homepage's services.yaml for the currently enabled profiles..."
+	@./scripts/generate-homepage-services.py
 	@if [ "$(RUNTIME)" = "podman" ]; then \
 		stopping=$$(podman ps -a --format "{{.ID}} {{.State}}" | awk '/stopping/{print $$1}'); \
 		if [ -n "$$stopping" ]; then \
