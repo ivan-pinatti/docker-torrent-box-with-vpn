@@ -67,10 +67,12 @@ PROWLARR_HTTPS_PORT="$(env_value PROWLARR_HTTPS_PORT)"
 LAZYLIBRARIAN_HTTP_PORT="$(env_value LAZYLIBRARIAN_HTTP_PORT)"
 MYLAR_HTTPS_PORT="$(env_value MYLAR_HTTPS_PORT)"
 JELLYFIN_HTTP_PORT="$(env_value JELLYFIN_HTTP_PORT)"
+JELLYFIN_BASE_URL="$(env_value JELLYFIN_BASE_URL)"
 AUDIOBOOKSHELF_HTTP_PORT="$(env_value AUDIOBOOKSHELF_HTTP_PORT)"
 readonly GLUETUN_SERVICES_IP QBITTORRENT_HTTPS_PORT SABNZBD_HTTP_PORT \
   SONARR_HTTP_PORT RADARR_HTTPS_PORT LIDARR_HTTPS_PORT READARR_HTTPS_PORT \
   WHISPARR_HTTPS_PORT PROWLARR_HTTPS_PORT LAZYLIBRARIAN_HTTP_PORT MYLAR_HTTPS_PORT \
+  JELLYFIN_BASE_URL \
   JELLYFIN_HTTP_PORT AUDIOBOOKSHELF_HTTP_PORT
 
 readonly SONARR_XML="configs/sonarr/config/config.xml"
@@ -177,19 +179,44 @@ wait_job() {
 # username = password = app name convention already used everywhere else.
 # ---------------------------------------------------------------------------
 
+# Once BaseUrl is configured, every route Jellyfin serves moves under that
+# prefix; a request to the bare host:port doesn't 404 (curl --fail treats
+# that as success), it 302s to the web UI instead, confirmed live to
+# silently break every later call in this function (empty body where JSON
+# was expected) after a prior run already set BaseUrl. Sets
+# JELLYFIN_DETECTED_BASE_URL as a side effect since retry() only checks
+# exit status, not output.
+detect_jellyfin_base_url() {
+  local host_url="http://127.0.0.1:${JELLYFIN_HTTP_PORT}"
+  local info
+  info=$(container_curl jellyfin -s "${host_url}/System/Info/Public" 2>/dev/null)
+  if echo "$info" | jq -e '.StartupWizardCompleted' >/dev/null 2>&1; then
+    JELLYFIN_DETECTED_BASE_URL="$host_url"
+    return 0
+  fi
+  info=$(container_curl jellyfin -s "${host_url}${JELLYFIN_BASE_URL}/System/Info/Public" 2>/dev/null)
+  if echo "$info" | jq -e '.StartupWizardCompleted' >/dev/null 2>&1; then
+    JELLYFIN_DETECTED_BASE_URL="${host_url}${JELLYFIN_BASE_URL}"
+    return 0
+  fi
+  return 1
+}
+
 ensure_jellyfin_setup() {
   if ! podman container exists jellyfin 2>/dev/null; then
     echo "[Jellyfin] Container doesn't exist, skipping."
     return 0
   fi
 
-  local base_url="http://127.0.0.1:${JELLYFIN_HTTP_PORT}"
-  if ! retry 180 "[Jellyfin]" container_curl jellyfin -s --fail "${base_url}/System/Info/Public"; then
+  local JELLYFIN_DETECTED_BASE_URL=""
+  if ! retry 180 "[Jellyfin]" detect_jellyfin_base_url; then
     echo "[Jellyfin] Not reachable, skipping."
     return 0
   fi
+  local base_url="$JELLYFIN_DETECTED_BASE_URL"
   if [[ "$(container_curl jellyfin -sS --fail "${base_url}/System/Info/Public" | jq -r '.StartupWizardCompleted')" == "true" ]]; then
     echo "[Jellyfin] Setup wizard already completed, skipping."
+    ensure_jellyfin_base_url "$base_url"
     return 0
   fi
 
@@ -198,15 +225,18 @@ ensure_jellyfin_setup() {
     -d '{"UICulture":"en-US","MetadataCountryCode":"US","PreferredMetadataLanguage":"en"}' \
     "${base_url}/Startup/Configuration" >/dev/null
 
-  # UpdateStartupUser() updates Jellyfin's own lazily-created default user
-  # (internally named "abc"), which only exists once something has
-  # already triggered UserManager to notice there are no users yet. This
-  # is unreliable: in repeated testing against genuinely fresh containers,
-  # that trigger sometimes never fired even after 10 continuous minutes of
-  # retrying this exact call, with no reproducible cause identified — it
-  # is not simply a matter of waiting longer. Retrying for a bounded 180s
-  # is a best effort, not a guarantee; when it fails, skip with a note
-  # rather than block the rest of setup on it (see docs/CONNECTIONS.md).
+  # UpdateStartupUser() (POST /Startup/User) updates Jellyfin's own
+  # lazily-created default user (internally named "abc") by calling
+  # _userManager.Users.First(), which throws "Sequence contains no
+  # elements" until something has already triggered that lazy creation.
+  # A plain GET /Startup/User is exactly that trigger: confirmed live that
+  # it 401s pre-wizard the same as GET /Users, but afterward the very next
+  # POST /Startup/User reliably returns 204 instead of 500. This is what
+  # was previously documented here as unreliable even after 10 minutes of
+  # retrying the POST alone; the actual fix was never retrying the POST at
+  # all but calling this GET first.
+  container_curl jellyfin -s -o /dev/null "${base_url}/Startup/User"
+
   if ! retry 180 "[Jellyfin]" container_curl jellyfin -s --fail -X POST -H "Content-Type: application/json" \
     -d '{"Name":"jellyfin","Password":"jellyfin"}' "${base_url}/Startup/User"; then # pragma: allowlist secret
     echo "[Jellyfin] Startup/User did not succeed after 180s, skipping the rest of setup."
@@ -235,7 +265,46 @@ ensure_jellyfin_setup() {
     "${base_url}/Auth/Keys" | jq -r '.Items | sort_by(.DateCreated) | last.AccessToken')
   printf '%s' "$api_key" >"$JELLYFIN_API_KEY_FILE"
   chmod 644 "$JELLYFIN_API_KEY_FILE"
+
+  ensure_jellyfin_base_url "$base_url"
   echo "[Jellyfin] Done."
+}
+
+# nginx's /jellyfin/ location proxies the request URI through unchanged (no
+# rewrite), so it only works if Jellyfin itself has been told its own
+# BaseUrl is /jellyfin; nothing before this ever configured that (Jellyfin
+# has no env var for it, only its Network Configuration API or a direct
+# network.xml write), so every request under that prefix 404'd, confirmed
+# live down to the exact reported URL. Called both right after first-run
+# setup and (since that only runs once per Jellyfin instance) on every
+# later run too, via the "setup wizard already completed" branch above, so
+# this still applies to any Jellyfin that finished setup before this fix
+# existed. BaseUrl only takes effect after a restart.
+ensure_jellyfin_base_url() {
+  local base_url="$1"
+  local token
+  token=$(container_curl jellyfin -sS --fail -X POST \
+    -H "Content-Type: application/json" \
+    -H 'X-Emby-Authorization: MediaBrowser Client="wire-connections", Device="bootstrap", DeviceId="bootstrap", Version="1.0.0"' \
+    -d '{"Username":"jellyfin","Pw":"jellyfin"}' \
+    "${base_url}/Users/AuthenticateByName" 2>/dev/null | jq -r '.AccessToken // empty')
+  if [[ -z "$token" ]]; then
+    echo "[Jellyfin] Could not authenticate as the placeholder user, skipping BaseUrl check."
+    return 0
+  fi
+
+  local network_config
+  network_config=$(container_curl jellyfin -sS --fail -H "Authorization: MediaBrowser Token=\"${token}\"" \
+    "${base_url}/System/Configuration/network")
+  if [[ "$(echo "$network_config" | jq -r '.BaseUrl')" != "$JELLYFIN_BASE_URL" ]]; then
+    echo "[Jellyfin] Setting BaseUrl to ${JELLYFIN_BASE_URL}..."
+    local updated_network_config
+    updated_network_config=$(echo "$network_config" | jq --arg baseUrl "$JELLYFIN_BASE_URL" '.BaseUrl = $baseUrl')
+    container_curl jellyfin -sS --fail -X POST -H "Authorization: MediaBrowser Token=\"${token}\"" \
+      -H "Content-Type: application/json" -d "$updated_network_config" \
+      "${base_url}/System/Configuration/network" >/dev/null
+    podman restart jellyfin >/dev/null
+  fi
 }
 
 # Audiobookshelf's own image ships no curl, only wget (verified directly),
