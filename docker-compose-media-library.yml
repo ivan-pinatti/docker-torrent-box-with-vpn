@@ -98,7 +98,13 @@ services:
       PUID: "${JELLYFIN_UID}"
       UMASK: "${UMASK}"
       TZ: "${TIMEZONE}"
-      JELLYFIN_PublishedServerUrl: "http://${LAN_IP}"
+      # Jellyfin's web client reads this to "reconnect" to the server it
+      # thinks it's talking to; missing both the port and (since BaseUrl is
+      # now a server-wide setting, not an nginx-only rewrite) the /jellyfin
+      # prefix pointed it at an address nothing answers on, producing "We're
+      # unable to connect to the selected server right now" on every load,
+      # confirmed live.
+      JELLYFIN_PublishedServerUrl: "http://${LAN_IP}:${JELLYFIN_HTTP_PORT}${JELLYFIN_BASE_URL}"
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CERTIFICATES_FOLDER}:/certs:ro,z
