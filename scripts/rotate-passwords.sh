@@ -221,15 +221,21 @@ start_stopped() {
 }
 
 # Retry a command every 5 seconds until it succeeds or timeout (in seconds).
+# Prints a labeled heartbeat every 30s so a long wait (up to 420s for
+# Calibre's self-heal window) doesn't sit silent with no sign of progress.
+# Args: timeout label command...
 retry() {
-  local timeout="$1"
-  shift
+  local timeout="$1" label="$2"
+  shift 2
   local elapsed=0
   until "$@" >/dev/null 2>&1; do
     sleep 5
     elapsed=$((elapsed + 5))
     if [[ $elapsed -ge $timeout ]]; then
       return 1
+    fi
+    if ((elapsed % 30 == 0)); then
+      echo "${label} ...still waiting (${elapsed}s/${timeout}s)"
     fi
   done
 }
@@ -1060,7 +1066,7 @@ ensure_running() {
     echo "[$container] Not running; starting it..."
     podman start "$container" >/dev/null
   fi
-  retry 120 container_ready "$container"
+  retry 120 "[$container]" container_ready "$container"
 }
 
 # Rotate one service, but only when its compose profile is enabled. In "all"
@@ -1139,6 +1145,9 @@ prestart_api_containers() {
       container_ready "$container" || still_pending+=("$container")
     done
     pending=("${still_pending[@]}")
+    if [[ ${#pending[@]} -gt 0 ]] && ((elapsed % 30 == 0)); then
+      echo "  ...still waiting on: ${pending[*]} (${elapsed}s/120s)"
+    fi
   done
 }
 prestart_api_containers
@@ -1442,14 +1451,14 @@ calibre_web_login_ok() {
 validate_calibre_web() {
   local password="$1"
   local status=0
-  if retry 90 calibre_web_login_ok "$password"; then
+  if retry 90 "[Calibre-Web]" calibre_web_login_ok "$password"; then
     printf "%-14s  OK\n" "calibre-web"
     echo "$status" >"$VALIDATE_TMPDIR/calibre-web.result"
     return
   fi
   echo "[Calibre-Web] Not responding after 90s; restarting..."
   podman restart calibre-web >/dev/null 2>&1 || true
-  if retry 300 calibre_web_login_ok "$password"; then
+  if retry 300 "[Calibre-Web]" calibre_web_login_ok "$password"; then
     printf "%-14s  OK\n" "calibre-web"
   else
     printf "%-14s  FAILED\n" "calibre-web"
@@ -1531,7 +1540,7 @@ validate() {
   local name="$1" timeout="$2"
   shift 2
   local status=0
-  if retry "$timeout" "$@"; then
+  if retry "$timeout" "[$name]" "$@"; then
     printf "%-14s  OK\n" "$name"
   else
     printf "%-14s  FAILED\n" "$name"
@@ -1548,18 +1557,18 @@ validate() {
 validate_calibre() {
   local password="$1"
   local status=0
-  if retry 90 calibre_login_ok "$password"; then
+  if retry 90 "[Calibre]" calibre_login_ok "$password"; then
     printf "%-14s  OK\n" "calibre"
-    retry 60 calibre_content_server_ok "$password" ||
+    retry 60 "[Calibre]" calibre_content_server_ok "$password" ||
       echo "[Calibre] Content server not reachable on port ${CALIBRE_GUI_WEB_HTTP_PORT} (pre-existing image issue, see docs/ROTATION.md); desktop GUI login already confirmed the password rotated correctly."
     echo "$status" >"$VALIDATE_TMPDIR/calibre.result"
     return
   fi
   echo "[Calibre] Not responding after 90s; restarting the desktop service..."
   podman exec calibre s6-svc -r /run/service/svc-de >/dev/null 2>&1 || true
-  if retry 420 calibre_login_ok "$password"; then
+  if retry 420 "[Calibre]" calibre_login_ok "$password"; then
     printf "%-14s  OK\n" "calibre"
-    retry 60 calibre_content_server_ok "$password" ||
+    retry 60 "[Calibre]" calibre_content_server_ok "$password" ||
       echo "[Calibre] Content server not reachable on port ${CALIBRE_GUI_WEB_HTTP_PORT} (pre-existing image issue, see docs/ROTATION.md); desktop GUI login already confirmed the password rotated correctly."
   else
     printf "%-14s  FAILED\n" "calibre"
