@@ -386,10 +386,14 @@ server {
   location /jdownloader2/ {
     rewrite                     ^/jdownloader2/(.*) /$1 break;
     proxy_pass                  $jdownloader2_upstream;
-    # jDownloader2's web auth builds redirects (e.g. to /login/) from the
-    # forwarded Host header as a full scheme://host/ URL that knows nothing
-    # about this subpath, so a plain "/" proxy_redirect won't match it;
-    # rewrite it back under /jdownloader2/ or it escapes the proxy prefix.
+    # jDownloader2's web auth builds redirects (e.g. to /login/) as a bare
+    # root-relative path, with no scheme or host at all, so the
+    # $scheme://$host/ form below never matches it; confirmed live via
+    # curl -D, the actual Location header is just "/login/". Without the
+    # relative-path rule too, that Location passes through unmodified,
+    # escapes the /jdownloader2/ prefix, and 404s against the next
+    # location's catch-all instead of landing back inside this proxy.
+    proxy_redirect              / /jdownloader2/;
     proxy_redirect              $scheme://$host/ $scheme://$host/jdownloader2/;
     proxy_http_version          1.1;
     proxy_pass_request_headers  on;
