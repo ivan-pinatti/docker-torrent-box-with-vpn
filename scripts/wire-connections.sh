@@ -807,9 +807,19 @@ wire_prowlarr_apps() {
     echo "[Prowlarr] Container doesn't exist (PROWLARR_PROFILE=disabled), skipping."
     return 0
   fi
-  if ! retry 180 "[Prowlarr]" container_curl prowlarr -sk --fail -H "X-Api-Key: $(get_xml_apikey "$PROWLARR_XML")" \
+  # Prowlarr runs real SQLite migrations on first boot, including creating
+  # and populating its IndexerDefinitionVersions table (confirmed live in
+  # its own startup log), which is slower than the other arr apps' first
+  # boot and competes with every other container in the stack also doing
+  # its own first-boot work at the same time during a real bootstrap. 180s
+  # was not always enough in practice: a real run left Prowlarr with zero
+  # Applications and zero indexers, recovered cleanly by just re-running
+  # this script once Prowlarr had finished starting. 480s gives it real
+  # headroom instead of relying on someone noticing and re-running by hand.
+  if ! retry 480 "[Prowlarr]" container_curl prowlarr -sk --fail -H "X-Api-Key: $(get_xml_apikey "$PROWLARR_XML")" \
     "https://127.0.0.1:${PROWLARR_HTTPS_PORT}/prowlarr/api/v1/system/status"; then
-    echo "[Prowlarr] Not reachable, skipping."
+    echo "[Prowlarr] Not reachable after 480s, skipping. Re-run 'make wire_connections'"
+    echo "[Prowlarr] once it's up to register its Applications and indexer."
     return 0
   fi
 
