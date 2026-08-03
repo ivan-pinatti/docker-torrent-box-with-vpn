@@ -84,6 +84,7 @@ readonly WHISPARR_XML="configs/whisparr/config/config.xml"
 readonly PROWLARR_XML="configs/prowlarr/config/config.xml"
 readonly LAZYLIBRARIAN_INI="configs/lazylibrarian/config/config.ini"
 readonly MYLAR_INI="configs/mylar/config/mylar/config.ini"
+readonly MYLAR_DB="configs/mylar/config/mylar/mylar.db"
 
 readonly QBITTORRENT_USERNAME_FILE="configs/qbittorrent/secrets/username.txt"
 readonly QBITTORRENT_PASSWORD_FILE="configs/qbittorrent/secrets/password.txt" # pragma: allowlist secret
@@ -556,6 +557,64 @@ PYEOF
   echo "[Calibre-Web] Done."
 }
 
+# Homepage's Mylar widget (gethomepage's own bundled component.jsx, verified
+# directly) unconditionally calls three Mylar API commands and shows an
+# error badge if any of them fails; one, seriesjsonListing, does
+# `SELECT ... FROM comics` and returns Mylar's own success:false "no data
+# returned" whenever that table is empty — which it always is on a fresh
+# bootstrap, since nothing has added a comic yet. There's no Homepage config
+# to skip that call. Mylar's own addComic API requires a real Comic Vine
+# lookup (network access, a real series ID), which doesn't fit a synthetic,
+# zero-legal-risk placeholder, so this inserts one directly into mylar.db
+# instead, following this project's stop-edit-start convention for a
+# running app's database. Status stays "Paused" so Mylar never actually
+# searches or downloads anything for it.
+ensure_mylar_placeholder_comic() {
+  if ! podman container exists mylar 2>/dev/null; then
+    echo "[Mylar] Container doesn't exist, skipping."
+    return 0
+  fi
+  local count
+  count=$(
+    python3 - <<PYEOF
+import sqlite3
+conn = sqlite3.connect('$MYLAR_DB')
+print(conn.execute("SELECT COUNT(*) FROM comics").fetchone()[0])
+PYEOF
+  )
+  if [[ "$count" -gt 0 ]]; then
+    echo "[Mylar] Already has comics, skipping placeholder."
+    return 0
+  fi
+
+  echo "[Mylar] Adding a placeholder comic so its Homepage widget has data..."
+  podman stop mylar >/dev/null
+  python3 - <<PYEOF
+import sqlite3
+from datetime import date
+
+conn = sqlite3.connect('$MYLAR_DB')
+conn.execute(
+    "INSERT INTO comics (ComicID, ComicName, ComicYear, DateAdded, Status, Have, Total, ComicPublisher) "
+    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    (
+        "0000000",
+        "Example Series (placeholder, not a real comic)",
+        str(date.today().year),
+        str(date.today()),
+        "Paused",
+        0,
+        0,
+        "wire-connections.sh placeholder",
+    ),
+)
+conn.commit()
+conn.close()
+PYEOF
+  podman start mylar >/dev/null
+  echo "[Mylar] Done."
+}
+
 # ---------------------------------------------------------------------------
 # Arr app host prerequisites
 #
@@ -920,6 +979,11 @@ for name in audiobookshelf calibre calibre-web jellyfin \
   lidarr radarr readarr sonarr whisparr prowlarr; do
   wait_job "$name"
 done
+
+# Sequential, not part of the parallel batch above: this stops/starts the
+# mylar container, which would otherwise race with wire_prowlarr_apps'
+# concurrent connectivity check against that same container.
+ensure_mylar_placeholder_comic
 
 echo ""
 echo "======================================================================"
