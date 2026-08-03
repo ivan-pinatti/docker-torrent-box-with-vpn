@@ -14,6 +14,7 @@ terms. See [LICENSE.md](../LICENSE.md).
 | --- | --- | --- | --- |
 | `mylar/` | [MylarComics/mylar3](https://github.com/mylarcomics/mylar3) | GPL-3.0-or-later | Five complete source files, modified to add qBittorrent HTTPS support (self-signed certificate handling in the torrent client and its config UI) |
 | `jdownloader2/` | [jlesage/docker-jdownloader-2](https://github.com/jlesage/docker-jdownloader-2) | MIT | `10-webauth.sh`, a modified copy of the image's own `cont-init.d` script, reading credentials from mounted compose secrets because the image's documented `CONT_ENV_*` Docker-secrets support does not fire |
+| `lazylibrarian/` | [LazyLibrarian](https://gitlab.com/LazyLibrarian/LazyLibrarian) | GPL-3.0 | `auth.py`, fixing `login()`/`logout()` unconditionally prepending `HTTP_ROOT` to `from_page`, which is already prefixed since nginx forwards this app's URIs unstripped; 404'd the very first post-login redirect every time |
 
 `mylar/mylar/config.py` and `mylar/mylar/webserve.py` carry their original GPL
 headers. Do not strip them. Because these are complete GPL-3.0 files rather
