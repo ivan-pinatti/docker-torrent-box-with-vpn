@@ -27,6 +27,11 @@ env_value() {
 
 PROWLARR_HTTPS_PORT="$(env_value PROWLARR_HTTPS_PORT)"
 JELLYFIN_HTTP_PORT="$(env_value JELLYFIN_HTTP_PORT)"
+# BaseUrl is a server-wide Jellyfin setting (see wire-connections.sh), not an
+# nginx-only rewrite, so every direct call here needs it too: a bare
+# http://127.0.0.1:<port>/... 302-redirects instead of answering, which
+# curl --fail treats as success, silently breaking every call below it.
+JELLYFIN_BASE_URL="$(env_value JELLYFIN_BASE_URL)"
 SONARR_HTTP_PORT="$(env_value SONARR_HTTP_PORT)"
 RADARR_HTTPS_PORT="$(env_value RADARR_HTTPS_PORT)"
 LIDARR_HTTPS_PORT="$(env_value LIDARR_HTTPS_PORT)"
@@ -36,7 +41,7 @@ BAZARR_HTTP_PORT="$(env_value BAZARR_HTTP_PORT)"
 LAZYLIBRARIAN_HTTP_PORT="$(env_value LAZYLIBRARIAN_HTTP_PORT)"
 MYLAR_HTTPS_PORT="$(env_value MYLAR_HTTPS_PORT)"
 NZBHYDRA2_HTTPS_PORT="$(env_value NZBHYDRA2_HTTPS_PORT)"
-readonly PROWLARR_HTTPS_PORT JELLYFIN_HTTP_PORT SONARR_HTTP_PORT \
+readonly PROWLARR_HTTPS_PORT JELLYFIN_HTTP_PORT JELLYFIN_BASE_URL SONARR_HTTP_PORT \
   RADARR_HTTPS_PORT LIDARR_HTTPS_PORT READARR_HTTPS_PORT WHISPARR_HTTPS_PORT \
   BAZARR_HTTP_PORT LAZYLIBRARIAN_HTTP_PORT MYLAR_HTTPS_PORT NZBHYDRA2_HTTPS_PORT
 
@@ -503,8 +508,9 @@ rotate_jellyfin() {
   # apps' WebUI login, it involves real choices: media libraries, metadata
   # language, remote access) — skip with a note rather than aborting the
   # whole rotation run over a step that's inherently manual.
+  local base_url="http://127.0.0.1:${JELLYFIN_HTTP_PORT}${JELLYFIN_BASE_URL}"
   if [[ "$(container_curl jellyfin -s --fail \
-    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}/System/Info/Public" |
+    "${base_url}/System/Info/Public" |
     jq -r '.StartupWizardCompleted')" != "true" ]]; then
     echo "[Jellyfin] Setup wizard not completed yet, skipping API key rotation."
     echo "[Jellyfin] Finish it at http://localhost:${JELLYFIN_HTTP_PORT}/, then re-run"
@@ -518,11 +524,11 @@ rotate_jellyfin() {
   echo "[Jellyfin] Creating a new API key..."
   container_curl jellyfin -s --fail -X POST \
     -H "Authorization: MediaBrowser Token=\"${old_key}\"" \
-    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}/Auth/Keys?App=homepage" >/dev/null
+    "${base_url}/Auth/Keys?App=homepage" >/dev/null
 
   new_key=$(container_curl jellyfin -s --fail \
     -H "Authorization: MediaBrowser Token=\"${old_key}\"" \
-    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}/Auth/Keys" |
+    "${base_url}/Auth/Keys" |
     jq -r --arg old "$old_key" \
       '[.Items[] | select(.AccessToken != $old)] | sort_by(.DateCreated) | last.AccessToken')
 
@@ -536,7 +542,7 @@ rotate_jellyfin() {
   echo "[Jellyfin] Revoking the old API key..."
   container_curl jellyfin -s --fail -X DELETE \
     -H "Authorization: MediaBrowser Token=\"${new_key}\"" \
-    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}/Auth/Keys/${old_key}" >/dev/null
+    "${base_url}/Auth/Keys/${old_key}" >/dev/null
 
   SUMMARY_JELLYFIN_OLD="$old_key"
   SUMMARY_JELLYFIN_NEW="$new_key"
@@ -725,7 +731,7 @@ nzbhydra_key_ok() {
 jellyfin_key_ok() {
   container_curl jellyfin -s --fail -o /dev/null \
     -H "Authorization: MediaBrowser Token=\"$1\"" \
-    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}/Auth/Keys"
+    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}${JELLYFIN_BASE_URL}/Auth/Keys"
 }
 
 VALIDATION_FAILURES=()

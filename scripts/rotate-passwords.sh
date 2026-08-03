@@ -53,6 +53,11 @@ CALIBRE_WEB_CONTAINER_HTTPS_PORT="$(env_value CALIBRE_WEB_CONTAINER_HTTPS_PORT)"
 CALIBRE_WEB_CONTAINER_HTTP_PORT="$(env_value CALIBRE_WEB_CONTAINER_HTTP_PORT)"
 JDOWNLOADER2_HTTP_PORT="$(env_value JDOWNLOADER2_HTTP_PORT)"
 JELLYFIN_HTTP_PORT="$(env_value JELLYFIN_HTTP_PORT)"
+# BaseUrl is a server-wide Jellyfin setting (see wire-connections.sh), not an
+# nginx-only rewrite, so every direct call here needs it too: a bare
+# http://127.0.0.1:<port>/... 302-redirects instead of answering, which
+# curl --fail treats as success, silently breaking every call below it.
+JELLYFIN_BASE_URL="$(env_value JELLYFIN_BASE_URL)"
 LAZYLIBRARIAN_HTTP_PORT="$(env_value LAZYLIBRARIAN_HTTP_PORT)"
 LIDARR_HTTPS_PORT="$(env_value LIDARR_HTTPS_PORT)"
 MYLAR_HTTPS_PORT="$(env_value MYLAR_HTTPS_PORT)"
@@ -70,7 +75,7 @@ WHISPARR_HTTPS_PORT="$(env_value WHISPARR_HTTPS_PORT)"
 readonly AUDIOBOOKSHELF_HTTP_PORT BAZARR_HTTP_PORT CALIBRE_GUI_WEB_HTTP_PORT \
   CALIBRE_DESKTOP_HTTPS_PORT CALIBRE_WEB_CONTAINER_HTTPS_PORT \
   CALIBRE_WEB_CONTAINER_HTTP_PORT JDOWNLOADER2_HTTP_PORT \
-  JELLYFIN_HTTP_PORT LAZYLIBRARIAN_HTTP_PORT \
+  JELLYFIN_HTTP_PORT JELLYFIN_BASE_URL LAZYLIBRARIAN_HTTP_PORT \
   LIDARR_HTTPS_PORT MYLAR_HTTPS_PORT NZBHYDRA2_HTTPS_PORT PROWLARR_HTTPS_PORT \
   QBITTORRENT_HTTPS_PORT GLUETUN_SERVICES_IP RADARR_HTTPS_PORT \
   READARR_HTTPS_PORT SABNZBD_HTTPS_PORT SONARR_HTTP_PORT WHISPARR_HTTPS_PORT
@@ -120,8 +125,10 @@ readonly CALIBRE_PASSWORD_SECRET="configs/calibre/secrets/password.txt" # pragma
 readonly NZBHYDRA_YML="configs/nzbhydra2/config/nzbhydra.yml"
 readonly AUDIOBOOKSHELF_DB="configs/audiobookshelf/config/absdatabase.sqlite"
 readonly AUDIOBOOKSHELF_USER="root"
+readonly AUDIOBOOKSHELF_PASSWORD_SECRET="configs/audiobookshelf/secrets/password.txt" # pragma: allowlist secret
 readonly JELLYFIN_USERNAME="jellyfin"
-readonly JELLYFIN_API_KEY_SECRET="configs/jellyfin/secrets/api_key.txt" # pragma: allowlist secret
+readonly JELLYFIN_API_KEY_SECRET="configs/jellyfin/secrets/api_key.txt"   # pragma: allowlist secret
+readonly JELLYFIN_PASSWORD_SECRET="configs/jellyfin/secrets/password.txt" # pragma: allowlist secret
 readonly JDOWNLOADER2_USERNAME="jdownloader2"
 # Single source of truth for jDownloader2's web UI password, consumed via
 # compose `secrets:` and read directly by patches/jdownloader2/10-webauth.sh
@@ -422,6 +429,18 @@ finally:
 raise SystemExit(0 if updated else 1)
 PYEOF
     podman start audiobookshelf >/dev/null
+    # Audiobookshelf has no other host-readable record of its own password
+    # (its bcrypt hash lives only in absdatabase.sqlite): persist it the same
+    # way qBittorrent/Calibre-Web/Jellyfin do, rather than leaving the new
+    # value only in this script's one-time terminal summary output.
+    python3 - <<PYEOF
+from pathlib import Path
+
+p = Path('$AUDIOBOOKSHELF_PASSWORD_SECRET')
+p.parent.mkdir(parents=True, exist_ok=True)
+p.write_text('$new_password')
+p.chmod(0o644)
+PYEOF
     SUMMARY_AUDIOBOOKSHELF_USER="$AUDIOBOOKSHELF_USER"
     SUMMARY_AUDIOBOOKSHELF_NEW="$new_password"
   else
@@ -652,8 +671,9 @@ rotate_jellyfin() {
   # this stack automates (it involves real choices: media libraries,
   # metadata language, remote access) — skip with a note rather than
   # aborting, mirroring rotate-api-keys.sh's rotate_jellyfin().
+  local base_url="http://127.0.0.1:${JELLYFIN_HTTP_PORT}${JELLYFIN_BASE_URL}"
   if [[ "$(container_curl jellyfin -s --fail \
-    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}/System/Info/Public" |
+    "${base_url}/System/Info/Public" |
     jq -r '.StartupWizardCompleted')" != "true" ]]; then
     echo "[Jellyfin] Setup wizard not completed yet, skipping password rotation."
     echo "[Jellyfin] Finish it at http://localhost:${JELLYFIN_HTTP_PORT}/, then re-run"
@@ -672,7 +692,7 @@ rotate_jellyfin() {
   echo "[Jellyfin] Looking up the '${JELLYFIN_USERNAME}' user id..."
   user_id=$(container_curl jellyfin -s --fail \
     -H "Authorization: MediaBrowser Token=\"${api_key}\"" \
-    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}/Users" |
+    "${base_url}/Users" |
     jq -r --arg name "$JELLYFIN_USERNAME" '.[] | select(.Name == $name) | .Id')
   if [[ -z "$user_id" ]]; then
     echo "[Jellyfin] User '${JELLYFIN_USERNAME}' not found. Aborting Jellyfin rotation." >&2
@@ -684,7 +704,22 @@ rotate_jellyfin() {
     -H "Authorization: MediaBrowser Token=\"${api_key}\"" \
     -H "Content-Type: application/json" \
     -d "{\"NewPw\":\"${new_password}\"}" \
-    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}/Users/${user_id}/Password"
+    "${base_url}/Users/${user_id}/Password"
+
+  # Jellyfin has no other host-readable record of its own password (unlike
+  # Mylar/LazyLibrarian, whose plaintext config.ini already is one): nothing
+  # wrote it anywhere before, so the only place the new value ever appeared
+  # was this script's own one-time terminal summary output, easy to miss or
+  # lose, confirmed as the actual root cause of not being able to find the
+  # current login. Persist it the same way qBittorrent/Calibre-Web do.
+  python3 - <<PYEOF
+from pathlib import Path
+
+p = Path('$JELLYFIN_PASSWORD_SECRET')
+p.parent.mkdir(parents=True, exist_ok=True)
+p.write_text('$new_password')
+p.chmod(0o644)
+PYEOF
 
   SUMMARY_JELLYFIN_USER="$JELLYFIN_USERNAME"
   SUMMARY_JELLYFIN_NEW="$new_password"
@@ -1504,7 +1539,7 @@ jellyfin_login_ok() {
     -H 'Authorization: MediaBrowser Client="rotate-passwords", Device="script", DeviceId="rotate-passwords", Version="1.0"' \
     -H "Content-Type: application/json" \
     -d "{\"Username\":\"${JELLYFIN_USERNAME}\",\"Pw\":\"$1\"}" \
-    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}/Users/AuthenticateByName")
+    "http://127.0.0.1:${JELLYFIN_HTTP_PORT}${JELLYFIN_BASE_URL}/Users/AuthenticateByName")
   [[ "$code" == "200" ]]
 }
 
