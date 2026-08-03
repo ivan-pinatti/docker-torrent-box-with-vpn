@@ -350,15 +350,6 @@ services:
       apps:
         aliases: [mylar-https]
       services: {}
-    # Mylar's own SIGTERM handler drains four background worker queues
-    # (AUTO-COMPLETE-NZB, SEARCH-QUEUE, POST-PROCESS-QUEUE, JD2-QUEUE) before
-    # exiting, which reliably takes 14 to 16 seconds even when idle. The
-    # default 10s grace period cuts that off every time, forcing a SIGKILL
-    # mid-cleanup on every stop, which scripts/rotate-*.sh and bootstrap's
-    # wire step both do repeatedly. 25s gives it comfortable headroom to
-    # finish the same cleanup it always does anyway, instead of never once
-    # getting to.
-    stop_grace_period: 25s
     env_file: ["${CONFIG_FOLDER}/mylar/.env"]
     environment:
       <<: *servarr-env
