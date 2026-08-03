@@ -225,7 +225,13 @@ services:
       - ${DATA_FOLDER}:/data:z
     healthcheck:
       <<: *healthcheck-defaults
-      test: curl --fail --insecure https://127.0.0.1:${CALIBRE_WEB_CONTAINER_HTTPS_PORT}/ || exit 1
+      # Calibre-Web only ever runs on plain HTTP here (see wire-connections.sh:
+      # setting config_certfile/config_keyfile to switch it to HTTPS
+      # reproducibly wiped its entire user table on the next start), so
+      # nothing ever listens on CALIBRE_WEB_CONTAINER_HTTPS_PORT; confirmed
+      # live that a curl to it doesn't even connect, while this container was
+      # reported "unhealthy" the whole time because of exactly that mismatch.
+      test: curl --fail http://127.0.0.1:${CALIBRE_WEB_CONTAINER_HTTP_PORT}/ || exit 1
 
   korsync:
     <<: *limit-korsync
