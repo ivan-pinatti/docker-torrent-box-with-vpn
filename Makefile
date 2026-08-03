@@ -173,6 +173,7 @@ bootstrap: configs/flaresolverr/config/chromedriver
 		storage/prometheus/data \
 		storage/grafana/data
 	@touch data/torrents/blackhole/.gitkeep data/usenet/blackhole/.gitkeep
+	@./scripts/seed-calibre-library.sh
 	@./scripts/seed-secrets.sh configs/grafana
 	@./scripts/seed-secrets.sh configs/qbittorrent
 	@./scripts/seed-secrets.sh configs/qbittorrent_exporter
