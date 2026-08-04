@@ -65,6 +65,32 @@ note, if Prowlarr's container doesn't exist — the same no-op behavior
 `scripts/rotate-api-keys.sh`'s `update_prowlarr_application()` already has
 for a missing entry.
 
+After registering the applications, the script triggers Prowlarr's
+`ApplicationIndexerSync` command and then verifies, through each arr app's
+own `GET .../indexer`, that an indexer actually arrived. That verification
+step exists because the sync can fail silently: Prowlarr answers an app's
+capability probe with 429 while an indexer is in its failure backoff, the
+app rejects the pushed indexer with 400, and nothing retries.
+
+**Mylar legitimately ends up with no Prowlarr indexer on a default install,
+and that is not a failure.** Prowlarr only pushes an indexer to Mylar when
+that indexer advertises category 7030 (Books/Comics), and this stack's
+default indexer, Internet Archive, advertises 7000 (Books) but no comics
+subcategory. Prowlarr skips it silently: its trace log shows Prowlarr
+querying Mylar's `cmd=listProviders` successfully (HTTP 200) and then
+logging nothing further for Mylar, while every other application is
+processed. LazyLibrarian, which matches on Books, does receive the indexer.
+Add any indexer carrying 7030 in Prowlarr and Mylar starts receiving it, no
+re-wiring needed.
+
+Both Mylar and LazyLibrarian ship a `config.ini.example` that deliberately
+defines **no** Prowlarr Torznab entries. Prowlarr populates those itself,
+and hand-written placeholder entries actively break it: Prowlarr reconciles
+what an application holds against what it defines and tries to remove
+entries it does not recognize, which Mylar rejects with
+`MylarException Code 460`, aborting the rest of that application's sync. Only
+the real NZBHydra2 entry belongs in those seeds.
+
 ## First-run setup
 
 Jellyfin, Audiobookshelf, Calibre's content server, and Calibre-Web all ship
