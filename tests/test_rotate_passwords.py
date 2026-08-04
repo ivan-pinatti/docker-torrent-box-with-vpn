@@ -994,3 +994,64 @@ def test_rotate_nzbhydra2_password(running_containers):
     )
     assert status == 302, f"Unexpected login response (HTTP {status})"
     assert "login?error" not in body, "NZBHydra2 rejected the new password"
+
+
+def test_calibre_gui_holds_library_open(running_containers):
+    """Calibre's GUI must actually have its library open after a rotation.
+
+    rotate-passwords.sh used to run `permissions.py repair --recursive`
+    *after* restarting Calibre, so that recursive ownership/ACL sweep walked
+    data/media/calibre-library while the restarted GUI was opening
+    metadata.db. The open failed, and calibre surfaces any apsw error from
+    that step as "The library database at /data/media/calibre-library appears
+    to be corrupted. Do you want calibre to try and rebuild it
+    automatically?" — a data-loss-flavoured prompt for a library that is
+    completely intact, which is why every after-the-fact inspection of the
+    files kept coming back clean.
+
+    A GUI that loaded its library keeps metadata.db open for the life of the
+    process; one sitting on that modal never opens it at all. Checking the
+    file descriptor is therefore a direct test for "is the dialog up", which
+    is otherwise invisible from outside the Wayland session.
+    """
+    if not is_enabled("calibre"):
+        pytest.skip("service 'calibre' profile is disabled")
+    skip_if_not_running("calibre", running_containers)
+
+    pid = subprocess.run(  # nosec B607 - podman is a trusted, fixed CLI in this stack
+        ["podman", "exec", "calibre", "pgrep", "-f", "bin/calibre$"],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    ).stdout.split()
+    assert pid, "no calibre GUI process is running"
+
+    # The GUI can take a while to get to the library after the container
+    # reports healthy, so give it room before calling this a failure.
+    deadline = time.time() + 120
+    while time.time() < deadline:
+        listing = subprocess.run(  # nosec B607 - podman is a trusted, fixed CLI in this stack
+            [
+                "podman",
+                "exec",
+                "--user",
+                "abc",
+                "calibre",
+                "sh",
+                "-c",
+                f"ls -l /proc/{pid[0]}/fd 2>/dev/null",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        ).stdout
+        if "calibre-library" in listing:
+            return
+        time.sleep(5)
+
+    pytest.fail(
+        "Calibre's GUI never opened its library: it is almost certainly "
+        "blocked on the 'library database appears to be corrupted' dialog. "
+        "Check that permissions.py repair does not run while calibre is "
+        "starting."
+    )

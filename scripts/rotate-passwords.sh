@@ -1338,6 +1338,33 @@ all)
   ;;
 esac
 
+# ---------------------------------------------------------------------------
+# Host-side SQLite writes above can leave -wal/-shm files owned by the host
+# user, which the app user inside the container cannot open after a restart;
+# normalize ownership before finishing.
+#
+# This has to run BEFORE the restarts below, for two independent reasons.
+#
+# Its own purpose requires it: the files it fixes are the ones the app user
+# "cannot open after a restart", so repairing them after that restart has
+# already happened is too late to help the very containers it exists for.
+#
+# And running it afterwards actively breaks Calibre. `repair --recursive`
+# walks the whole tree re-applying ownership and ACLs, including
+# data/media/calibre-library, and the restarted Calibre GUI opens
+# metadata.db during exactly that window. When the two collide the open
+# fails, and calibre reports any apsw error from that step as "The library
+# database at /data/media/calibre-library appears to be corrupted. Do you
+# want calibre to try and rebuild it automatically?" — a scary,
+# data-loss-flavoured prompt for a library that is in fact completely
+# intact. Confirmed by bisection on a live stack: stop/start alone is fine,
+# the host-side sqlite write alone is fine, and a plain restart afterwards
+# always recovers, but restarting and then running repair --recursive
+# reproduces the blocked GUI every time.
+# ---------------------------------------------------------------------------
+
+"$SCRIPT_DIR/permissions.py" repair --runtime podman --recursive >/dev/null 2>&1 || true
+
 if [[ ${#RESTART_CONSUMERS[@]} -gt 0 ]]; then
   existing_consumers=()
   for consumer in "${RESTART_CONSUMERS[@]}"; do
@@ -1351,14 +1378,6 @@ if [[ ${#RESTART_CONSUMERS[@]} -gt 0 ]]; then
     podman restart "${existing_consumers[@]}" >/dev/null
   fi
 fi
-
-# ---------------------------------------------------------------------------
-# Host-side SQLite writes above can leave -wal/-shm files owned by the host
-# user, which the app user inside the container cannot open after a restart;
-# normalize ownership before finishing.
-# ---------------------------------------------------------------------------
-
-"$SCRIPT_DIR/permissions.py" repair --runtime podman --recursive >/dev/null 2>&1 || true
 
 # ---------------------------------------------------------------------------
 # Summary table (alphabetical by service)
