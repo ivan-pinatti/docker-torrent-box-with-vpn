@@ -134,7 +134,7 @@ write_audiotags = True
 
 [Newznab_0]
 dispname = NZBHydra2 (Newznab)
-enabled = True
+enabled = False
 host = https://nzbhydra2:5077/nzbhydra2
 api = 99999999999999999999999999999999
 generalsearch = search
@@ -143,7 +143,7 @@ dltypes = A,C,E,M
 
 [Torznab_0]
 dispname = NZBHydra2 (Torznab)
-enabled = True
+enabled = False
 host = https://nzbhydra2:5077/nzbhydra2
 api = 99999999999999999999999999999999
 generalsearch = search
