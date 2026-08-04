@@ -27,7 +27,7 @@ first, so re-running is always safe.
 
 ## What gets wired
 
-### Download clients (Sonarr, Radarr, Lidarr, Readarr, Whisparr → qBittorrent, SABnzbd)
+### Download clients (Sonarr, Radarr, Lidarr, Readarr, Whisparr, Prowlarr → qBittorrent, SABnzbd)
 
 Each of these apps keeps its download clients in a `DownloadClients` SQLite
 table, created through `POST /api/<version>/downloadclient`. The script:
@@ -55,6 +55,25 @@ table, created through `POST /api/<version>/downloadclient`. The script:
   (`tv`, `movies`, `music`, `ebooks`, `mature`) and validates strictly, so an
   unmatched category fails the request outright rather than creating one.
 - Posts the client with `enable = true`.
+
+Prowlarr gets both clients too, through the same `ensure_qbittorrent_client`/
+`ensure_sabnzbd_client` helpers (Prowlarr shares the identical DownloadClients
+schema shape with every other Servarr app) — this is what puts a working
+"Download" button on Prowlarr's own Interactive Search results, independent
+of anything the arr apps do with their own clients. The category is set to
+the bare string `prowlarr`, matching the same convention as the arr apps,
+though Prowlarr itself doesn't use it for anything (it isn't sorting content
+into genre folders the way Sonarr/Radarr/etc. are).
+
+### Prowlarr → Indexer Proxy (FlareSolverr)
+
+If both Prowlarr and FlareSolverr are enabled, the script registers
+FlareSolverr as an Indexer Proxy via `POST /api/v1/indexerproxy`, using the
+same fetch-schema-then-fill-in-the-host pattern as everything else here.
+This only makes the proxy available to choose from; Prowlarr does not
+automatically apply it to any indexer. Assign it per indexer that actually
+needs a Cloudflare bypass, under Settings > Indexers > (the indexer) >
+Proxy in Prowlarr's UI.
 
 ### Prowlarr → Applications (Sonarr, Radarr, Lidarr, Readarr, Whisparr, LazyLibrarian, Mylar)
 

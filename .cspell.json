@@ -258,6 +258,7 @@
     "Imageset",
     "IMDB",
     "imdbid",
+    "indexerproxy",
     "indexerstats",
     "indexerstatus",
     "informationally",

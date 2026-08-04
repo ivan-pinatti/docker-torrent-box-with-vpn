@@ -147,6 +147,88 @@ def test_sabnzbd_client_wired(app, running_containers):
     assert _field(client, category_field) == expected_category
 
 
+def _prowlarr_download_clients(running_containers) -> list[dict]:
+    skip_if_not_running("prowlarr", running_containers)
+    port = _env("PROWLARR_HTTPS_PORT")
+    status, body = container_http(
+        "prowlarr",
+        f"https://127.0.0.1:{port}/prowlarr/api/v1/downloadclient",
+        headers={"X-Api-Key": _api_key("prowlarr")},
+        timeout=TIMEOUT,
+    )
+    assert status == 200, f"[prowlarr] GET downloadclient failed: {status} {body[:200]}"
+    import json
+
+    return json.loads(body)
+
+
+def test_prowlarr_qbittorrent_client_wired(running_containers):
+    """Prowlarr's own Interactive Search grab button needs a download client.
+
+    Independent of the arr apps' own qBittorrent clients (test_wire_
+    connections.py wires those separately) — this is what Prowlarr itself
+    uses.
+    """
+    if not is_enabled("prowlarr"):
+        pytest.skip("service 'prowlarr' profile is disabled")
+    clients = _prowlarr_download_clients(running_containers)
+    matches = [c for c in clients if c["implementation"] == "QBittorrent"]
+    assert len(matches) == 1, (
+        f"[prowlarr] expected exactly one QBittorrent client, found {len(matches)}"
+    )
+    client = matches[0]
+    assert client["enable"] is True
+    assert _field(client, "host") == _env("GLUETUN_SERVICES_IP")
+    assert _field(client, "port") == int(_env("QBITTORRENT_HTTPS_PORT"))
+
+
+def test_prowlarr_sabnzbd_client_wired(running_containers):
+    if not is_enabled("prowlarr"):
+        pytest.skip("service 'prowlarr' profile is disabled")
+    clients = _prowlarr_download_clients(running_containers)
+    matches = [c for c in clients if c["implementation"] == "Sabnzbd"]
+    assert len(matches) == 1, (
+        f"[prowlarr] expected exactly one Sabnzbd client, found {len(matches)}"
+    )
+    client = matches[0]
+    assert client["enable"] is True
+    assert _field(client, "host") == _env("GLUETUN_SERVICES_IP")
+    assert _field(client, "port") == int(_env("SABNZBD_HTTP_PORT"))
+
+
+def test_prowlarr_flaresolverr_indexer_proxy_wired(running_containers):
+    """FlareSolverr is available to select as an Indexer Proxy.
+
+    This only asserts the proxy exists to choose from; Prowlarr never
+    assigns it to an indexer automatically (see docs/CONNECTIONS.md), so
+    there's nothing further to assert here.
+    """
+    if not is_enabled("prowlarr"):
+        pytest.skip("service 'prowlarr' profile is disabled")
+    if not is_enabled("flaresolverr"):
+        pytest.skip("service 'flaresolverr' profile is disabled")
+    skip_if_not_running("prowlarr", running_containers)
+    port = _env("PROWLARR_HTTPS_PORT")
+    status, body = container_http(
+        "prowlarr",
+        f"https://127.0.0.1:{port}/prowlarr/api/v1/indexerproxy",
+        headers={"X-Api-Key": _api_key("prowlarr")},
+        timeout=TIMEOUT,
+    )
+    assert status == 200, f"GET indexerproxy failed: {status} {body[:200]}"
+    import json
+
+    proxies = json.loads(body)
+    matches = [p for p in proxies if p["implementation"] == "FlareSolverr"]
+    assert len(matches) == 1, (
+        f"expected exactly one FlareSolverr indexer proxy, found {len(matches)}"
+    )
+    assert (
+        _field(matches[0], "host")
+        == f"http://flaresolverr:{_env('FLARESOLVERR_HTTP_PORT')}"
+    )
+
+
 @pytest.mark.parametrize("app", sorted(ARR_APPS))
 def test_arr_host_prereqs_wired(app, running_containers):
     """CertificateValidation relaxed and an initial WebUI login exists."""

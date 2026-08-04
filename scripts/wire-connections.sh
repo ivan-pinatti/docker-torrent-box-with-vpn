@@ -71,11 +71,12 @@ JELLYFIN_HTTP_PORT="$(env_value JELLYFIN_HTTP_PORT)"
 JELLYFIN_BASE_URL="$(env_value JELLYFIN_BASE_URL)"
 AUDIOBOOKSHELF_HTTP_PORT="$(env_value AUDIOBOOKSHELF_HTTP_PORT)"
 CALIBREWEB_VERSION="$(env_value CALIBREWEB_VERSION)"
+FLARESOLVERR_HTTP_PORT="$(env_value FLARESOLVERR_HTTP_PORT)"
 readonly GLUETUN_SERVICES_IP QBITTORRENT_HTTPS_PORT SABNZBD_HTTP_PORT \
   SONARR_HTTP_PORT RADARR_HTTPS_PORT LIDARR_HTTPS_PORT READARR_HTTPS_PORT \
   WHISPARR_HTTPS_PORT PROWLARR_HTTPS_PORT LAZYLIBRARIAN_HTTP_PORT MYLAR_HTTPS_PORT \
   JELLYFIN_BASE_URL CALIBREWEB_VERSION \
-  JELLYFIN_HTTP_PORT AUDIOBOOKSHELF_HTTP_PORT
+  JELLYFIN_HTTP_PORT AUDIOBOOKSHELF_HTTP_PORT FLARESOLVERR_HTTP_PORT
 
 readonly SONARR_XML="configs/sonarr/config/config.xml"
 readonly RADARR_XML="configs/radarr/config/config.xml"
@@ -877,6 +878,15 @@ wire_prowlarr_apps() {
   # username was still empty, not "prowlarr".
   ensure_arr_host_prereqs prowlarr prowlarr https "$PROWLARR_HTTPS_PORT" v1 "$prowlarr_key"
 
+  # Prowlarr's own Download Clients (used by its "Interactive Search" grab
+  # button, independent of the arr apps' own download clients wired by
+  # wire_arr_app). Same generic helpers those use: Prowlarr shares the same
+  # DownloadClients schema shape as every other Servarr app.
+  ensure_qbittorrent_client prowlarr prowlarr https "$PROWLARR_HTTPS_PORT" v1 "$prowlarr_key" prowlarr
+  ensure_sabnzbd_client prowlarr prowlarr https "$PROWLARR_HTTPS_PORT" v1 "$prowlarr_key" prowlarr
+
+  ensure_prowlarr_indexer_proxy "$prowlarr_key"
+
   # https, not http, despite the port variable's name: LazyLibrarian
   # repurposes its single configured port for HTTPS once https_enabled=True
   # (the shipped default in config.ini.example), the same way Calibre-Web
@@ -930,6 +940,49 @@ wire_prowlarr_apps() {
     done
     echo "[Prowlarr] Re-run 'make wire_connections' once those apps are up."
   fi
+}
+
+# Registers FlareSolverr as a Prowlarr Indexer Proxy, so it's available to
+# select on any indexer that needs a Cloudflare bypass. Prowlarr doesn't
+# apply a proxy to an indexer on its own; that's still a per-indexer choice
+# left to you (Settings > Indexers > <indexer> > Proxy), the same way
+# LazyLibrarian's own book sources are ("Book sources" in
+# docs/LAZYLIBRARIAN.md) — this only makes sure the proxy itself exists to
+# choose from. Skipped entirely if FlareSolverr's container doesn't exist
+# (FLARESOLVERR_PROFILE=disabled), matching every other ensure_* helper here.
+# Args: prowlarr_api_key
+ensure_prowlarr_indexer_proxy() {
+  local prowlarr_api_key="$1"
+  local base_url="https://127.0.0.1:${PROWLARR_HTTPS_PORT}/prowlarr/api/v1/indexerproxy"
+
+  if ! podman container exists flaresolverr 2>/dev/null; then
+    echo "[Prowlarr] FlareSolverr container doesn't exist, skipping indexer proxy."
+    return 0
+  fi
+
+  local existing
+  existing=$(container_curl prowlarr -sk --fail -H "X-Api-Key: ${prowlarr_api_key}" "$base_url" |
+    jq 'map(select(.implementation == "FlareSolverr")) | first')
+  if [[ -n "$existing" && "$existing" != "null" ]]; then
+    echo "[Prowlarr] FlareSolverr indexer proxy already exists, skipping."
+    return 0
+  fi
+
+  echo "[Prowlarr] Adding FlareSolverr indexer proxy..."
+  local schema
+  schema=$(container_curl prowlarr -sk --fail -H "X-Api-Key: ${prowlarr_api_key}" "${base_url}/schema" |
+    jq 'map(select(.implementation == "FlareSolverr")) | first')
+
+  local payload
+  payload=$(echo "$schema" | jq \
+    --arg host "http://flaresolverr:${FLARESOLVERR_HTTP_PORT}" \
+    '.name = "FlareSolverr" |
+    .fields |= map(if .name == "host" then .value = $host else . end)')
+
+  container_curl prowlarr -sk --fail -X POST \
+    -H "X-Api-Key: ${prowlarr_api_key}" -H "Content-Type: application/json" \
+    -d "$payload" "$base_url" >/dev/null
+  echo "[Prowlarr] FlareSolverr indexer proxy added."
 }
 
 # Args: definition_name display_name base_url prowlarr_api_key
