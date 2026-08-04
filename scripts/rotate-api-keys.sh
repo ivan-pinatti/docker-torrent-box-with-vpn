@@ -270,6 +270,72 @@ update_prowlarr_application() {
     >/dev/null
 }
 
+# When Prowlarr's own API key rotates, every indexer it already pushed into
+# a downstream app still carries the *old* key, because Prowlarr embeds its
+# current key into an indexer record at sync time and does not refresh it
+# on every later sync. Confirmed live: after rotating Prowlarr's key and
+# manually re-running ApplicationIndexerSync, LazyLibrarian's Torznab entry
+# picked up the new key (Prowlarr updates it there through LazyLibrarian's
+# own live "changeprovider" API, which this same command call reaches), but
+# Radarr's Indexers row still had the old key in its apiKey field. The arr
+# apps need an explicit PUT to their own indexer API to pick up the new key;
+# LazyLibrarian/Mylar are already fixed by the resync below.
+# Args: new_key
+propagate_prowlarr_key() {
+  local new_key="$1"
+
+  if ! podman container exists prowlarr 2>/dev/null; then
+    return 0
+  fi
+
+  if ! retry 120 container_curl prowlarr -sk --fail -o /dev/null --max-time 10 \
+    -H "X-Api-Key: ${new_key}" \
+    "https://127.0.0.1:${PROWLARR_HTTPS_PORT}/prowlarr/api/v1/system/status"; then
+    echo "[Prowlarr] Didn't come back up with the new key in time, skipping indexer key propagation."
+    echo "[Prowlarr] Once it's healthy, re-run 'make wire_connections' to fix this."
+    return 0
+  fi
+
+  echo "[Prowlarr] Re-syncing indexers to registered applications with the new key..."
+  container_curl prowlarr -sk --fail -X POST \
+    -H "X-Api-Key: ${new_key}" -H "Content-Type: application/json" \
+    -d '{"name":"ApplicationIndexerSync"}' \
+    "https://127.0.0.1:${PROWLARR_HTTPS_PORT}/prowlarr/api/v1/command" >/dev/null || true
+  sleep 15
+
+  local targets=(
+    "sonarr http ${SONARR_HTTP_PORT} v3 ${SONARR_XML}"
+    "radarr https ${RADARR_HTTPS_PORT} v3 ${RADARR_XML}"
+    "lidarr https ${LIDARR_HTTPS_PORT} v1 ${LIDARR_XML}"
+    "readarr https ${READARR_HTTPS_PORT} v1 ${READARR_XML}"
+    "whisparr https ${WHISPARR_HTTPS_PORT} v3 ${WHISPARR_XML}"
+  )
+  local entry app scheme port api_version xml_path app_key indexers
+  for entry in "${targets[@]}"; do
+    read -r app scheme port api_version xml_path <<<"$entry"
+    podman container exists "$app" 2>/dev/null || continue
+    app_key=$(get_xml_apikey "$xml_path") || continue
+    indexers=$(container_curl "$app" -sk --fail -H "X-Api-Key: ${app_key}" \
+      "${scheme}://127.0.0.1:${port}/${app}/api/${api_version}/indexer" 2>/dev/null) || continue
+
+    local rec id name updated
+    while IFS= read -r rec; do
+      [[ -z "$rec" ]] && continue
+      id=$(echo "$rec" | jq -r '.id')
+      name=$(echo "$rec" | jq -r '.name')
+      updated=$(echo "$rec" | jq --arg key "$new_key" \
+        '.fields |= map(if .name == "apiKey" then .value = $key else . end)')
+      if container_curl "$app" -sk --fail -X PUT -H "X-Api-Key: ${app_key}" \
+        -H "Content-Type: application/json" -d "$updated" \
+        "${scheme}://127.0.0.1:${port}/${app}/api/${api_version}/indexer/${id}?forceSave=true" >/dev/null; then
+        echo "[Prowlarr] Updated ${app}'s indexer '${name}' with the new API key."
+      else
+        echo "[Prowlarr] WARNING: failed to update ${app}'s indexer '${name}' with the new API key."
+      fi
+    done < <(echo "$indexers" | jq -c '.[] | select(.fields[]? | .name == "baseUrl" and (.value | test("://prowlarr[:/]")))')
+  done
+}
+
 # ---------------------------------------------------------------------------
 # Per-app rotation functions
 # ---------------------------------------------------------------------------
@@ -381,6 +447,8 @@ rotate_prowlarr() {
   new_key=$(rotate_arr_apikey "Prowlarr" "prowlarr" "$PROWLARR_XML")
 
   write_secret_file "$PROWLARR_API_KEY_SECRET" "$new_key"
+
+  propagate_prowlarr_key "$new_key"
 
   SUMMARY_PROWLARR_OLD="$old_key"
   SUMMARY_PROWLARR_NEW="$new_key"

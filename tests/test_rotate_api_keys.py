@@ -103,6 +103,78 @@ def _restore_arr_key(app: str, xml_path: str, old_key: str):
     assert wait_for_healthy(app), f"{app} did not become healthy after key restore"
 
 
+def _arr_prowlarr_indexer_apikeys(db_rel: str) -> dict[str, str]:
+    """Map indexer name -> stored apiKey, for indexers pointing at Prowlarr.
+
+    The arr apps' own API redacts apiKey in every response, so the only way
+    to verify the stored value is to read the Indexers table directly.
+    """
+    db_path = REPO_ROOT / db_rel
+    if not db_path.exists():
+        return {}
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    result = {}
+    for name, settings in conn.execute("SELECT Name, Settings FROM Indexers"):
+        data = json.loads(settings)
+        if "prowlarr" in str(data.get("baseUrl", "")).lower():
+            result[name] = data.get("apiKey")
+    conn.close()
+    return result
+
+
+def _restore_arr_indexer_apikeys(
+    app: str, scheme: str, port: int, api_ver: str, app_api_key: str, old_key: str
+):
+    """PUT old_key back into every Prowlarr-sourced Indexer on a live arr app.
+
+    Mirrors scripts/rotate-api-keys.sh's propagate_prowlarr_key(): the arr
+    apps never refresh an Indexer's apiKey field on their own, so restoring
+    Prowlarr's own key needs this same explicit PUT, not just a resync.
+    """
+    status, body = container_http(
+        app,
+        f"{scheme}://127.0.0.1:{port}/{app}/api/{api_ver}/indexer",
+        headers={"X-Api-Key": app_api_key},
+        timeout=TIMEOUT,
+    )
+    assert status == 200, f"[{app}] GET indexer failed while restoring: {status} {body}"
+    for rec in json.loads(body):
+        base_url = next(
+            (f["value"] for f in rec["fields"] if f["name"] == "baseUrl"), ""
+        )
+        if "prowlarr" not in str(base_url).lower():
+            continue
+        for field in rec["fields"]:
+            if field["name"] == "apiKey":
+                field["value"] = old_key
+        status, body = container_http(
+            app,
+            f"{scheme}://127.0.0.1:{port}/{app}/api/{api_ver}/indexer/{rec['id']}"
+            "?forceSave=true",
+            method="PUT",
+            headers={"X-Api-Key": app_api_key, "Content-Type": "application/json"},
+            data=json.dumps(rec),
+            timeout=TIMEOUT,
+        )
+        assert status in (200, 202), (
+            f"[{app}] could not restore indexer '{rec['name']}' apiKey: {status} {body}"
+        )
+
+
+def _read_ini_torznab_prowlarr_key(rel_path: str) -> str | None:
+    """Return the `api` value of the Torznab section pointing at Prowlarr."""
+    import configparser
+
+    parser = configparser.ConfigParser(strict=False)
+    parser.read(REPO_ROOT / rel_path)
+    for section in parser.sections():
+        if not section.startswith("Torznab_"):
+            continue
+        if "prowlarr" in parser.get(section, "host", fallback="").lower():
+            return parser.get(section, "api", fallback=None)
+    return None
+
+
 def _prowlarr_application(prowlarr_api_key: str, app_name: str) -> dict | None:
     """Return the Prowlarr Applications entry for app_name, or None if absent."""
     port = int(ENV.get("PROWLARR_HTTPS_PORT", "6969"))
@@ -181,55 +253,57 @@ def _restore_api_key_secret(app: str, old_key: str):
     path.chmod(0o644)
 
 
+# app, xml_path, scheme, port_var, url_base, api_ver
+ARR_APP_TARGETS = [
+    (
+        "sonarr",
+        "configs/sonarr/config/config.xml",
+        "http",
+        "SONARR_HTTP_PORT",
+        "sonarr",
+        "v3",
+    ),
+    (
+        "radarr",
+        "configs/radarr/config/config.xml",
+        "https",
+        "RADARR_HTTPS_PORT",
+        "radarr",
+        "v3",
+    ),
+    (
+        "lidarr",
+        "configs/lidarr/config/config.xml",
+        "https",
+        "LIDARR_HTTPS_PORT",
+        "lidarr",
+        "v1",
+    ),
+    (
+        "readarr",
+        "configs/readarr/config/config.xml",
+        "https",
+        "READARR_HTTPS_PORT",
+        "readarr",
+        "v1",
+    ),
+    (
+        "whisparr",
+        "configs/whisparr/config/config.xml",
+        "https",
+        "WHISPARR_HTTPS_PORT",
+        "whisparr",
+        "v3",
+    ),
+]
+
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
-    "app,xml_path,scheme,port_var,url_base,api_ver",
-    [
-        (
-            "sonarr",
-            "configs/sonarr/config/config.xml",
-            "http",
-            "SONARR_HTTP_PORT",
-            "sonarr",
-            "v3",
-        ),
-        (
-            "radarr",
-            "configs/radarr/config/config.xml",
-            "https",
-            "RADARR_HTTPS_PORT",
-            "radarr",
-            "v3",
-        ),
-        (
-            "lidarr",
-            "configs/lidarr/config/config.xml",
-            "https",
-            "LIDARR_HTTPS_PORT",
-            "lidarr",
-            "v1",
-        ),
-        (
-            "readarr",
-            "configs/readarr/config/config.xml",
-            "https",
-            "READARR_HTTPS_PORT",
-            "readarr",
-            "v1",
-        ),
-        (
-            "whisparr",
-            "configs/whisparr/config/config.xml",
-            "https",
-            "WHISPARR_HTTPS_PORT",
-            "whisparr",
-            "v3",
-        ),
-    ],
+    "app,xml_path,scheme,port_var,url_base,api_ver", ARR_APP_TARGETS
 )
 def test_rotate_api_key_propagates(
     app,
@@ -343,12 +417,19 @@ def test_rotate_api_key_propagates(
 
 
 def test_rotate_prowlarr_api_key(running_containers):
-    """Rotating Prowlarr's own key updates config.xml, the secret file, and Homepage.
+    """Rotating Prowlarr's own key updates every place that key is stored.
 
-    Unlike Sonarr/Radarr/etc, nothing else stores Prowlarr's own key (the
-    Applications table holds each *downstream* app's key, not Prowlarr's),
-    so restoring only needs config.xml and the secret file.
+    Prowlarr's own API key isn't just local to Prowlarr: it also gets
+    embedded, at indexer-push time, into every downstream app's *Indexer*
+    record (as the credential that app uses to call back through Prowlarr's
+    indexer proxy) and into LazyLibrarian's matching Torznab entry. This test
+    exists because that propagation was previously missing entirely: the old
+    key kept working there until a manual `make wire_connections`, which
+    surfaced as "invalid credentials" / 401 errors testing an indexer in
+    Sonarr, Radarr, etc., and a failing indexer test in LazyLibrarian.
     """
+    from test_rotate_passwords import ARR_DB_PATHS
+
     if not is_enabled("prowlarr"):
         pytest.skip("prowlarr profile is disabled")
     skip_if_not_running("prowlarr", running_containers)
@@ -378,6 +459,24 @@ def test_rotate_prowlarr_api_key(running_containers):
         "configs/prowlarr/secrets/api_key.txt was not updated with the new key"
     )
 
+    # Every arr app's Prowlarr-sourced Indexer entry carries the new key...
+    for app, _xml, _scheme, _port_var, _url_base, _api_ver in ARR_APP_TARGETS:
+        if not is_enabled(app) or app not in running_containers:
+            continue
+        apikeys = _arr_prowlarr_indexer_apikeys(ARR_DB_PATHS[app])
+        for name, apikey in apikeys.items():
+            assert apikey == new_key, (
+                f"[{app}] indexer '{name}' still holds Prowlarr's old key"
+            )
+
+    # ...and so does LazyLibrarian's matching Torznab entry.
+    if "lazylibrarian" in running_containers:
+        ll_key = _read_ini_torznab_prowlarr_key(LAZYLIBRARIAN_INI)
+        if ll_key is not None:
+            assert ll_key == new_key, (
+                "LazyLibrarian's Prowlarr Torznab entry still holds the old key"
+            )
+
     if "homepage" in running_containers:
         assert wait_for_homepage_ready(), "homepage API did not respond after rotation"
         failures = homepage_widget_failures(only_services={"prowlarr"})
@@ -385,10 +484,35 @@ def test_rotate_prowlarr_api_key(running_containers):
             "Homepage widget broken after rotating prowlarr:\n" + "\n".join(failures)
         )
 
+    # ------------------------------------------------------------------
+    # Restore the original key everywhere so the suite stays idempotent
+    # ------------------------------------------------------------------
     _restore_arr_key("prowlarr", xml_path, old_key)
     status = _health_status("prowlarr", "https", port, "prowlarr", "v1", old_key)
     assert status == 200, f"prowlarr: could not restore old key (HTTP {status})"
     _restore_api_key_secret("prowlarr", old_key)
+
+    for app, _xml, scheme, port_var, _url_base, api_ver in ARR_APP_TARGETS:
+        if not is_enabled(app) or app not in running_containers:
+            continue
+        app_key = _read_xml_key(f"configs/{app}/config/config.xml")
+        _restore_arr_indexer_apikeys(
+            app, scheme, int(ENV.get(port_var, "0")), api_ver, app_key, old_key
+        )
+
+    if "lazylibrarian" in running_containers:
+        status, _ = container_http(
+            "prowlarr",
+            f"https://127.0.0.1:{port}/prowlarr/api/v1/command",
+            method="POST",
+            headers={"X-Api-Key": old_key, "Content-Type": "application/json"},
+            data=json.dumps({"name": "ApplicationIndexerSync"}),
+            timeout=TIMEOUT,
+        )
+        assert status in (200, 201, 202), (
+            f"Could not trigger ApplicationIndexerSync to restore "
+            f"LazyLibrarian's key: {status}"
+        )
 
     if "homepage" in running_containers:
         subprocess.run(  # nosec B607 - podman is a trusted, fixed CLI in this stack
