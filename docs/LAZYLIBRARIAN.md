@@ -51,35 +51,38 @@ which stops the collision.
 ## NZBHydra2 connection
 
 LazyLibrarian and NZBHydra2 both run on the `apps` network and reach each other
-by container alias.
+by container alias, but `NZBHYDRA2_PROFILE` defaults to `disabled` (see
+`.env.example`), so the committed `config.ini.example` carries no NZBHydra2
+provider entry at all: a seeded entry pointing at a container that never
+starts by default is worse than none, since it just shows up as a permanently
+broken provider in the UI.
 
-`NZBHYDRA2_PROFILE` defaults to `disabled` (see `.env.example`), so both of
-the committed seed's NZBHydra2 entries ship disabled too, rather than pointing
-at a container that never starts:
+If you enable `NZBHYDRA2_PROFILE`, add a Newznab provider yourself in
+LazyLibrarian's Search Providers settings (stop LazyLibrarian first per
+"Editing the config" below if you're editing `config.ini` directly, or use the
+running app's own UI/API instead, which needs no restart):
 
 ```ini
 [Newznab_0]
+dispname = NZBHydra2 (Newznab)
+enabled = True
 host = https://nzbhydra2:5077/nzbhydra2
-enabled = False
-
-[Torznab_0]
-host = https://nzbhydra2:5077/nzbhydra2
-enabled = False
+api = <your NZBHydra2 API key>
+generalsearch = search
 ```
 
-If you enable `NZBHYDRA2_PROFILE`, flip `[Newznab_0]`'s `enabled` to `True`
-(stop LazyLibrarian first, per "Editing the config" below). Leave
-`[Torznab_0]` disabled: it points at the same NZBHydra2 instance over the
-wrong protocol for usenet indexing and would only duplicate results.
+Add it as Newznab only, not Torznab: NZBHydra2 speaks the wrong protocol for
+usenet indexing over Torznab and would only duplicate results.
 
 ---
 
 ## Book sources
 
-The committed `config.ini.example` ships only the indexer plumbing: NZBHydra2
-over Newznab, and numbered Torznab entries pointing at Prowlarr. It configures
-no direct book sources, so LazyLibrarian starts with nothing enabled beyond
-what you add yourself.
+The committed `config.ini.example` ships only the indexer plumbing: numbered
+Torznab entries pointing at Prowlarr (created by `scripts/wire-connections.sh`,
+not present in the committed file itself). It configures no direct book
+sources and no NZBHydra2 connection, so LazyLibrarian starts with nothing
+enabled beyond what you add yourself.
 
 LazyLibrarian supports several source types of its own (`[GEN_*]` generic
 providers, plus per-service sections). Adding one means deciding what you are

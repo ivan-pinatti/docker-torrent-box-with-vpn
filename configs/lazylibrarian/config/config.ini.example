@@ -131,21 +131,3 @@ opds_metainfo = True
 [PREPROCESS]
 create_singleaudio = True
 write_audiotags = True
-
-[Newznab_0]
-dispname = NZBHydra2 (Newznab)
-enabled = False
-host = https://nzbhydra2:5077/nzbhydra2
-api = 99999999999999999999999999999999
-generalsearch = search
-updated = 2026-06-30
-dltypes = A,C,E,M
-
-[Torznab_0]
-dispname = NZBHydra2 (Torznab)
-enabled = False
-host = https://nzbhydra2:5077/nzbhydra2
-api = 99999999999999999999999999999999
-generalsearch = search
-updated = 2026-06-30
-dltypes = A,C,E,M
