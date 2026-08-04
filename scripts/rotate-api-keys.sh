@@ -122,13 +122,49 @@ container_curl() {
 
 # Stop the listed containers if they exist, remembering which ones were
 # stopped so start_stopped() can bring exactly those back.
+# Podman's default stop timeout is 10 seconds. The servarr apps shut down
+# cleanly well inside that when idle (measured: sonarr 3s, prowlarr 3s,
+# lazylibrarian 5s), but during bootstrap they can be mid-request when the
+# stop lands, and Prowlarr's indexer queries alone can block for up to 100s
+# against a slow tracker. When that happens podman escalates to SIGKILL, and
+# these apps keep their state in SQLite, which is exactly the "killed
+# mid-write" corruption this repo warns about elsewhere. A generous timeout
+# is free when they are idle and only spends time when it is preventing that.
+#
+# Mylar is deliberately exempt: its s6 init never forwards SIGTERM to the app
+# (measured: it burns the entire timeout, 45s against a 45s limit, where the
+# others take 3-5s), so it is always SIGKILLed regardless. Waiting longer for
+# it would add minutes to every bootstrap and change nothing.
+readonly STOP_TIMEOUT=60
+readonly STOP_TIMEOUT_EXEMPT=(mylar)
+
+stop_container() {
+  local c exempt=() normal=()
+  for c in "$@"; do
+    if [[ " ${STOP_TIMEOUT_EXEMPT[*]} " == *" ${c} "* ]]; then
+      exempt+=("$c")
+    else
+      normal+=("$c")
+    fi
+  done
+  # Both batches run concurrently so an exempt container waiting out its
+  # timeout never serializes behind the others.
+  if [[ ${#normal[@]} -gt 0 ]]; then
+    podman stop --time "$STOP_TIMEOUT" "${normal[@]}" >/dev/null &
+  fi
+  if [[ ${#exempt[@]} -gt 0 ]]; then
+    podman stop "${exempt[@]}" >/dev/null &
+  fi
+  wait
+}
+
 STOPPED_CONTAINERS=()
 stop_existing() {
   STOPPED_CONTAINERS=()
   local c
   for c in "$@"; do
     if podman container exists "$c" 2>/dev/null; then
-      podman stop "$c" >/dev/null
+      stop_container "$c"
       STOPPED_CONTAINERS+=("$c")
     fi
   done
@@ -170,7 +206,7 @@ rotate_arr_apikey() {
   # The apps read config.xml only at startup and can rewrite it on state
   # changes, so the edit happens while the container is stopped.
   echo "[$app_name] Stopping container and writing new ApiKey to $xml_path..." >&2
-  podman stop "$container_name" >/dev/null
+  stop_container "$container_name"
 
   xmlstarlet --quiet ed --inplace --update '/Config/ApiKey' \
     --value "$new_key" "$xml_path" # pragma: allowlist secret
@@ -360,7 +396,7 @@ rotate_bazarr() {
 
   # Bazarr reads config.yaml at startup; edit it while stopped.
   echo "[Bazarr] Stopping container and updating auth.apikey in config.yaml..."
-  podman stop bazarr >/dev/null
+  stop_container bazarr
   yq -i ".auth.apikey = \"$new_key\"" "$BAZARR_CONFIG"
   podman start bazarr >/dev/null
 
@@ -384,7 +420,7 @@ rotate_lazylibrarian() {
   # LazyLibrarian persists its in-memory config on shutdown, which would
   # clobber a live file edit; stop it first, edit, then start.
   echo "[LazyLibrarian] Stopping container and writing new api_key..."
-  podman stop lazylibrarian >/dev/null
+  stop_container lazylibrarian
   sed -i "s|^api_key = .*|api_key = ${new_key}|" "$LAZYLIBRARIAN_INI"
   podman start lazylibrarian >/dev/null
 
@@ -404,7 +440,7 @@ rotate_mylar() {
   # Mylar persists its in-memory config on shutdown, which would clobber a
   # live file edit; stop it first, edit, then start.
   echo "[Mylar] Stopping container and writing new api_key..."
-  podman stop mylar >/dev/null
+  stop_container mylar
   sed -i "s|^api_key = .*|api_key = ${new_key}|" "$MYLAR_INI"
   podman start mylar >/dev/null
 

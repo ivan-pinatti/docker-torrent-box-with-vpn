@@ -120,6 +120,42 @@ container_curl() {
   podman exec "$container_name" curl "$@"
 }
 
+# Podman's default stop timeout is 10 seconds. The servarr apps shut down
+# cleanly well inside that when idle (measured: sonarr 3s, prowlarr 3s,
+# lazylibrarian 5s), but during bootstrap they can be mid-request when the
+# stop lands, and Prowlarr's indexer queries alone can block for up to 100s
+# against a slow tracker. When that happens podman escalates to SIGKILL, and
+# these apps keep their state in SQLite, which is exactly the "killed
+# mid-write" corruption this repo warns about elsewhere. A generous timeout
+# is free when they are idle and only spends time when it is preventing that.
+#
+# Mylar is deliberately exempt: its s6 init never forwards SIGTERM to the app
+# (measured: it burns the entire timeout, 45s against a 45s limit, where the
+# others take 3-5s), so it is always SIGKILLed regardless. Waiting longer for
+# it would add minutes to every bootstrap and change nothing.
+readonly STOP_TIMEOUT=60
+readonly STOP_TIMEOUT_EXEMPT=(mylar)
+
+stop_container() {
+  local c exempt=() normal=()
+  for c in "$@"; do
+    if [[ " ${STOP_TIMEOUT_EXEMPT[*]} " == *" ${c} "* ]]; then
+      exempt+=("$c")
+    else
+      normal+=("$c")
+    fi
+  done
+  # Both batches run concurrently so an exempt container waiting out its
+  # timeout never serializes behind the others.
+  if [[ ${#normal[@]} -gt 0 ]]; then
+    podman stop --time "$STOP_TIMEOUT" "${normal[@]}" >/dev/null &
+  fi
+  if [[ ${#exempt[@]} -gt 0 ]]; then
+    podman stop "${exempt[@]}" >/dev/null &
+  fi
+  wait
+}
+
 # Retry a command every 5 seconds until it succeeds or timeout (in seconds).
 # Apps can still be warming up right after `make start`. Prints a heartbeat
 # every 30s so a long wait (Jellyfin's Startup/User retry alone can run up
@@ -538,7 +574,7 @@ PYEOF
   fi
 
   echo "[Calibre-Web] Configuring library path..."
-  podman stop calibre-web >/dev/null
+  stop_container calibre-web
   # app.db was just created live by the container under its own remapped
   # UID; the one-time `permissions.py repair` earlier in bootstrap ran
   # before this file existed, so it isn't host-writable yet without this.
@@ -589,7 +625,7 @@ PYEOF
   fi
 
   echo "[Mylar] Adding a placeholder comic so its Homepage widget has data..."
-  podman stop mylar >/dev/null
+  stop_container mylar
   python3 - <<PYEOF
 import sqlite3
 from datetime import date

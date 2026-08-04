@@ -207,6 +207,42 @@ container_curl() {
 # stopped so start_stopped() can bring exactly those back. Stopped in one
 # batched call (podman stops them concurrently) rather than one at a time,
 # so one slow-to-stop container doesn't serialize behind the others.
+# Podman's default stop timeout is 10 seconds. The servarr apps shut down
+# cleanly well inside that when idle (measured: sonarr 3s, prowlarr 3s,
+# lazylibrarian 5s), but during bootstrap they can be mid-request when the
+# stop lands, and Prowlarr's indexer queries alone can block for up to 100s
+# against a slow tracker. When that happens podman escalates to SIGKILL, and
+# these apps keep their state in SQLite, which is exactly the "killed
+# mid-write" corruption this repo warns about elsewhere. A generous timeout
+# is free when they are idle and only spends time when it is preventing that.
+#
+# Mylar is deliberately exempt: its s6 init never forwards SIGTERM to the app
+# (measured: it burns the entire timeout, 45s against a 45s limit, where the
+# others take 3-5s), so it is always SIGKILLed regardless. Waiting longer for
+# it would add minutes to every bootstrap and change nothing.
+readonly STOP_TIMEOUT=60
+readonly STOP_TIMEOUT_EXEMPT=(mylar)
+
+stop_container() {
+  local c exempt=() normal=()
+  for c in "$@"; do
+    if [[ " ${STOP_TIMEOUT_EXEMPT[*]} " == *" ${c} "* ]]; then
+      exempt+=("$c")
+    else
+      normal+=("$c")
+    fi
+  done
+  # Both batches run concurrently so an exempt container waiting out its
+  # timeout never serializes behind the others.
+  if [[ ${#normal[@]} -gt 0 ]]; then
+    podman stop --time "$STOP_TIMEOUT" "${normal[@]}" >/dev/null &
+  fi
+  if [[ ${#exempt[@]} -gt 0 ]]; then
+    podman stop "${exempt[@]}" >/dev/null &
+  fi
+  wait
+}
+
 STOPPED_CONTAINERS=()
 stop_existing() {
   STOPPED_CONTAINERS=()
@@ -217,7 +253,7 @@ stop_existing() {
     fi
   done
   if [[ ${#STOPPED_CONTAINERS[@]} -gt 0 ]]; then
-    podman stop "${STOPPED_CONTAINERS[@]}" >/dev/null
+    stop_container "${STOPPED_CONTAINERS[@]}"
   fi
 }
 
@@ -407,7 +443,7 @@ PYEOF
   )
 
   echo "[Audiobookshelf] Stopping container to update absdatabase.sqlite..."
-  podman stop audiobookshelf >/dev/null
+  stop_container audiobookshelf
 
   # The users table only gets its 'root' row once Audiobookshelf's own
   # first-run setup wizard has been completed — nothing in this stack
@@ -459,7 +495,7 @@ rotate_bazarr() {
   new_md5=$(echo -n "$new_password" | md5sum | cut -d' ' -f1)
   # Bazarr reads config.yaml at startup and can rewrite it; edit stopped.
   echo "[Bazarr] Stopping container and writing MD5-hashed password to config.yaml..."
-  podman stop bazarr >/dev/null
+  stop_container bazarr
   yq -i ".auth.password = \"$new_md5\"" "$BAZARR_CONFIG"
   podman start bazarr >/dev/null
   SUMMARY_BAZARR_USER="bazarr"
@@ -481,7 +517,7 @@ rotate_calibre() {
   echo "[Calibre] Stopping calibre and lazylibrarian to update credentials..."
   stop_existing lazylibrarian
   if podman container exists calibre 2>/dev/null; then
-    podman stop calibre >/dev/null
+    stop_container calibre
   fi
 
   # server-users.sqlite only gets its `users` table (and a row for
@@ -543,7 +579,7 @@ rotate_calibre_web() {
   new_password=$(gen_password)
 
   echo "[Calibre-Web] Stopping container to update app.db..."
-  podman stop calibre-web >/dev/null
+  stop_container calibre-web
 
   # The 'admin' row has been observed to disappear from Calibre-Web's own
   # user table sometime after its first real library gets configured and
@@ -732,7 +768,7 @@ rotate_lazylibrarian() {
   new_password=$(gen_password)
   # LazyLibrarian persists its config on shutdown; stop, edit, start.
   echo "[LazyLibrarian] Stopping container and writing new http_pass..."
-  podman stop lazylibrarian >/dev/null
+  stop_container lazylibrarian
   sed -i "s|^http_pass = .*|http_pass = ${new_password}|" "$LAZYLIBRARIAN_CONFIG"
   podman start lazylibrarian >/dev/null
   SUMMARY_LAZYLIBRARIAN_USER="lazylibrarian"
@@ -756,7 +792,7 @@ rotate_mylar() {
   new_password=$(gen_password)
   # Mylar persists its config on shutdown; stop, edit, start.
   echo "[Mylar] Stopping container and writing new http_password..."
-  podman stop mylar >/dev/null
+  stop_container mylar
   sed -i "s|^http_password = .*|http_password = ${new_password}|" "$MYLAR_CONFIG"
   podman start mylar >/dev/null
   SUMMARY_MYLAR_USER="mylar"
@@ -778,7 +814,7 @@ PYEOF
 
   # NZBHydra2 persists its config on shutdown; stop, edit, start.
   echo "[NZBHydra2] Stopping container and writing new bcrypt password hash..."
-  podman stop nzbhydra2 >/dev/null
+  stop_container nzbhydra2
   pwHash="{bcrypt}${new_hash}" yq -i '(.auth.users[0].password) = strenv(pwHash)' "$NZBHYDRA_YML"
   podman start nzbhydra2 >/dev/null
 
