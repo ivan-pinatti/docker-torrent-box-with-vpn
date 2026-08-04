@@ -196,6 +196,65 @@ def test_prowlarr_applications_wired(running_containers):
     assert not missing, f"Prowlarr missing applications: {missing}"
 
 
+def test_prowlarr_indexer_wired(running_containers):
+    """Prowlarr ends up with at least one indexer.
+
+    A real bootstrap left Prowlarr with zero indexers because
+    wire_prowlarr_apps died on the first application registration under
+    `set -e`, taking the indexer (registered after them) down with it.
+    """
+    if not is_enabled("prowlarr"):
+        pytest.skip("service 'prowlarr' profile is disabled")
+    skip_if_not_running("prowlarr", running_containers)
+    port = _env("PROWLARR_HTTPS_PORT")
+    status, body = container_http(
+        "prowlarr",
+        f"https://127.0.0.1:{port}/prowlarr/api/v1/indexer",
+        headers={"X-Api-Key": _api_key("prowlarr")},
+        timeout=TIMEOUT,
+    )
+    assert status == 200, f"GET indexer failed: {status} {body[:200]}"
+    import json
+
+    indexers = json.loads(body)
+    assert indexers, "Prowlarr has no indexers at all"
+
+
+@pytest.mark.parametrize("app", sorted(ARR_APPS))
+def test_prowlarr_indexers_propagated_to_arr_app(app, running_containers):
+    """Prowlarr's indexer actually reached each arr app.
+
+    Registering the Applications in Prowlarr is only half the chain; the
+    indexer still has to be pushed into each app. That push silently failed
+    in a real bootstrap: Prowlarr had put the indexer into a failure backoff
+    (Internet Archive's advancedsearch API intermittently times out), so it
+    answered each arr app's capability probe with 429, the app rejected the
+    indexer with 400, and nothing retried. The user-visible symptom was "no
+    indexers in the arr apps" while Prowlarr itself looked fine, which is
+    exactly what this asserts against.
+    """
+    if not is_enabled(app) or not is_enabled("prowlarr"):
+        pytest.skip("service profile is disabled")
+    skip_if_not_running(app, running_containers)
+    scheme, port_var, api_ver, _ = ARR_APPS[app]
+    port = _env(port_var)
+    status, body = container_http(
+        app,
+        f"{scheme}://127.0.0.1:{port}/{app}/api/{api_ver}/indexer",
+        headers={"X-Api-Key": _api_key(app)},
+        timeout=TIMEOUT,
+    )
+    assert status == 200, f"[{app}] GET indexer failed: {status} {body[:200]}"
+    import json
+
+    indexers = json.loads(body)
+    assert indexers, (
+        f"[{app}] has no indexers: Prowlarr's Application sync never landed. "
+        "Check Prowlarr's log for 429/backoff and the app's log for "
+        "'Invalid Request' on POST .../indexer"
+    )
+
+
 def test_wiring_is_idempotent(running_containers):
     """Re-running the script must not create duplicate entries."""
     result = subprocess.run(  # nosec B603 - fixed path, no user input

@@ -803,6 +803,11 @@ wire_arr_app() {
 # a missing entry as a no-op rather than an error.
 # ---------------------------------------------------------------------------
 
+# Names of applications whose registration didn't succeed this run, so the
+# end of wire_prowlarr_apps can report them instead of letting a partial
+# result look identical to a complete one.
+PROWLARR_FAILED=()
+
 wire_prowlarr_apps() {
   if ! podman container exists prowlarr 2>/dev/null; then
     echo "[Prowlarr] Container doesn't exist (PROWLARR_PROFILE=disabled), skipping."
@@ -879,6 +884,16 @@ wire_prowlarr_apps() {
   # indexer" but never actually verified any app-to-app connection, since it
   # had nothing in common with what any arr app searches for.
   ensure_prowlarr_indexer internetarchive "Internet Archive" "https://archive.org/" "$prowlarr_key"
+  sync_prowlarr_indexers "$prowlarr_key"
+
+  if [[ ${#PROWLARR_FAILED[@]} -gt 0 ]]; then
+    echo "[Prowlarr] WARNING: these applications were NOT registered:"
+    local failed
+    for failed in "${PROWLARR_FAILED[@]}"; do
+      echo "[Prowlarr]   - ${failed}"
+    done
+    echo "[Prowlarr] Re-run 'make wire_connections' once those apps are up."
+  fi
 }
 
 # Args: definition_name display_name base_url prowlarr_api_key
@@ -899,16 +914,131 @@ ensure_prowlarr_indexer() {
   schema=$(container_curl prowlarr -sk --fail -H "X-Api-Key: ${prowlarr_api_key}" "${indexer_url}/schema" |
     jq --arg def "$definition_name" 'map(select(.definitionName == $def)) | first')
 
+  # Created disabled first, then enabled, and both halves matter.
+  #
+  # Prowlarr only runs its live connectivity test when the provider being
+  # saved is enabled, and forceSave does not skip it on a normal create. That
+  # test fans out one heavy query per category and archive.org throttles the
+  # burst: measured live, the enabled create sat for exactly 100s and then
+  # returned 400 "indexer's server is unavailable", even though a single one
+  # of those same queries answers in 0.4s from this very container. Under
+  # `set -e` that failure also killed this whole background job before the
+  # sync below ever ran, leaving Prowlarr with no indexer at all. Creating
+  # disabled skips the test entirely (201 in 0.009s measured) and the
+  # follow-up enable with forceSave=true skips it too (202 in 0.012s), so the
+  # indexer reliably ends up present and enabled. Whether it exists is a
+  # local database write; it should not hinge on a third party's rate limiter.
   local payload
   payload=$(echo "$schema" | jq \
     --arg baseUrl "$base_url" \
-    '.appProfileId = 1 |
+    '.appProfileId = 1 | .enable = false |
     .fields |= (map(select(.name != "baseUrl")) + [{"name": "baseUrl", "value": $baseUrl}])')
 
-  container_curl prowlarr -sk --fail -X POST \
+  local created new_id
+  created=$(container_curl prowlarr -sk --fail -X POST \
     -H "X-Api-Key: ${prowlarr_api_key}" -H "Content-Type: application/json" \
-    -d "$payload" "$indexer_url" >/dev/null
-  echo "[Prowlarr] Added."
+    -d "$payload" "$indexer_url" 2>/dev/null) || true
+  new_id=$(echo "$created" | jq -r '.id // empty' 2>/dev/null)
+
+  if [[ -n "$new_id" ]]; then
+    container_curl prowlarr -sk --fail -X PUT \
+      -H "X-Api-Key: ${prowlarr_api_key}" -H "Content-Type: application/json" \
+      -d "$(echo "$created" | jq '.enable = true')" \
+      "${indexer_url}/${new_id}?forceSave=true" >/dev/null 2>&1 || true
+  fi
+
+  # Judge success by re-querying, not by the POST's status code: Prowlarr can
+  # return a validation error for the connectivity test while having already
+  # created the record (confirmed live: a POST answered 400 yet the indexer
+  # was present with a real id immediately afterwards). Trusting the status
+  # code reported a failure for an indexer that actually existed.
+  if container_curl prowlarr -sk --fail -H "X-Api-Key: ${prowlarr_api_key}" "$indexer_url" |
+    jq -e --arg name "$display_name" 'any(.[]; .name == $name and .enable)' >/dev/null 2>&1; then
+    echo "[Prowlarr] Added."
+  else
+    echo "[Prowlarr] Failed to add indexer '${display_name}'."
+    PROWLARR_FAILED+=("indexer ${display_name}")
+  fi
+}
+
+# True when no indexer is currently in Prowlarr's failure backoff. An entry in
+# indexerstatus means Prowlarr has temporarily disabled that indexer after
+# failed queries, and while that's true it answers the arr apps' capability
+# probe with 429.
+prowlarr_indexers_healthy() {
+  local prowlarr_api_key="$1"
+  local count
+  count=$(container_curl prowlarr -sk --fail -H "X-Api-Key: ${prowlarr_api_key}" \
+    "https://127.0.0.1:${PROWLARR_HTTPS_PORT}/prowlarr/api/v1/indexerstatus" | jq 'length')
+  [[ "$count" == "0" ]]
+}
+
+# True when the given arr app already holds at least one indexer.
+# Args: app scheme port api_version api_key
+arr_has_indexer() {
+  local app="$1" scheme="$2" port="$3" api_version="$4" api_key="$5"
+  local count
+  count=$(container_curl "$app" -sk --fail -H "X-Api-Key: ${api_key}" \
+    "${scheme}://127.0.0.1:${port}/${app}/api/${api_version}/indexer" 2>/dev/null | jq 'length' 2>/dev/null)
+  [[ -n "$count" && "$count" != "null" && "$count" -gt 0 ]]
+}
+
+# Push Prowlarr's indexers into every registered Application, and confirm they
+# actually landed.
+#
+# Prowlarr does sync implicitly when an indexer is added, but that implicit
+# sync is not reliable here and silently produced the "no indexers in any arr
+# app" symptom: Internet Archive's advancedsearch API is slow and
+# intermittently times out, Prowlarr reacts by putting the indexer into a
+# failure backoff, and while it's backed off Prowlarr answers the arr apps'
+# capability probe (t=caps) with 429. The arr app then rejects the pushed
+# indexer with 400 Invalid Request and nothing retries. Confirmed live end to
+# end, including Sonarr's own log rejecting it for exactly that reason, and
+# the same sync succeeding for all four arr apps once the backoff cleared.
+sync_prowlarr_indexers() {
+  local prowlarr_api_key="$1"
+
+  if ! retry 300 "[Prowlarr] waiting for indexer failure backoff to clear" \
+    prowlarr_indexers_healthy "$prowlarr_api_key"; then
+    echo "[Prowlarr] Indexers still in failure backoff; syncing anyway."
+  fi
+
+  # Alphabetical, matching this file's dispatch. Fields: app scheme port apiver
+  local targets=(
+    "lidarr https ${LIDARR_HTTPS_PORT} v1"
+    "radarr https ${RADARR_HTTPS_PORT} v3"
+    "readarr https ${READARR_HTTPS_PORT} v1"
+    "sonarr http ${SONARR_HTTP_PORT} v3"
+    "whisparr https ${WHISPARR_HTTPS_PORT} v3"
+  )
+
+  local attempt
+  for attempt in 1 2 3; do
+    echo "[Prowlarr] Syncing indexers to registered applications (attempt ${attempt})..."
+    container_curl prowlarr -sk --fail -X POST \
+      -H "X-Api-Key: ${prowlarr_api_key}" -H "Content-Type: application/json" \
+      -d '{"name":"ApplicationIndexerSync"}' \
+      "https://127.0.0.1:${PROWLARR_HTTPS_PORT}/prowlarr/api/v1/command" >/dev/null || true
+    sleep 15
+
+    local missing=() entry app scheme port api_version xml_var key
+    for entry in "${targets[@]}"; do
+      read -r app scheme port api_version <<<"$entry"
+      podman container exists "$app" 2>/dev/null || continue
+      xml_var="$(echo "$app" | tr '[:lower:]' '[:upper:]')_XML"
+      key=$(get_xml_apikey "${!xml_var}" 2>/dev/null) || continue
+      arr_has_indexer "$app" "$scheme" "$port" "$api_version" "$key" || missing+=("$app")
+    done
+
+    if [[ ${#missing[@]} -eq 0 ]]; then
+      echo "[Prowlarr] Indexers present in every enabled arr app."
+      return 0
+    fi
+    echo "[Prowlarr] Still missing indexers in: ${missing[*]}"
+  done
+
+  echo "[Prowlarr] WARNING: some arr apps still have no indexer (${missing[*]})."
+  echo "[Prowlarr] Prowlarr re-syncs on its own schedule; or re-run 'make wire_connections'."
 }
 
 # Args: container display_name implementation config_contract app_url app_api_key prowlarr_api_key
@@ -939,6 +1069,24 @@ ensure_prowlarr_application() {
     return 0
   fi
 
+  # Prowlarr validates the POST by actually connecting to the app, so the app
+  # has to be up first or the whole registration 400s. The arr apps already
+  # get a readiness wait from wire_arr_app, but LazyLibrarian and Mylar are
+  # only ever touched here and had none: since wire_connections was
+  # parallelized, this function races ahead and reaches them seconds into
+  # bootstrap, long before they finish starting. Confirmed live: a real
+  # bootstrap 400'd on LazyLibrarian for exactly this reason, while the same
+  # registration returns 201 once it's healthy. Probing from inside the
+  # prowlarr container tests the same path Prowlarr itself will use; no
+  # --fail here on purpose, since any HTTP response (401, 303, ...) proves
+  # it's listening, and only a connection-level failure means "not up yet".
+  if ! retry 300 "[Prowlarr] waiting for ${display_name}" \
+    container_curl prowlarr -sk -o /dev/null --max-time 10 "$app_url"; then
+    echo "[Prowlarr] ${display_name} not reachable after 300s, skipping its registration."
+    PROWLARR_FAILED+=("$display_name (not reachable)")
+    return 0
+  fi
+
   echo "[Prowlarr] Registering application '${display_name}'..."
   local schema
   schema=$(container_curl prowlarr -sk --fail -H "X-Api-Key: ${prowlarr_api_key}" "${base_url}/schema" |
@@ -957,9 +1105,22 @@ ensure_prowlarr_application() {
       elif .name == "apiKey" then .value = $apiKey
       else . end)')
 
-  container_curl prowlarr -sk --fail -X POST \
+  # Deliberately not fatal. Every entry in wire_prowlarr_apps runs in one
+  # function inside one background job, so under `set -e` a single failing
+  # POST used to kill that job outright, silently skipping every remaining
+  # app AND the indexer, with wait_job's `|| true` swallowing the failure so
+  # nothing in the bootstrap output even hinted at it. Confirmed live: a real
+  # bootstrap printed "Registering application 'LazyLibrarian'..." and then
+  # nothing at all, leaving Prowlarr with zero applications and zero
+  # indexers. Record the failure, keep going, and surface it in the summary.
+  local response
+  if ! response=$(container_curl prowlarr -sk --fail -X POST \
     -H "X-Api-Key: ${prowlarr_api_key}" -H "Content-Type: application/json" \
-    -d "$payload" "$base_url" >/dev/null # pragma: allowlist secret
+    -d "$payload" "$base_url" 2>&1); then # pragma: allowlist secret
+    echo "[Prowlarr] Failed to register '${display_name}': ${response:0:300}"
+    PROWLARR_FAILED+=("$display_name")
+    return 0
+  fi
   echo "[Prowlarr] Registered."
 }
 
