@@ -39,6 +39,21 @@ RUN /lsiopy/bin/python3 -m pip install --no-cache-dir \
 
 ---
 
+## Session cookie scoping
+
+Mylar and LazyLibrarian are both cherrypy apps that default to a session
+cookie literally named `session_id`, scoped to `Path=/` unless told
+otherwise. Left alone, the browser holds only one `session_id` cookie for
+the whole domain, so visiting one app overwrites the other's session; the
+app whose cookie got overwritten then bounces every subsequent request back
+to its own login page, indistinguishable from a real login bug. `nginx`'s
+`/mylar/` and `/lazylibrarian/` locations in
+`configs/nginx/templates/default.conf.template` each carry a
+`proxy_cookie_path` rewrite that scopes the cookie to its own prefix,
+which stops the collision. Confirmed live: logging into Mylar, then
+LazyLibrarian, in the same cookie jar previously evicted Mylar's session on
+the very next request; with the rewrite in place both stay logged in.
+
 ## qBittorrent with self-signed certificates
 
 Mylar does not support self-signed certificates for qBittorrent connections out

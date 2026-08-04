@@ -616,6 +616,14 @@ server {
     proxy_pass                  $lazylibrarian_upstream;
     proxy_ssl_verify            off;
     proxy_redirect              off;
+    # LazyLibrarian and Mylar are both cherrypy apps that default to a
+    # session cookie literally named "session_id" scoped to Path=/. Left
+    # alone, the browser holds only one "session_id" cookie for this whole
+    # domain, so visiting one app overwrites the other's session, and the
+    # app whose cookie got overwritten bounces every request back to its
+    # login page. Rewriting Path here scopes each app's cookie to its own
+    # URL prefix so they stop colliding.
+    proxy_cookie_path            / /lazylibrarian/;
     proxy_http_version          1.1;
     proxy_pass_request_headers  on;
     proxy_set_header            Upgrade $http_upgrade;
@@ -634,6 +642,10 @@ server {
     proxy_pass                  $mylar_upstream;
     proxy_ssl_verify            off;
     proxy_redirect              off;
+    # See the matching comment on /lazylibrarian/ above: both apps default
+    # to a "session_id" cookie at Path=/, so this scopes Mylar's to its own
+    # prefix to stop the two from overwriting each other in the browser.
+    proxy_cookie_path            / /mylar/;
     proxy_http_version          1.1;
     proxy_pass_request_headers  on;
     proxy_set_header            Upgrade $http_upgrade;

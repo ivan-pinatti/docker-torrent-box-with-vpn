@@ -35,20 +35,42 @@ dependencies required by Calibre before extracting the bundle.
 
 ---
 
+## Session cookie scoping
+
+LazyLibrarian and Mylar are both cherrypy apps that default to a session
+cookie literally named `session_id`, scoped to `Path=/` unless told
+otherwise. Left alone, the browser holds only one `session_id` cookie for
+the whole domain, so visiting one app overwrites the other's session; the
+app whose cookie got overwritten then bounces every subsequent request back
+to its own login page, indistinguishable from a real login bug. `nginx`'s
+`/lazylibrarian/` and `/mylar/` locations in
+`configs/nginx/templates/default.conf.template` each carry a
+`proxy_cookie_path` rewrite that scopes the cookie to its own prefix,
+which stops the collision.
+
 ## NZBHydra2 connection
 
 LazyLibrarian and NZBHydra2 both run on the `apps` network and reach each other
 by container alias.
 
-In `configs/lazylibrarian/config/config.ini`:
+`NZBHYDRA2_PROFILE` defaults to `disabled` (see `.env.example`), so both of
+the committed seed's NZBHydra2 entries ship disabled too, rather than pointing
+at a container that never starts:
 
 ```ini
 [Newznab_0]
 host = https://nzbhydra2:5077/nzbhydra2
+enabled = False
+
+[Torznab_0]
+host = https://nzbhydra2:5077/nzbhydra2
+enabled = False
 ```
 
-The Torznab entry for NZBHydra2 is disabled since LazyLibrarian uses the
-Newznab protocol for usenet indexing.
+If you enable `NZBHYDRA2_PROFILE`, flip `[Newznab_0]`'s `enabled` to `True`
+(stop LazyLibrarian first, per "Editing the config" below). Leave
+`[Torznab_0]` disabled: it points at the same NZBHydra2 instance over the
+wrong protocol for usenet indexing and would only duplicate results.
 
 ---
 
