@@ -109,14 +109,22 @@ QBT_CONF = REPO_ROOT / "configs/qbittorrent/config/qBittorrent/qBittorrent.conf"
 
 
 def _qbt_api_ok() -> bool:
-    """Return True if the qBittorrent WebUI API responds."""
+    """Return True if the qBittorrent WebUI API is up and answering.
+
+    Unauthenticated, this call gets 403 (confirmed live against 5.1.4), not
+    200: qBittorrent enforces its normal auth here regardless. That still
+    proves the webserver itself is genuinely listening and processing
+    requests, which is all this checks for (as opposed to connection
+    refused/timeout, meaning it isn't ready yet), so 403 counts as success
+    the same as 200.
+    """
     port = int(ENV.get("QBITTORRENT_HTTPS_PORT", "8085"))
     status, _ = container_http(
         "qbittorrent",
         f"https://{QBT_HOST}:{port}/api/v2/app/version",
         timeout=TIMEOUT,
     )
-    return status == 200
+    return status in (200, 403)
 
 
 def _qbt_stored_password_hash() -> str:
@@ -279,6 +287,13 @@ def test_rotate_qbittorrent_password_propagates(running_containers):
     # Restore the original password everywhere
     _qbt_set_password(new_password, old_password)
     for svc in ARR_APPS_WITH_QBT:
+        # is_enabled, not db_path.exists(): a disabled app's DB file exists
+        # as an empty 0-byte placeholder (never started to create its own
+        # schema), so exists() alone still tries to query a DownloadClients
+        # table that was never created. Confirmed live with Whisparr, which
+        # is disabled by default.
+        if not is_enabled(svc):
+            continue
         db_path = REPO_ROOT / ARR_DB_PATHS[svc]
         if db_path.exists():
             _set_qbt_password_in_db(db_path, old_password)
@@ -522,6 +537,10 @@ def test_rotate_sabnzbd_credentials_propagate(running_containers):
     SABNZBD_API_KEY_FILE.chmod(0o644)
 
     for svc in ARR_APPS_WITH_QBT:
+        # See the matching comment in test_rotate_qbittorrent_password_
+        # propagates' own restore loop: is_enabled, not db_path.exists().
+        if not is_enabled(svc):
+            continue
         db_path = REPO_ROOT / ARR_DB_PATHS[svc]
         if db_path.exists():
             _set_sabnzbd_creds_in_db(db_path, old_password, old_api_key)
