@@ -975,6 +975,20 @@ wire_prowlarr_apps() {
   fi
 }
 
+# Creates a Prowlarr tag by label, or returns the id of the one that
+# already carries that label — POSTing an existing label is idempotent
+# (Prowlarr returns the same id rather than a duplicate), confirmed live.
+# Args: prowlarr_api_key label
+ensure_prowlarr_tag() {
+  local prowlarr_api_key="$1" label="$2"
+  local payload
+  payload=$(jq -n --arg label "$label" '{label: $label}')
+  container_curl prowlarr -sk --fail -X POST \
+    -H "X-Api-Key: ${prowlarr_api_key}" -H "Content-Type: application/json" \
+    -d "$payload" "https://127.0.0.1:${PROWLARR_HTTPS_PORT}/prowlarr/api/v1/tag" |
+    jq -r '.id'
+}
+
 # Registers FlareSolverr as a Prowlarr Indexer Proxy, so it's available to
 # select on any indexer that needs a Cloudflare bypass. Prowlarr doesn't
 # apply a proxy to an indexer on its own; that's still a per-indexer choice
@@ -993,11 +1007,35 @@ ensure_prowlarr_indexer_proxy() {
     return 0
   fi
 
+  # Tagged "flaresolverr" so it (and, going forward, anything else tagged
+  # the same way) is easy to find/filter on in Prowlarr's own UI. Creating
+  # an existing label is idempotent — Prowlarr returns the same id instead
+  # of a duplicate, confirmed live — so this always runs, not just on first
+  # creation.
+  local tag_id
+  if ! tag_id=$(ensure_prowlarr_tag "$prowlarr_api_key" "flaresolverr"); then
+    echo "[Prowlarr] WARNING: could not create the 'flaresolverr' tag, continuing without it."
+    tag_id=""
+  fi
+
   local existing
   existing=$(container_curl prowlarr -sk --fail -H "X-Api-Key: ${prowlarr_api_key}" "$base_url" |
     jq 'map(select(.implementation == "FlareSolverr")) | first')
   if [[ -n "$existing" && "$existing" != "null" ]]; then
-    echo "[Prowlarr] FlareSolverr indexer proxy already exists, skipping."
+    if [[ -n "$tag_id" ]] && ! echo "$existing" | jq -e --argjson t "$tag_id" '.tags | index($t)' >/dev/null; then
+      echo "[Prowlarr] FlareSolverr indexer proxy exists but isn't tagged, adding the tag..."
+      local retagged
+      retagged=$(echo "$existing" | jq --argjson t "$tag_id" '.tags += [$t]')
+      local id
+      id=$(echo "$existing" | jq -r '.id')
+      if ! container_curl prowlarr -sk --fail -X PUT \
+        -H "X-Api-Key: ${prowlarr_api_key}" -H "Content-Type: application/json" \
+        -d "$retagged" "${base_url}/${id}" >/dev/null; then
+        echo "[Prowlarr] WARNING: failed to tag the existing FlareSolverr indexer proxy."
+      fi
+    else
+      echo "[Prowlarr] FlareSolverr indexer proxy already exists, skipping."
+    fi
     return 0
   fi
 
@@ -1009,7 +1047,8 @@ ensure_prowlarr_indexer_proxy() {
   local payload
   payload=$(echo "$schema" | jq \
     --arg host "http://flaresolverr:${FLARESOLVERR_HTTP_PORT}" \
-    '.name = "FlareSolverr" |
+    --argjson tags "$([[ -n "$tag_id" ]] && echo "[$tag_id]" || echo "[]")" \
+    '.name = "FlareSolverr" | .tags = $tags |
     .fields |= map(if .name == "host" then .value = $host else . end)')
 
   # See ensure_qbittorrent_client's matching comment on why this is caught

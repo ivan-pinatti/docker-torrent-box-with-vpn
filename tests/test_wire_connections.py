@@ -228,6 +228,20 @@ def test_prowlarr_flaresolverr_indexer_proxy_wired(running_containers):
         == f"http://flaresolverr:{_env('FLARESOLVERR_HTTP_PORT')}"
     )
 
+    status, body = container_http(
+        "prowlarr",
+        f"https://127.0.0.1:{port}/prowlarr/api/v1/tag",
+        headers={"X-Api-Key": _api_key("prowlarr")},
+        timeout=TIMEOUT,
+    )
+    assert status == 200, f"GET tag failed: {status} {body[:200]}"
+    tags = json.loads(body)
+    flaresolverr_tag = next((t for t in tags if t["label"] == "flaresolverr"), None)
+    assert flaresolverr_tag is not None, "no 'flaresolverr' tag exists in Prowlarr"
+    assert flaresolverr_tag["id"] in matches[0]["tags"], (
+        "FlareSolverr indexer proxy is not tagged 'flaresolverr'"
+    )
+
 
 @pytest.mark.parametrize("app", sorted(ARR_APPS))
 def test_arr_host_prereqs_wired(app, running_containers):
