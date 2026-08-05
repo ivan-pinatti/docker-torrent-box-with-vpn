@@ -248,6 +248,14 @@ bootstrap: configs/flaresolverr/config/chromedriver
 	@echo "Bootstrap complete: the stack is running, wired, and every credential"
 	@echo "has been rotated away from its seeded default. See docs/CONNECTIONS.md"
 	@echo "for what was wired, and docs/ROTATION.md to rotate again later."
+	@if [ "$(NGINX_PROFILE)" = "enabled" ] && [ "$(HOMEPAGE_PROFILE)" = "enabled" ]; then \
+		echo ""; \
+		if [ "$(NGINX_HTTPS_PORT)" = "443" ]; then \
+			echo "Open https://$(DOMAIN)/ for the dashboard with links to every app."; \
+		else \
+			echo "Open https://$(DOMAIN):$(NGINX_HTTPS_PORT)/ for the dashboard with links to every app."; \
+		fi; \
+	fi
 
 backup: backup-configs
 
