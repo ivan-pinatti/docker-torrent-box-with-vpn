@@ -131,3 +131,27 @@ opds_metainfo = True
 [PREPROCESS]
 create_singleaudio = True
 write_audiotags = True
+
+# LazyLibrarian ships these four generic providers (Settings > Search
+# Providers > Direct Providers / Torrents) hardcoded and disabled, but still
+# pointing at a real-looking host: KAT at kickass.cd, TPB at pirateproxy.cc,
+# TDL at torrentdownloads.me, and SLSK at a Soulseek daemon URL that isn't
+# part of this stack. None of that comes from this seed; it's LazyLibrarian's
+# own code default (lazylibrarian/configdefs.py), rendered regardless of
+# whether config.ini mentions it at all. Blanking the host here is the only
+# way to override it: LazyLibrarian reads config.ini's value in preference to
+# its own code default when the section is present, confirmed live via the
+# rendered Settings page. They stay disabled either way; this just clears the
+# placeholder host so the UI doesn't show a live-looking address for a
+# provider nothing in this stack runs.
+[KAT]
+KAT_HOST =
+
+[TPB]
+TPB_HOST =
+
+[TDL]
+TDL_HOST =
+
+[SLSK]
+SLSK_HOST =
