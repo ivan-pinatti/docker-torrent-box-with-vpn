@@ -1,0 +1,26 @@
+apiVersion: 1
+
+# This file provisions notification templates.
+#
+# The "simplified.telegram" template is used by the Telegram contact point,
+# which must be configured via the Grafana UI (Alerting -> Contact points ->
+# Telegram -> Edit -> Message field) because numeric chat IDs cannot be
+# provisioned via YAML. Set the message field to:
+#
+#   {{ template "simplified.telegram" . }}
+
+templates:
+  - orgId: 1
+    name: simplified.telegram
+    template: |
+      {{ define "simplified.telegram" -}}
+      {{ .Status | title }} — {{ .GroupLabels.alertname }}
+      {{ range .Alerts -}}
+      {{- if .Labels.name }}Container: {{ .Labels.name }}
+      {{ end -}}
+      {{- if .Labels.mountpoint }}Mount: {{ .Labels.mountpoint }}
+      {{ end -}}
+      {{- if .Annotations.description }}Value: {{ .Annotations.description }}
+      {{ end -}}
+      {{ end -}}
+      {{- end }}

@@ -1,0 +1,809 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: Container Resource Alerts
+    folder: Torrent Box
+    interval: 1m
+    rules:
+      - uid: container-cpu-high
+        title: Container CPU > 90%
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum by (name) (
+                  rate(podman_container_cpu_seconds_total[5m])
+                  * on(id) group_left(name) podman_container_info
+                ) / scalar(count(node_cpu_seconds_total{mode="idle"})) * 100
+              refId: A
+              instant: false
+              range: true
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              refId: B
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [90]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "Container {{ $labels.name }} CPU usage is above 90%"
+          description: "CPU usage: {{ $values.B }}%"
+        labels: {}
+        isPaused: false
+
+      - uid: container-memory-high
+        title: Container Memory > 80%
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: |
+                sum by (name) (
+                  podman_container_mem_usage_bytes
+                  * on(id) group_left(name) podman_container_info
+                )
+                / sum by (name) (
+                  (podman_container_mem_limit_bytes > 0)
+                  * on(id) group_left(name) podman_container_info
+                ) * 100
+              refId: A
+              instant: false
+              range: true
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              refId: B
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [80]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "Container {{ $labels.name }} memory usage is above 80%"
+          description: "Memory usage: {{ $values.B }}% of configured limit"
+        labels: {}
+        isPaused: false
+
+  - orgId: 1
+    name: Disk Growth Alerts
+    folder: Torrent Box
+    interval: 5m
+    rules:
+      - uid: host-disk-warning
+        title: Host Disk > 80%
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: |
+                100 * (
+                  1 - (
+                    node_filesystem_avail_bytes{job="node_exporter", device!~"rootfs"}
+                    /
+                    node_filesystem_size_bytes{job="node_exporter", device!~"rootfs"}
+                  )
+                )
+              refId: A
+              instant: false
+              range: true
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              refId: B
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [80]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        annotations:
+          summary: "Host filesystem {{ $labels.mountpoint }} is above 80%"
+          description: "Filesystem usage: {{ $values.B }}%"
+        labels:
+          severity: warning
+        isPaused: false
+
+      - uid: host-disk-critical
+        title: Host Disk > 90%
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: |
+                100 * (
+                  1 - (
+                    node_filesystem_avail_bytes{job="node_exporter", device!~"rootfs"}
+                    /
+                    node_filesystem_size_bytes{job="node_exporter", device!~"rootfs"}
+                  )
+                )
+              refId: A
+              instant: false
+              range: true
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              refId: B
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [90]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "Host filesystem {{ $labels.mountpoint }} is above 90%"
+          description: "Filesystem usage: {{ $values.B }}%"
+        labels:
+          severity: critical
+        isPaused: false
+
+      - uid: node-exporter-down
+        title: node_exporter Down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: up{job="node_exporter"}
+              refId: A
+              instant: false
+              range: true
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              refId: B
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        noDataState: Alerting
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "node_exporter is unreachable"
+          description: "Prometheus cannot scrape node_exporter; host filesystem and CPU metrics are unavailable."
+        labels:
+          severity: critical
+        isPaused: false
+
+      - uid: qbittorrent-free-disk-low
+        title: qBittorrent Free Disk < 100 GiB
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: qbittorrent_free_space_on_disk / 1024 / 1024 / 1024
+              refId: A
+              instant: true
+              range: false
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              refId: B
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [100]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        noDataState: NoData
+        execErrState: Error
+        for: 10m
+        annotations:
+          summary: "qBittorrent reports less than 100 GiB free"
+          description: "Free disk reported by qBittorrent: {{ $values.B }} GiB"
+        labels:
+          severity: warning
+        isPaused: false
+
+  - orgId: 1
+    name: SABnzbd Alerts
+    folder: Torrent Box
+    interval: 1m
+    rules:
+      - uid: sabnzbd-exporter-down
+        title: SABnzbd Exporter Down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: up{job="sabnzbd"}
+              refId: A
+              instant: false
+              range: true
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              refId: B
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        noDataState: Alerting
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "SABnzbd exporter is unavailable"
+          description: "Prometheus cannot scrape the SABnzbd exporter."
+        labels:
+          severity: critical
+        isPaused: false
+
+      - uid: sabnzbd-queue-stalled
+        title: SABnzbd Queue Stalled
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: sabnzbd_queue_size > 0 and sabnzbd_queue_download_rate_bytes_per_second < 1024
+              refId: A
+              instant: false
+              range: true
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              refId: B
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        annotations:
+          summary: "SABnzbd has queued items with no download throughput"
+          description: "Queue has items but download rate has been below 1 KB/s."
+        labels:
+          severity: warning
+        isPaused: false
+
+  - orgId: 1
+    name: qBittorrent Alerts
+    folder: Torrent Box
+    interval: 1m
+    rules:
+      - uid: qbittorrent-down
+        title: qBittorrent Down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: max(qbittorrent_up{job="qbittorrent"})
+              refId: A
+              instant: true
+              range: false
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              refId: B
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        noDataState: Alerting
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "qBittorrent WebUI is unreachable"
+          description: "The qBittorrent exporter cannot connect to the WebUI."
+        labels:
+          severity: critical
+        isPaused: false
+
+      - uid: qbittorrent-firewalled
+        title: qBittorrent Firewalled
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: max(qbittorrent_firewalled{job="qbittorrent"})
+              refId: A
+              instant: true
+              range: false
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              refId: B
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        noDataState: NoData
+        execErrState: Error
+        for: 10m
+        annotations:
+          summary: "qBittorrent is firewalled (no incoming connections)"
+          description: "qBittorrent reports it cannot receive incoming peer connections."
+        labels:
+          severity: warning
+        isPaused: false
+
+  - orgId: 1
+    name: qBittorrent Slow Checks
+    folder: Torrent Box
+    # These conditions change on the order of hours/days, not minutes —
+    # evaluating them every minute like the rest of the qBittorrent group
+    # would just waste CPU without improving detection time.
+    interval: 1h
+    rules:
+      - uid: qbittorrent-torrent-stalled-week
+        title: Torrent Stalled > 1 Week
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: qbittorrent_torrent_last_activity{job="qbittorrent",state=~"stalled.*"} < time() - 604800
+              refId: A
+              instant: true
+              range: false
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              refId: B
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        annotations:
+          summary: "Torrent '{{ $labels.name }}' has been stalled for over 1 week"
+          description: "Last activity over 7 days ago (state: {{ $labels.state }})"
+        labels:
+          severity: warning
+        isPaused: false
+
+      - uid: qbittorrent-dht-low
+        title: qBittorrent DHT Nodes Low
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: max(qbittorrent_dht_nodes{job="qbittorrent"})
+              refId: A
+              instant: true
+              range: false
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              refId: B
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [200]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        noDataState: NoData
+        execErrState: Error
+        for: 0s
+        annotations:
+          summary: "qBittorrent DHT node count is below 200"
+          description: "Current DHT nodes: {{ $values.B }}"
+        labels:
+          severity: warning
+        isPaused: false
+
+  - orgId: 1
+    name: Gluetun Alerts
+    folder: Torrent Box
+    interval: 1m
+    rules:
+      - uid: gluetun-container-down
+        title: Gluetun Container Down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: podman_container_state{name="gluetun"}
+              refId: A
+              instant: true
+              range: false
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              refId: B
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              expression: B
+              conditions:
+                - evaluator:
+                    type: outside_range
+                    params: [2, 2]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        noDataState: Alerting
+        execErrState: Error
+        for: 2m
+        annotations:
+          summary: "Gluetun container is not running"
+          description: "Gluetun container state is not 'running'; VPN and proxy are unavailable."
+        labels:
+          severity: critical
+        isPaused: false
+
+      - uid: gluetun-vpn-disconnected
+        title: Gluetun VPN Disconnected
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: max(qbittorrent_connected{job="qbittorrent"})
+              refId: A
+              instant: true
+              range: false
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              refId: B
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "Gluetun VPN network is disconnected"
+          description: "qBittorrent reports no BitTorrent network connectivity (VPN tunnel may be down)."
+        labels:
+          severity: critical
+        isPaused: false
+
+      - uid: gluetun-natpmp-port-lost
+        title: Gluetun NAT PMP Port Lost
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: max(qbittorrent_firewalled{job="qbittorrent"})
+              refId: A
+              instant: true
+              range: false
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              refId: B
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        noDataState: NoData
+        execErrState: Error
+        for: 15m
+        annotations:
+          summary: "Gluetun NAT PMP port forwarding is down"
+          description: "qBittorrent is firewalled; the VPN port forwarding lease may have expired."
+        labels:
+          severity: warning
+        isPaused: false

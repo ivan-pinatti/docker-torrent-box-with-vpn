@@ -1,0 +1,36 @@
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: Email
+    receivers:
+      - uid: email-receiver
+        type: email
+        settings:
+          addresses: ${GRAFANA_ALERT_EMAIL_TO}
+          subject: '[{{ .Status | toUpper }}] {{ .GroupLabels.alertname }}'
+          message: |
+            {{ range .Alerts -}}
+            <p>
+              <strong>Status:</strong> {{ .Status | title }}<br>
+              <strong>Alert:</strong> {{ .Labels.alertname }}
+              {{- if .Labels.name }}<br><strong>Container:</strong> {{ .Labels.name }}{{ end }}
+              {{- if .Labels.mountpoint }}<br><strong>Mount:</strong> {{ .Labels.mountpoint }}{{ end }}
+              {{- if .Annotations.description }}<br><strong>Value:</strong> {{ .Annotations.description }}{{ end }}
+            </p>
+            {{ end -}}
+        disableResolveMessage: false
+
+  # Telegram contact point cannot be provisioned via YAML: Grafana re-coerces numeric
+  # chat IDs to JSON integers, which the Telegram integration then rejects.
+  # Configure it once through the UI (Alerting -> Contact points -> Add).
+  #
+  # - orgId: 1
+  #   name: Telegram
+  #   receivers:
+  #     - uid: telegram-receiver
+  #       type: telegram
+  #       settings:
+  #         bottoken: ${GRAFANA_TELEGRAM_TOKEN}
+  #         chatid: ${GRAFANA_TELEGRAM_CHAT_ID}   # fails: numeric value gets coerced to int
+  #       disableResolveMessage: false

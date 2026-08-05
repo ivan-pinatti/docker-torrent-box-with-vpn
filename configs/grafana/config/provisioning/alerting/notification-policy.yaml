@@ -1,0 +1,22 @@
+apiVersion: 1
+
+policies:
+  - orgId: 1
+    receiver: Email
+    group_by: [grafana_folder, alertname]
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 4h
+    routes:
+      # Slow-changing condition (stalled > 1 week) — re-notify once a day
+      # instead of the default 4h, on both channels below.
+      - matchers:
+          - alertname = "Torrent Stalled > 1 Week"
+        receiver: Email
+        group_interval: 24h
+        repeat_interval: 24h
+        routes:
+          - receiver: Telegram
+            continue: true
+      - receiver: Telegram
+        continue: true

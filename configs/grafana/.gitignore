@@ -7,6 +7,23 @@
 !.env.example
 !.env.secrets.example
 
+# Provisioning-as-code: dashboards, alerting rules, and the datasource
+# definition are authored config with no secrets in them (alert contact
+# points use ${GRAFANA_ALERT_EMAIL_TO}-style env var placeholders, not real
+# values), meant to ship with the repo like any other committed config.
+# Previously swept up by the blanket `*` above along with genuine runtime
+# state, which silently left this whole tree untracked; test_observability.py
+# already asserts on specific dashboard content and has never had a
+# committed copy to check on a fresh clone.
+#
+# grafana.ini is the odd one out: it carries a real admin_password
+# (rotate-passwords.sh's own rotation target), so only its .example ships,
+# seeded the same way as every other app's live config.
+!config/
+!config/grafana.ini.example
+!config/provisioning/
+!config/provisioning/**
+
 # Secret files consumed via compose `secrets:`. Real values stay ignored
 # by the blanket `*` above; only the .example templates are committed.
 !secrets/
