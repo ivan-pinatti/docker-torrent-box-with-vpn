@@ -145,6 +145,7 @@ readonly RADARR_DB="configs/radarr/config/radarr.db"
 readonly LIDARR_DB="configs/lidarr/config/lidarr.db"
 readonly READARR_DB="configs/readarr/config/readarr.db"
 readonly WHISPARR_DB="configs/whisparr/config/whisparr3.db"
+readonly PROWLARR_DB="configs/prowlarr/config/prowlarr.db"
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -878,7 +879,7 @@ PYEOF
   # nothing rewrites the files mid-edit or reloads stale state. homepage and
   # qbittorrent_exporter are handled separately, by RECREATE_CONSUMERS below.
   echo "[qBittorrent] Stopping consumers for config and database edits..."
-  stop_existing sonarr radarr lidarr readarr whisparr lazylibrarian mylar
+  stop_existing sonarr radarr lidarr readarr whisparr prowlarr lazylibrarian mylar
 
   echo "[Sonarr DB] Updating qBittorrent password in DownloadClients..."
   update_arr_qbt_password Sonarr "$SONARR_DB" "$new_password"
@@ -894,6 +895,9 @@ PYEOF
 
   echo "[Whisparr DB] Updating qBittorrent password in DownloadClients..."
   update_arr_qbt_password Whisparr "$WHISPARR_DB" "$new_password"
+
+  echo "[Prowlarr DB] Updating qBittorrent password in DownloadClients..."
+  update_arr_qbt_password Prowlarr "$PROWLARR_DB" "$new_password"
 
   echo "[Config] Updating qBittorrent password..."
   python3 - <<PYEOF
@@ -968,7 +972,7 @@ rotate_sabnzbd() {
   # in the blast radius for the duration of the edits. homepage and
   # sabnzbd_exporter are handled separately, by RECREATE_CONSUMERS below.
   echo "[SABnzbd] Stopping consumers for config and database edits..."
-  stop_existing sabnzbd lazylibrarian mylar sonarr radarr lidarr readarr whisparr
+  stop_existing sabnzbd lazylibrarian mylar sonarr radarr lidarr readarr whisparr prowlarr
 
   echo "[SABnzbd] Updating config and service env credentials..."
   python3 - <<PYEOF
@@ -1077,6 +1081,9 @@ PYEOF
   update_arr_sabnzbd_credentials Readarr "$READARR_DB" "$new_password" "$new_api_key"
   echo "[Whisparr DB] Updating SABnzbd credentials in DownloadClients..."
   update_arr_sabnzbd_credentials Whisparr "$WHISPARR_DB" "$new_password" "$new_api_key"
+
+  echo "[Prowlarr DB] Updating SABnzbd credentials in DownloadClients..."
+  update_arr_sabnzbd_credentials Prowlarr "$PROWLARR_DB" "$new_password" "$new_api_key"
 
   start_stopped
 
