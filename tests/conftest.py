@@ -231,6 +231,17 @@ def port(service_name: str, kind: str = "http") -> int:
 def base_url(https: bool = True) -> str:
     domain = env("DOMAIN", "localhost")
     scheme = "https" if https else "http"
+    # `make bootstrap`'s port prompt (see the Makefile) offers standard
+    # 80/443 or alternates when those are already taken; a non-interactive
+    # bootstrap (no TTY for the prompt) picks the alternates. Omitting the
+    # port here always assumed 443/80, so every test built on this silently
+    # broke with "Connection refused" against any bootstrap that didn't end
+    # up on the standard ports, confirmed live: NGINX_HTTPS_PORT=8443 here,
+    # not 443, and every base_url()-based test failed the same way.
+    nginx_port = int(env("NGINX_HTTPS_PORT" if https else "NGINX_HTTP_PORT", "0"))
+    default_port = 443 if https else 80
+    if nginx_port and nginx_port != default_port:
+        return f"{scheme}://{domain}:{nginx_port}"
     return f"{scheme}://{domain}"
 
 
