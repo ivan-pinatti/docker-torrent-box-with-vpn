@@ -102,6 +102,18 @@ processed. LazyLibrarian, which matches on Books, does receive the indexer.
 Add any indexer carrying 7030 in Prowlarr and Mylar starts receiving it, no
 re-wiring needed.
 
+**Whisparr legitimately ends up with no Prowlarr indexer on a default
+install, for the same reason.** Its Application entry only syncs indexers
+matching its `syncCategories` (the 6000-series, adult content only), and
+Internet Archive's own advertised categories (confirmed live via its
+`capabilities.categories`) don't include any of the 6000s. Registration
+still succeeds and is the real success signal; `sync_prowlarr_indexers()`
+excludes Whisparr from its post-sync indexer-count check for exactly this
+reason, and `tests/test_wire_connections.py`'s
+`test_prowlarr_indexers_propagated_to_arr_app` skips it too. Add any
+indexer carrying a 6000-series category and Whisparr starts receiving it,
+no re-wiring needed.
+
 Both Mylar and LazyLibrarian ship a `config.ini.example` that deliberately
 defines **no** Prowlarr Torznab entries. Prowlarr populates those itself,
 and hand-written placeholder entries actively break it: Prowlarr reconciles

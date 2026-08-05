@@ -949,7 +949,8 @@ wire_prowlarr_apps() {
     "http://sonarr:${SONARR_HTTP_PORT}/sonarr" "$(get_xml_apikey "$SONARR_XML")" "$prowlarr_key"
 
   ensure_prowlarr_application whisparr "Whisparr" "Whisparr" "WhisparrSettings" \
-    "https://whisparr:${WHISPARR_HTTPS_PORT}/whisparr" "$(get_xml_apikey "$WHISPARR_XML")" "$prowlarr_key"
+    "https://whisparr:${WHISPARR_HTTPS_PORT}/whisparr" "$(get_xml_apikey "$WHISPARR_XML")" "$prowlarr_key" \
+    "https://prowlarr:${PROWLARR_HTTPS_PORT}"
 
   # A fresh Prowlarr has zero indexers, so there's nothing for the
   # Applications above to actually sync until at least one exists. Internet
@@ -1171,12 +1172,23 @@ sync_prowlarr_indexers() {
   fi
 
   # Alphabetical, matching this file's dispatch. Fields: app scheme port apiver
+  #
+  # Whisparr is deliberately absent here, not an oversight. Its Application
+  # entry only syncs indexers matching its syncCategories (adult content,
+  # 6000-series only), and the seeded default indexer, Internet Archive,
+  # doesn't serve that category at all (confirmed live via its own
+  # capabilities.categories: 2000/3000/4000/5000/7000/8000, no 6000s). Zero
+  # synced indexers is therefore the structurally correct outcome for
+  # Whisparr with the default indexer, not a wiring failure, so it can never
+  # satisfy this check and would falsely warn on every run. Registration in
+  # wire_prowlarr_apps() above is still Whisparr's real success signal; an
+  # indexer actually appears once the user adds one that serves that
+  # category.
   local targets=(
     "lidarr https ${LIDARR_HTTPS_PORT} v1"
     "radarr https ${RADARR_HTTPS_PORT} v3"
     "readarr https ${READARR_HTTPS_PORT} v1"
     "sonarr http ${SONARR_HTTP_PORT} v3"
-    "whisparr https ${WHISPARR_HTTPS_PORT} v3"
   )
 
   local attempt
@@ -1213,6 +1225,17 @@ ensure_prowlarr_application() {
   local container="$1" display_name="$2" implementation="$3" config_contract="$4"
   local app_url="$5" app_api_key="$6"
   local prowlarr_api_key="$7"
+  # Every app but Whisparr accepts (and needs, since Prowlarr's own
+  # UrlBase is /prowlarr) a urlBase-suffixed prowlarrUrl. Whisparr's own
+  # WhisparrV3Proxy application-link validator rejects that suffix
+  # outright with "Prowlarr URL is invalid", confirmed live: the exact
+  # same payload passes with https://prowlarr:<port> and fails with
+  # https://prowlarr:<port>/prowlarr. The URL without a suffix still resolves
+  # (Prowlarr 307-redirects bare-root API requests to the prefixed path),
+  # and this field is only used for Whisparr's own connectivity sanity
+  # check, not for the actual indexer push which Prowlarr always
+  # initiates against Whisparr's own baseUrl/apiKey.
+  local prowlarr_url_override="${8:-}"
   local base_url="https://127.0.0.1:${PROWLARR_HTTPS_PORT}/prowlarr/api/v1/applications"
 
   # A disabled app's container doesn't exist, so there's nothing to
@@ -1262,7 +1285,7 @@ ensure_prowlarr_application() {
   local payload
   payload=$(echo "$schema" | jq \
     --arg name "$display_name" \
-    --arg prowlarrUrl "https://prowlarr:${PROWLARR_HTTPS_PORT}/prowlarr" \
+    --arg prowlarrUrl "${prowlarr_url_override:-https://prowlarr:${PROWLARR_HTTPS_PORT}/prowlarr}" \
     --arg baseUrl "$app_url" \
     --arg apiKey "$app_api_key" \
     '.name = $name | .syncLevel = "fullSync" |
