@@ -261,7 +261,7 @@ gotify_token = None
 gotify_onsnatch = False
 
 [Providers]
-provider_order = 0, Torznab Indexer 1 (Prowlarr), 1, Torznab Indexer 2 (Prowlarr), 2, Torznab Indexer 4 (Prowlarr), 3, NZBHydra2 (Newznab)
+provider_order =
 usenet_retention = 1500
 
 [Client]

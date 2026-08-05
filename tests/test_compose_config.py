@@ -1,3 +1,4 @@
+import configparser
 from pathlib import Path
 
 import yaml
@@ -112,3 +113,99 @@ def test_homepage_observability_widgets():
         "type": "prometheus",
         "url": "http://prometheus:9090/admin/prometheus",
     }
+
+
+def test_mylar_seed_torznab_disabled_ddl_enabled():
+    text = (REPO_ROOT / "configs/mylar/config/mylar/config.ini.example").read_text()
+    parser = configparser.ConfigParser(strict=False)
+    parser.read_string(text)
+
+    assert parser.get("Torznab", "enable_torznab") == "False", (
+        "enable_torznab should stay off: extra_torznabs ships empty"
+    )
+    assert parser.get("DDL", "enable_ddl") == "True"
+
+
+def test_mylar_seed_has_no_nzbhydra2():
+    text = (REPO_ROOT / "configs/mylar/config/mylar/config.ini.example").read_text()
+    assert "nzbhydra2" not in text.lower(), (
+        "Mylar's seed should not reference nzbhydra2: NZBHYDRA2_PROFILE is "
+        "disabled by default, so a seeded entry points at a container that "
+        "never starts"
+    )
+
+
+def test_lazylibrarian_seed_has_no_nzbhydra2():
+    text = (REPO_ROOT / "configs/lazylibrarian/config/config.ini.example").read_text()
+    assert "nzbhydra2" not in text.lower(), (
+        "LazyLibrarian's seed should not reference nzbhydra2: NZBHYDRA2_PROFILE "
+        "is disabled by default, so a seeded entry points at a container that "
+        "never starts"
+    )
+    assert "[Newznab_0]" not in text
+    assert "[Torznab_0]" not in text
+
+
+def test_lazylibrarian_seed_generic_provider_hosts_blanked():
+    """KAT/TPB/TDL/SLSK are LazyLibrarian's own hardcoded provider defaults.
+
+    They render in the UI regardless of whether config.ini mentions them at
+    all (lazylibrarian/configdefs.py), pointing at a piracy site or a
+    Soulseek daemon nothing in this stack runs. Explicitly seeding a blank
+    host overrides LazyLibrarian's own default with an empty one, confirmed
+    live via the rendered Settings page.
+    """
+    text = (REPO_ROOT / "configs/lazylibrarian/config/config.ini.example").read_text()
+    parser = configparser.ConfigParser(strict=False)
+    parser.read_string(text)
+
+    for section, key in (
+        ("KAT", "KAT_HOST"),
+        ("TPB", "TPB_HOST"),
+        ("TDL", "TDL_HOST"),
+        ("SLSK", "SLSK_HOST"),
+    ):
+        assert parser.get(section, key) == "", f"[{section}] {key} should be blank"
+
+
+def test_bazarr_seed_listens_on_all_interfaces():
+    config = yaml.safe_load(
+        (REPO_ROOT / "configs/bazarr/config/config/config.yaml.example").read_text()
+    )
+    assert config["general"]["ip"] == "0.0.0.0", (  # nosec B104 - asserting a config value, not binding a socket
+        "Bazarr's own listen address should not be hardcoded to another "
+        "service's IP (this was previously set to Gluetun's fixed address, "
+        "which Bazarr's container never actually holds)"
+    )
+
+
+def test_sabnzbd_seed_has_prowlarr_category():
+    """Prowlarr's own SABnzbd download client needs this category to exist.
+
+    SABnzbd validates its category strictly (unlike qBittorrent, which
+    creates an empty one silently) and 400s creating a download client with
+    one that doesn't already exist there, confirmed live.
+    """
+    text = (REPO_ROOT / "configs/sabnzbd/config/sabnzbd.ini.example").read_text()
+    assert "[[prowlarr]]" in text
+
+
+def test_nginx_scopes_mylar_and_lazylibrarian_cookies():
+    """Each app's session cookie is scoped to its own URL prefix.
+
+    Mylar and LazyLibrarian are both cherrypy apps that default to a
+    session cookie literally named session_id, scoped to Path=/. Without
+    the rewrite, a browser holds only one such cookie for the whole domain,
+    so visiting one app overwrites the other's session — confirmed live,
+    it evicted Mylar's session on the very next request after logging into
+    LazyLibrarian in the same cookie jar.
+    """
+    template = (REPO_ROOT / "configs/nginx/templates/default.conf.template").read_text()
+
+    for app in ("mylar", "lazylibrarian"):
+        start = template.index(f"location /{app}/ {{")
+        end = template.index("\n  }", start)
+        block = template[start:end]
+        assert f"proxy_cookie_path            / /{app}/;" in block, (
+            f"/{app}/ location is missing its proxy_cookie_path rewrite"
+        )
