@@ -26,4 +26,5 @@ keywords:
   - servarr
   - qbittorrent
   - nginx
-date-released: "2026-04-26"
+version: 3.0.0
+date-released: "2026-08-05"
