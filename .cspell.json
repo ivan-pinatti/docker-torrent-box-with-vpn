@@ -129,6 +129,7 @@
     "checkip",
     "cherrypy",
     "chgroup",
+    "chowned",
     "chowner",
     "chowns",
     "chromedriver",

@@ -102,12 +102,21 @@ def main() -> int:
         )
         yaml.dump(filtered_sections, f, default_flow_style=False, sort_keys=False)
 
-    # Rootless Podman maps this host file to a different UID inside the
-    # container (Homepage runs as HOMEPAGE_UID/HOMEPAGE_GID, neither of which
-    # is the host user writing this file), so it needs to stay world-readable
-    # or Homepage can't open its own config; matches write_secret_file()'s
-    # same reasoning in scripts/rotate-api-keys.sh.
-    OUTPUT_FILE.chmod(0o644)
+    # `make start` runs permissions_repair (scripts/permissions.py) before
+    # this script, and permissions.yml's configs/homepage/config entry
+    # (chown_files: true) already recursively chowns this file to
+    # Homepage's own mapped UID/GID, which is what actually lets the
+    # container read it regardless of the file's mode bits. That leaves the
+    # host user access to write this file at all through the manifest's own
+    # ACL grant, not ownership, so chmod (owner/root only, unlike a plain
+    # write) fails here on any run after the very first: confirmed live,
+    # PermissionError every time on a file already chowned by a prior
+    # permissions_repair. Best-effort only; the container's own access does
+    # not depend on it succeeding.
+    try:
+        OUTPUT_FILE.chmod(0o644)
+    except PermissionError:
+        pass
 
     return 0
 
