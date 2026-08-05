@@ -263,6 +263,14 @@ script = Default
 dir = ebooks
 newzbin = ""
 priority = 0
+[[prowlarr]]
+name = prowlarr
+order = 7
+pp = 3
+script = None
+dir = prowlarr
+newzbin = ""
+priority = 0
 [logging]
 log_level = 1
 max_log_size = 5242880

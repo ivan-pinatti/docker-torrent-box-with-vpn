@@ -752,9 +752,20 @@ ensure_qbittorrent_client() {
       elif (.name | test("Category$")) and ((.name | test("Imported")) | not) then .value = $category
       else . end)')
 
-  container_curl "$container" -sk --fail -X POST \
+  # Caught explicitly rather than left to a bare --fail under this script's
+  # set -e: a caller that isolates a failure here with `cmd || warn` does
+  # not actually protect the commands *inside* this function (a documented
+  # bash errexit gotcha — set -e stops applying to everything on the left
+  # of a && / || / if, including nested subshells), so an unhandled failure
+  # here would otherwise fall through to the unconditional "Created." line
+  # below despite nothing having been created.
+  local response
+  if ! response=$(container_curl "$container" -sk --fail -X POST \
     -H "X-Api-Key: ${api_key}" -H "Content-Type: application/json" \
-    -d "$payload" "$base_url" >/dev/null # pragma: allowlist secret
+    -d "$payload" "$base_url" 2>&1); then # pragma: allowlist secret
+    echo "[$app_name] WARNING: failed to create qBittorrent download client: ${response:0:300}"
+    return 1
+  fi
   echo "[$app_name] Created."
 }
 
@@ -796,9 +807,18 @@ ensure_sabnzbd_client() {
       elif (.name | test("Category$")) and ((.name | test("Imported")) | not) then .value = $category
       else . end)')
 
-  container_curl "$container" -sk --fail -X POST \
+  # See ensure_qbittorrent_client's matching comment: this is caught
+  # explicitly, not left to a bare --fail, since a caller-side `|| warn`
+  # cannot protect commands inside this function from set -e's own
+  # exit-on-failure semantics being suppressed for everything on the left
+  # of that ||.
+  local response
+  if ! response=$(container_curl "$container" -sk --fail -X POST \
     -H "X-Api-Key: ${api_key}" -H "Content-Type: application/json" \
-    -d "$payload" "$base_url" >/dev/null # pragma: allowlist secret
+    -d "$payload" "$base_url" 2>&1); then # pragma: allowlist secret
+    echo "[$app_name] WARNING: failed to create SABnzbd download client: ${response:0:300}"
+    return 1
+  fi
   echo "[$app_name] Created."
 }
 
@@ -882,10 +902,23 @@ wire_prowlarr_apps() {
   # button, independent of the arr apps' own download clients wired by
   # wire_arr_app). Same generic helpers those use: Prowlarr shares the same
   # DownloadClients schema shape as every other Servarr app.
-  ensure_qbittorrent_client prowlarr prowlarr https "$PROWLARR_HTTPS_PORT" v1 "$prowlarr_key" prowlarr
-  ensure_sabnzbd_client prowlarr prowlarr https "$PROWLARR_HTTPS_PORT" v1 "$prowlarr_key" prowlarr
+  #
+  # Each of these three calls is allowed to fail without aborting the
+  # Application registrations and indexer below (the same class of bug
+  # ensure_prowlarr_application's own comment already documents and guards
+  # against, confirmed live here too: an unhandled SABnzbd 400 — it
+  # validates its category strictly, unlike qBittorrent, which creates an
+  # empty one silently — took out every Application and the indexer for the
+  # whole run). That protection has to live *inside* each ensure_* function
+  # itself (an explicit `if ! cmd; then return 1; fi` around its one
+  # create-or-die step), not in a `cmd || warn` wrapper here: bash disables
+  # `set -e` for everything inside a command placed on the left of `||`,
+  # including nested subshells, so a wrapper here cannot make a failure
+  # inside the function stop where it actually happened.
+  ensure_qbittorrent_client prowlarr prowlarr https "$PROWLARR_HTTPS_PORT" v1 "$prowlarr_key" prowlarr || true
+  ensure_sabnzbd_client prowlarr prowlarr https "$PROWLARR_HTTPS_PORT" v1 "$prowlarr_key" prowlarr || true
 
-  ensure_prowlarr_indexer_proxy "$prowlarr_key"
+  ensure_prowlarr_indexer_proxy "$prowlarr_key" || true
 
   # https, not http, despite the port variable's name: LazyLibrarian
   # repurposes its single configured port for HTTPS once https_enabled=True
@@ -979,9 +1012,15 @@ ensure_prowlarr_indexer_proxy() {
     '.name = "FlareSolverr" |
     .fields |= map(if .name == "host" then .value = $host else . end)')
 
-  container_curl prowlarr -sk --fail -X POST \
+  # See ensure_qbittorrent_client's matching comment on why this is caught
+  # explicitly rather than left to a bare --fail.
+  local response
+  if ! response=$(container_curl prowlarr -sk --fail -X POST \
     -H "X-Api-Key: ${prowlarr_api_key}" -H "Content-Type: application/json" \
-    -d "$payload" "$base_url" >/dev/null
+    -d "$payload" "$base_url" 2>&1); then
+    echo "[Prowlarr] WARNING: failed to add FlareSolverr indexer proxy: ${response:0:300}"
+    return 1
+  fi
   echo "[Prowlarr] FlareSolverr indexer proxy added."
 }
 
