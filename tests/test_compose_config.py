@@ -15,9 +15,20 @@ def test_audiobookshelf_mounts_full_metadata_tree():
     assert "${CONFIG_FOLDER}/audiobookshelf/metadata:/metadata:z" in volumes
 
 
+# These read services.yaml.template, not the runtime-generated
+# services.yaml: the generated file is filtered down to whatever profiles
+# are actually enabled (scripts/generate-homepage-services.py), and
+# Whisparr/NZBHydra2/Grafana/cAdvisor all ship disabled by default
+# (.env.example), so a filtered-file assertion about one of them fails on
+# any environment using those defaults, including a genuinely fresh
+# bootstrap. The template carries every entry unconditionally, which is
+# what these are actually checking: the widget definition itself, not
+# which profiles happen to be on in a given deployment.
+
+
 def test_homepage_whisparr_uses_radarr_widget():
     services = yaml.safe_load(
-        (REPO_ROOT / "configs/homepage/config/services.yaml").read_text()
+        (REPO_ROOT / "configs/homepage/config/services.yaml.template").read_text()
     )
     servarr_group = next(group["Servarr"] for group in services if "Servarr" in group)
     whisparr = next(
@@ -29,7 +40,7 @@ def test_homepage_whisparr_uses_radarr_widget():
 
 def test_homepage_calibreweb_widget_and_cadvisor_link():
     services = yaml.safe_load(
-        (REPO_ROOT / "configs/homepage/config/services.yaml").read_text()
+        (REPO_ROOT / "configs/homepage/config/services.yaml.template").read_text()
     )
     media_group = next(
         group["Media & Library"] for group in services if "Media & Library" in group
@@ -57,8 +68,10 @@ def test_homepage_footer_shows_version():
 
 
 def test_homepage_group_and_media_ordering():
+    # See the comment above test_homepage_whisparr_uses_radarr_widget: reads
+    # the template, not the profile-filtered generated file.
     services = yaml.safe_load(
-        (REPO_ROOT / "configs/homepage/config/services.yaml").read_text()
+        (REPO_ROOT / "configs/homepage/config/services.yaml.template").read_text()
     )
     group_names = [next(iter(group)) for group in services]
     indexers_downloaders = next(
@@ -85,8 +98,10 @@ def test_homepage_group_and_media_ordering():
 
 
 def test_homepage_observability_widgets():
+    # See the comment above test_homepage_whisparr_uses_radarr_widget: reads
+    # the template, not the profile-filtered generated file.
     services = yaml.safe_load(
-        (REPO_ROOT / "configs/homepage/config/services.yaml").read_text()
+        (REPO_ROOT / "configs/homepage/config/services.yaml.template").read_text()
     )
     observability_group = next(
         group["Observability"] for group in services if "Observability" in group
