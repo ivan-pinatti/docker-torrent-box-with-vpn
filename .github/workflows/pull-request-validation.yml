@@ -14,19 +14,19 @@ jobs:
     timeout-minutes: 3
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Create .env file
         shell: bash
         run: cp .env.example .env
 
       - name: Python Setup
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: 3.11.3
 
       - name: Pre-commit Run
-        uses: pre-commit/action@v3.0.0
+        uses: pre-commit/action@v3.0.1
         with:
           extra_args: --all-files
 
@@ -36,14 +36,14 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Create .env file
         shell: bash
         run: cp .env.example .env
 
       - name: Python Setup
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: 3.11.3
 
@@ -59,7 +59,7 @@ jobs:
       PROTONVPN_PRIVATE_KEY: ${{ secrets.PROTONVPN_PRIVATE_KEY }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Create .env file (VPN disabled — no key in CI)
         shell: bash
@@ -76,7 +76,7 @@ jobs:
           echo "${{ env.PROTONVPN_PRIVATE_KEY }}" > configs/gluetun/.secret
 
       - name: Python Setup
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: 3.11.3
 

@@ -18,7 +18,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # betterleaks scans commits, and REPOSITORY_BETTERLEAKS_PR_COMMITS_SCAN
           # resolves <target>^..<source>. The default shallow clone (depth 1)
