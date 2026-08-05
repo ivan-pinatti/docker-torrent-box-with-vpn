@@ -16,6 +16,7 @@ Run explicitly with:
 import json
 import sqlite3
 import subprocess
+import time
 import xml.etree.ElementTree as ET
 
 import pytest
@@ -131,12 +132,21 @@ def _restore_arr_indexer_apikeys(
     apps never refresh an Indexer's apiKey field on their own, so restoring
     Prowlarr's own key needs this same explicit PUT, not just a resync.
     """
-    status, body = container_http(
-        app,
-        f"{scheme}://127.0.0.1:{port}/{app}/api/{api_ver}/indexer",
-        headers={"X-Api-Key": app_api_key},
-        timeout=TIMEOUT,
-    )
+    # A few retries: an arr app can 500 with "unable to open database file"
+    # for a few seconds right after its own restart (SQLite still opening),
+    # confirmed live when this raced against test_rinse_and_repeat.py's
+    # stack-wide restart cycle running immediately before this test.
+    status, body = 0, ""
+    for _attempt in range(6):
+        status, body = container_http(
+            app,
+            f"{scheme}://127.0.0.1:{port}/{app}/api/{api_ver}/indexer",
+            headers={"X-Api-Key": app_api_key},
+            timeout=TIMEOUT,
+        )
+        if status == 200:
+            break
+        time.sleep(5)
     assert status == 200, f"[{app}] GET indexer failed while restoring: {status} {body}"
     for rec in json.loads(body):
         base_url = next(
@@ -239,11 +249,15 @@ def _restore_yaml_consumers(app: str, old_key: str):
     with open(BAZARR_CONFIG, "w") as fh:
         yaml.dump(bazarr_cfg, fh, default_flow_style=False, allow_unicode=True)
 
-    with open(RECYCLARR_SECRETS) as fh:
-        recyclarr_cfg = yaml.safe_load(fh)
-    recyclarr_cfg[f"{app}_apikey"] = old_key
-    with open(RECYCLARR_SECRETS, "w") as fh:
-        yaml.dump(recyclarr_cfg, fh, default_flow_style=False)
+    # RECYCLARR_PROFILE is disabled by default, and rotate-api-keys.sh
+    # itself already skips this file cleanly when it doesn't exist yet
+    # (update_prowlarr_application's own convention); match that here.
+    if RECYCLARR_SECRETS.exists():
+        with open(RECYCLARR_SECRETS) as fh:
+            recyclarr_cfg = yaml.safe_load(fh)
+        recyclarr_cfg[f"{app}_apikey"] = old_key
+        with open(RECYCLARR_SECRETS, "w") as fh:
+            yaml.dump(recyclarr_cfg, fh, default_flow_style=False)
 
 
 def _restore_api_key_secret(app: str, old_key: str):
@@ -364,11 +378,12 @@ def test_rotate_api_key_propagates(
             f"Bazarr config.yaml {app}.apikey not updated"
         )
 
-        with open(RECYCLARR_SECRETS) as fh:
-            recyclarr_cfg = yaml.safe_load(fh)
-        assert recyclarr_cfg[f"{app}_apikey"] == new_key, (
-            f"recyclarr secrets.yml {app}_apikey not updated"
-        )
+        if RECYCLARR_SECRETS.exists():
+            with open(RECYCLARR_SECRETS) as fh:
+                recyclarr_cfg = yaml.safe_load(fh)
+            assert recyclarr_cfg[f"{app}_apikey"] == new_key, (
+                f"recyclarr secrets.yml {app}_apikey not updated"
+            )
 
     # The shared secret file (read by homepage) holds the new key, without a
     # trailing newline, at mode 644
