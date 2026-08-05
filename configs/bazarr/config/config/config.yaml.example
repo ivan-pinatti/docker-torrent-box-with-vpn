@@ -85,7 +85,7 @@ general:
   ignore_pgs_subs: false
   ignore_vobsub_subs: false
   instance_name: Bazarr
-  ip: 172.28.0.10
+  ip: 0.0.0.0
   language_equals: []
   minimum_score: 90
   minimum_score_movie: 80
