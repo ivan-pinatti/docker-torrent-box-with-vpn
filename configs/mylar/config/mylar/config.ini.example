@@ -302,7 +302,7 @@ newznab = True
 extra_newznabs =
 
 [Torznab]
-enable_torznab = True
+enable_torznab = False
 extra_torznabs =
 torznab_name = None
 torznab_host = None
@@ -356,7 +356,7 @@ public_verify = True
 
 [DDL]
 allow_packs = False
-enable_ddl = False
+enable_ddl = True
 enable_getcomics = False
 pack_priority = False
 ddl_query_delay = 15
