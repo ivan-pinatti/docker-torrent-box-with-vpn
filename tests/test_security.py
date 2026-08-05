@@ -11,6 +11,7 @@ from conftest import (
     SERVICES,
     env,
     fresh_container,
+    is_enabled,
     skip_if_disabled,
     skip_if_not_running,
 )
@@ -404,14 +405,16 @@ def test_usenet_completed_category_folders_visible_to_apps(
 
 def test_servarr_remote_path_mappings_not_needed_for_shared_data_mount():
     """Servarr apps should not need remote mappings when all containers mount /data."""
-    dbs = [
-        "configs/sonarr/config/sonarr.db",
-        "configs/radarr/config/radarr.db",
-        "configs/lidarr/config/lidarr.db",
-        "configs/readarr/config/readarr.db",
-        "configs/whisparr/config/whisparr3.db",
-    ]
-    for db in dbs:
+    dbs = {
+        "sonarr": "configs/sonarr/config/sonarr.db",
+        "radarr": "configs/radarr/config/radarr.db",
+        "lidarr": "configs/lidarr/config/lidarr.db",
+        "readarr": "configs/readarr/config/readarr.db",
+        "whisparr": "configs/whisparr/config/whisparr3.db",
+    }
+    for app, db in dbs.items():
+        if not is_enabled(app):
+            continue
         conn = sqlite3.connect(REPO_ROOT / db)
         try:
             count = conn.execute("SELECT COUNT(*) FROM RemotePathMappings").fetchone()[
