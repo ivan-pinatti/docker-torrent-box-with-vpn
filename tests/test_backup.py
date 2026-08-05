@@ -12,6 +12,14 @@ def _write(path: Path, content: str = "x") -> None:
 
 
 def _fixture(root: Path) -> None:
+    # The Makefile's `include .env certs/cert.conf` (see its own comment)
+    # makes GNU Make check both files' .example prerequisites on *every*
+    # invocation, even though both are already written below: an existing
+    # target still needs its prerequisite present to confirm freshness, or
+    # Make fails immediately with "No rule to make target '.env.example'"
+    # before backup-configs/restore-configs ever runs.
+    _write(root / ".env.example", "APP_ENV=fixture\n")
+    _write(root / "certs/cert.conf.example", "CERT_FQDN=fixture.local\n")
     _write(root / ".env", "APP_ENV=fixture\n")
     _write(root / "certs/cert.conf", "CERT_FQDN=fixture.local\n")
     _write(root / "certs/server.crt", "certificate\n")
