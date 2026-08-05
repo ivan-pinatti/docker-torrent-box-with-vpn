@@ -819,7 +819,7 @@ PYEOF
   pwHash="{bcrypt}${new_hash}" yq -i '(.auth.users[0].password) = strenv(pwHash)' "$NZBHYDRA_YML"
   podman start nzbhydra2 >/dev/null
 
-  SUMMARY_NZBHYDRA2_USER="nzbhydra2"
+  SUMMARY_NZBHYDRA2_USER="admin"
   SUMMARY_NZBHYDRA2_NEW="$new_password"
 }
 
@@ -1607,8 +1607,13 @@ jellyfin_login_ok() {
 
 nzbhydra_login_ok() {
   local out
+  # configs/nzbhydra2/config/nzbhydra.yml.example seeds username "admin", not
+  # "nzbhydra2". Logging in with the wrong username here doesn't just fail
+  # this check, it drives real failed-login attempts at NZBHydra2's own
+  # brute-force IP blocking, which then locks out subsequent correct
+  # attempts too until the retry loop's timeout is exhausted.
   out=$(container_curl nzbhydra2 -sk -o /dev/null -w '%{http_code} %{redirect_url}' \
-    -d "username=nzbhydra2&password=$1" \
+    -d "username=admin&password=$1" \
     "https://127.0.0.1:${NZBHYDRA2_HTTPS_PORT}/nzbhydra2/login")
   [[ "$out" == 302* && "$out" != *"login?error"* ]]
 }

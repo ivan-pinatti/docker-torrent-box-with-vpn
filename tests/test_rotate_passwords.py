@@ -1063,7 +1063,7 @@ def test_rotate_nzbhydra2_password(running_containers):
         f"https://127.0.0.1:{port}/nzbhydra2/login",
         method="POST",
         headers={"Content-Type": "application/x-www-form-urlencoded"},
-        data=f"username=nzbhydra2&password={new_password}",
+        data=f"username=admin&password={new_password}",
         extra_args=["-D", "-"],
         timeout=TIMEOUT,
     )
