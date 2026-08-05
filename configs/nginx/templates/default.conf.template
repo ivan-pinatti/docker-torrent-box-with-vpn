@@ -98,7 +98,7 @@ server {
     proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header            X-Forwarded-Proto $scheme;
     proxy_set_header            X-Forwarded-Protocol $scheme;
-    proxy_set_header            X-Forwarded-Host $server_name;
+    proxy_set_header            X-Forwarded-Host $http_host;
     access_log                  /var/log/nginx/services/homepage-access.log  stripsecrets;
     error_log                   /var/log/nginx/services/homepage-error.log  warn;
   }
@@ -117,7 +117,7 @@ server {
     proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header            X-Forwarded-Proto $scheme;
     proxy_set_header            X-Forwarded-Protocol $scheme;
-    proxy_set_header            X-Forwarded-Host $server_name;
+    proxy_set_header            X-Forwarded-Host $http_host;
     access_log                  /var/log/nginx/services/bazarr-access.log  stripsecrets;
     error_log                   /var/log/nginx/services/bazarr-error.log  warn;
   }
@@ -136,7 +136,7 @@ server {
     proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header            X-Forwarded-Proto $scheme;
     proxy_set_header            X-Forwarded-Protocol $scheme;
-    proxy_set_header            X-Forwarded-Host $server_name;
+    proxy_set_header            X-Forwarded-Host $http_host;
     access_log                  /var/log/nginx/services/flaresolverr-access.log  stripsecrets;
     error_log                   /var/log/nginx/services/flaresolverr-error.log  warn;
   }
@@ -154,7 +154,7 @@ server {
     proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header            X-Forwarded-Proto $scheme;
     proxy_set_header            X-Forwarded-Protocol $scheme;
-    proxy_set_header            X-Forwarded-Host $server_name;
+    proxy_set_header            X-Forwarded-Host $http_host;
     access_log                  /var/log/nginx/services/lidarr-access.log  stripsecrets;
     error_log                   /var/log/nginx/services/lidarr-error.log  warn;
   }
@@ -172,7 +172,7 @@ server {
   #   proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
   #   proxy_set_header            X-Forwarded-Proto $scheme;
   #   proxy_set_header            X-Forwarded-Protocol $scheme;
-  #   proxy_set_header            X-Forwarded-Host $server_name;
+  #   proxy_set_header            X-Forwarded-Host $http_host;
   #   access_log                  /var/log/nginx/services/notifiarr-access.log  stripsecrets;
   # }
 
@@ -189,7 +189,7 @@ server {
     proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header            X-Forwarded-Proto $scheme;
     proxy_set_header            X-Forwarded-Protocol $scheme;
-    proxy_set_header            X-Forwarded-Host $server_name;
+    proxy_set_header            X-Forwarded-Host $http_host;
     access_log                  /var/log/nginx/services/prowlarr-access.log  stripsecrets;
     error_log                   /var/log/nginx/services/prowlarr-error.log  warn;
   }
@@ -207,7 +207,7 @@ server {
     proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header            X-Forwarded-Proto $scheme;
     proxy_set_header            X-Forwarded-Protocol $scheme;
-    proxy_set_header            X-Forwarded-Host $server_name;
+    proxy_set_header            X-Forwarded-Host $http_host;
     access_log                  /var/log/nginx/services/radarr-access.log  stripsecrets;
     error_log                   /var/log/nginx/services/radarr-error.log  warn;
   }
@@ -225,7 +225,7 @@ server {
     proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header            X-Forwarded-Proto $scheme;
     proxy_set_header            X-Forwarded-Protocol $scheme;
-    proxy_set_header            X-Forwarded-Host $server_name;
+    proxy_set_header            X-Forwarded-Host $http_host;
     access_log                  /var/log/nginx/services/readarr-access.log  stripsecrets;
     error_log                   /var/log/nginx/services/readarr-error.log  warn;
   }
@@ -243,7 +243,7 @@ server {
     proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header            X-Forwarded-Proto $scheme;
     proxy_set_header            X-Forwarded-Protocol $scheme;
-    proxy_set_header            X-Forwarded-Host $server_name;
+    proxy_set_header            X-Forwarded-Host $http_host;
     access_log                  /var/log/nginx/services/sonarr-access.log  stripsecrets;
     error_log                   /var/log/nginx/services/sonarr-error.log  warn;
   }
@@ -261,7 +261,7 @@ server {
     proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header            X-Forwarded-Proto $scheme;
     proxy_set_header            X-Forwarded-Protocol $scheme;
-    proxy_set_header            X-Forwarded-Host $server_name;
+    proxy_set_header            X-Forwarded-Host $http_host;
     access_log                  /var/log/nginx/services/whisparr-access.log  stripsecrets;
     error_log                   /var/log/nginx/services/whisparr-error.log  warn;
   }
@@ -293,7 +293,7 @@ server {
     proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header            X-Forwarded-Proto $scheme;
     proxy_set_header            X-Forwarded-Protocol $scheme;
-    proxy_set_header            X-Forwarded-Host $server_name;
+    proxy_set_header            X-Forwarded-Host $http_host;
     access_log                  /var/log/nginx/services/grafana-access.log  stripsecrets if=$grafana_log_enabled;
     error_log                   /var/log/nginx/services/grafana-error.log  warn;
   }
@@ -309,7 +309,7 @@ server {
     proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header            X-Forwarded-Proto $scheme;
     proxy_set_header            X-Forwarded-Protocol $scheme;
-    proxy_set_header            X-Forwarded-Host $server_name;
+    proxy_set_header            X-Forwarded-Host $http_host;
     access_log                  off;
     error_log                   /var/log/nginx/services/grafana-error.log  warn;
   }
@@ -339,7 +339,7 @@ server {
     proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header            X-Forwarded-Proto $scheme;
     proxy_set_header            X-Forwarded-Protocol $scheme;
-    proxy_set_header            X-Forwarded-Host $server_name;
+    proxy_set_header            X-Forwarded-Host $http_host;
     access_log                  /var/log/nginx/services/prometheus-access.log  stripsecrets;
     error_log                   /var/log/nginx/services/prometheus-error.log  warn;
   }
@@ -375,7 +375,7 @@ server {
 #     proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
 #     proxy_set_header            X-Forwarded-Proto $scheme;
 #     proxy_set_header            X-Forwarded-Protocol $scheme;
-#     proxy_set_header            X-Forwarded-Host $server_name;
+#     proxy_set_header            X-Forwarded-Host $http_host;
 #     access_log                  /var/log/nginx/services/deluge-access.log  stripsecrets;
 
 #     # specific to Deluge
@@ -404,7 +404,7 @@ server {
     proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header            X-Forwarded-Proto $scheme;
     proxy_set_header            X-Forwarded-Protocol $scheme;
-    proxy_set_header            X-Forwarded-Host $server_name;
+    proxy_set_header            X-Forwarded-Host $http_host;
     access_log                  /var/log/nginx/services/jdownloader2-access.log  stripsecrets;
     error_log                   /var/log/nginx/services/jdownloader2-error.log  warn;
   }
@@ -424,7 +424,7 @@ server {
     proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header            X-Forwarded-Proto $scheme;
     proxy_set_header            X-Forwarded-Protocol $scheme;
-    proxy_set_header            X-Forwarded-Host $server_name;
+    proxy_set_header            X-Forwarded-Host $http_host;
     access_log                  /var/log/nginx/services/qbittorrent-access.log  stripsecrets;
     error_log                   /var/log/nginx/services/qbittorrent-error.log  warn;
   }
@@ -443,7 +443,7 @@ server {
     proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header            X-Forwarded-Proto $scheme;
     proxy_set_header            X-Forwarded-Protocol $scheme;
-    proxy_set_header            X-Forwarded-Host $server_name;
+    proxy_set_header            X-Forwarded-Host $http_host;
     access_log                  /var/log/nginx/services/sabnzbd-access.log  stripsecrets;
     error_log                   /var/log/nginx/services/sabnzbd-error.log  warn;
   }
@@ -462,7 +462,7 @@ server {
   #   proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
   #   proxy_set_header            X-Forwarded-Proto $scheme;
   #   proxy_set_header            X-Forwarded-Protocol $scheme;
-  #   proxy_set_header            X-Forwarded-Host $server_name;
+  #   proxy_set_header            X-Forwarded-Host $http_host;
   #   access_log                  /var/log/nginx/services/nzbget-access.log  stripsecrets;
   # }
 
@@ -479,7 +479,7 @@ server {
     proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header            X-Forwarded-Proto $scheme;
     proxy_set_header            X-Forwarded-Protocol $scheme;
-    proxy_set_header            X-Forwarded-Host $server_name;
+    proxy_set_header            X-Forwarded-Host $http_host;
     access_log                  /var/log/nginx/services/nzbhydra2-access.log  stripsecrets;
     error_log                   /var/log/nginx/services/nzbhydra2-error.log  warn;
   }
@@ -535,7 +535,7 @@ server {
     proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header            X-Forwarded-Proto $scheme;
     proxy_set_header            X-Forwarded-Protocol $scheme;
-    proxy_set_header            X-Forwarded-Host $server_name;
+    proxy_set_header            X-Forwarded-Host $http_host;
     access_log                  /var/log/nginx/services/audiobookshelf-access.log  stripsecrets;
     error_log                   /var/log/nginx/services/audiobookshelf-error.log  warn;
   }
@@ -551,7 +551,7 @@ server {
     proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header            X-Forwarded-Proto $scheme;
     proxy_set_header            X-Forwarded-Protocol $scheme;
-    proxy_set_header            X-Forwarded-Host $server_name;
+    proxy_set_header            X-Forwarded-Host $http_host;
     access_log                  /var/log/nginx/services/korsync-access.log  stripsecrets;
     error_log                   /var/log/nginx/services/korsync-error.log  warn;
   }
@@ -570,7 +570,7 @@ server {
     proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header            X-Forwarded-Proto $scheme;
     proxy_set_header            X-Forwarded-Protocol $scheme;
-    proxy_set_header            X-Forwarded-Host $server_name;
+    proxy_set_header            X-Forwarded-Host $http_host;
     access_log                  /var/log/nginx/services/calibre-access.log  stripsecrets;
     error_log                   /var/log/nginx/services/calibre-error.log  warn;
   }
@@ -587,7 +587,7 @@ server {
     proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header            X-Forwarded-Proto $scheme;
     proxy_set_header            X-Forwarded-Protocol $scheme;
-    proxy_set_header            X-Forwarded-Host $server_name;
+    proxy_set_header            X-Forwarded-Host $http_host;
     access_log                  /var/log/nginx/services/calibre_content-access.log  stripsecrets;
     error_log                   /var/log/nginx/services/calibre_content-error.log  warn;
   }
@@ -605,7 +605,7 @@ server {
     proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header            X-Forwarded-Proto $scheme;
     proxy_set_header            X-Forwarded-Protocol $scheme;
-    proxy_set_header            X-Forwarded-Host $server_name;
+    proxy_set_header            X-Forwarded-Host $http_host;
     proxy_set_header            X-Script-Name /calibre_web;
     access_log                  /var/log/nginx/services/calibre_web-access.log  stripsecrets;
     error_log                   /var/log/nginx/services/calibre_web-error.log  warn;
@@ -633,7 +633,7 @@ server {
     proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header            X-Forwarded-Proto $scheme;
     proxy_set_header            X-Forwarded-Protocol $scheme;
-    proxy_set_header            X-Forwarded-Host $server_name;
+    proxy_set_header            X-Forwarded-Host $http_host;
     access_log                  /var/log/nginx/services/lazylibrarian-access.log  stripsecrets;
     error_log                   /var/log/nginx/services/lazylibrarian-error.log  warn;
   }
@@ -655,7 +655,7 @@ server {
     proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header            X-Forwarded-Proto $scheme;
     proxy_set_header            X-Forwarded-Protocol $scheme;
-    proxy_set_header            X-Forwarded-Host $server_name;
+    proxy_set_header            X-Forwarded-Host $http_host;
     access_log                  /var/log/nginx/services/mylar-access.log  stripsecrets;
     error_log                   /var/log/nginx/services/mylar-error.log  warn;
   }
@@ -673,7 +673,7 @@ server {
 #     proxy_set_header            X-Forwarded-For $proxy_add_x_forwarded_for;
 #     proxy_set_header            X-Forwarded-Proto $scheme;
 #     proxy_set_header            X-Forwarded-Protocol $scheme;
-#     proxy_set_header            X-Forwarded-Host $server_name;
+#     proxy_set_header            X-Forwarded-Host $http_host;
 #     access_log                  /var/log/nginx/services/jackett-access.log  stripsecrets;
 #   }
 
