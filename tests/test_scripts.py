@@ -271,3 +271,55 @@ def test_prune_nginx_cache_noop_without_cache_dir(tmp_path):
     result = _run([str(SCRIPTS / "prune-nginx-cache.sh")], env=env)
     assert result.returncode == 0, result.stderr
     assert "No nginx cache directory" in result.stdout
+
+
+# ---------------------------------------------------------------------------
+# generate-homepage-services.py
+# ---------------------------------------------------------------------------
+
+
+def _load_generate_homepage_services():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "generate_homepage_services", SCRIPTS / "generate-homepage-services.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_generate_homepage_services_tolerates_unowned_output_file(
+    tmp_path, monkeypatch
+):
+    """A PermissionError from chmod on the freshly-written file must not be fatal.
+
+    `make start` runs permissions_repair before this script, and
+    permissions.yml's configs/homepage/config entry (chown_files: true)
+    already recursively chowns this file to Homepage's own mapped UID —
+    what actually lets the container read it, regardless of the file's mode
+    bits. The host user's own access to write it comes from that same
+    manifest's ACL grant, not ownership, so an unconditional chmod (owner/
+    root only) used to crash `make start` on every run after the first,
+    confirmed live on a plain `make down && make start`.
+    """
+    module = _load_generate_homepage_services()
+
+    env_file = tmp_path / ".env"
+    env_file.write_text("SONARR_PROFILE=enabled\n")
+    template_file = tmp_path / "services.yaml.template"
+    template_file.write_text("- Group:\n    - Sonarr:\n        href: /sonarr/\n")
+    output_file = tmp_path / "services.yaml"
+    output_file.write_text("stale")
+
+    monkeypatch.setattr(module, "ENV_FILE", env_file)
+    monkeypatch.setattr(module, "TEMPLATE_FILE", template_file)
+    monkeypatch.setattr(module, "OUTPUT_FILE", output_file)
+
+    def _raise_permission_error(self, mode):
+        raise PermissionError("not the owner")
+
+    monkeypatch.setattr(module.Path, "chmod", _raise_permission_error)
+
+    assert module.main() == 0
+    assert "Sonarr" in output_file.read_text()
