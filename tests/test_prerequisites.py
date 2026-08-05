@@ -189,7 +189,11 @@ def test_no_databases_tracked():
 def _seeded_configs() -> list[str]:
     """Live paths that `make bootstrap` seeds via scripts/seed-configs.sh."""
     makefile = (REPO_ROOT / "Makefile").read_text()
-    return re.findall(r"seed-configs\.sh (\S+)", makefile)
+    # Anchored to the actual recipe-line form (`@./scripts/seed-configs.sh
+    # <path>`), not a bare mention anywhere in the file: a prose comment
+    # ("seed-configs.sh only copies when...") previously matched too,
+    # producing a bogus "only" parametrize case.
+    return re.findall(r"^\t@\./scripts/seed-configs\.sh (\S+)$", makefile, re.MULTILINE)
 
 
 def test_bootstrap_seeds_something():

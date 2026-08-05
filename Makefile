@@ -194,6 +194,7 @@ bootstrap: configs/flaresolverr/config/chromedriver
 	@./scripts/seed-secrets.sh configs/audiobookshelf
 	@./scripts/seed-secrets.sh configs/calibre-web
 	@./scripts/seed-configs.sh configs/grafana/.env
+	@./scripts/seed-configs.sh configs/grafana/config/grafana.ini
 	@./scripts/seed-configs.sh configs/sonarr/config/config.xml
 	@./scripts/seed-configs.sh configs/radarr/config/config.xml
 	@./scripts/seed-configs.sh configs/lidarr/config/config.xml
