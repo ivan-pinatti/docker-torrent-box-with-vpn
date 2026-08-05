@@ -872,7 +872,7 @@ canonical URL.
 | Radarr         | <http://localhost:7878/>         | radarr       | radarr       |
 | Readarr        | <http://localhost:8787/>         | readarr      | readarr      |
 | Sonarr         | <http://localhost:8989/>         | sonarr       | sonarr       |
-| Whisparr       | <http://localhost:6969/>         | whisparr     | whisparr     |
+| Whisparr       | <http://localhost:6970/>         | whisparr     | whisparr     |
 
 ## **HTTPS**
 
@@ -885,7 +885,7 @@ canonical URL.
 | Nginx          | <https://localhost:8443/>              | -             | -             |
 | Mylar          | <https://localhost:8091/mylar/>        | mylar         | mylar         |
 | SABnzbd        | <https://localhost:8087/sabnzbd/>      | sabnzbd       | sabnzbd       |
-| NzbHydra2      | <https://localhost:5077/nzbhydra2/>    | nzbhydra2     | nzbhydra2     |
+| NzbHydra2      | <https://localhost:5077/nzbhydra2/>    | admin         | nzbhydra2     |
 | Prowlarr       | <https://localhost:6969/>              | prowlarr      | prowlarr      |
 | qBitTorrent    | <https://localhost:8085/>              | qbittorrent   | qbittorrent   |
 | Radarr         | <https://localhost:7879/>              | radarr        | radarr        |
