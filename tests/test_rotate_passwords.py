@@ -49,6 +49,10 @@ ARR_DB_PATHS = {
     for svc in ARR_APPS_WITH_QBT
 }
 
+# Prowlarr keeps its own qBittorrent/SABnzbd DownloadClients (for its own
+# Interactive Search), separate from the arr apps' clients above.
+PROWLARR_DB = REPO_ROOT / "configs/prowlarr/config/prowlarr.db"
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -210,6 +214,17 @@ def test_rotate_qbittorrent_password_propagates(running_containers):
         stored = _read_qbt_password_from_db(db_path)
         assert stored == new_password, f"{svc} DB still holds old qBittorrent password"
 
+    # Prowlarr keeps its own qBittorrent DownloadClient (wire-connections.sh),
+    # separate from the arr apps' above; this is exactly the gap that left it
+    # on the pre-rotation password forever, since rotate-passwords.sh only
+    # knew about the five arr apps' DownloadClients tables until it was
+    # added to stop_existing/update_arr_qbt_password alongside them.
+    if is_enabled("prowlarr") and PROWLARR_DB.exists():
+        stored = _read_qbt_password_from_db(PROWLARR_DB)
+        assert stored == new_password, (
+            "Prowlarr DB still holds old qBittorrent password"
+        )
+
     # The shared secret file (read by qbittorrent_exporter and homepage) was
     # updated, without a trailing newline, at mode 644
     secret_path = REPO_ROOT / "configs/qbittorrent/secrets/password.txt"
@@ -259,6 +274,8 @@ def test_rotate_qbittorrent_password_propagates(running_containers):
         db_path = REPO_ROOT / ARR_DB_PATHS[svc]
         if db_path.exists():
             _set_qbt_password_in_db(db_path, old_password)
+    if PROWLARR_DB.exists():
+        _set_qbt_password_in_db(PROWLARR_DB, old_password)
     # No trailing newline: consumers (homepage) read the file verbatim
     secret_path.write_text(old_password)
     secret_path.chmod(0o644)
@@ -409,6 +426,18 @@ def test_rotate_sabnzbd_credentials_propagate(running_containers):
         )
         assert stored_api_key == new_api_key, (
             f"{svc} DB still holds old SABnzbd API key"
+        )
+
+    # Prowlarr keeps its own SABnzbd DownloadClient (wire-connections.sh),
+    # separate from the arr apps' above; same propagation gap as
+    # qBittorrent's equivalent check.
+    if is_enabled("prowlarr") and PROWLARR_DB.exists():
+        stored_password, stored_api_key = _read_sabnzbd_creds_from_db(PROWLARR_DB)
+        assert stored_password == new_password, (
+            "Prowlarr DB still holds old SABnzbd password"
+        )
+        assert stored_api_key == new_api_key, (
+            "Prowlarr DB still holds old SABnzbd API key"
         )
 
     # LazyLibrarian and Mylar also receive the new credentials (see the
