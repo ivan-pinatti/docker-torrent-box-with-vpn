@@ -9,14 +9,17 @@ policies:
     repeat_interval: 4h
     routes:
       # Slow-changing condition (stalled > 1 week) — re-notify once a day
-      # instead of the default 4h, on both channels below.
+      # instead of the default 4h.
+      #
+      # No Telegram route here: contact-points.yaml deliberately leaves the
+      # Telegram contact point commented out (it can't be provisioned via
+      # YAML, see its own comment there), so referencing it here made
+      # Grafana's alerting provisioning fail validation on every single
+      # startup, crashing the container in a restart loop, confirmed live.
+      # Add a Telegram route by hand alongside the contact point, through
+      # the UI, if you configure one later.
       - matchers:
           - alertname = "Torrent Stalled > 1 Week"
         receiver: Email
         group_interval: 24h
         repeat_interval: 24h
-        routes:
-          - receiver: Telegram
-            continue: true
-      - receiver: Telegram
-        continue: true
