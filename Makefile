@@ -62,9 +62,9 @@ STOP_VPN_ON_LIST := $(strip $(subst $(comma),$(space),$(STOP_VPN_ON)))
 STOP_ROUTE_FILES := $(if $(filter servarr,$(STOP_VPN_ON_LIST)),docker-compose.routes/servarr-vpn.yml,$(foreach service,$(VPN_ROUTE_SERVICES),$(if $(filter $(service),$(STOP_VPN_ON_LIST)),docker-compose.routes/$(service)-vpn.yml)))
 STOP_COMPOSE_FILES := --file docker-compose.yml $(foreach route_file,$(STOP_ROUTE_FILES),--file $(route_file))
 
-.PHONY: all backup backup-configs backup-full bootstrap build_images clean clean_all check_requirements \
+.PHONY: all backup backup-configs backup-full bootstrap bootstrap_tests build_images clean clean_all check_requirements \
 	configure_jellyfin_network \
-	detect_secrets_create_baseline down generate_certificate \
+	detect_secrets_create_baseline down enable_test_profiles generate_certificate \
 	heal_vpn_dependents \
 	rotate_all rotate_api_keys rotate_certificate rotate_passwords wire_connections \
 	disk_status korsync_users permissions_check permissions_repair permissions_smoke permissions_host_smoke prune_cache rotate_nginx_logs \
@@ -540,6 +540,24 @@ rotate_passwords:
 # what this covers and what's already wired without it.
 wire_connections:
 	@./scripts/wire-connections.sh
+
+# Applies .env.tests' profile overrides on top of .env and, if no real VPN
+# key is present yet, seeds the local mock WireGuard endpoint so gluetun
+# doesn't need one. See docs/VPN_MOCK.md. Never run this against a real
+# deployment: it changes which profiles are enabled and, like bootstrap
+# itself, is meant for a disposable clone.
+enable_test_profiles:
+	@./scripts/enable-test-profiles.sh
+
+# Enables every profile with real pytest coverage, bootstraps, and runs the
+# full suite: `make bootstrap_tests`. One command for the validation this
+# session's own manual walkthrough did by hand before finding three bugs
+# that had never been exercised (see docs/VPN_MOCK.md, docs/CONNECTIONS.md).
+# Run only against a disposable clone; it rewrites every credential exactly
+# like plain bootstrap does.
+bootstrap_tests: enable_test_profiles
+	@$(MAKE) --no-print-directory bootstrap
+	@$(MAKE) --no-print-directory test
 
 start: permissions_repair
 	@echo "Generating Homepage's services.yaml for the currently enabled profiles..."

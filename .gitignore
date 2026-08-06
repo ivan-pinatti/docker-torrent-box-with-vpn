@@ -33,6 +33,7 @@ megalinter-reports/
 .env
 .env.*
 !.env.example
+!.env.tests
 .codex
 .codex/
 .local/

@@ -145,7 +145,19 @@ def test_traffic_restored_after_vpn_restart(running_containers, docker_client):
     probe.restart(timeout=30)
     time.sleep(10)
 
-    exit_code, output = _exec_curl(docker_client, PROBE_CONTAINER)
+    # A single attempt right after restart is fragile: routing through a
+    # freshly (re)established tunnel needs a moment to settle, more so
+    # against a local mock VPN's extra hop (probe -> gluetun -> the mock's
+    # own NAT -> the real internet) than a dedicated commercial provider,
+    # confirmed live (the exact same curl succeeded immediately when
+    # retried by hand seconds after a one-shot failure here).
+    exit_code, output = 1, ""
+    for attempt in range(6):
+        exit_code, output = _exec_curl(docker_client, PROBE_CONTAINER)
+        if exit_code == 0 and output.strip():
+            break
+        if attempt < 5:
+            time.sleep(5)
     assert exit_code == 0, (
         f"Traffic not restored after VPN restart + probe container restart: "
         f"curl exited {exit_code}, output={output!r}"

@@ -86,3 +86,34 @@ services:
       retries: 3
       start_period: 30s
       timeout: 5s
+
+  # Local, credential-free WireGuard endpoint for `make bootstrap_tests`
+  # (see docs/VPN_MOCK.md). Gluetun dials this for real instead of a real
+  # VPN provider, so its own connection/health/killswitch logic runs
+  # unmodified against it. Disabled by default; only scripts/seed-vpn-mock.sh
+  # ever populates gluetun's config to actually point at it.
+  vpn_mock:
+    image: docker.io/linuxserver/wireguard:${VPN_MOCK_VERSION}
+    container_name: vpn_mock
+    profiles: ["${VPN_MOCK_PROFILE}"]
+    networks:
+      wan: {}
+      services:
+        ipv4_address: ${VPN_MOCK_IP}
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.src_valid_mark=1
+    restart: unless-stopped
+    cap_add: [NET_ADMIN]
+    environment:
+      - PUID=0
+      - PGID=0
+      - TZ=${TIMEZONE}
+      - SERVERURL=vpn_mock
+      - SERVERPORT=51820
+      - PEERS=1
+      - PEERDNS=auto
+      - INTERNAL_SUBNET=10.13.13.0
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${CONFIG_FOLDER}/vpn_mock/config:/config:z

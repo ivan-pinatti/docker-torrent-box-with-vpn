@@ -772,6 +772,25 @@ Recyclarr, Homepage, download client settings, and so on). See
 [docs/ROTATION.md](docs/ROTATION.md) for the full reference, including what
 each script touches and which keys remain manual.
 
+### 8.1. Full test coverage
+
+`.env.example` ships several profiles disabled by default (an optional
+observability stack, a couple of alternate/legacy apps), so a normal
+bootstrap never exercises their code paths. `make bootstrap_tests` enables
+every profile that has real pytest coverage, bootstraps, and runs the full
+test suite in one command — including a local, credential-free WireGuard
+endpoint (see [docs/VPN_MOCK.md](docs/VPN_MOCK.md)) so qBittorrent, SABnzbd,
+and everything wired through them can start and get exercised without a
+real VPN provider account:
+
+```shell
+make bootstrap_tests
+```
+
+**Run this only against a disposable clone, never a real deployment.** It
+changes which profiles are enabled in `.env` and rewrites every credential,
+exactly like plain `make bootstrap` already does.
+
 ### 9. Shutting it down
 
 Now that everything is working, if you need to bring it down to change parameters
@@ -872,7 +891,7 @@ canonical URL.
 | Radarr         | <http://localhost:7878/>         | radarr       | radarr       |
 | Readarr        | <http://localhost:8787/>         | readarr      | readarr      |
 | Sonarr         | <http://localhost:8989/>         | sonarr       | sonarr       |
-| Whisparr       | <http://localhost:6970/>         | whisparr     | whisparr     |
+| Whisparr       | <http://localhost:6969/>         | whisparr     | whisparr     |
 
 ## **HTTPS**
 
