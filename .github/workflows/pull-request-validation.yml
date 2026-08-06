@@ -3,6 +3,16 @@ on:
   pull_request:
     branches:
       - main
+  # Lets .github/workflows/comment-dispatch.yml re-run this against a PR's
+  # current head from a `/run-checks` comment, without needing a new push.
+  # Always dispatched off main (see that workflow), so this definition is
+  # never taken from the PR's own, potentially-modified copy; pr_number
+  # only controls which commit gets checked out below.
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: PR number to check out and validate
+        required: true
 
 permissions:
   contents: read
@@ -15,6 +25,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/pull/{0}/head', inputs.pr_number) || github.ref }}
 
       - name: Create .env file
         shell: bash
@@ -37,6 +49,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/pull/{0}/head', inputs.pr_number) || github.ref }}
 
       - name: Create .env file
         shell: bash
@@ -60,6 +74,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/pull/{0}/head', inputs.pr_number) || github.ref }}
 
       - name: Create .env file (VPN disabled — no key in CI)
         shell: bash
