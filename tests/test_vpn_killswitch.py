@@ -12,7 +12,9 @@ The kill-switch guarantee: qBittorrent runs inside the VPN network namespace
 shared network namespace is destroyed, making outbound connections impossible.
 """
 
+import subprocess
 import time
+from pathlib import Path
 
 import pytest
 import urllib3
@@ -22,6 +24,37 @@ from conftest import env, skip_if_not_running
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 pytestmark = [pytest.mark.vpn, pytest.mark.killswitch]
+
+REPO_ROOT = Path(__file__).parent.parent
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _heal_vpn_dependents_after_module():
+    """Restart any VPN-namespace-sharing container left stale by this module.
+
+    These tests stop and restart the VPN container for real, on purpose.
+    podman-compose does not automatically reattach namespace-sharing
+    containers (qbittorrent, sabnzbd, jdownloader2) to gluetun's new
+    namespace after that, the same limitation
+    test_traffic_restored_after_vpn_restart's own docstring documents for
+    the probe container it restarts itself. Nothing else in this module
+    restarts the other three, so without this they stay orphaned (silently
+    unable to reach the internet) for every test that runs afterward,
+    confirmed live: test_homepage_widget_integrations and
+    test_prowlarr_indexers_propagated_to_arr_app both failed on a stale
+    SABnzbd right after this module ran, and passed cleanly once
+    `make heal_vpn_dependents` (the same fix documented in the Makefile
+    for this exact scenario) ran.
+    """
+    yield
+    subprocess.run(  # nosec B607 - make is a trusted, fixed CLI in this stack
+        ["make", "heal_vpn_dependents"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+
 
 VPN_CONTAINER = env("VPN_PROVIDER", "gluetun")
 PROBE_CONTAINER = "qbittorrent"
