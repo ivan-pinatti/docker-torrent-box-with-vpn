@@ -1,14 +1,16 @@
 ---
 name: Comment-Triggered Checks
 
-# Lets a maintainer comment `/run-checks` on a PR to re-run pre-commit
-# (PR Validation's pr_check + prerequisites + integration jobs) and
-# MegaLinter against the PR's current head, without needing a new push.
+# Lets a maintainer comment on a PR to re-run checks against its current
+# head without needing a new push:
+#   /run-check  -> pre-commit (PR Validation's pr_check job) + MegaLinter
+#   /run-tests  -> the test suite (PR Validation's prerequisites +
+#                  integration jobs, via job_scope: tests)
 # This job never checks out the PR's own code or workflow definitions: it
-# only reads PR metadata via the API and dispatches the two target
-# workflows (always their trusted main-branch copies, workflow_dispatch
-# requires that) with the PR number as an input. Those workflows do the
-# actual code checkout themselves, against refs/pull/<n>/head.
+# only reads PR metadata via the API and dispatches the target workflows
+# (always their trusted main-branch copies, workflow_dispatch requires
+# that) with the PR number as an input. Those workflows do the actual
+# code checkout themselves, against refs/pull/<n>/head.
 on:
   issue_comment:
     types: [created]
@@ -25,7 +27,7 @@ jobs:
     timeout-minutes: 2
     if: >
       github.event.issue.pull_request != null &&
-      startsWith(github.event.comment.body, '/run-checks') &&
+      (startsWith(github.event.comment.body, '/run-check') || startsWith(github.event.comment.body, '/run-tests')) &&
       contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
     steps:
       - name: Acknowledge
@@ -35,18 +37,31 @@ jobs:
           gh api "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" \
             -f content='+1' --silent
 
-      - name: Trigger PR Validation
+      - name: Trigger PR Validation (checks)
+        if: startsWith(github.event.comment.body, '/run-check')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh workflow run pull-request-validation.yml \
             --ref "${{ github.event.repository.default_branch }}" \
-            -f pr_number="${{ github.event.issue.number }}"
+            -f pr_number="${{ github.event.issue.number }}" \
+            -f job_scope=checks
 
       - name: Trigger MegaLinter
+        if: startsWith(github.event.comment.body, '/run-check')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh workflow run mega-linter.yml \
             --ref "${{ github.event.repository.default_branch }}" \
             -f pr_number="${{ github.event.issue.number }}"
+
+      - name: Trigger PR Validation (tests)
+        if: startsWith(github.event.comment.body, '/run-tests')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run pull-request-validation.yml \
+            --ref "${{ github.event.repository.default_branch }}" \
+            -f pr_number="${{ github.event.issue.number }}" \
+            -f job_scope=tests

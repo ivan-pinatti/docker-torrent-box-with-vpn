@@ -4,15 +4,24 @@ on:
     branches:
       - main
   # Lets .github/workflows/comment-dispatch.yml re-run this against a PR's
-  # current head from a `/run-checks` comment, without needing a new push.
-  # Always dispatched off main (see that workflow), so this definition is
-  # never taken from the PR's own, potentially-modified copy; pr_number
-  # only controls which commit gets checked out below.
+  # current head from a `/run-check` or `/run-tests` comment, without
+  # needing a new push. Always dispatched off main (see that workflow), so
+  # this definition is never taken from the PR's own, potentially-modified
+  # copy; pr_number only controls which commit gets checked out below.
+  # job_scope narrows which jobs actually run for that comment: `/run-check`
+  # only wants pr_check (pre-commit; MegaLinter is dispatched separately),
+  # `/run-tests` only wants prerequisites + integration. A plain manual run
+  # from the Actions tab (job_scope left as "all") behaves like a normal
+  # pull_request-triggered run.
   workflow_dispatch:
     inputs:
       pr_number:
         description: PR number to check out and validate
         required: true
+      job_scope:
+        description: Which jobs to run — all, checks, or tests
+        required: false
+        default: all
 
 permissions:
   contents: read
@@ -22,6 +31,7 @@ jobs:
     name: Code Check
     runs-on: ubuntu-latest
     timeout-minutes: 3
+    if: github.event_name != 'workflow_dispatch' || inputs.job_scope != 'tests'
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -46,6 +56,7 @@ jobs:
     name: Prerequisite Checks
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    if: github.event_name != 'workflow_dispatch' || inputs.job_scope != 'checks'
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -69,6 +80,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: pr_check
+    # No implicit success() here (an explicit if: replaces it), since
+    # pr_check being skipped for job_scope: tests must not skip this too:
+    # only an actual pr_check failure should block it.
+    if: >
+      (needs.pr_check.result == 'success' || needs.pr_check.result == 'skipped') &&
+      (github.event_name != 'workflow_dispatch' || inputs.job_scope != 'checks')
     env:
       PROTONVPN_PRIVATE_KEY: ${{ secrets.PROTONVPN_PRIVATE_KEY }}
     steps:
