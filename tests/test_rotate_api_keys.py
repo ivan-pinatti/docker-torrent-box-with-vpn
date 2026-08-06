@@ -690,12 +690,41 @@ def test_rotate_nzbhydra2_api_key(running_containers):
     skip_if_not_running("nzbhydra2", running_containers)
 
     def ll_hydra_key() -> str:
-        for line in (REPO_ROOT / LAZYLIBRARIAN_INI).read_text().splitlines():
-            if line.startswith("api = "):
+        # Section-aware, matching rotate-api-keys.sh's own lookup exactly:
+        # a naive "first api = line in the whole file" scan (the previous
+        # version of this helper) actually reads Torznab_0's key instead,
+        # Prowlarr's own entry, unrelated to NZBHydra2, confirmed live by
+        # that value staying constant across a rotation that never touches
+        # it. Two passes: first find which section's host mentions
+        # nzbhydra, then read that section's own api = line.
+        lines = (REPO_ROOT / LAZYLIBRARIAN_INI).read_text().splitlines()
+        section_hosts: dict[str, str] = {}
+        current = None
+        for line in lines:
+            if line.startswith("["):
+                current = line
+            elif line.startswith("host = ") and current:
+                section_hosts[current] = line
+        current = None
+        for line in lines:
+            if line.startswith("["):
+                current = line
+            elif (
+                line.startswith("api = ")
+                and "nzbhydra" in section_hosts.get(current, "").lower()
+            ):
                 return line.split("= ", 1)[1]
         return ""
 
     old_key = ll_hydra_key()
+    if not old_key:
+        pytest.skip(
+            "LazyLibrarian has no NZBHydra2 Newznab provider configured. "
+            "Nothing in this stack wires that connection yet (unlike "
+            "Prowlarr's Applications/DownloadClients, which "
+            "scripts/wire-connections.sh does handle) — a real, separate "
+            "feature gap, not something this rotation can propagate to."
+        )
     result = _run_script("rotate-api-keys.sh", "nzbhydra2")
     assert result.returncode == 0, (
         f"rotate-api-keys.sh nzbhydra2 exited {result.returncode}:\n{result.stderr}"
