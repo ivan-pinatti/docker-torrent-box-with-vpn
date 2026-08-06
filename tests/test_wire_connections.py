@@ -17,6 +17,7 @@ Run explicitly with:
 """
 
 import subprocess
+import time
 from datetime import UTC
 
 import pytest
@@ -344,50 +345,70 @@ def test_prowlarr_indexers_propagated_to_arr_app(app, running_containers):
     skip_if_not_running(app, running_containers)
     scheme, port_var, api_ver, _ = ARR_APPS[app]
     port = _env(port_var)
-    status, body = container_http(
-        app,
-        f"{scheme}://127.0.0.1:{port}/{app}/api/{api_ver}/indexer",
-        headers={"X-Api-Key": _api_key(app)},
-        timeout=TIMEOUT,
-    )
-    assert status == 200, f"[{app}] GET indexer failed: {status} {body[:200]}"
     import json
+    from datetime import datetime
 
-    indexers = json.loads(body)
-    if not indexers:
-        # wire-connections.sh's own sync_prowlarr_indexers() already waits
-        # up to ~345s (a backoff-clear wait plus 3 sync attempts) before
-        # giving up with a warning, the same tolerance this checks for
-        # here: Internet Archive's advancedsearch API is a real external
-        # service that sometimes backs off for far longer than that
-        # (confirmed live via Prowlarr's own indexerstatus API reporting a
-        # disabledTill over an hour out), which is a live-service
-        # reliability question, not a wiring bug. An indexer still in an
-        # active backoff right now means wire-connections.sh already tried
-        # and correctly gave up, not that anything here is broken.
-        prowlarr_port = _env("PROWLARR_HTTPS_PORT")
+    prowlarr_port = _env("PROWLARR_HTTPS_PORT")
+
+    # A single point-in-time check raced Internet Archive's own backoff
+    # cycling on and off, confirmed live: the same app had indexers on one
+    # run and not on the next, and indexerstatus showed a backoff that had
+    # only just cleared (or not yet been recorded) at the exact moment of
+    # a failing check. wire-connections.sh's own sync_prowlarr_indexers()
+    # already budgets ~345s (a backoff-clear wait plus 3 sync attempts)
+    # for this same reason; this retries across a comparable window,
+    # re-fetching both the indexer list and the backoff state fresh each
+    # time rather than trusting either snapshot alone.
+    indexers: list = []
+    backoff_status = ""
+    for attempt in range(4):
+        status, body = container_http(
+            app,
+            f"{scheme}://127.0.0.1:{port}/{app}/api/{api_ver}/indexer",
+            headers={"X-Api-Key": _api_key(app)},
+            timeout=TIMEOUT,
+        )
+        assert status == 200, f"[{app}] GET indexer failed: {status} {body[:200]}"
+        indexers = json.loads(body)
+        if indexers:
+            break
+
         status, body = container_http(
             "prowlarr",
             f"https://127.0.0.1:{prowlarr_port}/prowlarr/api/v1/indexerstatus",
             headers={"X-Api-Key": _api_key("prowlarr")},
             timeout=TIMEOUT,
         )
+        backoff_status = ""
         if status == 200:
-            from datetime import datetime
-
             for entry in json.loads(body):
                 disabled_till = entry.get("disabledTill")
-                if not disabled_till:
-                    continue
-                until = datetime.fromisoformat(disabled_till.replace("Z", "+00:00"))
-                if until > datetime.now(UTC):
-                    pytest.skip(
-                        f"[{app}] has no indexers, but Prowlarr's own "
-                        f"indexerstatus shows an active failure backoff "
-                        f"until {disabled_till} — Internet Archive's own "
-                        "API, not this stack's wiring. Re-run once that "
-                        "clears."
+                most_recent_failure = entry.get("mostRecentFailure")
+                if disabled_till:
+                    until = datetime.fromisoformat(disabled_till.replace("Z", "+00:00"))
+                    if until > datetime.now(UTC):
+                        backoff_status = (
+                            f"an active failure backoff until {disabled_till}"
+                        )
+                        break
+                if most_recent_failure:
+                    since = datetime.fromisoformat(
+                        most_recent_failure.replace("Z", "+00:00")
                     )
+                    if (datetime.now(UTC) - since).total_seconds() < 1800:
+                        backoff_status = (
+                            f"a failure as recently as {most_recent_failure}"
+                        )
+                        break
+        if attempt < 3:
+            time.sleep(90)
+
+    if not indexers and backoff_status:
+        pytest.skip(
+            f"[{app}] has no indexers, but Prowlarr's own indexerstatus "
+            f"shows {backoff_status} — Internet Archive's own API, not "
+            "this stack's wiring. Re-run once that clears."
+        )
     assert indexers, (
         f"[{app}] has no indexers: Prowlarr's Application sync never landed. "
         "Check Prowlarr's log for 429/backoff and the app's log for "
