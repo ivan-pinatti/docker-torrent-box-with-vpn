@@ -191,6 +191,17 @@ bump (2.5.2/6.3.0/4.0.19). None of the arr-specific tests (health checks, API
 key rotation, password rotation) failed, so these look pre-existing rather
 than caused by that update, but they still need fixing:
 
+- [ ] Deluge, Notifiarr, and Jackett have zero pytest coverage. Found while
+  building `make bootstrap_tests` (2026-08-06): `conftest.py`'s `SERVICES`
+  dict doesn't register Deluge or Notifiarr at all, so no generic
+  container/security/health test ever touches them regardless of profile
+  state, and Jackett is already documented as deliberately out of scope
+  (`.env.example`: "managed manually and is not covered by Renovate or
+  pytest layers"). `.env.tests` (the override file `bootstrap_tests`
+  applies) intentionally leaves all three disabled for the same reason.
+  Deluge and Notifiarr look like plain oversights rather than a deliberate
+  exclusion like Jackett's; worth real coverage if either is meant to be a
+  first-class supported service
 - [x] `docker-py` container references go stale mid-session against the
   podman socket: once a container is stopped/recreated (as the rotation and
   rinse-and-repeat tests do earlier in the same `pytest` run), later
