@@ -4,9 +4,8 @@ set -euo pipefail
 # Usage: ./scripts/seed-vpn-mock.sh
 # Brings up the local mock WireGuard endpoint (docker-compose-vpn.yml's
 # vpn_mock service; see docs/VPN_MOCK.md) and points gluetun at it, but
-# only when there's no real VPN key to protect: mirrors
-# seed-gluetun-secret.sh's own needs_setup() check exactly, so a real key
-# already in place is never touched or overwritten. Only ever called from
+# only when there's no real VPN key to protect: a real key already in
+# place is never touched or overwritten. Only ever called from
 # scripts/enable-test-profiles.sh (make bootstrap_tests), never from plain
 # make bootstrap.
 
@@ -20,8 +19,20 @@ env_value() {
   grep -m1 "^$1=" "$ENV_FILE" | cut -d= -f2-
 }
 
+# A real key alone isn't proof the job finished: this script also has to
+# point gluetun's own config at the mock (VPN_SERVICE_PROVIDER=custom,
+# below), and that step runs after the key is generated and saved. If a
+# prior run died in between (confirmed live: an unrelated missing .env var
+# made the later step fail), a rerun would see the already-saved key and
+# skip everything, leaving gluetun permanently configured for its original
+# real provider while holding mock key material, dialing real servers
+# forever and never passing its own healthcheck. So both halves of the job
+# have to check out before this counts as already done.
 needs_setup() {
-  [[ ! -s "$GLUETUN_SECRET" ]] || grep -qx "$PLACEHOLDER" "$GLUETUN_SECRET"
+  [[ ! -s "$GLUETUN_SECRET" ]] && return 0
+  grep -qx "$PLACEHOLDER" "$GLUETUN_SECRET" && return 0
+  [[ ! -f "$GLUETUN_ENV" ]] && return 0
+  ! grep -q "^VPN_SERVICE_PROVIDER=custom" "$GLUETUN_ENV"
 }
 
 if [[ "$(env_value VPN_MOCK_PROFILE)" != "enabled" ]]; then

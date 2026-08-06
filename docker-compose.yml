@@ -14,6 +14,7 @@ networks:
     ipam:
       config:
         - subnet: ${SERVICES_SUBNET}
+          ip_range: ${SERVICES_DYNAMIC_IP_RANGE}
 
   media:
     driver: bridge
