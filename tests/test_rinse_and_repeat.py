@@ -16,7 +16,15 @@ from conftest import SERVICES, is_enabled
 pytestmark = pytest.mark.rinse_and_repeat
 
 REPO_ROOT = Path(__file__).parent.parent
-MAKE_TIMEOUT = 300  # seconds; make start waits up to 120s for gluetun alone
+# seconds; make start waits up to 120s for gluetun alone. 300 wasn't enough
+# for the first stop-then-start cycle specifically against the full
+# `make bootstrap_tests` stack (~35 containers instead of the ~19 default):
+# confirmed live, that one `make start` call alone hit a 300s
+# subprocess.TimeoutExpired while every other cycle immediately after it,
+# same stack, finished in under half that. Looks like first-restart-after-
+# bootstrap settling (matching other apps' documented slower first restart
+# elsewhere in this stack), not a real hang.
+MAKE_TIMEOUT = 600
 SETTLE_DELAY = 10  # seconds to let containers settle before health checks
 
 
