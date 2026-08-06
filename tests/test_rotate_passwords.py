@@ -503,6 +503,14 @@ def test_rotate_sabnzbd_credentials_propagate(running_containers):
     # Homepage and the exporter were restarted by the script (RESTART_CONSUMERS,
     # at the end) and must both work with the new key
     if "sabnzbd_exporter" in running_containers:
+        # This restart is a fresh container start, not a reload, so it
+        # needs the same grace period every other post-restart check in
+        # this file already gets: a status 0 (connection-level failure,
+        # not even an HTTP response) right after the script's own restart
+        # means the exporter just isn't listening yet, confirmed live.
+        assert wait_for_healthy("sabnzbd_exporter"), (
+            "sabnzbd_exporter did not become healthy after rotation"
+        )
         status, body = container_http(
             "sabnzbd_exporter", "http://127.0.0.1:9387/metrics", timeout=TIMEOUT
         )
