@@ -501,6 +501,27 @@ def wait_for_homepage_ready(timeout: int = 90) -> bool:
     return False
 
 
+def restart_container(name: str, retries: int = 6, delay: int = 5):
+    """Restart a container, retrying on podman's transient state race.
+
+    Parallel test workers can each restart a shared container (e.g. homepage)
+    around the same time; podman refuses a restart while another one is still
+    mid-transition ("container state improper") instead of queuing it, so a
+    single attempt is not reliable under xdist.
+    """
+    last_error = None
+    for _ in range(retries):
+        try:
+            subprocess.run(  # nosec B607 - podman is a trusted, fixed CLI in this stack
+                ["podman", "restart", name], check=True, capture_output=True
+            )
+            return
+        except subprocess.CalledProcessError as exc:
+            last_error = exc
+            time.sleep(delay)
+    raise last_error
+
+
 def wait_for_healthy(container: str, timeout: int = 120) -> bool:
     """Poll podman health status until healthy or timeout."""
     deadline = time.time() + timeout

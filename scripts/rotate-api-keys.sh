@@ -783,12 +783,22 @@ esac
 # file, not env_file, so a plain restart is enough to pick up new values
 # (env_file bakes in at container creation and would need --force-recreate;
 # a mounted file's contents are re-read on every restart).
+#
+# This step runs on every invocation of this script, including single-app
+# targets, so two rotations for different apps started around the same time
+# both land here. Podman refuses a restart while homepage is mid-transition
+# from the other invocation ("container state improper"), so the restart is
+# retried instead of treated as fatal; the other invocation's restart
+# finishes in a couple of seconds and this one succeeds right after.
 # ---------------------------------------------------------------------------
 
 if podman container exists homepage 2>/dev/null; then
   echo ""
   echo "Restarting homepage to load the new keys..."
-  podman restart homepage >/dev/null
+  if ! retry 30 podman restart homepage; then
+    echo "ERROR: homepage still would not restart after retries" >&2
+    exit 1
+  fi
 fi
 
 # ---------------------------------------------------------------------------

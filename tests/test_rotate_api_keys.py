@@ -29,6 +29,7 @@ from conftest import (
     homepage_widget_failures,
     is_enabled,
     read_secret,
+    restart_container,
     skip_if_not_running,
     wait_for_healthy,
     wait_for_homepage_ready,
@@ -422,9 +423,7 @@ def test_rotate_api_key_propagates(
     # Homepage reads the key from a bind-mounted secret file, so a plain
     # restart (not a recreate) is enough to pick up the restored value.
     if "homepage" in running_containers:
-        subprocess.run(  # nosec B607 - podman is a trusted, fixed CLI in this stack
-            ["podman", "restart", "homepage"], check=True, capture_output=True
-        )
+        restart_container("homepage")
         assert wait_for_homepage_ready(), "homepage API did not respond after restore"
         failures = homepage_widget_failures(only_services={app})
         assert not failures, (
@@ -531,9 +530,7 @@ def test_rotate_prowlarr_api_key(running_containers):
         )
 
     if "homepage" in running_containers:
-        subprocess.run(  # nosec B607 - podman is a trusted, fixed CLI in this stack
-            ["podman", "restart", "homepage"], check=True, capture_output=True
-        )
+        restart_container("homepage")
         assert wait_for_homepage_ready(), "homepage API did not respond after restore"
         failures = homepage_widget_failures(only_services={"prowlarr"})
         assert not failures, (
@@ -608,9 +605,7 @@ def test_rotate_bazarr_api_key(running_containers):
     _restore_api_key_secret("bazarr", old_key)
 
     if "homepage" in running_containers:
-        subprocess.run(  # nosec B607 - podman is a trusted, fixed CLI in this stack
-            ["podman", "restart", "homepage"], check=True, capture_output=True
-        )
+        restart_container("homepage")
         assert wait_for_homepage_ready(), "homepage API did not respond after restore"
         failures = homepage_widget_failures(only_services={"bazarr"})
         assert not failures, (
