@@ -17,6 +17,7 @@ Run explicitly with:
 """
 
 import subprocess
+from datetime import UTC
 
 import pytest
 
@@ -353,6 +354,40 @@ def test_prowlarr_indexers_propagated_to_arr_app(app, running_containers):
     import json
 
     indexers = json.loads(body)
+    if not indexers:
+        # wire-connections.sh's own sync_prowlarr_indexers() already waits
+        # up to ~345s (a backoff-clear wait plus 3 sync attempts) before
+        # giving up with a warning, the same tolerance this checks for
+        # here: Internet Archive's advancedsearch API is a real external
+        # service that sometimes backs off for far longer than that
+        # (confirmed live via Prowlarr's own indexerstatus API reporting a
+        # disabledTill over an hour out), which is a live-service
+        # reliability question, not a wiring bug. An indexer still in an
+        # active backoff right now means wire-connections.sh already tried
+        # and correctly gave up, not that anything here is broken.
+        prowlarr_port = _env("PROWLARR_HTTPS_PORT")
+        status, body = container_http(
+            "prowlarr",
+            f"https://127.0.0.1:{prowlarr_port}/prowlarr/api/v1/indexerstatus",
+            headers={"X-Api-Key": _api_key("prowlarr")},
+            timeout=TIMEOUT,
+        )
+        if status == 200:
+            from datetime import datetime
+
+            for entry in json.loads(body):
+                disabled_till = entry.get("disabledTill")
+                if not disabled_till:
+                    continue
+                until = datetime.fromisoformat(disabled_till.replace("Z", "+00:00"))
+                if until > datetime.now(UTC):
+                    pytest.skip(
+                        f"[{app}] has no indexers, but Prowlarr's own "
+                        f"indexerstatus shows an active failure backoff "
+                        f"until {disabled_till} — Internet Archive's own "
+                        "API, not this stack's wiring. Re-run once that "
+                        "clears."
+                    )
     assert indexers, (
         f"[{app}] has no indexers: Prowlarr's Application sync never landed. "
         "Check Prowlarr's log for 429/backoff and the app's log for "
