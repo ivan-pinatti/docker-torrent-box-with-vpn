@@ -146,18 +146,21 @@ def test_traffic_restored_after_vpn_restart(running_containers, docker_client):
     time.sleep(10)
 
     # A single attempt right after restart is fragile: routing through a
-    # freshly (re)established tunnel needs a moment to settle, more so
-    # against a local mock VPN's extra hop (probe -> gluetun -> the mock's
-    # own NAT -> the real internet) than a dedicated commercial provider,
-    # confirmed live (the exact same curl succeeded immediately when
-    # retried by hand seconds after a one-shot failure here).
+    # freshly (re)established tunnel needs a moment to settle. Against the
+    # local mock VPN specifically, gluetun's own internal DoT resolver can
+    # get stuck retrying for minutes at a time even though the tunnel
+    # itself is already fully healthy underneath it, confirmed live: raw
+    # ping through the tunnel had 0% loss the entire time gluetun's own
+    # DNS client logged "operation was canceled" in a loop, and it
+    # eventually recovered on its own after close to 3 minutes. 18
+    # attempts, 10s apart, covers that comfortably.
     exit_code, output = 1, ""
-    for attempt in range(6):
+    for attempt in range(18):
         exit_code, output = _exec_curl(docker_client, PROBE_CONTAINER)
         if exit_code == 0 and output.strip():
             break
-        if attempt < 5:
-            time.sleep(5)
+        if attempt < 17:
+            time.sleep(10)
     assert exit_code == 0, (
         f"Traffic not restored after VPN restart + probe container restart: "
         f"curl exited {exit_code}, output={output!r}"
