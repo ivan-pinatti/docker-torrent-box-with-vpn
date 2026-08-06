@@ -608,6 +608,7 @@ def _restore_arr_password(
     assert status in (200, 202), f"Could not restore {app} password: HTTP {status}"
 
 
+@pytest.mark.rotation_isolated
 @pytest.mark.parametrize(
     "app,scheme,port_var,url_base,api_ver",
     [

@@ -71,7 +71,7 @@ STOP_COMPOSE_FILES := --file docker-compose.yml $(foreach route_file,$(STOP_ROUT
 	install_requirements pull_docker_images pre_commit \
 	restore-configs restore-full \
 	restart sanity_fast sanity_full start start_library start_observability \
-	stop stop_all update_containers update_images update_pre_commit test test_prerequisites \
+	stop stop_all update_containers update_images update_pre_commit test test_extended test_prerequisites \
 	test_no_rotate_passwords
 
 BACKUP_DIR ?= backup
@@ -557,7 +557,7 @@ enable_test_profiles:
 # like plain bootstrap does.
 bootstrap_tests: enable_test_profiles
 	@$(MAKE) --no-print-directory bootstrap
-	@$(MAKE) --no-print-directory test
+	@$(MAKE) --no-print-directory test_extended
 
 start: permissions_repair
 	@echo "Generating Homepage's services.yaml for the currently enabled profiles..."
@@ -627,11 +627,33 @@ tests/.venv:
 	@tests/.venv/bin/pip install -q -r tests/requirements.txt
 	@echo ".OK!"
 
-test: tests/.venv ## Run full test suite (requires the stack to be running)
-	@tests/.venv/bin/pytest $(PYTEST_ARGS)
+# Three passes instead of one invocation: most of this suite's runtime is
+# concentrated in a small number of tests that mutate shared, live
+# container state (rotation, wiring, killswitch), which cannot be run
+# concurrently with each other; everything else is read-only and safe to
+# parallelize with pytest-xdist. rotation_isolated is the subset of
+# rotation/pw_rotation that only ever touches its own container and its
+# own Prowlarr Application row (confirmed via source: neither test
+# touches Homepage or any other cross-app resource), so it gets its own
+# parallel pass too, separate from the read-only tier since it still
+# needs the live stack. rinse_and_repeat is excluded here entirely; see
+# test_extended.
+test: tests/.venv ## Run the full test suite (requires the stack to be running)
+	@tests/.venv/bin/pytest -n auto -m "not rotation and not pw_rotation and not wiring and not killswitch and not rinse_and_repeat" $(PYTEST_ARGS)
+	@tests/.venv/bin/pytest -n 4 -m "rotation_isolated" $(PYTEST_ARGS)
+	@tests/.venv/bin/pytest -m "(rotation or pw_rotation or wiring or killswitch) and not rotation_isolated" $(PYTEST_ARGS)
 
 test_prerequisites: tests/.venv ## Run only pre-flight checks (no containers needed)
 	@tests/.venv/bin/pytest -m prerequisites $(PYTEST_ARGS)
 
 test_no_rotate_passwords: tests/.venv ## Run full test suite except password rotation (rotate-passwords.sh)
 	@tests/.venv/bin/pytest -m "not pw_rotation" $(PYTEST_ARGS)
+
+# rinse_and_repeat (stop/start and down/start cycles against the whole
+# stack) is the single most expensive marker by far and, unlike
+# rotation/wiring/killswitch, isn't testing a specific credential or
+# connection — it's a lifecycle-stability check best run deliberately
+# (before a release, after touching bootstrap/compose) rather than on
+# every `make test`. `bootstrap_tests` calls this, not plain `test`.
+test_extended: test ## Run the full suite plus rinse-and-repeat lifecycle cycles
+	@tests/.venv/bin/pytest -m "rinse_and_repeat" $(PYTEST_ARGS)

@@ -316,6 +316,7 @@ ARR_APP_TARGETS = [
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.rotation_isolated
 @pytest.mark.parametrize(
     "app,xml_path,scheme,port_var,url_base,api_ver", ARR_APP_TARGETS
 )
