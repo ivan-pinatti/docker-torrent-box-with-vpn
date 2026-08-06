@@ -1,10 +1,18 @@
 apiVersion: 1
 
 providers:
+  # No folderUid here, unlike the two providers below: the alerting
+  # provisioner (../alerting/rules.yaml) also targets a folder named
+  # "Torrent Box" and creates it first if it doesn't exist yet, auto
+  # assigning its own UID that this provider has no way to know or match.
+  # A hardcoded folderUid here previously collided with that ("a folder
+  # with the same name already exists in the current location"),
+  # crashing Grafana on every single startup, confirmed live (11,000+
+  # restarts). Folder-by-name lets this provider reuse whichever one
+  # already exists instead of insisting on a specific, unmatched UID.
   - name: 'Torrent Box'
     orgId: 1
     folder: 'Torrent Box'
-    folderUid: 'afkl37gxpyvb4d'
     type: file
     disableDeletion: false
     editable: true
