@@ -334,6 +334,42 @@ propagate_prowlarr_key() {
       fi
     done < <(echo "$indexers" | jq -c '.[] | select(.fields[]? | .name == "baseUrl" and (.value | test("://prowlarr[:/]")))')
   done
+
+  # LazyLibrarian stores its own copy of Prowlarr's key too, in whichever
+  # Torznab_N section Prowlarr's own indexer sync created (see
+  # docs/CONNECTIONS.md: LazyLibrarian ships with no Prowlarr Torznab entry
+  # of its own, Prowlarr populates it live). This was missing entirely:
+  # confirmed live, that section's api value stayed at its pre-sync
+  # placeholder across a real rotation. LazyLibrarian persists its config
+  # on shutdown like every other INI-configured app in this stack, so the
+  # edit needs the same stop-edit-start as rotate_nzbhydra2() already uses
+  # for the same file, not a live write.
+  if [[ -f "$LAZYLIBRARIAN_INI" ]] && podman container exists lazylibrarian 2>/dev/null; then
+    stop_existing lazylibrarian
+    python3 - <<PYEOF
+from pathlib import Path
+
+new_key = '$new_key'
+ll = Path('$LAZYLIBRARIAN_INI')
+lines = ll.read_text().splitlines()
+section_hosts = {}
+current = None
+for line in lines:
+    if line.startswith('['):
+        current = line
+    elif line.startswith('host = ') and current:
+        section_hosts[current] = line
+current = None
+for i, line in enumerate(lines):
+    if line.startswith('['):
+        current = line
+    elif line.startswith('api = ') and 'prowlarr' in section_hosts.get(current, '').lower():
+        lines[i] = f"api = {new_key}"
+ll.write_text("\n".join(lines) + "\n")
+PYEOF
+    start_stopped
+    echo "[Prowlarr] Updated LazyLibrarian's Torznab entry with the new API key."
+  fi
 }
 
 # ---------------------------------------------------------------------------
