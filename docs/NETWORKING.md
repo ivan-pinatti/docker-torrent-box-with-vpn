@@ -237,6 +237,18 @@ for `services` (`172.28.0.0/24`) and `observability` (`172.29.0.0/24`) are decla
 bridges regardless of the host. This makes the config portable without relying on Docker
 auto-assigned ranges.
 
+Declaring a subnet only fixes the address for containers that request it explicitly
+(`ipv4_address:` in compose); it does not by itself protect that address from being handed
+to some other container that has no static IP of its own. Docker/Podman's default dynamic
+allocator has no notion of "reserved" addresses, only "already taken" ones, so a container
+without a static IP can be assigned a low, seemingly-reserved address before its intended
+owner ever claims it. Both `services` and `media` carve out an explicit `ip_range` for
+dynamic allocation (`SERVICES_DYNAMIC_IP_RANGE`, `MEDIA_DYNAMIC_IP_RANGE` in `.env`) that
+excludes their static addresses, so this can't happen. Confirmed live, twice, before
+`SERVICES_DYNAMIC_IP_RANGE` existed: a container with no static IP of its own was
+dynamically handed `vpn_mock`'s reserved address on the `services` network, leaving gluetun
+dialing an endpoint nothing was listening on. See `docs/VPN_MOCK.md`.
+
 Exceptions that legitimately bind `0.0.0.0`:
 
 - **flaresolverr** has no supported bind-address knob.

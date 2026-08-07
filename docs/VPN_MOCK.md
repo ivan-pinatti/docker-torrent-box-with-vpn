@@ -23,23 +23,42 @@ without a real provider account.
 1. `scripts/enable-test-profiles.sh` applies `.env.tests`, which sets
    `VPN_MOCK_PROFILE=enabled`.
 2. It then runs `scripts/seed-vpn-mock.sh`, which:
-   - Skips entirely if `configs/gluetun/.secret` already holds a real key
-     (the same check `scripts/seed-gluetun-secret.sh` uses) — an existing
-     real credential is never touched.
+   - Skips entirely if the job already looks done: `configs/gluetun/.secret`
+     holds a real key *and* `configs/gluetun/.env` already has
+     `VPN_SERVICE_PROVIDER=custom`. Both have to check out, not just the
+     secret — confirmed live, a run that saves the key but dies before
+     pointing gluetun's config at the mock (e.g. a missing `.env` var
+     further down) leaves gluetun permanently configured for its original
+     real provider while holding mock key material: it dials real VPN
+     servers with the wrong credentials forever and never passes its own
+     healthcheck. A rerun has to recognize that half-finished state and
+     finish the job, not treat the saved key as proof it's done. An
+     existing *real* credential (not the mock's) is still never touched.
    - Starts just the `vpn_mock` container and waits for
      `configs/vpn_mock/config/peer1/peer1.conf`, which
      `linuxserver/wireguard` generates on first boot along with a server
-     keypair.
+     keypair. The image version is pinned by `VPN_MOCK_VERSION` in `.env`.
    - Parses that peer file's `PrivateKey`, `Address`, and the `[Peer]`
-     block's `PublicKey`.
+     block's `PublicKey` and `PresharedKey`.
    - Writes the private key into `configs/gluetun/.secret`, the same file
      a real credential would live in.
    - Updates `configs/gluetun/.env`: `VPN_SERVICE_PROVIDER=custom`,
-     `VPN_TYPE=wireguard`, `VPN_ENDPOINT_IP` (`vpn_mock`'s static IP,
-     `VPN_MOCK_IP` in `.env`), `VPN_ENDPOINT_PORT=51820`,
-     `WIREGUARD_PUBLIC_KEY`, `WIREGUARD_ADDRESSES`, and
+     `VPN_TYPE=wireguard`, `WIREGUARD_ENDPOINT_IP` (`vpn_mock`'s static IP,
+     `VPN_MOCK_IP` in `.env`; not the generic `VPN_ENDPOINT_IP`, which
+     gluetun only accepts as a deprecated alias), `WIREGUARD_ENDPOINT_PORT=51820`,
+     `WIREGUARD_PUBLIC_KEY`, `WIREGUARD_PRESHARED_KEY`, `WIREGUARD_ADDRESSES`,
      `VPN_PORT_FORWARDING=off` (port forwarding is a provider-specific
-     API with no self-hosted equivalent).
+     API with no self-hosted equivalent), and blanks `SERVER_COUNTRIES`
+     (gluetun's `custom` provider has no server list to validate a
+     country against and hard-rejects a leftover real-provider value).
+   - `vpn_mock`'s static IP (`VPN_MOCK_IP`) is protected from being handed
+     to some other container by `SERVICES_DYNAMIC_IP_RANGE` in `.env`,
+     which excludes it (and `GLUETUN_SERVICES_IP`) from the `services`
+     network's dynamic allocation pool. Confirmed live, twice, before this
+     range existed: a container with no static IP of its own (recyclarr)
+     was dynamically handed `VPN_MOCK_IP` first, starving `vpn_mock` of
+     its own address and leaving gluetun dialing an endpoint nothing was
+     listening on.
 3. `make bootstrap` proceeds as normal from there. Its own
    `seed-gluetun-secret.sh` step sees a populated secret and no-ops
    through its existing check, so nothing about plain `bootstrap`'s

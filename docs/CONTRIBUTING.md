@@ -37,8 +37,17 @@ welcome your pull requests:
 8. Adhere to the commit message guidelines as this repository uses
    [semantic versioning](https://semver.org/). More info:
    <https://github.com/mathieudutour/github-tag-action#bumping>
-9. At the moment the repository doesn't have automated testing, therefore test
-   manually that your changes are not breaking anything.
+9. The repository has a pytest suite under `tests/` covering container health,
+   security hardening, credential rotation, app-to-app wiring, and VPN
+   killswitch behavior. `make test` runs it against a running stack (needs
+   `make bootstrap` first); `make bootstrap_tests` does a full clean
+   bootstrap and runs the extended suite, including the slower
+   `rinse_and_repeat` lifecycle tests, in one step. Pull requests run the
+   same suite automatically via the `integration` job in
+   `pull-request-validation.yml`. A maintainer can also trigger it, or a
+   pre-commit/MegaLinter check-only run, from a PR comment: `/run-tests` or
+   `/run-check` (see `.github/workflows/comment-dispatch.yml`). Still test
+   manually for anything the suite doesn't cover.
 10. Update the documentation accordingly
 11. Issue the pull request!
 

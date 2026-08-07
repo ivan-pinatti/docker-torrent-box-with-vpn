@@ -128,8 +128,15 @@ The non-Servarr targets:
 Apps whose key was rewritten on disk are restarted or recreated
 automatically so they load the new key, and Homepage is restarted (it reads
 every key here from a mounted secret file, not `env_file`, so a restart is
-enough). The summary table masks the keys (`first4****`); the actual values
-live in the respective config files.
+enough). This homepage restart happens unconditionally at the end of every
+`rotate-api-keys.sh` invocation, including single-app targets, so if you
+script multiple rotations to run concurrently they can race on it — podman
+refuses a restart while another one triggered it is still mid-transition
+("container state improper"). The restart is retried against exactly that
+error rather than treated as fatal (see `retry()` in the script); a normal,
+one-at-a-time `rotate_all`/`rotate_api_keys` invocation never hits this. The
+summary table masks the keys (`first4****`); the actual values live in the
+respective config files.
 
 ## Passwords (`rotate-passwords.sh`)
 

@@ -10,6 +10,9 @@ max_retries = 3
 # Exclude patterns (supplements .lycheeignore)
 exclude = [
   "^mailto:",
+  # Stack Overflow blocks automated checkers with a 403 regardless of URL
+  # or user-agent (confirmed live, from this host); not a real dead link.
+  "^https?://(www\\.)?stackoverflow\\.com/",
   "^https?://localhost(:[0-9]+)?(/.*)?$",
   "^https?://127\\.0\\.0\\.1(:[0-9]+)?(/.*)?$",
   "^https?://.*\\.internal(:[0-9]+)?(/.*)?$",

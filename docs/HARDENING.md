@@ -225,6 +225,10 @@ done
 # Confirm security options and capability drops
 podman inspect sonarr --format 'SecurityOpt={{.HostConfig.SecurityOpt}} CapDrop={{.HostConfig.CapDrop}}'
 
-# Run the dedicated security test suite
-make test PYTEST_ARGS="-m security"
+# Run just the security-marked tests. `make test` is now three separate
+# pytest invocations, each with its own -m filter (see the Makefile), and
+# pytest's -m flag is single-value, so PYTEST_ARGS="-m security" would
+# override each tier's filter rather than combine with it, running the same
+# security tests three times over. Invoke pytest directly instead:
+tests/.venv/bin/pytest -m security
 ```
