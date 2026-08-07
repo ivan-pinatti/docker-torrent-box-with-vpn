@@ -25,3 +25,13 @@ for what was fixed and when.
   <https://github.com/jlesage/docker-baseimage-gui/issues/196#issuecomment-5221788643>.
   Check for a `baseimage-gui` bump to 4.13.0+ in `docker-jdownloader-2`'s
   Dockerfile before removing this patch
+
+## LazyLibrarian
+
+- [ ] Drop `patches/lazylibrarian/lazylibrarian/auth.py` once it is no longer
+  needed. Filed upstream:
+  [LazyLibrarian/LazyLibrarian#3046](https://gitlab.com/LazyLibrarian/LazyLibrarian/-/work_items/3046)
+  (login/logout redirect doubles `HTTP_ROOT` and 404s for pages reached via
+  `check_auth()`'s redirect while logged out), with a fix submitted as
+  [LazyLibrarian/LazyLibrarian!1832](https://gitlab.com/LazyLibrarian/LazyLibrarian/-/merge_requests/1832).
+  Check whether it merged and reached a release before removing the patch
