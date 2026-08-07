@@ -211,7 +211,7 @@ def test_nginx_scopes_mylar_and_lazylibrarian_cookies():
     Mylar and LazyLibrarian are both cherrypy apps that default to a
     session cookie literally named session_id, scoped to Path=/. Without
     the rewrite, a browser holds only one such cookie for the whole domain,
-    so visiting one app overwrites the other's session — confirmed live,
+    so visiting one app overwrites the other's session; confirmed live,
     it evicted Mylar's session on the very next request after logging into
     LazyLibrarian in the same cookie jar.
     """

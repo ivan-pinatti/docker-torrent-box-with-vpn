@@ -25,7 +25,7 @@ on:
         description: PR number to check out and validate
         required: true
       job_scope:
-        description: Which jobs to run — all, checks, or tests
+        description: "Which jobs to run: all, checks, or tests"
         required: false
         default: all
 
@@ -48,10 +48,14 @@ jobs:
         shell: bash
         run: cp .env.example .env
 
+      - name: Read PYTHON_VERSION from .env
+        shell: bash
+        run: grep -m1 '^PYTHON_VERSION=' .env >> "$GITHUB_ENV"
+
       - name: Python Setup
         uses: actions/setup-python@v7
         with:
-          python-version: 3.11.3
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Pre-commit Run
         uses: pre-commit/action@v3.0.1
@@ -73,10 +77,14 @@ jobs:
         shell: bash
         run: cp .env.example .env
 
+      - name: Read PYTHON_VERSION from .env
+        shell: bash
+        run: grep -m1 '^PYTHON_VERSION=' .env >> "$GITHUB_ENV"
+
       - name: Python Setup
         uses: actions/setup-python@v7
         with:
-          python-version: 3.11.3
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Create test venv and run prerequisite tests
         run: make test_prerequisites
@@ -100,7 +108,7 @@ jobs:
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/pull/{0}/head', inputs.pr_number) || github.ref }}
 
-      - name: Create .env file (VPN disabled — no key in CI)
+      - name: Create .env file (VPN disabled, no key in CI)
         shell: bash
         run: |
           cp .env.example .env
@@ -114,10 +122,14 @@ jobs:
           sed -i 's/^GLUETUN_PROFILE=disabled/GLUETUN_PROFILE=enabled/' .env
           echo "${{ env.PROTONVPN_PRIVATE_KEY }}" > configs/gluetun/.secret
 
+      - name: Read PYTHON_VERSION from .env
+        shell: bash
+        run: grep -m1 '^PYTHON_VERSION=' .env >> "$GITHUB_ENV"
+
       - name: Python Setup
         uses: actions/setup-python@v7
         with:
-          python-version: 3.11.3
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Generate self-signed certificate
         run: make generate_certificate

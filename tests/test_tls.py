@@ -1,4 +1,4 @@
-"""TLS certificate checks — failures emit warnings, never hard failures.
+"""TLS certificate checks: failures emit warnings, never hard failures.
 
 Self-signed certs are common in this stack. These tests warn so operators
 know about expiry or weak TLS without blocking CI on cert issues.
@@ -62,7 +62,7 @@ def test_tls_handshake_succeeds(running_containers):
     skip_if_not_running("nginx", running_containers)
     version = _get_tls_version(HOST, HTTPS_PORT)
     assert version is not None, (
-        f"TLS handshake to {HOST}:{HTTPS_PORT} failed — is nginx running and cert generated?"
+        f"TLS handshake to {HOST}:{HTTPS_PORT} failed: is nginx running and cert generated?"
     )
 
 
@@ -71,7 +71,7 @@ def test_tls_minimum_version(running_containers):
     skip_if_not_running("nginx", running_containers)
     version = _get_tls_version(HOST, HTTPS_PORT)
     if version is None:
-        pytest.skip("TLS handshake failed — cannot check version")
+        pytest.skip("TLS handshake failed: cannot check version")
     assert version in ("TLSv1.2", "TLSv1.3"), (
         f"TLS version '{version}' is below minimum TLSv1.2"
     )
@@ -119,7 +119,7 @@ def test_certificate_not_expired(running_containers):
 
 
 def test_certificate_subject_logged(running_containers):
-    """Log cert details for visibility — always passes."""
+    """Log cert details for visibility, always passes."""
     skip_if_not_running("nginx", running_containers)
     cert = _get_cert(HOST, HTTPS_PORT)
     if not cert:

@@ -733,7 +733,7 @@ def test_rotate_nzbhydra2_api_key(running_containers):
             "LazyLibrarian has no NZBHydra2 Newznab provider configured. "
             "Nothing in this stack wires that connection yet (unlike "
             "Prowlarr's Applications/DownloadClients, which "
-            "scripts/wire-connections.sh does handle) — a real, separate "
+            "scripts/wire-connections.sh does handle): a real, separate "
             "feature gap, not something this rotation can propagate to."
         )
     result = _run_script("rotate-api-keys.sh", "nzbhydra2")

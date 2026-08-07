@@ -75,7 +75,7 @@ def test_arr_health_response_empty(service_name, running_containers):
     assert resp.status_code == 200
     data = resp.json()
     assert isinstance(data, list), f"Expected list from {url}, got {type(data)}"
-    # Warn about health issues rather than failing — some warnings are non-critical
+    # Warn about health issues rather than failing: some warnings are non-critical
     if data:
         import warnings
 

@@ -47,7 +47,7 @@ def test_no_restart_loop(service_name, running_containers):
     container = running_containers[service_name]
     restart_count = container.attrs.get("RestartCount", 0)
     assert restart_count <= 2, (
-        f"Container '{service_name}' has restarted {restart_count} times — possible crash loop"
+        f"Container '{service_name}' has restarted {restart_count} times, possible crash loop"
     )
 
 

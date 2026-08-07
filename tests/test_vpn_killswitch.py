@@ -66,7 +66,7 @@ VPN_HEALTHY_TIMEOUT = 120
 
 def _require_vpn_enabled():
     if env("GLUETUN_PROFILE", "disabled").lower() != "enabled":
-        pytest.skip("GLUETUN_PROFILE is not enabled — VPN kill-switch tests skipped")
+        pytest.skip("GLUETUN_PROFILE is not enabled: VPN kill-switch tests skipped")
 
 
 def _exec_curl(docker_client, container_name: str) -> tuple[int, str]:
@@ -112,7 +112,7 @@ def test_vpn_exit_ip_differs_from_lan(running_containers, docker_client):
     exit_code, output = _exec_curl(docker_client, PROBE_CONTAINER)
     if exit_code != 0:
         pytest.skip(
-            f"curl from {PROBE_CONTAINER} failed (exit {exit_code}) — "
+            f"curl from {PROBE_CONTAINER} failed (exit {exit_code}): "
             "may indicate kill-switch is already active or no internet access"
         )
 
@@ -120,7 +120,7 @@ def test_vpn_exit_ip_differs_from_lan(running_containers, docker_client):
     assert vpn_ip, "checkip returned empty response"
     if lan_ip:
         assert vpn_ip != lan_ip, (
-            f"VPN exit IP {vpn_ip!r} equals LAN IP {lan_ip!r} — traffic is NOT going through VPN"
+            f"VPN exit IP {vpn_ip!r} equals LAN IP {lan_ip!r}: traffic is NOT going through VPN"
         )
 
 
@@ -144,14 +144,14 @@ def test_killswitch_blocks_traffic_when_vpn_stopped(running_containers, docker_c
             f"External IP response: {output!r}"
         )
     finally:
-        # Always restore the VPN container — do not leave the stack broken
+        # Always restore the VPN container: do not leave the stack broken
         vpn_container.start()
         try:
             _wait_for_healthy(docker_client, VPN_CONTAINER)
         except TimeoutError as exc:
             pytest.fail(
                 f"Gluetun did not recover after restart: {exc}. "
-                "Stack may be in a degraded state — check container logs."
+                "Stack may be in a degraded state, check container logs."
             )
 
 
@@ -171,7 +171,7 @@ def test_traffic_restored_after_vpn_restart(running_containers, docker_client):
     vpn = docker_client.containers.get(VPN_CONTAINER)
     health = vpn.attrs.get("State", {}).get("Health", {}).get("Status")
     if health != "healthy":
-        pytest.skip("Gluetun is not healthy — cannot test post-recovery connectivity")
+        pytest.skip("Gluetun is not healthy: cannot test post-recovery connectivity")
 
     # Restart the probe container so it re-attaches to the VPN container's new namespace.
     probe = docker_client.containers.get(PROBE_CONTAINER)

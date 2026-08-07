@@ -296,7 +296,7 @@ def test_generate_homepage_services_tolerates_unowned_output_file(
 
     `make start` runs permissions_repair before this script, and
     permissions.yml's configs/homepage/config entry (chown_files: true)
-    already recursively chowns this file to Homepage's own mapped UID —
+    already recursively chowns this file to Homepage's own mapped UID,
     what actually lets the container read it, regardless of the file's mode
     bits. The host user's own access to write it comes from that same
     manifest's ACL grant, not ownership, so an unconditional chmod (owner/

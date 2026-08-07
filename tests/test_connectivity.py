@@ -45,7 +45,7 @@ PROXY_SERVICES = [name for name, cfg in SERVICES.items() if cfg.get("proxy_path"
 
 @pytest.mark.parametrize("service_name", DIRECT_PORT_SERVICES)
 def test_http_port_reachable(service_name, running_containers):
-    """Direct HTTP port check — only for services not in the VPN network namespace."""
+    """Direct HTTP port check, only for services not in the VPN network namespace."""
     if not is_enabled(service_name):
         pytest.skip(f"{service_name} profile is disabled")
     skip_if_not_running(service_name, running_containers)
@@ -59,7 +59,7 @@ def test_http_port_reachable(service_name, running_containers):
 
 @pytest.mark.parametrize("service_name", DIRECT_PORT_SERVICES)
 def test_https_port_reachable(service_name, running_containers):
-    """Direct HTTPS port check — only for services not in the VPN network namespace."""
+    """Direct HTTPS port check, only for services not in the VPN network namespace."""
     if not is_enabled(service_name):
         pytest.skip(f"{service_name} profile is disabled")
     skip_if_not_running(service_name, running_containers)

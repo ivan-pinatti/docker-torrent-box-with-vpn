@@ -70,7 +70,7 @@ def test_wireguard_available():
     in_lsmod = "wireguard" in run(["lsmod"]).stdout
     if in_lsmod:
         return
-    # Module built-in to kernel or available but not yet loaded — check with modinfo
+    # Module built-in to kernel or available but not yet loaded: check with modinfo
     modinfo = run(["modinfo", "wireguard"])
     assert modinfo.returncode == 0, (
         "WireGuard is neither loaded nor available as a kernel module. "

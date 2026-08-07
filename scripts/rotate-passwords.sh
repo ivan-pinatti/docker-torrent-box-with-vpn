@@ -111,7 +111,7 @@ readonly GRAFANA_INI="configs/grafana/config/grafana.ini"
 readonly GRAFANA_HOMEPAGE_AUTH_SECRET="configs/grafana/secrets/homepage_auth.txt" # pragma: allowlist secret
 readonly CALIBREWEB_DB="configs/calibre-web/config/app.db"
 # The image's own hardcoded default username, not this project's usual
-# per-app placeholder — see scripts/wire-connections.sh's
+# per-app placeholder; see scripts/wire-connections.sh's
 # ensure_calibre_web_setup() for why it's never renamed.
 readonly CALIBREWEB_USER="admin"
 # Single source of truth for Calibre-Web's password, consumed via compose
@@ -321,7 +321,7 @@ rotate_arr_password() {
 # Update qBittorrent password in one arr app's DownloadClients SQLite table.
 # A disabled arr app has never started and so has no DownloadClients table
 # (or, if it's the very first table access, sqlite3.connect() will have
-# just created an empty 0-byte file for it) — skip with a note rather than
+# just created an empty 0-byte file for it): skip with a note rather than
 # crash the whole rotation over an app that was never wired up.
 # Args: app_name db_path new_password
 update_arr_qbt_password() {
@@ -447,7 +447,7 @@ PYEOF
   stop_container audiobookshelf
 
   # The users table only gets its 'root' row once Audiobookshelf's own
-  # first-run setup wizard has been completed — nothing in this stack
+  # first-run setup wizard has been completed: nothing in this stack
   # automates that, so skip with a note rather than silently updating zero
   # rows and reporting a password that was never actually written anywhere.
   echo "[Audiobookshelf] Writing new password hash for user '${AUDIOBOOKSHELF_USER}'..."
@@ -523,7 +523,7 @@ rotate_calibre() {
 
   # server-users.sqlite only gets its `users` table (and a row for
   # CALIBRE_USER) once the content server has been started and a user
-  # created through Calibre's own flow at least once — nothing in this
+  # created through Calibre's own flow at least once: nothing in this
   # stack automates that first-run step, so skip with a note here rather
   # than crash the whole rotation over an app that hasn't been used yet.
   if python3 - <<PYEOF; then
@@ -585,7 +585,7 @@ rotate_calibre_web() {
   # The 'admin' row has been observed to disappear from Calibre-Web's own
   # user table sometime after its first real library gets configured and
   # the app runs a while, for a reason not identified in the time
-  # available (see docs/ROTATION.md) — check rowcount rather than silently
+  # available (see docs/ROTATION.md): check rowcount rather than silently
   # claiming success when the UPDATE matched nothing.
   echo "[Calibre-Web] Writing new password hash for user '${CALIBREWEB_USER}'..."
   if python3 - <<PYEOF; then
@@ -706,7 +706,7 @@ rotate_jellyfin() {
   # authenticates with the API key). That flow only works once Jellyfin's own
   # first-run setup wizard has created an admin account, which nothing in
   # this stack automates (it involves real choices: media libraries,
-  # metadata language, remote access) — skip with a note rather than
+  # metadata language, remote access): skip with a note rather than
   # aborting, mirroring rotate-api-keys.sh's rotate_jellyfin().
   local base_url="http://127.0.0.1:${JELLYFIN_HTTP_PORT}${JELLYFIN_BASE_URL}"
   if [[ "$(container_curl jellyfin -s --fail \
@@ -1398,7 +1398,7 @@ esac
 # metadata.db during exactly that window. When the two collide the open
 # fails, and calibre reports any apsw error from that step as "The library
 # database at /data/media/calibre-library appears to be corrupted. Do you
-# want calibre to try and rebuild it automatically?" — a scary,
+# want calibre to try and rebuild it automatically?", a scary,
 # data-loss-flavoured prompt for a library that is in fact completely
 # intact. Confirmed by bisection on a live stack: stop/start alone is fine,
 # the host-side sqlite write alone is fine, and a plain restart afterwards
@@ -1528,7 +1528,7 @@ calibre_login_ok() {
 
 # CALIBRE_GUI_WEB_HTTP_PORT (the content server) defaults to the same port
 # (8081) as Selkies' own desktop-streaming data websocket inside the image,
-# and the content server only starts once the desktop GUI is up — so this
+# and the content server only starts once the desktop GUI is up, so this
 # is checked separately, informationally, and never fails the rotation:
 # it's a pre-existing port collision in the image unrelated to whether the
 # password was rotated correctly (which the desktop GUI check above

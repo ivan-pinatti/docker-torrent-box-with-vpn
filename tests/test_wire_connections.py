@@ -168,7 +168,7 @@ def test_prowlarr_qbittorrent_client_wired(running_containers):
     """Prowlarr's own Interactive Search grab button needs a download client.
 
     Independent of the arr apps' own qBittorrent clients (test_wire_
-    connections.py wires those separately) — this is what Prowlarr itself
+    connections.py wires those separately): this is what Prowlarr itself
     uses.
     """
     if not is_enabled("prowlarr"):
@@ -406,7 +406,7 @@ def test_prowlarr_indexers_propagated_to_arr_app(app, running_containers):
     if not indexers and backoff_status:
         pytest.skip(
             f"[{app}] has no indexers, but Prowlarr's own indexerstatus "
-            f"shows {backoff_status} — Internet Archive's own API, not "
+            f"shows {backoff_status}: Internet Archive's own API, not "
             "this stack's wiring. Re-run once that clears."
         )
     assert indexers, (

@@ -526,10 +526,10 @@ def test_puid_pgid_non_root(service_name, running_containers):
     puid = env_dict.get("PUID", "0")
     pgid = env_dict.get("PGID", "0")
     assert puid != "0", (
-        f"Container '{service_name}' has PUID=0 — app process runs as root"
+        f"Container '{service_name}' has PUID=0: app process runs as root"
     )
     assert pgid != "0", (
-        f"Container '{service_name}' has PGID=0 — app process runs as root group"
+        f"Container '{service_name}' has PGID=0: app process runs as root group"
     )
 
 
@@ -552,7 +552,7 @@ def test_app_process_non_root(service_name, running_containers, docker_client):
     )
     non_root_uid = output.decode(errors="replace").strip()
     assert exit_code == 0 and non_root_uid != "", (
-        f"Container '{service_name}' has no non-root processes — "
+        f"Container '{service_name}' has no non-root processes: "
         "PUID/PGID may not have been applied by s6-overlay"
     )
     expected_puid = _container_env(container).get("PUID", "")

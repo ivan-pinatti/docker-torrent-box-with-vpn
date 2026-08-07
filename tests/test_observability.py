@@ -160,7 +160,7 @@ def test_prometheus_no_unknown_targets(running_containers, prometheus_url):
 
 
 # ---------------------------------------------------------------------------
-# podman_exporter — per-container metrics
+# podman_exporter: per-container metrics
 # ---------------------------------------------------------------------------
 
 
@@ -176,7 +176,7 @@ def test_podman_exporter_container_metrics_present(running_containers, prometheu
     assert data["status"] == "success"
     results = data["data"]["result"]
     assert results, (
-        "podman_container_info returned no series — exporter may not see containers"
+        "podman_container_info returned no series, exporter may not see containers"
     )
 
     names = {r["metric"].get("name", "") for r in results}

@@ -15,7 +15,7 @@ rule_files:
 
 # A scrape configuration containing exactly one endpoint to scrape.
 scrape_configs:
-  # Docker daemon metrics — not available in rootless Podman
+  # Docker daemon metrics, not available in rootless Podman
   # - job_name: docker
   #   static_configs:
   #     - targets: ['host.docker.internal:9323']

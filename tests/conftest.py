@@ -25,7 +25,7 @@ def read_secret(owner: str, name: str):
     return path.read_text().strip() if path.exists() else None
 
 
-# Service registry — each entry drives parametrize across all test layers.
+# Service registry: each entry drives parametrize across all test layers.
 # api_key_source:
 # ("xml", rel_path, tag) | ("yaml", rel_path, *keys) |
 # ("ini", rel_path, section, key) | None

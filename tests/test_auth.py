@@ -136,7 +136,7 @@ def test_sabnzbd_api_auth(running_containers):
 
 
 # ---------------------------------------------------------------------------
-# Servarr apps (Sonarr, Radarr, Prowlarr, Readarr) — API key as auth
+# Servarr apps (Sonarr, Radarr, Prowlarr, Readarr): API key as auth
 # ---------------------------------------------------------------------------
 
 
@@ -186,7 +186,7 @@ def test_arr_rejects_invalid_api_key(service_name, running_containers):
 
 
 # ---------------------------------------------------------------------------
-# Bazarr — API key from YAML config
+# Bazarr: API key from YAML config
 # ---------------------------------------------------------------------------
 
 
@@ -207,7 +207,7 @@ def test_bazarr_api_key_auth(running_containers):
 
 
 # ---------------------------------------------------------------------------
-# Jellyfin — unauthenticated health check, authenticated user info
+# Jellyfin: unauthenticated health check, authenticated user info
 # ---------------------------------------------------------------------------
 
 

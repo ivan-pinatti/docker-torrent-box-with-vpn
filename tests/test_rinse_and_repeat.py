@@ -24,7 +24,7 @@ REPO_ROOT = Path(__file__).parent.parent
 # once), then 600s wasn't enough either (confirmed live, cycle 2 once, at
 # 707s) while the surrounding cycles stayed under 4 minutes both times.
 # Not tied to a specific cycle number, so not purely first-restart-after-
-# bootstrap settling as first suspected — looks like real variance under
+# bootstrap settling as first suspected: looks like real variance under
 # this many containers restarting at once on a shared host. 900s leaves
 # real margin above both observed outliers.
 MAKE_TIMEOUT = 900

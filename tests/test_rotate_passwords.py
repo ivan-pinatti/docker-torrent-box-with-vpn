@@ -146,7 +146,7 @@ def _qbt_restart_and_wait():
     )
     # qBittorrent shares gluetun's network namespace (network_mode:
     # container:gluetun), so its own API can stay unreachable well after the
-    # container itself is "up" if gluetun is still mid VPN-reconnect —
+    # container itself is "up" if gluetun is still mid VPN-reconnect,
     # confirmed live, this raced and failed when test_rinse_and_repeat.py's
     # own stack-wide restart cycle ran immediately before this test.
     # 180s comfortably covers gluetun's own documented up-to-120s VPN
@@ -1098,7 +1098,7 @@ def test_calibre_gui_holds_library_open(docker_client):
     metadata.db. The open failed, and calibre surfaces any apsw error from
     that step as "The library database at /data/media/calibre-library appears
     to be corrupted. Do you want calibre to try and rebuild it
-    automatically?" — a data-loss-flavoured prompt for a library that is
+    automatically?", a data-loss-flavoured prompt for a library that is
     completely intact, which is why every after-the-fact inspection of the
     files kept coming back clean.
 

@@ -44,7 +44,7 @@ if [[ ! -f "$SECRETS" ]]; then
   exit 0
 fi
 
-# Non-interactive (CI, scripted runs) — never touch existing secrets.
+# Non-interactive (CI, scripted runs): never touch existing secrets.
 [[ -t 0 ]] || exit 0
 
 echo ""

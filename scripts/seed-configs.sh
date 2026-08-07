@@ -28,7 +28,7 @@ if [[ ! -f "$LIVE" ]]; then
   exit 0
 fi
 
-# Non-interactive (CI, scripted runs) — never touch an existing live file.
+# Non-interactive (CI, scripted runs): never touch an existing live file.
 [[ -t 0 ]] || exit 0
 
 echo ""

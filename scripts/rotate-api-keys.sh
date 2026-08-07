@@ -46,7 +46,7 @@ readonly PROWLARR_HTTPS_PORT JELLYFIN_HTTP_PORT JELLYFIN_BASE_URL SONARR_HTTP_PO
   BAZARR_HTTP_PORT LAZYLIBRARIAN_HTTP_PORT MYLAR_HTTPS_PORT NZBHYDRA2_HTTPS_PORT
 
 # ---------------------------------------------------------------------------
-# Current (old) API keys — read from config.xml at rotation time
+# Current (old) API keys, read from config.xml at rotation time
 # ---------------------------------------------------------------------------
 
 get_xml_apikey() {
@@ -191,7 +191,7 @@ retry() {
 }
 
 # *arr apps silently ignore apiKey changes sent through the config/host API
-# endpoint (it's treated as self-protecting, read-only over that route) — a
+# endpoint (it's treated as self-protecting, read-only over that route): a
 # PUT returns 202 but echoes back the unchanged old key. The only way to
 # actually change it is to edit config.xml directly and restart the app so it
 # re-reads the key into memory at startup.
@@ -646,7 +646,7 @@ rotate_jellyfin() {
   # API only works once Jellyfin's own first-run setup wizard has created an
   # admin account, which nothing in this stack automates (unlike the arr
   # apps' WebUI login, it involves real choices: media libraries, metadata
-  # language, remote access) — skip with a note rather than aborting the
+  # language, remote access): skip with a note rather than aborting the
   # whole rotation run over a step that's inherently manual.
   local base_url="http://127.0.0.1:${JELLYFIN_HTTP_PORT}${JELLYFIN_BASE_URL}"
   if [[ "$(container_curl jellyfin -s --fail \
