@@ -11,15 +11,12 @@ back (Homepage's dashboard links to every app and most current-credential
 consumers already hold it directly).
 
 Jellyfin defaults to Nginx subpath access at `https://<domain>/jellyfin/`.
-This is controlled by `JELLYFIN_BASE_URL=/jellyfin`; `make bootstrap` applies
-the `JELLYFIN_BASE_URL` and `JELLYFIN_KNOWN_PROXY` values to Jellyfin's
-`network.xml`. Unlike the other apps, Jellyfin generates its whole config tree
-on its own first start rather than from a committed seed, so `network.xml`
-does not exist yet on a fresh clone and `make bootstrap` skips this step with a
-message the first time. Run `make start` once, then `make
-configure_jellyfin_network` to apply it; re-run the same command whenever you
-intentionally change those values later. To make a dedicated hostname available
-through Nginx, set
+This is controlled by `JELLYFIN_BASE_URL=/jellyfin`, seeded into Jellyfin's
+`network.xml` from `network.xml.example` like every other app's config, so it
+takes effect from Jellyfin's genuine first boot with no extra step. If you
+change `JELLYFIN_BASE_URL` or `JELLYFIN_KNOWN_PROXY` later, run `make
+configure_jellyfin_network` to apply the new values (idempotent, safe to
+re-run any time). To make a dedicated hostname available through Nginx, set
 `JELLYFIN_PROXY_DOMAIN`, for example `jellyfin.example.com`. Direct ports `8096`
 and `8920` remain published; with the default base URL, direct clients should
 use `/jellyfin` too. If you set `JELLYFIN_BASE_URL=` for clean root access on

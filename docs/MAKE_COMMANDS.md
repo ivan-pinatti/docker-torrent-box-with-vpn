@@ -15,7 +15,7 @@ directly.
 | `make install_requirements` | Prints OS-specific install commands for the required tools. Informational only, doesn't install anything itself. |
 | `make generate_certificate` | (Re)generates the self-signed TLS certificate and pushes the new password into every app's config. `bootstrap` calls this automatically if no certificate exists yet. |
 | `make rotate_certificate` | Regenerates the certificate on an already-running stack (wraps `scripts/rotate-certificate.sh`). |
-| `make configure_jellyfin_network` | Sets Jellyfin's `BaseUrl`/`KnownProxies` in `network.xml`. Jellyfin generates its own config tree on first start rather than from a seed, so this can't run until after the first `make start`; `bootstrap` calls it at the right point automatically. |
+| `make configure_jellyfin_network` | Sets Jellyfin's `BaseUrl`/`KnownProxies` in `network.xml`, seeded correctly by default so this is normally a no-op; only needed to correct drift after changing `JELLYFIN_BASE_URL`/`NGINX_MEDIA_IP`. `bootstrap` calls it automatically as a safety net. |
 
 ## Starting, stopping, restarting
 

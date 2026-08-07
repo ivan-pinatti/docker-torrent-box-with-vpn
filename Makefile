@@ -200,6 +200,7 @@ bootstrap: configs/flaresolverr/config/chromedriver
 	@./scripts/seed-configs.sh configs/readarr/config/config.xml
 	@./scripts/seed-configs.sh configs/prowlarr/config/config.xml
 	@./scripts/seed-configs.sh configs/whisparr/config/config.xml
+	@./scripts/seed-configs.sh configs/jellyfin/config/network.xml
 	@./scripts/seed-configs.sh configs/lazylibrarian/config/config.ini
 	@./scripts/seed-configs.sh configs/mylar/config/mylar/config.ini
 	@./scripts/seed-configs.sh configs/jackett/config/Jackett/ServerConfig.json
@@ -375,44 +376,40 @@ down:
 	fi
 	@rm -f $(VPN_STATE_FILE)
 
+# configs/jellyfin/config/network.xml is seeded from network.xml.example
+# like every other app's config now (confirmed live: Jellyfin preserves a
+# pre-seeded network.xml byte for byte on its genuine first boot instead of
+# overwriting it), with BaseUrl/EnableHttps/CertificatePath/KnownProxies
+# already set to their .env.example-matching defaults, and
+# CertificatePassword patched by generate_certificate before the stack ever
+# starts, exactly like Lidarr/Prowlarr/Radarr/Readarr/Sonarr/Whisparr. This
+# target is now only needed to correct drift from a non-default
+# JELLYFIN_BASE_URL or NGINX_MEDIA_IP; bootstrap still calls it automatically
+# after `make start` as an idempotent safety net, and it's a clean no-op
+# when nothing has drifted.
+#
+# EnableHttps/CertificatePath: without them, the compose file's own
+# JELLYFIN_HTTPS_PORT publish (8920) would sit completely unused -- direct
+# LAN access to Jellyfin (distinct from nginx's already-HTTPS /jellyfin/
+# proxy path) would be plaintext-only with an exposed-but-dead encrypted
+# port next to it. RequireHttps deliberately stays false and
+# JELLYFIN_PublishedServerUrl (in docker-compose-media-library.yml)
+# deliberately stays http://: some Jellyfin client apps, smart TVs
+# especially, handle a self-signed/custom-CA certificate poorly, so forcing
+# HTTPS-only could break direct playback on real devices. This only makes
+# the encrypted port actually usable alongside the existing plaintext one,
+# not exclusive.
 configure_jellyfin_network:
-	@if [ ! -f configs/jellyfin/config/network.xml ]; then \
-		echo "Skipping Jellyfin network config: configs/jellyfin/config/network.xml doesn't exist yet."; \
-		echo "Jellyfin, unlike the other apps, generates its whole config tree on its own first"; \
-		echo "start rather than from a committed seed, so bootstrap can't configure it before that"; \
-		echo "happens. Run 'make start' once, then 'make configure_jellyfin_network'."; \
-	else \
-		echo "Configuring Jellyfin network settings..."; \
-		if [ "$(RUNTIME)" = "podman" ]; then runner="podman unshare"; else runner=""; fi; \
-		$$runner xmlstarlet --quiet ed --inplace \
-			--update '/NetworkConfiguration/BaseUrl' --value "$(JELLYFIN_BASE_URL)" \
-			--delete '/NetworkConfiguration/KnownProxies/string' \
-			--subnode '/NetworkConfiguration/KnownProxies' --type elem --name string --value "$(JELLYFIN_KNOWN_PROXY)" \
-			--update '/NetworkConfiguration/CertificatePassword' --value "${CERT_PASSWORD}" \
-			--update '/NetworkConfiguration/CertificatePath' --value "/certs/server.pfx" \
-			--update '/NetworkConfiguration/EnableHttps' --value "true" \
-			"configs/jellyfin/config/network.xml"; \
-	fi
-	# generate_certificate runs before the stack's first `make start`, when
-	# this file doesn't exist yet, so its own attempt at the CertificatePassword
-	# line is always a no-op on a fresh bootstrap (it prints SKIPPED and says
-	# to come back here by hand). bootstrap already calls this target
-	# automatically right after `make start`, so folding the same update in
-	# here means a plain `make bootstrap` finishes in the same state every
-	# time instead of depending on whether this file happened to already
-	# exist.
-	#
-	# EnableHttps/CertificatePath: Jellyfin's own freshly-generated config
-	# defaults these to false/empty, meaning the compose file's own
-	# JELLYFIN_HTTPS_PORT publish (8920) sits completely unused -- direct LAN
-	# access to Jellyfin (distinct from nginx's already-HTTPS /jellyfin/ proxy
-	# path) was plaintext-only with an exposed-but-dead encrypted port next to
-	# it. RequireHttps deliberately stays false and JELLYFIN_PublishedServerUrl
-	# (above, in docker-compose-media-library.yml) deliberately stays http://:
-	# some Jellyfin client apps, smart TVs especially, handle a self-signed/
-	# custom-CA certificate poorly, so forcing HTTPS-only could break direct
-	# playback on real devices. This only makes the encrypted port actually
-	# usable alongside the existing plaintext one, not exclusive.
+	@echo "Configuring Jellyfin network settings..."
+	@if [ "$(RUNTIME)" = "podman" ]; then runner="podman unshare"; else runner=""; fi; \
+	$$runner xmlstarlet --quiet ed --inplace \
+		--update '/NetworkConfiguration/BaseUrl' --value "$(JELLYFIN_BASE_URL)" \
+		--delete '/NetworkConfiguration/KnownProxies/string' \
+		--subnode '/NetworkConfiguration/KnownProxies' --type elem --name string --value "$(JELLYFIN_KNOWN_PROXY)" \
+		--update '/NetworkConfiguration/CertificatePassword' --value "${CERT_PASSWORD}" \
+		--update '/NetworkConfiguration/CertificatePath' --value "/certs/server.pfx" \
+		--update '/NetworkConfiguration/EnableHttps' --value "true" \
+		"configs/jellyfin/config/network.xml"
 
 generate_certificate:
 	@if [ "$(LAN_IP)" = "192.168.1.x" ]; then \
@@ -445,7 +442,7 @@ generate_certificate:
 	@echo -n "Readarr... 		";	xmlstarlet --quiet ed --inplace --update '/Config/SslCertPassword' --value "${CERT_PASSWORD}" "configs/readarr/config/config.xml"; 			echo OK!  # pragma: allowlist secret
 	@echo -n "Sonarr... 		";	xmlstarlet --quiet ed --inplace --update '/Config/SslCertPassword' --value "${CERT_PASSWORD}" "configs/sonarr/config/config.xml"; 			echo OK!  # pragma: allowlist secret
 	@echo -n "Whisparr...		";	xmlstarlet --quiet ed --inplace --update '/Config/SslCertPassword' --value "${CERT_PASSWORD}" "configs/whisparr/config/config.xml"; 		echo OK!  # pragma: allowlist secret
-	@echo -n "Jellyfin...		"; if [ ! -f "configs/jellyfin/config/network.xml" ]; then echo "SKIPPED (network.xml doesn't exist yet; run 'make start' once, then 'make generate_certificate' again)"; else xmlstarlet --quiet ed --inplace --update '/NetworkConfiguration/CertificatePassword' --value "${CERT_PASSWORD}" "configs/jellyfin/config/network.xml"; echo OK!; fi  # pragma: allowlist secret
+	@echo -n "Jellyfin...		"; 	xmlstarlet --quiet ed --inplace --update '/NetworkConfiguration/CertificatePassword' --value "${CERT_PASSWORD}" "configs/jellyfin/config/network.xml"; 		echo OK!  # pragma: allowlist secret
 	@echo -n "NZBHydra...		"; 	sslKey="${CERT_PASSWORD}" yq -i '(.main.sslKeyStorePassword) = strenv(sslKey)' "configs/nzbhydra2/config/nzbhydra.yml"; 	echo OK!
 
 rotate_certificate:
