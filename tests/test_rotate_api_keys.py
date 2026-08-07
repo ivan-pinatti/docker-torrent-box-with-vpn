@@ -268,6 +268,29 @@ def _restore_api_key_secret(app: str, old_key: str):
     path.chmod(0o644)
 
 
+def _assert_homepage_widget_ok(app: str, action: str, timeout: int = 30):
+    # rotation_isolated runs several of these arr-app cases in parallel
+    # (pytest -n 4), and every one of them restarts the shared homepage
+    # container as part of its own rotate/restore cycle. wait_for_homepage_
+    # ready() only proves homepage answered at that instant; a sibling
+    # worker's restart landing microseconds later can still make the
+    # following widget check see "HTTP 0" even though nothing is actually
+    # broken. Confirmed live: two concurrent workers (lidarr, sonarr) both
+    # hit this on the same run. Retry the whole ready+widget check instead
+    # of asserting on a single sample.
+    deadline = time.time() + timeout
+    failures: list[str] = []
+    while time.time() < deadline:
+        if wait_for_homepage_ready(timeout=15):
+            failures = homepage_widget_failures(only_services={app})
+            if not failures:
+                return
+        time.sleep(3)
+    assert not failures, f"Homepage widget broken after {action} {app}:\n" + "\n".join(
+        failures
+    )
+
+
 # app, xml_path, scheme, port_var, url_base, api_ver
 ARR_APP_TARGETS = [
     (
@@ -399,11 +422,7 @@ def test_rotate_api_key_propagates(
 
     # Homepage was restarted by the script and must work with the new key
     if "homepage" in running_containers:
-        assert wait_for_homepage_ready(), "homepage API did not respond after rotation"
-        failures = homepage_widget_failures(only_services={app})
-        assert not failures, (
-            f"Homepage widget broken after rotating {app}:\n" + "\n".join(failures)
-        )
+        _assert_homepage_widget_ok(app, "rotating")
 
     # ------------------------------------------------------------------
     # Restore the original key everywhere so the suite stays idempotent
@@ -424,11 +443,7 @@ def test_rotate_api_key_propagates(
     # restart (not a recreate) is enough to pick up the restored value.
     if "homepage" in running_containers:
         restart_container("homepage")
-        assert wait_for_homepage_ready(), "homepage API did not respond after restore"
-        failures = homepage_widget_failures(only_services={app})
-        assert not failures, (
-            f"Homepage widget broken after restoring {app}:\n" + "\n".join(failures)
-        )
+        _assert_homepage_widget_ok(app, "restoring")
 
 
 def test_rotate_prowlarr_api_key(running_containers):
