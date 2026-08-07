@@ -1303,15 +1303,33 @@ ensure_prowlarr_application() {
   # bootstrap printed "Registering application 'LazyLibrarian'..." and then
   # nothing at all, leaving Prowlarr with zero applications and zero
   # indexers. Record the failure, keep going, and surface it in the summary.
-  local response
-  if ! response=$(container_curl prowlarr -sk --fail -X POST \
-    -H "X-Api-Key: ${prowlarr_api_key}" -H "Content-Type: application/json" \
-    -d "$payload" "$base_url" 2>&1); then # pragma: allowlist secret
-    echo "[Prowlarr] Failed to register '${display_name}': ${response:0:300}"
-    PROWLARR_FAILED+=("$display_name")
-    return 0
-  fi
-  echo "[Prowlarr] Registered."
+  #
+  # This POST makes Prowlarr call back into the app to verify the link,
+  # which for some apps (confirmed live: Lidarr) includes the app's own
+  # HttpClient validating *our* self-signed cert against the bare container
+  # hostname ("prowlarr"), which isn't in the cert's SAN list. Fatal only in
+  # the split second right after the app's HTTP listener first binds: this
+  # app's own reachability retry above only proves the listener answers, not
+  # that its TLS/cert subsystem has finished warming up, and every
+  # observed failure was Lidarr's very first attempt at an outbound HTTPS
+  # connection to "prowlarr" (its own log showed "Now listening" one second
+  # before "Certificate validation for prowlarr failed"). Retrying moments
+  # later, once the app is no longer freshly started, self-heals: confirmed
+  # live, re-running registration by hand right after this same failure
+  # succeeded immediately.
+  local response attempt
+  for attempt in 1 2 3; do
+    if response=$(container_curl prowlarr -skS --fail -X POST \
+      -H "X-Api-Key: ${prowlarr_api_key}" -H "Content-Type: application/json" \
+      -d "$payload" "$base_url" 2>&1); then # pragma: allowlist secret
+      echo "[Prowlarr] Registered."
+      return 0
+    fi
+    [[ $attempt -lt 3 ]] && sleep 15
+  done
+  echo "[Prowlarr] Failed to register '${display_name}': ${response:0:300}"
+  PROWLARR_FAILED+=("$display_name")
+  return 0
 }
 
 # ---------------------------------------------------------------------------
