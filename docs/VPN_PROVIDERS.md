@@ -13,8 +13,7 @@ degraded.
 I am partnered with Proton VPN. If you choose Proton for this stack and want to
 support the project, please consider using my partner link or code:
 
-- Proton partner link: `TODO_PROTON_PARTNER_LINK`
-- Proton partner code: `TODO_PROTON_PARTNER_CODE`
+- Proton partner link: <https://go.getproton.me/SH2aV>
 
 This is optional. The stack is provider-neutral at the Gluetun layer, and the
 provider notes below are based on technical fit for torrenting, especially

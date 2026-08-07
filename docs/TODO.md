@@ -5,30 +5,12 @@ for what was fixed and when.
 
 ## General / Security
 
-- [ ] Enhance the library update process
-- [ ] Research Dependabot/Renovate for Docker image versions; docker-compose
-  image versions should be managed by Renovate rather than living in the
-  compose file
 - [ ] Fix python version w/ GHA
-- [ ] Strip API key secrets from nginx logs, see
-  [Jellyfin's nginx docs](https://jellyfin.org/docs/general/networking/nginx/#censor-sensitive-information-in-logs)
-- [ ] Move certificate info to a dedicated folder
-- [ ] Add k6 load testing
-- [ ] Add a VPN provider affiliate link
 - [ ] Set up a firewall
-- [ ] Find and inventory existing backups
-- [ ] Automate backups
-- [ ] Close remaining HTTP ports, allow access only through nginx
-
-## Gluetun
-
-- [ ] Verify IPv6 address handling and how to disable it
+- [ ] Automate backups: `make backup`/`make backup-full` are manual targets
+  only, unlike `scripts/auto-start.sh` which is actually scheduled
 
 ## qBittorrent
-
-- [ ] Set up an nginx reverse proxy for the WebUI, see
-  [qBittorrent's NGINX reverse proxy wiki page](https://github.com/qbittorrent/qBittorrent/wiki/NGINX-Reverse-Proxy-for-Web-UI)
-- [ ] Review and set upload/download speed limits
 
 Needs review (flagged instead of carried as firm todos: qBittorrent already
 runs inside gluetun's namespace with a structural VPN killswitch, so it's
@@ -39,31 +21,11 @@ recommendations):
 - [ ] Disable Local Peer Discovery
 - [ ] Disable the rate limit exemption for LAN peers
 
-## Jackett
-
-- [ ] Add an OMDb key
-
 ## Sonarr
 
 - [ ] Sonarr HTTPS: working setup steps are documented in the README known
   issues section (SslCertPath/SslCertPassword in config.xml plus EnableSsl);
   fold them into the future baseline config
-
-## NZBHydra2
-
-- [ ] Add notifications (Apprise?)
-- [ ] Fix failure adding to Lidarr, see
-  [SSL verification errors wiki page](https://github.com/theotherp/nzbhydra2/wiki/SSL-verification-errors)
-
-## Lidarr
-
-- [ ] Lidarr is not configured for Indexers due to a restriction to add it
-
-## Prowlarr
-
-- [ ] Flaresolverr
-- [ ] Indexers
-- [ ] Auto config arrs
 
 ## Calibre
 
