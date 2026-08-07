@@ -122,8 +122,7 @@ Neither backup mode includes media/download libraries or repository-only state:
 - `.git/`
 - `tests/`
 - `megalinter-reports/`
-- `data/`
-- `media/`
+- `data/` (includes `data/media/`, the actual media library)
 - `storage/`
 - `cache/`
 - `logs/`

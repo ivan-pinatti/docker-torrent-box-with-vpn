@@ -55,7 +55,6 @@ def _fixture(root: Path) -> None:
     _write(root / "tests/test_placeholder.py", "def test_placeholder(): pass\n")
     _write(root / "megalinter-reports/report.txt", "report\n")
     _write(root / "data/torrents/file", "download\n")
-    _write(root / "media/Movies/movie.mkv", "media\n")
 
 
 def _make(root: Path, target: str, *args: str) -> subprocess.CompletedProcess[str]:
@@ -128,7 +127,6 @@ def test_backup_full_keeps_app_artwork_but_not_repo_or_media_state(tmp_path):
     assert "tests/test_placeholder.py" not in names
     assert "megalinter-reports/report.txt" not in names
     assert "data/torrents/file" not in names
-    assert "media/Movies/movie.mkv" not in names
 
 
 def test_restore_requires_explicit_existing_backup(tmp_path):

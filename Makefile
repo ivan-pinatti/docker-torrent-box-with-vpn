@@ -91,7 +91,6 @@ COMMON_BACKUP_EXCLUDES := \
 	--exclude=cache \
 	--exclude=data \
 	--exclude=logs \
-	--exclude=media \
 	--exclude=megalinter-reports \
 	--exclude=node_modules \
 	--exclude=storage \
@@ -310,12 +309,15 @@ clean:
 	@echo ".OK!"
 
 	@echo -n "Cleaning Download folders........."
-	@cd shared && find . ! -name '.gitignore' -type f -exec sudo rm -f {} + && cd ..
+	@for dir in data/downloads data/torrents data/usenet; do \
+		[ -d "$$dir" ] && find "$$dir" ! -name '.gitkeep' -type f -exec sudo rm -f {} + ; \
+	done
 	@echo ".OK!"
 
 clean_all: clean
 	@echo -n "Cleaning Media folders........."
-	@cd media && find . ! -name '.gitignore' ! -name 'metadata.db' -type f -exec sudo rm -f {} + && cd ..
+	@[ -d data/media ] && find data/media -path data/media/calibre-library -prune -o \
+		! -name '.gitkeep' -type f -exec sudo rm -f {} +
 	@echo ".OK!"
 
 check_requirements:

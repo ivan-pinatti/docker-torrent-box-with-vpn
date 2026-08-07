@@ -354,12 +354,6 @@ paths:
     owner: whisparr
     mode: "0750"
 
-  - path: media/Comics
-    owner: mylar
-    mode: "0750"
-  - path: media/eBooks
-    owner: calibre
-    mode: "0750"
   - path: configs/qbittorrent/config
     owner: qbittorrent
     mode: "0750"

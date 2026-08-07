@@ -188,15 +188,18 @@ health layers.
 
 The media type will be stored into the folders below;
 
-| **Media**    | **Folder**        |
-| ------------ | ----------------- |
-| AudioBooks   | media/AudioBooks  |
-| Comics       | media/Comics      |
-| eBooks       | media/eBooks      |
-| Movies       | media/Movies      |
-| Music        | media/Music       |
-| Music Videos | media/MusicVideos |
-| Series       | media/Series      |
+| **Media**       | **Folder**                 |
+| --------------- | -------------------------- |
+| AudioBooks      | data/media/audiobooks      |
+| Calibre Library | data/media/calibre-library |
+| Comics          | data/media/comics          |
+| eBooks          | data/media/ebooks          |
+| Mature          | data/media/mature          |
+| Movies          | data/media/movies          |
+| Music           | data/media/music           |
+| Music Videos    | data/media/musicVideos     |
+| Podcasts        | data/media/podcasts        |
+| TV              | data/media/tv              |
 
 ---
 

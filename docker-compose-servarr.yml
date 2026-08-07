@@ -364,7 +364,6 @@ services:
       - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/mylar/config:/config:z
       - ${DATA_FOLDER}:/data:z
-      - ${MEDIA_FOLDER}/Comics:/comics:z
       - ./patches/mylar/lib/qbittorrent/client.py:/app/mylar3/lib/qbittorrent/client.py:ro,z
       - ./patches/mylar/mylar/torrent/clients/qbittorrent.py:/app/mylar3/mylar/torrent/clients/qbittorrent.py:ro,z
       - ./patches/mylar/mylar/config.py:/app/mylar3/mylar/config.py:ro,z

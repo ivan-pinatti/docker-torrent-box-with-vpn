@@ -79,7 +79,7 @@ BASH_SHELLCHECK_FILTER_REGEX_EXCLUDE: (^patches/|^configs/.*/custom-(cont-init|s
 # fails both gates or neither. Without this, MegaLinter reports info-level
 # style notes that the commit-time hook deliberately ignores.
 BASH_SHELLCHECK_ARGUMENTS: "--severity=error"
-REPOSITORY_CHECKOV_ARGUMENTS: --skip-framework secrets --skip-path configs --skip-path media/eBooks
+REPOSITORY_CHECKOV_ARGUMENTS: --skip-framework secrets --skip-path configs
 PYTHON_RUFF_FILTER_REGEX_INCLUDE: (^tests/)
 PYTHON_BANDIT_FILTER_REGEX_INCLUDE: (^tests/)
 PYTHON_BANDIT_FILTER_REGEX_EXCLUDE: (tests/\.venv/)
