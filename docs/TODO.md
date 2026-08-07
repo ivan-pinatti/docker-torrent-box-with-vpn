@@ -1,51 +1,19 @@
 # Todo
 
-A mix of open items (`[ ]`) and resolved-issue write-ups (`[x]`) kept for
-future reference — the checked entries are a running engineering journal
-(root cause, fix, and how it was confirmed live), not just a changelog.
-Skim past `[x]` entries for background on why something is the way it is;
-look at `[ ]` entries for what's still outstanding.
+Open items only. Resolved work lives in git history, not here; see `git log`
+for what was fixed and when.
 
 ## General / Security
 
-- [x] Replace tracked live configs with a curated basic setup for fresh
-  clones. The runtime SQLite databases were untracked and gitignored on
-  2026-07-09: pre-commit's stash cycle rewrote them mid-commit on 2026-07-07
-  while services were running, corrupting the sonarr, radarr, lidarr, and
-  readarr databases (recovered from app backups; corrupt copies preserved
-  under `backup/db-corruption-20260709-150443/`). config.xml/config.ini/
-  nzbhydra.yml/ServerConfig.json/grafana's .env are now handled the same way,
-  via `.example` templates seeded by `scripts/seed-configs.sh` on
-  `make bootstrap`; see "Runtime config bootstrap pattern" in
-  docs/COMPOSE_CONVENTIONS.md. Old database and config contents are still in
-  git history; purging them requires a history rewrite (`git filter-repo`)
-  plus a force push, deferred separately
 - [ ] Enhance the library update process
 - [ ] Research Dependabot/Renovate for Docker image versions; docker-compose
   image versions should be managed by Renovate rather than living in the
   compose file
 - [ ] Fix python version w/ GHA
-- [x] Rotate passwords, implemented by `scripts/rotate-passwords.sh` through
-  each app's host config API, which hashes them internally, so no local KDF
-  work is needed. See [ROTATION.md](ROTATION.md)
 - [ ] Strip API key secrets from nginx logs, see
   [Jellyfin's nginx docs](https://jellyfin.org/docs/general/networking/nginx/#censor-sensitive-information-in-logs)
-- [x] Rotate API keys, implemented by `scripts/rotate-api-keys.sh` for the
-  Servarr apps and Bazarr. Jackett is legacy and stays out of scope. See
-  [ROTATION.md](ROTATION.md)
 - [ ] Move certificate info to a dedicated folder
 - [ ] Add k6 load testing
-- [x] Disable automatic Docker image updates in all containers: no
-  watchtower/auto-update mechanism exists, and `up` never re-pulls images on
-  its own, so the only real drift risk was the handful of services still
-  pinned to the `latest` tag. `nordvpn`/`plex` have no container definition
-  left anywhere in the compose tree (dead `.env` vars, no risk); `mylar` and
-  `jdownloader2` were actively running on `latest` and got pinned to the
-  exact versions already running (`v0.9.0-ls252`, `v26.07.2`, confirmed via
-  the running images' own version labels and a rebuild that reused the
-  identical cached layer, so no functional change). Also synced
-  `.env.example`'s stale `latest` defaults for `cadvisor`/`node_exporter` to
-  match what `.env` already pins, so fresh clones get the same protection
 - [ ] Add a VPN provider affiliate link
 - [ ] Set up a firewall
 - [ ] Find and inventory existing backups
@@ -55,19 +23,6 @@ look at `[ ]` entries for what's still outstanding.
 ## Gluetun
 
 - [ ] Verify IPv6 address handling and how to disable it
-
-## Nginx
-
-- [x] Investigate `NGINX_HOST=${DOMAIN}` in `configs/nginx/.env`: confirmed
-  dead, like the removed *arr `PASSWORD` vars. Not referenced in
-  `configs/nginx/templates/*.template` and not read by the official nginx
-  image's own entrypoint scripts either (checked `/docker-entrypoint.d/` and
-  `/docker-entrypoint.sh` inside the running container). The other two vars
-  in that file are real: `JELLYFIN_PROXY_DOMAIN` is used in
-  `default.conf.template`'s `server_name`, and
-  `NGINX_ENTRYPOINT_LOCAL_RESOLVERS` drives the image's own
-  `15-local-resolvers.envsh`. Removed `NGINX_HOST`; nginx recreated clean
-  and healthy afterward
 
 ## qBittorrent
 
@@ -93,21 +48,9 @@ recommendations):
 - [ ] Sonarr HTTPS: working setup steps are documented in the README known
   issues section (SslCertPath/SslCertPassword in config.xml plus EnableSsl);
   fold them into the future baseline config
-- [x] Investigate database corruption: caused by pre-commit stashing the
-  tracked live database during a commit while Sonarr was running, see the
-  runtime configs entry under General / Security
 
 ## NZBHydra2
 
-- [x] Restrict access for unlogged-in users: `restrictAdmin`,
-  `restrictDetailsDl`, `restrictIndexerSelection`, `restrictSearch`, and
-  `restrictStats` are all already `true` in the live config. Verified live:
-  an unauthenticated request to the internal search API and to the home
-  page both redirect to `/login` (302); the Newznab-compatible `/api`
-  endpoint is separately protected by its own API key check regardless
-- [x] Set cookie expiry to 1 day: `auth.rememberMeValidityDays` is already `1`
-  in the live config (confirmed it survives container restarts, since
-  NZBHydra2 flushes its own config back to `nzbhydra.yml` on shutdown)
 - [ ] Add notifications (Apprise?)
 - [ ] Fix failure adding to Lidarr, see
   [SSL verification errors wiki page](https://github.com/theotherp/nzbhydra2/wiki/SSL-verification-errors)
@@ -121,8 +64,6 @@ recommendations):
 - [ ] Flaresolverr
 - [ ] Indexers
 - [ ] Auto config arrs
-- [x] Decide how Prowlarr should trust the self-signed certificate for the
-  LazyLibrarian and Mylar HTTPS application entries. Resolved (per Ivan)
 
 ## Calibre
 
@@ -133,17 +74,17 @@ recommendations):
   Confirmed via direct log capture: `svc-de` is an s6 "longrun" service
   whose `run` script does `wait "$PID"; exit 1` on the underlying
   calibre/labwc process, so whenever that process exits for any reason, s6
-  automatically relaunches it with a fresh PID — this is what both the
+  automatically relaunches it with a fresh PID; this is what both the
   spontaneous recovery (seen during a plain `make start`, no self-heal
   logic involved) and `rotate-passwords.sh`'s manual
   `s6-svc -r /run/service/svc-de` self-heal actually trigger. What's not
   found: why the first attempt's process exits/goes idle in the first
-  place — no crash or error appears in the container logs at the moment it
+  place: no crash or error appears in the container logs at the moment it
   happens. Tested and ruled out as the sole cause: CPU quota (0.5 vs 1 vs 2
   CPUs made no difference to the worst case under real load, though 0.5 did
   show genuine throttling in isolation and 1 is the current setting),
   sustained concurrent `podman exec` load against other containers alone,
-  and a long stopped period alone or combined with the load test — none of
+  and a long stopped period alone or combined with the load test; none of
   these reproduce it outside an actual mass-startup event. See
   [README.md known issue #6](../README.md#known-issues-and-future-improvements)
   and `docs/ROTATION.md` for the current mitigation
@@ -162,18 +103,6 @@ recommendations):
 
 ## jDownloader2
 
-- [x] Fix the web UI password not picking up rotations. Root cause: the
-  image's documented Docker-secrets support (`CONT_ENV_<VAR>`) never fires
-  for `WEB_AUTHENTICATION_USERNAME`/`PASSWORD` specifically, confirmed by
-  reading `/init`'s source: `load_env_var()` only sets a variable when
-  currently unset, but the image's own Dockerfile pre-declares both as
-  empty-string env vars, so the loader always finds them already "set" (to
-  `""`) and silently skips loading the secret. Fixed with
-  `patches/jdownloader2/10-webauth.sh`, bind-mounted over the image's own
-  cont-init.d script, reading the mounted secret file directly instead of
-  trusting the broken loader. Filed upstream:
-  [jlesage/docker-baseimage-gui#196](https://github.com/jlesage/docker-baseimage-gui/issues/196).
-  See `docs/ROTATION.md` and `docs/COMPOSE_CONVENTIONS.md` for the pattern
 - [ ] Drop `patches/jdownloader2/10-webauth.sh` once it is no longer needed.
   Upstream fixed `load_env_var()` in `docker-baseimage-gui` version 4.13.0
   (2026-08-06), confirmed via the maintainer's own comment closing #196. But
@@ -184,27 +113,7 @@ recommendations):
   `docker-jdownloader-2`'s Dockerfile for a `baseimage-gui` bump to 4.13.0+
   before removing this patch
 
-## Whisparr
-
-- [x] Re-enable the password once the upstream bug is fixed: already
-  re-enabled. `config.xml` shows `AuthenticationMethod=Forms`,
-  `AuthenticationRequired=Enabled`, matching its Servarr siblings; verified
-  live that an unauthenticated request gets a real `401` redirecting to
-  `/login`. `rotate-passwords.sh`/`rotate-api-keys.sh` treat it identically
-  to every other arr app with no special-casing, and Prowlarr has it
-  registered as a synced application with no active failure/disable state
-  and no related errors in recent logs. The original bug reference is lost
-  (introduced from a root `TODO.md` that was never tracked by git, so no
-  history survived the merge in `dc14c98`); likely candidate is the
-  documented Prowlarr↔Whisparr Basic-auth-challenge sync bug, not currently
-  reproducing here
-
 ## Test Suite
-
-Found running `make test` after the 2026-07-27 Prowlarr/Sonarr/Radarr version
-bump (2.5.2/6.3.0/4.0.19). None of the arr-specific tests (health checks, API
-key rotation, password rotation) failed, so these look pre-existing rather
-than caused by that update, but they still need fixing:
 
 - [ ] Deluge, Notifiarr, and Jackett have zero pytest coverage. Found while
   building `make bootstrap_tests` (2026-08-06): `conftest.py`'s `SERVICES`
@@ -217,210 +126,3 @@ than caused by that update, but they still need fixing:
   Deluge and Notifiarr look like plain oversights rather than a deliberate
   exclusion like Jackett's; worth real coverage if either is meant to be a
   first-class supported service
-- [x] `docker-py` container references go stale mid-session against the
-  podman socket: once a container is stopped/recreated (as the rotation and
-  rinse-and-repeat tests do earlier in the same `pytest` run), later
-  `container.exec_run()` calls against the old cached ID 404 with
-  `docker.errors.NotFound`. Fixed by adding `fresh_container()` in
-  `conftest.py`, re-fetched by name right before each `exec_run()` in
-  `tests/test_security.py`, instead of reusing the session-fixture object.
-  Reproduced and confirmed the fix directly: force-recreated a container
-  mid-session, the stale object 404s while a freshly-fetched one works
-- [x] `test_capabilities_dropped` in `tests/test_security.py` asserted the
-  literal string `"ALL"` appears in `CapDrop`, but podman's Docker-compatible
-  API reports the fully expanded default-capability list instead. This
-  surfaced a real, separate gap while fixing it: `cap_drop: ALL` was
-  completely missing (not just misreported) from the compose blocks for
-  sonarr, radarr, bazarr, lidarr, prowlarr, readarr, whisparr (via the
-  shared `x-servarr-common` anchor), qbittorrent, sabnzbd, and jellyfin,
-  confirmed via `/proc/1/status` (`CapBnd` non-zero) despite the 2.2.x
-  changelog claiming all containers were hardened with it. Tried adding
-  `cap_drop: [ALL]` to all ten and it broke every one of them:
-  s6-overlay's root-to-PUID/PGID privilege drop needs `CAP_SETGID` for its
-  `setgroups()` call, and `s6-applyuidgid: fatal: unable to set
-  supplementary group list: Operation not permitted` crash-loops them.
-  Reverted the compose change (confirmed clean, containers healthy again);
-  these ten structurally cannot reach zero capabilities without breaking
-  their own startup. Fixed the test instead to assert the achievable
-  invariant per group: full drop for services that can reach it, and "no
-  capability added beyond the default floor" for the ten that need it
-  (tracked as `ROOT_INIT_SERVICES` in the test file)
-- [x] Grafana dashboard tests in `tests/test_observability.py` read dashboard
-  JSON straight from `configs/grafana/config/provisioning/dashboards/<file>.json`,
-  but the dashboards were reorganized into subfolders
-  (`downloaders/`, `node_containers/`, `torrent_box/`) without updating the
-  tests, so every one 404s with `FileNotFoundError`. Fixed the paths; also
-  caught a stale panel title (`Network I/O` renamed to `VPN Network I/O`) in
-  the same run
-- [x] `tests/test_auth.py::test_qbittorrent_api_login` and
-  `test_qbittorrent_web_session_login` failed with a login `'Fails.'`
-  response. Not a health-check timing issue: the tests read
-  `QBITTORRENT_PASSWORD` from root `.env`, but `rotate-passwords.sh` only
-  ever writes the rotated password to `configs/qbittorrent/.env.secrets`, so
-  they always fell back to the placeholder password and failed with a real
-  credential mismatch. Fixed to read the actual secrets file.
-  `test_containers.py::test_container_healthy` also read a stale `Health`
-  snapshot captured once at session-fixture creation; fixed to reload and
-  retry via `wait_for_healthy` before asserting
-- [x] `tests/test_compose_config.py::test_homepage_group_and_media_ordering`
-  expects the indexers/downloaders group ordered
-  `[..., 'NZBHydra2']` but got `JDownloader2` appended instead; homepage
-  config and test have drifted apart. Updated the expected order to include
-  `JDownloader2`
-- [x] `tests/test_rinse_and_repeat.py::test_stop_then_start[1]` hit a
-  transient podman IPAM error (`requested ip address 172.30.0.10 is already
-  allocated`) on the first stop/start cycle; passed clean on the immediate
-  retry (`[2]`). Root cause: the `media` network (nginx's static IP lives on
-  it) was never added to `start:`'s "ensure required networks exist"
-  pre-check, unlike `apps`/`services`/`observability`, so it relied entirely
-  on podman-compose's own automatic network creation during `up`, racing
-  under the same category of bug those three were already worked around for.
-  `start_library:` already had the correct line (`network exists ... media
-  || network create --subnet ${MEDIA_SUBNET} ... media`); `start:` just
-  never got it. Added it; ran `test_stop_then_start` and
-  `test_down_then_start` (2 cycles each) clean afterward. That alone wasn't
-  sufficient though: a subsequent `make start` still hit the exact same
-  IPAM error, this time with `calibre` (a dynamically-addressed container)
-  holding nginx's static IP, because nothing reserved `172.30.0.10` out of
-  the dynamic pool, so whichever container asked for an address first could
-  get it. Added `MEDIA_DYNAMIC_IP_RANGE=172.30.0.16/28` (`.env`,
-  `.env.example`) and wired it into the `media` network's `ip_range` in
-  `docker-compose.yml` and the two `podman network create` calls in the
-  Makefile, so dynamic allocation can no longer touch nginx's reserved
-  address. Verified after recreating the network: nginx holds `.10`,
-  jellyfin/audiobookshelf/calibre/calibre-web/korsync/homepage all land in
-  `.16`-`.31` with no collisions
-- [x] `tests/test_observability.py::test_grafana_dashboards_provisioned`
-  expected dashboard titles `Node Exporter - Overview`, `qBittorrent -
-  Overview`, `SABnzbd Dashboard`, but Grafana now reports the shortened
-  titles `Node Exporter`, `qBittorrent`, `SABnzbd` (dashboards were renamed
-  at some point after the file-path reorg). Updated the expected set to
-  match. Also added a `pw_rotation` marker (on top of the existing
-  `rotation` marker, which covers both password and API-key rotation) and a
-  `make test_no_rotate_passwords` target, so the two can be selected
-  independently — `pytest -m rotation` still means "both", `-m pw_rotation`
-  or `-m "not pw_rotation"` scopes to password rotation alone (named to
-  dodge a detect-secrets false positive: any marker name containing
-  "password" before the colon gets flagged as a Secret Keyword). Ran the
-  full suite twice with it: the first run had 1
-  failure (this dashboard title mismatch) plus 2 connection-refused errors
-  and a garbled homepage widget-check failure; the cause of those latter
-  three wasn't identified (collection order rules out
-  `test_rinse_and_repeat.py`, which runs after both), but they didn't
-  reproduce on an immediate re-run in isolation or on a second full run
-  (295 passed, 9 skipped, 0 failed) after the dashboard fix, so treated as a
-  one-off environmental blip rather than a real bug
-- [x] `tests/test_tls.py::test_certificate_not_expired` and
-  `test_certificate_subject_logged` always skipped with "Could not retrieve
-  certificate," regardless of the certificate's real state. Root cause:
-  `_get_cert()` sets `ssl.CERT_NONE` (needed to tolerate the self-signed
-  cert) and calls `conn.getpeercert()`, but Python's `ssl` module only
-  populates `getpeercert()`'s parsed dict when verification actually
-  succeeds; under `CERT_NONE` it always returns `{}`. Fixed by loading the
-  stack's own `certs/server.crt` as a trust anchor
-  (`ctx.load_verify_locations` + `CERT_REQUIRED`) so the self-signed cert
-  verifies against itself and `getpeercert()` returns real data, falling
-  back to `CERT_NONE` if the cert file is missing/unreadable. Also fixed a
-  `datetime.utcnow()` deprecation warning this surfaced (the code path
-  never used to run). Both tests now genuinely pass instead of
-  permanently no-op'ing.
-
-  While verifying this, hit an unrelated live issue: SABnzbd was
-  502'ing (`nginx` → `connect() failed (111: Connection refused)` to
-  `172.28.0.10:8087`) because `gluetun` had restarted minutes earlier
-  (fresh WireGuard connection) and containers sharing its network
-  namespace (`sabnzbd`, `qbittorrent`, `jdownloader2`) didn't
-  automatically regain reachability; a plain `podman restart sabnzbd`
-  fixed it immediately. Root cause confirmed by reading podman-compose's
-  own source (checked 1.5.0, installed, and 1.6.0, latest): `depends_on`
-  parsing only ever reads the `condition` key and silently ignores
-  `restart`, so `restart: true` (present on qbittorrent/jdownloader2, now
-  also added to sabnzbd for consistency) never actually fires, and
-  gluetun's own `restart: unless-stopped` policy can bring it back up on
-  its own (lost WireGuard handshake, OOM kill, etc.) with nothing
-  restarting its namespace-sharing dependents afterward. Fixed with a new
-  `make heal_vpn_dependents` target: compares each dependent container's
-  `StartedAt` against gluetun's current `StartedAt` and restarts any that
-  predate it. Reproduced the bug live (`podman restart gluetun` while
-  sabnzbd/qbittorrent/jdownloader2 kept running) and confirmed the target
-  detects and fixes it, restoring reachability.
-- [x] Validated `JELLYFIN_PROXY_DOMAIN` end to end using `jellyfin.localhost`
-  (resolves to `127.0.0.1` out of the box via glibc's built-in RFC 6761
-  handling, no `/etc/hosts` entry needed on this host) instead of
-  `jellyfin.invalid`: set it in both `.env` and `configs/nginx/.env`, ran
-  `make generate_certificate` to add it to the cert's SAN (safe to run
-  against a live stack since it reuses the existing `CERT_PASSWORD`, so the
-  servarr config.xml writes are no-ops), recreated `nginx` to pick up the
-  new cert and rendered `server_name`, then confirmed
-  `test_jellyfin_proxy_domain_reachable` passes and
-  `curl -k https://jellyfin.localhost/` redirects to `jellyfin/web/`. Note
-  `.localhost` only works for this because the test client and the stack
-  are the same machine; a real LAN-reachable domain needs a non-reserved
-  name and a real `/etc/hosts`/DNS entry on the client instead.
-
-## In Progress
-
-## Won't do
-
-## Done
-
-2.2.x
-
-- [x] Containers run as non-root (PUID=${UID}/PGID=${GID}). s6-overlay starts as root to
-  drop privileges; the app process runs as the configured user.
-- [x] All containers hardened with no-new-privileges and cap_drop: ALL. Exceptions: gluetun
-  (needs NET_ADMIN/NET_RAW), cadvisor (needs privileged), podman_exporter (uses userns_mode).
-
-2.1.x
-
-- [x] DOCS - Updated to add required binaries for xmlstarlet and yq
-- [x] DOCS - Wireguard is required in the host machine
-- [x] DOCS - Added the requirements section and the make check_requirements command
-- [x] MAKE - Improvement in generate_certificate, now it updates SSL keys in apps configurations
-- [x] MAKE - Added the check_requirements command
-- [x] Docker - All containers are now limited to 1 CPU and 1 GB memory
-- [x] Docker Compose - Version in docker-compose file is obsolete, removed
-- [x] All Services - All versions are now locked to the latest working
-- [x] All Services - Removed the general .env from the containers configuration,
-  only specific .env for each service now
-- [x] All Services - Removed secrets as new images don't have the option anymore
-- [x] ProtonVPN - Added the --p2p option to ProtonVPN container
-- [x] ProtonVPN - Moved the secret into the .secret file for improved security
-- [x] Whisparr - Added to the stack
-- [x] Jellyfin - Added to the stack
-- [x] Docker Compose - Switch from docker-compose to docker compose
-
-2.1.4
-
-- [x] Fix pre-commit docker-compose hook
-
-2.0.1
-
-- [x] Added backup entries to .gitignore
-- [x] Added certs to the backup
-- [x] Rearranging Github files
-- [x] Automate semantic versioning
-- [x] Automate release generation
-- [x] Adding devContainers to the repository to facilitate development
-- [x] Plex network changed to `host` for better performance
-- [x] Added support for NordVPN (untested)
-
-2.0.0
-
-- [x] Augment the stack to use a reverse proxy w/ https
-- [x] Add Lazylibrarian to Prowlarr
-- [x] Added Prowlarr to the stack
-- [x] Config HTTPS available services
-- [x] Create the script to generate self-certificate
-- [x] Add Stale bot
-- [x] Pre-commit hooks - Linting, security, etc...
-- [x] Added restart to Makefile
-- [x] Added ports 6881 and 6881/udp to qBittorrent container
-- [x] Made the `docker-compose` file more compact
-- [x] Remove the `depends_on` clause from the containers to make it more customizable
-- [x] Add the option to select to enable/disable apps
-- [x] Fix the text for the `make clean`
-- [x] Flaresolverr typo (missing an R)
-- [x] Flaresolverr doesn't have a captcha solver - investigate
-- [x] Create my first TODO.md
-- [x] Add more tasks to Makefile
