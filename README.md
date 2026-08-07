@@ -201,10 +201,11 @@ _\* ERC-20 accepts ETH, USDT, and USDC · BEP-20 accepts BNB, USDT, and USDC · 
 | jDownloader2   | <https://hub.docker.com/r/jlesage/jdownloader-2>     | Download Manager                                                  | enabled     |
 | NZBHydra2      | <https://hub.docker.com/r/linuxserver/nzbhydra2>     | Meta Searcher for NZB indexers                                    | enabled     |
 | Plex           | <https://hub.docker.com/r/linuxserver/plex>          | Movie/TV Shows/Music Library Manager and Player                   | enabled     |
-| Prowlarr       | <https://hub.docker.com/r/linuxserver/prowlarr>      | Query Proxy Server                                                | disabled    |
+| Prowlarr       | <https://hub.docker.com/r/linuxserver/prowlarr>      | Query Proxy Server                                                | enabled     |
 | qBittorrent    | <https://hub.docker.com/r/linuxserver/qbittorrent>   | Torrent Downloader                                                | enabled     |
 | Radarr         | <https://hub.docker.com/r/linuxserver/radarr>        | Movies Tracker/Manager                                            | enabled     |
 | Readarr        | <https://hub.docker.com/r/linuxserver/readarr>       | eBooks Tracker/Manager ⚠️ retired upstream                        | enabled     |
+| Recyclarr      | <https://github.com/recyclarr/recyclarr>             | TRaSH-Guides quality profile sync for Sonarr/Radarr               | enabled     |
 | SABnzbd        | <https://hub.docker.com/r/linuxserver/sabnzbd>       | Usenet Downloader                                                 | enabled     |
 | Sonarr         | <https://hub.docker.com/r/linuxserver/sonarr>        | TV Shows Tracker/Manager                                          | enabled     |
 

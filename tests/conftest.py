@@ -342,6 +342,33 @@ def fresh_container(docker_client, name: str):
     return docker_client.containers.get(name)
 
 
+def skip_if_not_running_fresh(docker_client, name: str, timeout: int = 60):
+    """Like skip_if_not_running, but polls live instead of trusting the
+    session-scoped snapshot.
+
+    `running_containers` is captured once per pytest invocation (one of the
+    several separate processes `make test` runs), at whichever moment the
+    first test that needs it runs. A container with unusually slow or
+    variable startup can still be short of "running" at that instant and
+    fully up moments later, silently skipping every test gated on it for
+    the rest of that invocation. Confirmed live: Calibre (README's Known
+    Issues #6 documents 90s-300s+ starts, sometimes cycling through several
+    s6-triggered relaunches) skipped its own password rotation test in
+    every run this session even though the rotation itself, once it
+    actually gets to run, already tolerates exactly this slowness with its
+    own 600s login retry.
+    """
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            if docker_client.containers.get(name).status == "running":
+                return
+        except docker.errors.NotFound:
+            pass
+        time.sleep(5)
+    pytest.skip(f"container '{name}' is not running")
+
+
 def skip_if_disabled(name: str):
     if not is_enabled(name):
         pytest.skip(f"service '{name}' profile is disabled")

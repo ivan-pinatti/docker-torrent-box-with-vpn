@@ -32,6 +32,7 @@ from conftest import (
     read_api_key,
     recreate_container,
     skip_if_not_running,
+    skip_if_not_running_fresh,
     wait_for_healthy,
     wait_for_homepage_ready,
 )
@@ -828,11 +829,15 @@ def test_rotate_mylar_password(running_containers):
     )
 
 
-def test_rotate_calibre_password(running_containers):
+def test_rotate_calibre_password(docker_client):
     """Rotating the Calibre content server password updates the userdb and LazyLibrarian."""
     if ENV.get("CALIBRE_PROFILE", "disabled").lower() != "enabled":
         pytest.skip("calibre profile is disabled")
-    skip_if_not_running("calibre", running_containers)
+    # Not skip_if_not_running(running_containers): that snapshot is one
+    # session-scoped read, and Calibre's own slow/variable boot means it can
+    # still be short of "running" at that instant. See
+    # skip_if_not_running_fresh's docstring in conftest.py.
+    skip_if_not_running_fresh(docker_client, "calibre")
 
     # rotate-passwords.sh itself retries calibre_login_ok for up to 600s
     # (the desktop GUI can take minutes to boot); give the subprocess margin
@@ -1080,7 +1085,7 @@ def test_rotate_nzbhydra2_password(running_containers):
     assert "login?error" not in body, "NZBHydra2 rejected the new password"
 
 
-def test_calibre_gui_holds_library_open(running_containers):
+def test_calibre_gui_holds_library_open(docker_client):
     """Calibre's GUI must actually have its library open after a rotation.
 
     rotate-passwords.sh used to run `permissions.py repair --recursive`
@@ -1100,7 +1105,10 @@ def test_calibre_gui_holds_library_open(running_containers):
     """
     if not is_enabled("calibre"):
         pytest.skip("service 'calibre' profile is disabled")
-    skip_if_not_running("calibre", running_containers)
+    # See test_rotate_calibre_password: the stale session snapshot skips
+    # this whenever Calibre's own slow boot hasn't finished by the time it
+    # was taken.
+    skip_if_not_running_fresh(docker_client, "calibre")
 
     pid = subprocess.run(  # nosec B607 - podman is a trusted, fixed CLI in this stack
         ["podman", "exec", "calibre", "pgrep", "-f", "bin/calibre$"],
