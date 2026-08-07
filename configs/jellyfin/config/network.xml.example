@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<NetworkConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <BaseUrl>/jellyfin</BaseUrl>
+  <EnableHttps>true</EnableHttps>
+  <RequireHttps>false</RequireHttps>
+  <CertificatePath>/certs/server.pfx</CertificatePath>
+  <CertificatePassword>changeme</CertificatePassword>
+  <InternalHttpPort>8096</InternalHttpPort>
+  <InternalHttpsPort>8920</InternalHttpsPort>
+  <PublicHttpPort>8096</PublicHttpPort>
+  <PublicHttpsPort>8920</PublicHttpsPort>
+  <AutoDiscovery>true</AutoDiscovery>
+  <EnableUPnP>false</EnableUPnP>
+  <EnableIPv4>true</EnableIPv4>
+  <EnableIPv6>false</EnableIPv6>
+  <EnableRemoteAccess>false</EnableRemoteAccess>
+  <LocalNetworkSubnets />
+  <LocalNetworkAddresses />
+  <KnownProxies>
+    <string>172.30.0.10</string>
+  </KnownProxies>
+  <IgnoreVirtualInterfaces>true</IgnoreVirtualInterfaces>
+  <VirtualInterfaceNames>
+    <string>veth</string>
+  </VirtualInterfaceNames>
+  <EnablePublishedServerUriByRequest>false</EnablePublishedServerUriByRequest>
+  <PublishedServerUriBySubnet />
+  <RemoteIPFilter />
+  <IsRemoteIPFilterBlacklist>false</IsRemoteIPFilterBlacklist>
+</NetworkConfiguration>

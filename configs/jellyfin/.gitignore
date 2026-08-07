@@ -12,8 +12,14 @@
 secrets/*
 !secrets/*.example
 
-# Jellyfin's config tree stays entirely ignored. Jellyfin generates it on
-# first run and owns it thereafter: config/config/network.xml holds the real
-# <CertificatePassword>, and config/data/jellyfin.db holds users, devices,
-# and playback history. Nothing here is a template.
+# Jellyfin generates the rest of its config tree on first run and owns it
+# thereafter: config/network.xml itself holds the real <CertificatePassword>
+# once bootstrap seeds and patches it, and config/data/jellyfin.db holds
+# users, devices, and playback history. network.xml.example is the one
+# template here (BaseUrl/EnableHttps/CertificatePath/KnownProxies pre-set so
+# Jellyfin's genuine first boot already reads the right values; confirmed
+# live that Jellyfin preserves a pre-seeded network.xml byte for byte
+# instead of overwriting it, same as every other app's seeded config).
 !config/
+config/*
+!config/network.xml.example
