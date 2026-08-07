@@ -214,6 +214,8 @@ bootstrap: configs/flaresolverr/config/chromedriver
 	@./scripts/seed-configs.sh configs/calibre/config/.config/calibre/gui.py.json
 	@./scripts/seed-configs.sh configs/calibre/config/.config/calibre/global.py.json
 	@./scripts/seed-configs.sh configs/calibre/config/.config/calibre/dynamic.pickle.json
+	@./scripts/seed-configs.sh configs/recyclarr/config/recyclarr.yml
+	@./scripts/seed-configs.sh configs/recyclarr/config/secrets.yml
 	@./scripts/permissions.py repair --runtime $(RUNTIME) --recursive
 	@if [ -f "$(CERTIFICATES_FOLDER)/server.pfx" ]; then \
 		echo "Certificate already exists at $(CERTIFICATES_FOLDER)/server.pfx, skipping generation (keeps a custom certificate you supplied yourself)."; \

@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=https://schemas.recyclarr.dev/latest/config-schema.json
+#
+# A basic starting point, matching recyclarr.dev's own getting-started guide
+# (https://recyclarr.dev/guide/getting-started/): one quality profile per
+# app, TRaSH Guides' recommended custom formats left at their default scores,
+# nothing app-specific hand-tuned in. Add more quality_profiles (see
+# `recyclarr config list templates` for the full set: WEB-2160p,
+# UHD Bluray + WEB, Remux variants, anime, language-specific, and so on) or
+# custom_formats as your own library grows past this.
+
+sonarr:
+  sonarr_main:
+    base_url: !secret sonarr_url
+    api_key: !secret sonarr_apikey
+
+    quality_definition:
+      type: series
+
+    media_naming:
+      series: default
+      season: default
+      episodes:
+        rename: true
+        standard: default
+        daily: default
+        anime: default
+
+    quality_profiles:
+      - trash_id: 72dae194fc92bf828f32cde7744e51a1 # WEB-1080p
+        reset_unmatched_scores:
+          enabled: true
+
+radarr:
+  radarr_main:
+    base_url: !secret radarr_url
+    api_key: !secret radarr_apikey
+
+    quality_definition:
+      type: movie
+
+    media_naming:
+      folder: default
+      movie:
+        rename: true
+        standard: standard
+
+    quality_profiles:
+      - trash_id: d1d67249d3890e49bc12e275d989a7e9 # HD Bluray + WEB
+        reset_unmatched_scores:
+          enabled: true
