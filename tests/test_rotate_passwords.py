@@ -1107,8 +1107,14 @@ def test_calibre_gui_holds_library_open(docker_client):
     file descriptor is therefore a direct test for "is the dialog up", which
     is otherwise invisible from outside the Wayland session.
     """
-    if not is_enabled("calibre"):
-        pytest.skip("service 'calibre' profile is disabled")
+    # Not is_enabled("calibre"): SERVICES (conftest.py) has no "calibre"
+    # entry at all (only "calibreweb", a different app), so that check
+    # always returned False here -- confirmed live, this test has been an
+    # unconditional no-op skip via this line since it was written,
+    # regardless of the profile's real state. ENV.get() directly, matching
+    # test_rotate_calibre_password's own already-correct check.
+    if ENV.get("CALIBRE_PROFILE", "disabled").lower() != "enabled":
+        pytest.skip("calibre profile is disabled")
     # See test_rotate_calibre_password: the stale session snapshot skips
     # this whenever Calibre's own slow boot hasn't finished by the time it
     # was taken. Same 300s timeout for the same reason.
