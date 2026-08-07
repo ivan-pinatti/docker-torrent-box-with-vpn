@@ -250,10 +250,11 @@ bootstrap: configs/flaresolverr/config/chromedriver
 	@echo "for what was wired, and docs/ROTATION.md to rotate again later."
 	@if [ "$(NGINX_PROFILE)" = "enabled" ] && [ "$(HOMEPAGE_PROFILE)" = "enabled" ]; then \
 		echo ""; \
-		if [ "$(NGINX_HTTPS_PORT)" = "443" ]; then \
+		https_port="$$(grep -m1 '^NGINX_HTTPS_PORT=' .env | cut -d= -f2-)"; \
+		if [ "$$https_port" = "443" ]; then \
 			echo "Open https://$(DOMAIN)/ for the dashboard with links to every app."; \
 		else \
-			echo "Open https://$(DOMAIN):$(NGINX_HTTPS_PORT)/ for the dashboard with links to every app."; \
+			echo "Open https://$(DOMAIN):$$https_port/ for the dashboard with links to every app."; \
 		fi; \
 	fi
 
