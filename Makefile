@@ -378,8 +378,21 @@ configure_jellyfin_network:
 			--update '/NetworkConfiguration/BaseUrl' --value "$(JELLYFIN_BASE_URL)" \
 			--delete '/NetworkConfiguration/KnownProxies/string' \
 			--subnode '/NetworkConfiguration/KnownProxies' --type elem --name string --value "$(JELLYFIN_KNOWN_PROXY)" \
+			--update '/NetworkConfiguration/CertificatePassword' --value "${CERT_PASSWORD}" \
 			"configs/jellyfin/config/network.xml"; \
 	fi
+	# generate_certificate runs before the stack's first `make start`, when
+	# this file doesn't exist yet, so its own attempt at the line above is
+	# always a no-op on a fresh bootstrap (it prints SKIPPED and says to
+	# come back here by hand). bootstrap already calls this target
+	# automatically right after `make start`, so folding the same update in
+	# here means a plain `make bootstrap` finishes with CertificatePassword
+	# actually set every time, not only when this file happened to already
+	# exist. EnableHttps still defaults to false in Jellyfin's own
+	# freshly-generated config either way, so this alone doesn't turn on
+	# Jellyfin's native HTTPS listener (nginx's reverse proxy already
+	# covers HTTPS access); it just means the password is correct and
+	# ready if you flip EnableHttps and set CertificatePath yourself later.
 
 generate_certificate:
 	@if [ "$(LAN_IP)" = "192.168.1.x" ]; then \
