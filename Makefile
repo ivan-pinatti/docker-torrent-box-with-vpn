@@ -379,20 +379,30 @@ configure_jellyfin_network:
 			--delete '/NetworkConfiguration/KnownProxies/string' \
 			--subnode '/NetworkConfiguration/KnownProxies' --type elem --name string --value "$(JELLYFIN_KNOWN_PROXY)" \
 			--update '/NetworkConfiguration/CertificatePassword' --value "${CERT_PASSWORD}" \
+			--update '/NetworkConfiguration/CertificatePath' --value "/certs/server.pfx" \
+			--update '/NetworkConfiguration/EnableHttps' --value "true" \
 			"configs/jellyfin/config/network.xml"; \
 	fi
 	# generate_certificate runs before the stack's first `make start`, when
-	# this file doesn't exist yet, so its own attempt at the line above is
-	# always a no-op on a fresh bootstrap (it prints SKIPPED and says to
-	# come back here by hand). bootstrap already calls this target
+	# this file doesn't exist yet, so its own attempt at the CertificatePassword
+	# line is always a no-op on a fresh bootstrap (it prints SKIPPED and says
+	# to come back here by hand). bootstrap already calls this target
 	# automatically right after `make start`, so folding the same update in
-	# here means a plain `make bootstrap` finishes with CertificatePassword
-	# actually set every time, not only when this file happened to already
-	# exist. EnableHttps still defaults to false in Jellyfin's own
-	# freshly-generated config either way, so this alone doesn't turn on
-	# Jellyfin's native HTTPS listener (nginx's reverse proxy already
-	# covers HTTPS access); it just means the password is correct and
-	# ready if you flip EnableHttps and set CertificatePath yourself later.
+	# here means a plain `make bootstrap` finishes in the same state every
+	# time instead of depending on whether this file happened to already
+	# exist.
+	#
+	# EnableHttps/CertificatePath: Jellyfin's own freshly-generated config
+	# defaults these to false/empty, meaning the compose file's own
+	# JELLYFIN_HTTPS_PORT publish (8920) sits completely unused -- direct LAN
+	# access to Jellyfin (distinct from nginx's already-HTTPS /jellyfin/ proxy
+	# path) was plaintext-only with an exposed-but-dead encrypted port next to
+	# it. RequireHttps deliberately stays false and JELLYFIN_PublishedServerUrl
+	# (above, in docker-compose-media-library.yml) deliberately stays http://:
+	# some Jellyfin client apps, smart TVs especially, handle a self-signed/
+	# custom-CA certificate poorly, so forcing HTTPS-only could break direct
+	# playback on real devices. This only makes the encrypted port actually
+	# usable alongside the existing plaintext one, not exclusive.
 
 generate_certificate:
 	@if [ "$(LAN_IP)" = "192.168.1.x" ]; then \
