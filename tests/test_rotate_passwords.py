@@ -836,8 +836,12 @@ def test_rotate_calibre_password(docker_client):
     # Not skip_if_not_running(running_containers): that snapshot is one
     # session-scoped read, and Calibre's own slow/variable boot means it can
     # still be short of "running" at that instant. See
-    # skip_if_not_running_fresh's docstring in conftest.py.
-    skip_if_not_running_fresh(docker_client, "calibre")
+    # skip_if_not_running_fresh's docstring in conftest.py. 300s, not the
+    # default 60s: confirmed live, 60s still wasn't enough (skipped again,
+    # even though Calibre came up healthy about 2 minutes after that skip
+    # fired) -- match the up-to-300s+ boot variance README's Known Issues
+    # #6 documents, not just the common case.
+    skip_if_not_running_fresh(docker_client, "calibre", timeout=300)
 
     # rotate-passwords.sh itself retries calibre_login_ok for up to 600s
     # (the desktop GUI can take minutes to boot); give the subprocess margin
@@ -1107,8 +1111,8 @@ def test_calibre_gui_holds_library_open(docker_client):
         pytest.skip("service 'calibre' profile is disabled")
     # See test_rotate_calibre_password: the stale session snapshot skips
     # this whenever Calibre's own slow boot hasn't finished by the time it
-    # was taken.
-    skip_if_not_running_fresh(docker_client, "calibre")
+    # was taken. Same 300s timeout for the same reason.
+    skip_if_not_running_fresh(docker_client, "calibre", timeout=300)
 
     pid = subprocess.run(  # nosec B607 - podman is a trusted, fixed CLI in this stack
         ["podman", "exec", "calibre", "pgrep", "-f", "bin/calibre$"],
