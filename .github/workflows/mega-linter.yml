@@ -9,6 +9,12 @@ on:
   # .github/workflows/comment-dispatch.yml re-run this against a PR's
   # current head from a `/run-checks` comment; a plain manual run from the
   # Actions tab (no input) just lints whichever ref it's dispatched on.
+  #checkov:skip=CKV_GHA_7:workflow_dispatch itself requires write access to
+  # trigger at all (GitHub platform-level gate, not something this file
+  # controls); permissions below are contents:read/pull-requests:read only,
+  # pr_number only selects a checkout ref, and this workflow is always
+  # dispatched from the trusted default-branch copy, never the PR's own
+  # (see comment-dispatch.yml).
   workflow_dispatch:
     inputs:
       pr_number:

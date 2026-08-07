@@ -13,6 +13,12 @@ on:
   # `/run-tests` only wants prerequisites + integration. A plain manual run
   # from the Actions tab (job_scope left as "all") behaves like a normal
   # pull_request-triggered run.
+  #checkov:skip=CKV_GHA_7:workflow_dispatch itself requires write access to
+  # trigger at all (GitHub platform-level gate, not something this file
+  # controls); permissions below are contents:read only, pr_number only
+  # selects a checkout ref, and this workflow is always dispatched from the
+  # trusted default-branch copy, never the PR's own (see
+  # comment-dispatch.yml).
   workflow_dispatch:
     inputs:
       pr_number:
