@@ -32,9 +32,53 @@ WireGuard support and server-side port forwarding.
 NordVPN is intentionally not a first-class torrent provider here. Gluetun can connect to
 NordVPN, but NordVPN does not provide port forwarding, so it is a poor fit for qBittorrent.
 
+## Getting your Proton VPN WireGuard key
+
+`make bootstrap` checks `configs/gluetun/.secret` before doing anything else.
+If it's still missing or the example placeholder and you're running it in a
+real terminal, it asks which provider you're using. For Proton VPN it walks
+you through both this key (input shows `*` per character instead of the key
+itself) and the server country next (suggesting a different country each run
+rather than always the same one) in one go, and writes both into
+`configs/gluetun/.env` for you. In a non-interactive run (CI, a scripted
+invocation) it always stops with instructions, since there's nowhere to
+prompt.
+
+To get the key ahead of time, or if you'd rather write the file yourself:
+
+1. Log in at <https://account.proton.me> → VPN → Downloads → WireGuard configuration.
+2. Enter a name, select your desired features (NetShield, VPN Accelerator), and click Create.
+3. The generated config will look like:
+
+   ```ini
+   [Interface]
+   # Key for <name>
+   PrivateKey = AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+   Address = 10.2.0.2/32
+   DNS = 10.2.0.1
+
+   [Peer]
+   # SE#302
+   PublicKey = ...
+   AllowedIPs = 0.0.0.0/0
+   Endpoint = 203.0.113.1:51820
+   ```
+
+4. Paste only the `PrivateKey` value (single line, no prefix) into
+   `configs/gluetun/.secret`:
+
+   ```shell
+   echo "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" > configs/gluetun/.secret  # pragma: allowlist secret
+   ```
+
+This file is bind-mounted into Gluetun and excluded from git by
+`configs/gluetun/.gitignore`. Never commit it.
+
 ## Proton VPN WireGuard Default
 
-Paste the generated WireGuard `PrivateKey` into `configs/gluetun/.secret`, then use:
+Once bootstrap has filled in `configs/gluetun/.env` for Proton (or you write it
+yourself), it looks like this. Edit it directly later if you want to change
+country, server, or port forwarding settings:
 
 ```dotenv
 VPN_SERVICE_PROVIDER=protonvpn
@@ -46,17 +90,32 @@ PORT_FORWARD_ONLY=on
 VPN_PORT_FORWARDING=on
 VPN_PORT_FORWARDING_PROVIDER=protonvpn
 HTTP_CONTROL_SERVER_ADDRESS=:8000
+HTTPPROXY=on
+HTTPPROXY_LISTENING_ADDRESS=:8888
+HTTPPROXY_STEALTH=on
+HTTPPROXY_LOG=off
 ```
 
-Keep the existing `VPN_PORT_FORWARDING_UP_COMMAND` from `configs/gluetun/.env`; it updates
-qBittorrent whenever Proton changes the forwarded port.
+`HTTPPROXY*` powers the internal HTTP proxy Prowlarr can route tagged
+indexers through; see
+[docs/NETWORKING.md](NETWORKING.md#routing-selected-prowlarr-indexers-through-the-vpn).
 
-If upgrading from the old dedicated ProtonVPN container, do not delete the old
+Keep the existing `VPN_PORT_FORWARDING_UP_COMMAND` from `configs/gluetun/.env`; it updates
+qBittorrent whenever Proton changes the forwarded port automatically, no manual steps
+required. If upgrading from the old dedicated ProtonVPN container, do not delete the old
 values until they are migrated. Copy the legacy Proton WireGuard private key or
 old `PROTONVPN_KEY` value into `configs/gluetun/.secret`. Move the old
 `PROTONVPN_SERVER` / `PROTONVPN_COUNTRY_AND_SERVER` selection into a Gluetun
 server filter such as `SERVER_COUNTRIES`, `SERVER_HOSTNAMES`, or `SERVER_NAMES`
 in `configs/gluetun/.env`.
+
+**VPN status endpoints (read-only, via Nginx):**
+
+| Endpoint                                   | Description                 |
+| ------------------------------------------ | --------------------------- |
+| `https://localhost/gluetun/v1/vpn/status`  | VPN connection state        |
+| `https://localhost/gluetun/v1/portforward` | Current forwarded port      |
+| `https://localhost/gluetun/v1/publicip/ip` | Exit IP address and country |
 
 ## AirVPN
 
