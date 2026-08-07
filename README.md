@@ -494,23 +494,6 @@ services, dashboards, and alert rules.
      and Hardcover metadata.
    - [Faustvii/Readarr](https://github.com/Faustvii/Readarr): smaller fork, GoodReads only, but
      actively releasing.
-2. **Calibre's desktop GUI/content server can take far longer than normal to
-   come up** after a stop/start, recreate, or during `make start` bringing
-   the whole stack up at once (observed: 90s to 300s+, versus 4-8s in
-   isolation). Root mechanism identified but not the trigger: `svc-de` is an
-   s6 "longrun" service, and whenever the underlying calibre/labwc process
-   exits for any reason, s6 automatically relaunches it with a fresh PID;
-   this is what both the automatic recovery and `rotate-passwords.sh`'s
-   manual self-heal (`s6-svc -r /run/service/svc-de`) actually trigger.
-   Nothing in the container logs indicates why the first attempt exits.
-   Ruled out: CPU quota alone (no difference between 0.5, 1, and 2 CPUs
-   under the triggering load), and isolated concurrent `podman exec` load
-   or a long stopped period, individually or combined; none of those
-   reproduce it outside the real mass-simultaneous-container-startup
-   scenario. `scripts/rotate-passwords.sh` retries for 90s, then proactively
-   restarts the desktop service and retries for another 300s before
-   reporting failure, which handles it in practice but isn't a root-cause
-   fix.
 
 If you can help working on any of these issues and require more information,
 please feel free to open a issue and reach out.
