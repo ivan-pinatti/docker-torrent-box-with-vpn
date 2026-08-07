@@ -279,6 +279,11 @@ service health layers.
 
 ## Usage
 
+The steps below walk through first-time setup end to end. For a quick
+reference of every `make` target once you're past that (starting/stopping,
+rotation, backups, testing, maintenance), see
+[docs/MAKE_COMMANDS.md](docs/MAKE_COMMANDS.md).
+
 ### 0. Requirements
 
 Check if you already have all the [requirements](#requisites) in your system.
@@ -701,7 +706,9 @@ Finally, it rotates every seeded API key and password (`make rotate_all`),
 so a fresh clone is fully secured the moment bootstrap finishes. See
 [docs/ROTATION.md](docs/ROTATION.md) to rotate again later, and
 [docs/HARDENING.md](docs/HARDENING.md) for the full
-permissions explanation.
+permissions explanation. [docs/PERMISSIONS.md](docs/PERMISSIONS.md) covers
+the ownership model itself and the `make permissions_check` /
+`permissions_repair` / `permissions_smoke` commands in more depth.
 
 ### 6.1. Build custom images
 
@@ -1086,6 +1093,10 @@ services, dashboards, and alert rules.
 
    This restores full search and library refresh functionality. The hosted instance has ~12k daily
    users and is backed by GoodReads data.
+
+   This stack also uses Readarr for comics under `data/media/comics`; see
+   [docs/READARR.md](docs/READARR.md) for the comic quality profile setup
+   script.
 
    **Longer-term alternatives:**
    - [pennydreadful/bookshelf](https://github.com/pennydreadful/bookshelf) — the most active

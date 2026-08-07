@@ -71,7 +71,7 @@ STOP_COMPOSE_FILES := --file docker-compose.yml $(foreach route_file,$(STOP_ROUT
 	install_requirements pull_docker_images pre_commit \
 	restore-configs restore-full \
 	restart sanity_fast sanity_full start start_library start_observability \
-	stop stop_all update_containers update_images update_pre_commit test test_extended test_prerequisites \
+	stop stop_all update_containers update_pre_commit test test_extended test_prerequisites \
 	test_no_rotate_passwords
 
 BACKUP_DIR ?= backup
@@ -118,7 +118,7 @@ CONFIG_BACKUP_EXCLUDES := $(COMMON_BACKUP_EXCLUDES) \
 	--exclude='configs/jellyfin/config/metadata' \
 	--exclude='configs/recyclarr/config/resources/*/git'
 
-all: generate_certificate update_images start
+all: generate_certificate pull_docker_images start
 
 # configs/flaresolverr/config/chromedriver is bind-mounted as a specific file
 # (not the whole directory: see docker-compose-servarr.yml) so a working
@@ -632,12 +632,14 @@ tests/.venv:
 # container state (rotation, wiring, killswitch), which cannot be run
 # concurrently with each other; everything else is read-only and safe to
 # parallelize with pytest-xdist. rotation_isolated is the subset of
-# rotation/pw_rotation that only ever touches its own container and its
-# own Prowlarr Application row (confirmed via source: neither test
-# touches Homepage or any other cross-app resource), so it gets its own
-# parallel pass too, separate from the read-only tier since it still
-# needs the live stack. rinse_and_repeat is excluded here entirely; see
-# test_extended.
+# rotation/pw_rotation safe to run in parallel with itself: the
+# password-rotation cases only ever touch their own container and their
+# own Prowlarr Application row, and the api-key cases' shared homepage
+# restart is retried against podman's transient "container state improper"
+# error precisely because parallel invocations race on it (see pytest.ini
+# and conftest.py's restart_container()). It gets its own parallel pass
+# too, separate from the read-only tier since it still needs the live
+# stack. rinse_and_repeat is excluded here entirely; see test_extended.
 test: tests/.venv ## Run the full test suite (requires the stack to be running)
 	@tests/.venv/bin/pytest -n auto -m "not rotation and not pw_rotation and not wiring and not killswitch and not rinse_and_repeat" $(PYTEST_ARGS)
 	@tests/.venv/bin/pytest -n 4 -m "rotation_isolated" $(PYTEST_ARGS)

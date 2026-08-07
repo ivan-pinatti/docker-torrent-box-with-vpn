@@ -51,3 +51,7 @@ memory stays within the 1 GB container ceiling.
 
 Prometheus and Loki share the telemetry limits by default. Increase
 `TELEMETRY_MEMORY` if metrics or logs retention grows.
+
+---
+
+See also: [README.md](../README.md), [docs/MAKE_COMMANDS.md](MAKE_COMMANDS.md)

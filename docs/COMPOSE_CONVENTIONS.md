@@ -257,3 +257,7 @@ common to most servarr services (`networks`, `sysctls`, `restart`,
 `security_opt`, `environment`, `volumes`) and follows this same key order
 internally, so services that merge it in (`<<: [*servarr-common, ...]`) stay
 consistent with services that don't use the shared anchor.
+
+---
+
+See also: [README.md](../README.md), [docs/MAKE_COMMANDS.md](MAKE_COMMANDS.md)

@@ -36,3 +36,7 @@ usual SQLite rules apply (see the repository instructions):
 For testing, the database path can be overridden with the `READARR_DB`
 environment variable so the script runs against a copy instead of the live
 database.
+
+---
+
+See also: [README.md](../README.md), [docs/MAKE_COMMANDS.md](MAKE_COMMANDS.md)

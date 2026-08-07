@@ -117,3 +117,7 @@ tries to hardlink it as the importer uid for the declared media paths.
 
 SABnzbd category `ebooks` maps to `data/usenet/complete/ebooks`. Readarr's
 SABnzbd download client is configured to use the same category.
+
+---
+
+See also: [README.md](../README.md), [docs/MAKE_COMMANDS.md](MAKE_COMMANDS.md)

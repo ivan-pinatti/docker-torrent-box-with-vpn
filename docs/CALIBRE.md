@@ -130,3 +130,7 @@ Calibre has no built-in audiobook metadata source. Options:
 - **Audible content**: install the Audible plugin to fetch metadata, narrator, and covers.
 - **Other sources**: use [beets](https://beets.io) to tag M4B/MP3 files before importing
   into Calibre.
+
+---
+
+See also: [README.md](../README.md), [docs/MAKE_COMMANDS.md](MAKE_COMMANDS.md)

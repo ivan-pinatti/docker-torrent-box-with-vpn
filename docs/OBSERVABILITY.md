@@ -20,3 +20,7 @@ Loki, and surfaces everything in Grafana dashboards with built-in alerting.
 
 Disk growth controls for metrics retention, log rotation, and download-size alerts are
 documented in [GROWTH_CONTROLS.md](GROWTH_CONTROLS.md).
+
+---
+
+See also: [README.md](../README.md), [docs/MAKE_COMMANDS.md](MAKE_COMMANDS.md)

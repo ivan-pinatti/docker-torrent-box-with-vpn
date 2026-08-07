@@ -103,3 +103,7 @@ podman stop lazylibrarian
 # edit config.ini
 podman start lazylibrarian
 ```
+
+---
+
+See also: [README.md](../README.md), [docs/MAKE_COMMANDS.md](MAKE_COMMANDS.md)

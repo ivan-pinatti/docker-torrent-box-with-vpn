@@ -40,14 +40,18 @@ welcome your pull requests:
 9. The repository has a pytest suite under `tests/` covering container health,
    security hardening, credential rotation, app-to-app wiring, and VPN
    killswitch behavior. `make test` runs it against a running stack (needs
-   `make bootstrap` first); `make bootstrap_tests` does a full clean
-   bootstrap and runs the extended suite, including the slower
-   `rinse_and_repeat` lifecycle tests, in one step. Pull requests run the
-   same suite automatically via the `integration` job in
-   `pull-request-validation.yml`. A maintainer can also trigger it, or a
-   pre-commit/MegaLinter check-only run, from a PR comment: `/run-tests` or
-   `/run-check` (see `.github/workflows/comment-dispatch.yml`). Still test
-   manually for anything the suite doesn't cover.
+   `make bootstrap` first); `make test_extended` adds the slower
+   `rinse_and_repeat` lifecycle tests on top; `make test_prerequisites` runs
+   just the pre-flight checks with no containers needed at all; and
+   `make bootstrap_tests` does a full clean bootstrap and runs
+   `test_extended` in one step (only against a disposable clone — it
+   rewrites every credential). See [docs/MAKE_COMMANDS.md](MAKE_COMMANDS.md)
+   for the full list of test targets. Pull requests run the suite
+   automatically via the `integration` job in `pull-request-validation.yml`.
+   A maintainer can also trigger it, or a pre-commit/MegaLinter check-only
+   run, from a PR comment: `/run-tests` or `/run-check` (see
+   `.github/workflows/comment-dispatch.yml`). Still test manually for
+   anything the suite doesn't cover.
 10. Update the documentation accordingly
 11. Issue the pull request!
 
@@ -115,3 +119,7 @@ By contributing, you agree that your contributions will be licensed under its MI
 ## References
 
 This document was adapted from the Github Gist <https://gist.github.com/briandk/3d2e8b3ec8daf5a27a62>
+
+---
+
+See also: [README.md](../README.md), [docs/MAKE_COMMANDS.md](MAKE_COMMANDS.md)

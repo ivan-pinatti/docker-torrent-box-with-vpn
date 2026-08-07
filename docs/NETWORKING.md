@@ -440,3 +440,7 @@ routes return 502 until gluetun is healthy again.
 Visit `https://<host>/admin/prometheus/targets`. Every target should be UP. Targets that
 live inside the VPN namespace use `gluetun:<port>` as the host portion, that is correct,
 not a bug.
+
+---
+
+See also: [README.md](../README.md), [docs/MAKE_COMMANDS.md](MAKE_COMMANDS.md)

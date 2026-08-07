@@ -1,5 +1,11 @@
 # Todo
 
+A mix of open items (`[ ]`) and resolved-issue write-ups (`[x]`) kept for
+future reference — the checked entries are a running engineering journal
+(root cause, fix, and how it was confirmed live), not just a changelog.
+Skim past `[x]` entries for background on why something is the way it is;
+look at `[ ]` entries for what's still outstanding.
+
 ## General / Security
 
 - [x] Replace tracked live configs with a curated basic setup for fresh

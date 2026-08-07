@@ -140,3 +140,7 @@ make prune_cache
 The command asks for confirmation. If nginx is running, it stops nginx, clears
 `cache/nginx`, and starts nginx again. It does not delete torrent, usenet,
 media, config, or observability data.
+
+---
+
+See also: [README.md](../README.md), [docs/MAKE_COMMANDS.md](MAKE_COMMANDS.md)

@@ -232,3 +232,7 @@ podman inspect sonarr --format 'SecurityOpt={{.HostConfig.SecurityOpt}} CapDrop=
 # security tests three times over. Invoke pytest directly instead:
 tests/.venv/bin/pytest -m security
 ```
+
+---
+
+See also: [README.md](../README.md), [docs/MAKE_COMMANDS.md](MAKE_COMMANDS.md)

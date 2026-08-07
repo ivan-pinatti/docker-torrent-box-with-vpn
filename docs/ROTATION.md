@@ -312,3 +312,7 @@ truncates the original, then compresses rotated files older than
 - **Jackett** is legacy and not covered by any rotation script.
 - **Gluetun's WireGuard private key** lives in `configs/gluetun/.secret`;
   rotate it by generating a new config with your VPN provider.
+
+---
+
+See also: [README.md](../README.md), [docs/MAKE_COMMANDS.md](MAKE_COMMANDS.md)

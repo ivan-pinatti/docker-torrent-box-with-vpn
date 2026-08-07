@@ -60,3 +60,7 @@ database and also require the container to be running since they use
 The SQLite database is stored at `configs/korsync/data/koreader-sync.db` on
 the host, mounted into the container at `/app/data/koreader-sync.db`. Back
 this file up to preserve user accounts and reading positions.
+
+---
+
+See also: [README.md](../README.md), [docs/MAKE_COMMANDS.md](MAKE_COMMANDS.md)

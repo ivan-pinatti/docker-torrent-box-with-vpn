@@ -248,3 +248,7 @@ Audiobookshelf itself.
 **Note:** The `<SslCertPassword>` field present in each arr `config.xml` is managed
 exclusively by `make generate_certificate` and `scripts/rotate-certificate.sh`. The API
 key and password rotation scripts must not touch it.
+
+---
+
+See also: [README.md](../README.md), [docs/MAKE_COMMANDS.md](MAKE_COMMANDS.md)
