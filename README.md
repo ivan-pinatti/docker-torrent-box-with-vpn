@@ -280,6 +280,14 @@ finishes. Meant to run once. See
 and [docs/PERMISSIONS.md](docs/PERMISSIONS.md) /
 [docs/HARDENING.md](docs/HARDENING.md) for the directory-ownership model.
 
+Once it finishes, open the dashboard at the URL the last line printed
+(`https://<domain>/` by default) for links to every app:
+
+![Homepage dashboard showing every app's live status](docs/images/homepage-dashboard.png)
+
+See [App Links](#app-links) below for the full per-app link, port, and
+credential reference.
+
 ### 3. Starting, stopping, and auto-start
 
 Once bootstrapped, bring the stack up and down with:
