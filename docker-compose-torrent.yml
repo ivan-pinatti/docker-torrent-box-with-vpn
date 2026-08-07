@@ -113,26 +113,3 @@ services:
       # SECURE_CONNECTION=1 serves the web UI over https with a self-signed
       # certificate; the login portal answers unauthenticated requests.
       test: curl --fail --silent --insecure https://127.0.0.1:${JDOWNLOADER2_HTTP_PORT}/ || exit 1
-
-  # deluge:
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         memory: 1gb
-  #         cpus: '0.5'
-  #   memswap_limit: 1gb
-  #   image: docker.io/linuxserver/deluge:${DELUGE_VERSION}
-  #   container_name: deluge
-  #   depends_on: ["${VPN_PROVIDER}"]
-  #   profiles: ["${DELUGE_PROFILE}"]
-  #   network_mode: service:${VPN_PROVIDER}
-  #   sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
-  #   restart: unless-stopped
-  #   env_file: ["${CONFIG_FOLDER}/deluge/.env"]
-  #   environment:
-  #     ["PGID=${GID}", "PUID=${UID}", "UMASK=${UMASK}", "TZ=${TIMEZONE}"]
-  #   volumes:
-  #     - /etc/localtime:/etc/localtime:ro
-  #     - ${CERTIFICATES_FOLDER}:/certs:ro,z
-  #     - ${CONFIG_FOLDER}/deluge/config:/config:z
-  #     - ${TORRENTS_FOLDER}:/data/torrents:z

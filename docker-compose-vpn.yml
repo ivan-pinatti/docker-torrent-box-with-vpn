@@ -22,16 +22,12 @@ services:
     ports:
       ### DISABLED Ports - Enable to DEBUG
       # - ${BAZARR_HTTP_PORT}:${BAZARR_HTTP_PORT} # bazarr-http
-      # - ${CADDY_HTTP_PORT}:${CADDY_HTTP_PORT} # caddy-http
-      # - ${CADDY_HTTPS_PORT}:${CADDY_HTTPS_PORT} # caddy-https
       # - ${CADVISOR_HTTP_PORT}:8080 # cadvisor-http
       # - ${CALIBRE_DESKTOP_HTTP_PORT}:${CALIBRE_DESKTOP_HTTP_PORT} # calibre-desktop-http
       # - ${CALIBRE_DESKTOP_HTTPS_PORT}:${CALIBRE_DESKTOP_HTTPS_PORT} # calibre-desktop-https
       # - ${CALIBRE_GUI_WEB_HTTP_PORT}:${CALIBRE_GUI_WEB_HTTP_PORT} # calibre-web-gui-http
       # - ${CALIBRE_WEB_CONTAINER_HTTP_PORT}:${CALIBRE_WEB_CONTAINER_HTTP_PORT} # calibre-web-http (from calibre-web container)
       # - ${CALIBRE_WEB_CONTAINER_HTTPS_PORT}:${CALIBRE_WEB_CONTAINER_HTTPS_PORT} # calibre-web-https (from calibre-web container)
-      # - ${DELUGE_HTTP_PORT}:${DELUGE_HTTP_PORT} # deluge-http
-      # - ${DELUGE_HTTPS_PORT}:${DELUGE_HTTPS_PORT} # deluge-http
       # - ${FLARESOLVERR_HTTP_PORT}:${FLARESOLVERR_HTTP_PORT} # flaresolverr-http
       # - ${JACKETT_HTTP_PORT}:${JACKETT_HTTP_PORT} # jackett-http (legacy)
       # - ${JELLYFIN_HTTP_PORT}:${JELLYFIN_HTTP_PORT} # jellyfin-http

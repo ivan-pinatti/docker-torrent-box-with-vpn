@@ -245,23 +245,3 @@ services:
     healthcheck:
       <<: *healthcheck-defaults
       test: wget -q -O /dev/null http://127.0.0.1:${HOMEPAGE_HTTP_PORT}/ || exit 1
-
-  # caddy:
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         memory: 1gb
-  #         cpus: '1'
-  #   memswap_limit: 1gb
-  #   image: docker.io/caddy:${CADDY_VERSION}
-  #   container_name: caddy
-  #   depends_on: ["${VPN_PROVIDER}"]
-  #   profiles: ["${CADDY_PROFILE}"]
-  #   network_mode: service:${VPN_PROVIDER}
-  #   sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
-  #   restart: unless-stopped
-  #   env_file: [".env", "${CONFIG_FOLDER}/caddy/.env"]
-  #   # volumes:
-  #     # - ${CONFIG_FOLDER}/caddy/Caddyfile:/etc/caddy/Caddyfile:z
-  #     # - ${CONFIG_FOLDER}/caddy/config:/config:z
-  #     # - ${CONFIG_FOLDER}/caddy/data:/data:z

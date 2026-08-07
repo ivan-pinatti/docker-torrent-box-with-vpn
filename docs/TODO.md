@@ -115,14 +115,14 @@ recommendations):
 
 ## Test Suite
 
-- [ ] Deluge, Notifiarr, and Jackett have zero pytest coverage. Found while
+- [ ] Notifiarr and Jackett have zero pytest coverage. Found while
   building `make bootstrap_tests` (2026-08-06): `conftest.py`'s `SERVICES`
-  dict doesn't register Deluge or Notifiarr at all, so no generic
-  container/security/health test ever touches them regardless of profile
+  dict doesn't register Notifiarr at all, so no generic
+  container/security/health test ever touches it regardless of profile
   state, and Jackett is already documented as deliberately out of scope
   (`.env.example`: "managed manually and is not covered by Renovate or
   pytest layers"). `.env.tests` (the override file `bootstrap_tests`
-  applies) intentionally leaves all three disabled for the same reason.
-  Deluge and Notifiarr look like plain oversights rather than a deliberate
-  exclusion like Jackett's; worth real coverage if either is meant to be a
+  applies) intentionally leaves both disabled for the same reason.
+  Notifiarr looks like a plain oversight rather than a deliberate
+  exclusion like Jackett's; worth real coverage if it's meant to be a
   first-class supported service
