@@ -65,6 +65,17 @@ the bare string `prowlarr`, matching the same convention as the arr apps,
 though Prowlarr itself doesn't use it for anything (it isn't sorting content
 into genre folders the way Sonarr/Radarr/etc. are).
 
+### Readarr → Metadata Provider Source
+
+Readarr's own upstream metadata hub went offline when the project was
+retired (see [README's Known Issues](../README.md#known-issues-and-future-improvements)).
+`wire_arr_app`'s Readarr branch sets `Settings > Development > Metadata
+Provider Source` to the community-run rreading-glasses mirror
+(`https://api.bookinfo.pro`) via `GET`/`PUT /api/v1/config/development/{id}`.
+It checks the current value first and skips if already set, so re-running
+is safe. Not yet confirmed against a live Readarr instance; verify on the
+next bench run.
+
 ### Prowlarr → Indexer Proxy (FlareSolverr)
 
 If both Prowlarr and FlareSolverr are enabled, the script registers

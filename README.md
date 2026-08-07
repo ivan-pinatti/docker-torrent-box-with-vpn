@@ -131,55 +131,11 @@ _\* ERC-20 accepts ETH, USDT, and USDC · BEP-20 accepts BNB, USDT, and USDC · 
 | XML starlet                    | >1.6.x      | <https://xmlstar.sourceforge.net/doc/UG/xmlstarlet-ug.html>                           |
 | Python 3 (with PyYAML)         | >3.9        | `pip install --user pyyaml`, or your distro's `python3-yaml`/`python3-pyyaml` package |
 
-> **Why Podman over Docker?**
->
-> Both support rootless containers, but the key difference is architectural. Docker always requires
-> a background daemon (`dockerd`) running on the host. Even in rootless mode, that daemon is a
-> persistent process managing all your containers. Podman is **daemonless**: each container is a
-> direct child process of the user who launched it, with no central coordinator. When you run
-> `podman compose up`, your containers are just processes owned by your user account, nothing more.
->
-> For a stack that handles private network traffic, eliminating that daemon removes a whole class of
-> risk: there is no long-running privileged process to exploit, no Unix socket to misconfigure, and
-> no single point of failure that can take down every container at once.
->
-> **Already using Docker and don't want to change your workflow?** Install the `podman-docker`
-> compatibility package. It drops in a `docker` wrapper that forwards all `docker` and `docker
-> compose` commands to Podman transparently. Your existing scripts, aliases, and muscle memory
-> continue to work unchanged.
->
-> ```shell
-> # Fedora/RHEL
-> sudo dnf install podman podman-docker podman-compose xmlstarlet wireguard-tools
->
-> # Debian/Ubuntu
-> sudo apt install podman podman-docker podman-compose xmlstarlet wireguard
-> ```
->
-> Set `CONTAINER_RUNTIME=podman` (or `docker`) in your `.env` file to make your choice explicit. If
-> left unset, the `Makefile` auto-detects: Podman wins when both are installed.
->
-> **Using ports 80 and 443 with rootless Podman or rootless Docker:** Both runtimes in rootless mode
-> run as your regular user, and the Linux kernel blocks unprivileged users from binding ports below
-> 1024 by default. The default configuration therefore uses `8080` and `8443` so everything works
-> out of the box without any extra steps. `make bootstrap` asks about this interactively (defaulting
-> to the rootless-safe `8080`/`8443`), running the `sysctl` command below with `sudo` on your behalf
-> if you opt in to the standard ports; the rest of this note is for setting it up by hand instead,
-> or afterward if you skipped the prompt.
->
-> If you prefer the standard ports, set `NGINX_HTTP_PORT=80` and `NGINX_HTTPS_PORT=443` in your
-> `.env`, then lower the kernel's port boundary. To apply it for the current session only (resets on
-> reboot):
->
-> ```shell
-> sudo sysctl -w net.ipv4.ip_unprivileged_port_start=80
-> ```
->
-> To make it permanent across reboots, add the following line to `/etc/sysctl.conf`:
->
-> ```text
-> net.ipv4.ip_unprivileged_port_start=80
-> ```
+> **Why Podman over Docker, and how to use ports 80/443 with either runtime
+> rootless?** See [docs/PODMAN.md](docs/PODMAN.md). Short version: Podman is
+> daemonless, `podman-docker` keeps existing `docker` commands working if you
+> switch, and `make bootstrap` asks interactively whether you want the
+> standard ports or the rootless-safe `8080`/`8443` default.
 
 ---
 
@@ -254,14 +210,12 @@ The media type will be stored into the folders below;
 - [Support the Project](#support-the-project)
 - [Table of Contents](#table-of-contents)
 - [Usage](#usage)
-  - [1. Build the custom images](#1-build-the-custom-images)
-  - [2. Get your VPN credentials ready](#2-get-your-vpn-credentials-ready)
-  - [3. Run `make bootstrap`](#3-run-make-bootstrap)
-    - [3.1. Full test coverage](#31-full-test-coverage)
-  - [4. Starting, stopping, and auto-start](#4-starting-stopping-and-auto-start)
-  - [5. Customize your setup](#5-customize-your-setup)
-  - [6. Rotate your keys](#6-rotate-your-keys)
-  - [7. Backup](#7-backup)
+  - [1. Get your VPN credentials ready](#1-get-your-vpn-credentials-ready)
+  - [2. Run `make bootstrap`](#2-run-make-bootstrap)
+  - [3. Starting, stopping, and auto-start](#3-starting-stopping-and-auto-start)
+  - [4. Customize your setup](#4-customize-your-setup)
+  - [5. Rotate your keys](#5-rotate-your-keys)
+  - [6. Backup](#6-backup)
 - [App Links](#app-links)
 - [Bandwidth Control](#bandwidth-control)
   - [Revert to original state](#revert-to-original-state)
@@ -283,36 +237,18 @@ quick reference of every `make` target once you're past first-time setup
 (starting/stopping, rotation, backups, testing, maintenance), see
 [docs/MAKE_COMMANDS.md](docs/MAKE_COMMANDS.md).
 
-### 1. Build the custom images
-
-Two services use locally built images with dependencies pre-baked in to avoid slow
-`DOCKER_MODS` installs on every restart, and neither is pulled from a registry, so
-build them before the first `make bootstrap`/`make start`:
-
-| Service       | What is pre-baked                            | Dockerfile                       |
-| ------------- | -------------------------------------------- | -------------------------------- |
-| LazyLibrarian | Calibre (via `universal-calibre` mod bundle) | `build/lazylibrarian/Dockerfile` |
-| Mylar         | `pyOpenSSL` (into `/lsiopy` virtualenv)      | `build/mylar/Dockerfile`         |
-
-```shell
-make build_images
-```
-
-Rebuild whenever you update `LAZYLIBRARIAN_VERSION` or `MYLAR_VERSION` in `.env`. See
-[docs/LAZYLIBRARIAN.md](docs/LAZYLIBRARIAN.md) and [docs/MYLAR.md](docs/MYLAR.md) for
-service-specific configuration details.
-
-### 2. Get your VPN credentials ready
+### 1. Get your VPN credentials ready
 
 [Gluetun](https://github.com/qdm12/gluetun) is the VPN gateway for the stack, and
 every torrent/usenet app depends on its network namespace, so this is the one piece
 of setup `make bootstrap` cannot do for you.
 
-For Proton VPN (the default), get your WireGuard private key from
-<https://account.proton.me> (VPN → Downloads → WireGuard configuration) and save it
-to `configs/gluetun/.secret`; `make bootstrap` walks you through the rest
-interactively. For any other provider (NordVPN, ExpressVPN, PIA, AirVPN, TorGuard,
-...) see [docs/VPN_PROVIDERS.md](docs/VPN_PROVIDERS.md) and configure
+For Proton VPN (the default), get your WireGuard private key ready from
+<https://account.proton.me> (VPN → Downloads → WireGuard configuration);
+`make bootstrap` prompts for it (masked input) and for a server country, and
+writes both into `configs/gluetun/.secret`/`configs/gluetun/.env` for you.
+For any other provider (NordVPN, ExpressVPN, PIA, AirVPN, TorGuard, ...) see
+[docs/VPN_PROVIDERS.md](docs/VPN_PROVIDERS.md) and configure
 `configs/gluetun/.env`/`configs/gluetun/.secret` by hand first.
 
 See [docs/VPN_PROVIDERS.md](docs/VPN_PROVIDERS.md) for the full key-retrieval
@@ -321,40 +257,27 @@ walkthrough and VPN status endpoints, and
 VPN routing (`make start VPN_ON="sonarr,radarr"`, tagged Prowlarr indexers, and so
 on).
 
-### 3. Run `make bootstrap`
+### 2. Run `make bootstrap`
 
 ```shell
 make bootstrap
 ```
 
 The one command for first-time setup: detects `UID`/`GID`/`TIMEZONE`, seeds every
-app's config, checks your VPN credentials (interactively for Proton VPN, see step 2
-above), generates the self-signed certificate, starts the stack, waits for Gluetun
-to connect, wires the app-to-app connections that only exist through each app's own
-live API, and rotates every seeded API key and password so a fresh clone is fully
-secured the moment it finishes. Meant to run once. See
+app's config, checks your VPN credentials (interactively for Proton VPN, see step 1
+above), generates the self-signed certificate, builds the two locally built images
+(LazyLibrarian, Mylar), starts the stack, waits for Gluetun to connect, wires the
+app-to-app connections that only exist through each app's own live API, and rotates
+every seeded API key and password so a fresh clone is fully secured the moment it
+finishes. Meant to run once. See
 [docs/BOOTSTRAP.md](docs/BOOTSTRAP.md) for the full internals,
 [docs/CONNECTIONS.md](docs/CONNECTIONS.md) for exactly what gets wired,
-[docs/ROTATION.md](docs/ROTATION.md) to rotate again later, and
-[docs/PERMISSIONS.md](docs/PERMISSIONS.md) /
+[docs/ROTATION.md](docs/ROTATION.md) to rotate again later,
+[docs/TESTING.md](docs/TESTING.md) for `make bootstrap_tests` and the test suite,
+and [docs/PERMISSIONS.md](docs/PERMISSIONS.md) /
 [docs/HARDENING.md](docs/HARDENING.md) for the directory-ownership model.
 
-### 3.1. Full test coverage
-
-`make bootstrap_tests` enables every profile with real pytest coverage, bootstraps
-from scratch, and runs the full test suite, including a local, credential-free
-WireGuard endpoint so it needs no real VPN provider account:
-
-```shell
-make bootstrap_tests
-```
-
-**Run this only against a disposable clone, never a real deployment.** It rewrites
-every credential exactly like plain `make bootstrap` already does. See
-[docs/BOOTSTRAP.md](docs/BOOTSTRAP.md#full-test-coverage-make-bootstrap_tests) for
-what it enables and how `.env.tests` works.
-
-### 4. Starting, stopping, and auto-start
+### 3. Starting, stopping, and auto-start
 
 Once bootstrapped, bring the stack up and down with:
 
@@ -377,7 +300,7 @@ crontab -e
 # @reboot /path/to/docker-torrent-box-with-vpn/scripts/auto-start.sh >> /path/to/docker-torrent-box-with-vpn/logs/auto-start.log 2>&1
 ```
 
-### 5. Customize your setup
+### 4. Customize your setup
 
 Everything below is optional, and safe to do any time after your first
 `make bootstrap`, not just before it.
@@ -463,7 +386,7 @@ so any service reads the same way regardless of which file it's in. See
 [docs/COMPOSE_CONVENTIONS.md](docs/COMPOSE_CONVENTIONS.md) for the full order
 and reasoning.
 
-### 6. Rotate your keys
+### 5. Rotate your keys
 
 `make bootstrap` already rotates every seeded API key and password once, as
 its last step, so nothing here is required after a fresh clone. Rotate again
@@ -481,7 +404,7 @@ Recyclarr, Homepage, download client settings, and so on). See
 [docs/ROTATION.md](docs/ROTATION.md) for the full reference, including what
 each script touches and which keys remain manual.
 
-### 7. Backup
+### 6. Backup
 
 Now that everything is **fully working**, make sure you create a backup of your
 configurations and changes. To perform the backup operation, please run:
@@ -505,13 +428,11 @@ policy.
 
 ## App Links
 
-Once the stack is up, every app is reachable directly on its own port, or
-through Nginx's reverse proxy at `https://<domain>:<NGINX_HTTPS_PORT>/<app>/`
-(default port `8443`). Every login password is set by `make bootstrap`'s
-final rotation step, not a fixed default. See
-[docs/APP_LINKS.md](docs/APP_LINKS.md) for the full link, port, and
-credential reference for every app, plus the indexer/downloader/library
-manager wiring diagrams.
+Once the stack is up, open Homepage at `https://<domain>:<NGINX_HTTPS_PORT>/`
+(default port `8443`) for links to every app. See
+[docs/APP_LINKS.md](docs/APP_LINKS.md) for the full per-app link, port, and
+credential reference, plus the indexer/downloader/library manager wiring
+diagrams.
 
 ---
 
@@ -556,30 +477,12 @@ services, dashboards, and alert rules.
 
 ## Known Issues and future improvements
 
-1. Lidarr is not pre-configured for the indexers because it didn't allow to add for a category issue
-2. Sonarr ships without HTTPS enabled. To enable it, add `SslCertPath`
-   (`/certs/server.pfx`) and `SslCertPassword` elements to
-   `configs/sonarr/config/config.xml`, set `EnableSsl` to `True`, and restart
-   Sonarr. Once the elements exist, `make generate_certificate` and
-   `make rotate_certificate` keep the password in sync like the other apps.
-3. Mylar doesn't work with qBittorrent using a self-signed certificate out of the box. A patch adds
-   an "Ignore SSL warnings" toggle in Settings; see
-   [MylarComics/mylar3#23](https://github.com/MylarComics/mylar3/pull/23) for the upstream PR. The
-   PR merged into mylar3's `nightly` branch but hasn't reached a stable release yet; see
-   `docs/MYLAR.md` for what to check before removing the patch.
-4. Lazylibarian doesn't work with qBittorrent using a self-signed certificate.
-5. **Readarr upstream has been retired**: the project's metadata service went offline and the team
+1. **Readarr upstream has been retired**: the project's metadata service went offline and the team
    shut the project down. The Docker image (`linuxserver/readarr`) still works but will not receive
-   further updates.
-
-   **Workaround:** Point Readarr at the community-run metadata mirror [rreading-glasses](https://github.com/blampe/rreading-glasses):
-   1. Open `http://<your-readarr-host>:8787/settings/development` (this page is not linked in the UI,
-      type it manually).
-   2. Set **Metadata Provider Source** to `https://api.bookinfo.pro`.
-   3. Click **Save** and restart Readarr.
-
-   This restores full search and library refresh functionality. The hosted instance has ~12k daily
-   users and is backed by GoodReads data.
+   further updates. `make bootstrap`/`make wire_connections` automatically points Readarr at the
+   community-run metadata mirror [rreading-glasses](https://github.com/blampe/rreading-glasses)
+   (`https://api.bookinfo.pro`), which restores full search and library refresh functionality. The
+   hosted instance has ~12k daily users and is backed by GoodReads data.
 
    This stack also uses Readarr for comics under `data/media/comics`; see
    [docs/READARR.md](docs/READARR.md) for the comic quality profile setup
@@ -591,7 +494,7 @@ services, dashboards, and alert rules.
      and Hardcover metadata.
    - [Faustvii/Readarr](https://github.com/Faustvii/Readarr): smaller fork, GoodReads only, but
      actively releasing.
-6. **Calibre's desktop GUI/content server can take far longer than normal to
+2. **Calibre's desktop GUI/content server can take far longer than normal to
    come up** after a stop/start, recreate, or during `make start` bringing
    the whole stack up at once (observed: 90s to 300s+, versus 4-8s in
    isolation). Root mechanism identified but not the trigger: `svc-de` is an
@@ -607,7 +510,7 @@ services, dashboards, and alert rules.
    scenario. `scripts/rotate-passwords.sh` retries for 90s, then proactively
    restarts the desktop service and retries for another 300s before
    reporting failure, which handles it in practice but isn't a root-cause
-   fix. See [docs/TODO.md](docs/TODO.md#calibre) for investigation notes.
+   fix.
 
 If you can help working on any of these issues and require more information,
 please feel free to open a issue and reach out.

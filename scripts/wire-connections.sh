@@ -216,7 +216,7 @@ wait_job() {
 # Audiobookshelf), a documented non-interactive CLI flag (Calibre's content
 # server), or a direct one-time database write while stopped, matching the
 # project's existing stop-edit-start convention (Calibre-Web, which has no
-# API or env var for this) — using the same placeholder
+# API or env var for this), using the same placeholder
 # username = password = app name convention already used everywhere else.
 # ---------------------------------------------------------------------------
 
@@ -401,7 +401,7 @@ ensure_audiobookshelf_setup() {
 # Settings > API Keys feature, POST /api/api-keys with no expiresIn), not
 # the short-lived JWT /login returns, per rotate-passwords.sh's own comment
 # that "Homepage talks to it with a JWT API token, not the password, so no
-# consumer cascade is needed" — a comment that assumed this key already got
+# consumer cascade is needed", a comment that assumed this key already got
 # created somewhere, but nothing ever did. bootstrap seeds this file from
 # api_key.txt.example ("changeme"), which is not a key Audiobookshelf will
 # ever accept, so the widget silently ran on a placeholder forever,
@@ -467,7 +467,7 @@ ensure_calibre_content_server_user() {
 }
 
 # Calibre-Web has no API, env var, or config file for this (confirmed by
-# inspecting its image and GitHub wiki directly) — only its own admin UI at
+# inspecting its image and GitHub wiki directly): only its own admin UI at
 # /admin/dbconfig, which every request redirects to until config_calibre_dir
 # is set. Writes straight to app.db's settings row while stopped, matching
 # this project's established stop-edit-start convention.
@@ -475,8 +475,8 @@ ensure_calibre_content_server_user() {
 # This deliberately only sets config_calibre_dir. Also setting
 # config_certfile/config_keyfile (Calibre-Web repurposes its single
 # config_port for HTTPS once those are set, rather than adding a second
-# port) reproducibly wiped the entire `user` table on the very next start —
-# including the built-in "Guest" row — in live testing; the mechanism
+# port) reproducibly wiped the entire `user` table on the very next start,
+# including the built-in "Guest" row, in live testing; the mechanism
 # wasn't identified in the time available, so this stays off rather than
 # risk it. See docs/ROTATION.md: Calibre-Web is only ever configured for
 # plain HTTP here, and its default admin user keeps the image's own
@@ -599,7 +599,7 @@ PYEOF
 # directly) unconditionally calls three Mylar API commands and shows an
 # error badge if any of them fails; one, seriesjsonListing, does
 # `SELECT ... FROM comics` and returns Mylar's own success:false "no data
-# returned" whenever that table is empty — which it always is on a fresh
+# returned" whenever that table is empty, which it always is on a fresh
 # bootstrap, since nothing has added a comic yet. There's no Homepage config
 # to skip that call. Mylar's own addComic API requires a real Comic Vine
 # lookup (network access, a real series ID), which doesn't fit a synthetic,
@@ -696,6 +696,43 @@ ensure_arr_host_prereqs() {
   echo "[$app_name] Done."
 }
 
+# Readarr's own upstream metadata hub went offline when the project was
+# retired (see README's Known Issues); the community-run rreading-glasses
+# mirror (https://api.bookinfo.pro) restores search and library refresh.
+# This is Settings > Development > Metadata Provider Source in Readarr's
+# own UI, backed by GET/PUT /api/v1/config/development/{id}
+# (DevelopmentConfigResource.MetadataSource in Readarr's own source,
+# src/Readarr.Api.V1/Config/DevelopmentConfigController.cs). Not yet
+# confirmed live against a running Readarr; the field name assumes the
+# same camelCase JSON convention every other Servarr resource in this
+# script already uses.
+ensure_readarr_metadata_source() {
+  local container="$1" scheme="$2" port="$3" api_ver="$4" api_key="$5"
+  local base_url="${scheme}://127.0.0.1:${port}/readarr/api/${api_ver}/config/development"
+  local target="https://api.bookinfo.pro"
+
+  local current
+  current=$(container_curl "$container" -sk --fail -H "X-Api-Key: ${api_key}" "$base_url")
+  if [[ "$(echo "$current" | jq -r '.metadataSource')" == "$target" ]]; then
+    echo "[Readarr] Metadata provider source already set, skipping."
+    return 0
+  fi
+
+  echo "[Readarr] Setting metadata provider source to the rreading-glasses mirror..."
+  local id updated
+  id=$(echo "$current" | jq -r '.id')
+  updated=$(echo "$current" | jq --arg source "$target" '.metadataSource = $source')
+
+  local response
+  if ! response=$(container_curl "$container" -sk --fail -X PUT \
+    -H "X-Api-Key: ${api_key}" -H "Content-Type: application/json" \
+    -d "$updated" "${base_url}/${id}" 2>&1); then
+    echo "[Readarr] WARNING: failed to set metadata provider source: ${response:0:300}"
+    return 1
+  fi
+  echo "[Readarr] Metadata provider source set."
+}
+
 # ---------------------------------------------------------------------------
 # Download clients (Sonarr/Radarr/Lidarr/Readarr/Whisparr -> qBittorrent/SABnzbd)
 #
@@ -706,7 +743,7 @@ ensure_arr_host_prereqs() {
 # explicitly rather than trusted from either implementation's schema
 # default: qBittorrent's own categories.json uses each app's bare name
 # (radarr, sonarr, ...), but e.g. Sonarr's own qBittorrent schema defaults
-# tvCategory to "tv-sonarr" instead of "sonarr" — qBittorrent doesn't
+# tvCategory to "tv-sonarr" instead of "sonarr": qBittorrent doesn't
 # validate the category on creation, it just silently auto-creates an empty
 # one, which would silently break the pre-configured save-path layout.
 # SABnzbd's genre-based categories (tv, movies, ebooks, ...) are unrelated
@@ -755,7 +792,7 @@ ensure_qbittorrent_client() {
   # Caught explicitly rather than left to a bare --fail under this script's
   # set -e: a caller that isolates a failure here with `cmd || warn` does
   # not actually protect the commands *inside* this function (a documented
-  # bash errexit gotcha — set -e stops applying to everything on the left
+  # bash errexit gotcha: set -e stops applying to everything on the left
   # of a && / || / if, including nested subshells), so an unhandled failure
   # here would otherwise fall through to the unconditional "Created." line
   # below despite nothing having been created.
@@ -850,6 +887,10 @@ wire_arr_app() {
   ensure_arr_host_prereqs "$app_name" "$container" "$scheme" "$port" "$api_ver" "$key"
   ensure_qbittorrent_client "$app_name" "$container" "$scheme" "$port" "$api_ver" "$key" "$qbit_category"
   ensure_sabnzbd_client "$app_name" "$container" "$scheme" "$port" "$api_ver" "$key" "$sab_category"
+
+  if [[ "$app_name" == "readarr" ]]; then
+    ensure_readarr_metadata_source "$container" "$scheme" "$port" "$api_ver" "$key" || true
+  fi
 }
 
 # ---------------------------------------------------------------------------
@@ -906,9 +947,9 @@ wire_prowlarr_apps() {
   # Each of these three calls is allowed to fail without aborting the
   # Application registrations and indexer below (the same class of bug
   # ensure_prowlarr_application's own comment already documents and guards
-  # against, confirmed live here too: an unhandled SABnzbd 400 — it
+  # against, confirmed live here too: an unhandled SABnzbd 400, it
   # validates its category strictly, unlike qBittorrent, which creates an
-  # empty one silently — took out every Application and the indexer for the
+  # empty one silently, took out every Application and the indexer for the
   # whole run). That protection has to live *inside* each ensure_* function
   # itself (an explicit `if ! cmd; then return 1; fi` around its one
   # create-or-die step), not in a `cmd || warn` wrapper here: bash disables
@@ -977,7 +1018,7 @@ wire_prowlarr_apps() {
 }
 
 # Creates a Prowlarr tag by label, or returns the id of the one that
-# already carries that label — POSTing an existing label is idempotent
+# already carries that label: POSTing an existing label is idempotent
 # (Prowlarr returns the same id rather than a duplicate), confirmed live.
 # Args: prowlarr_api_key label
 ensure_prowlarr_tag() {
@@ -995,7 +1036,7 @@ ensure_prowlarr_tag() {
 # apply a proxy to an indexer on its own; that's still a per-indexer choice
 # left to you (Settings > Indexers > <indexer> > Proxy), the same way
 # LazyLibrarian's own book sources are ("Book sources" in
-# docs/LAZYLIBRARIAN.md) — this only makes sure the proxy itself exists to
+# docs/LAZYLIBRARIAN.md): this only makes sure the proxy itself exists to
 # choose from. Skipped entirely if FlareSolverr's container doesn't exist
 # (FLARESOLVERR_PROFILE=disabled), matching every other ensure_* helper here.
 # Args: prowlarr_api_key
@@ -1010,8 +1051,8 @@ ensure_prowlarr_indexer_proxy() {
 
   # Tagged "flaresolverr" so it (and, going forward, anything else tagged
   # the same way) is easy to find/filter on in Prowlarr's own UI. Creating
-  # an existing label is idempotent — Prowlarr returns the same id instead
-  # of a duplicate, confirmed live — so this always runs, not just on first
+  # an existing label is idempotent (Prowlarr returns the same id instead
+  # of a duplicate, confirmed live), so this always runs, not just on first
   # creation.
   local tag_id
   if ! tag_id=$(ensure_prowlarr_tag "$prowlarr_api_key" "flaresolverr"); then
@@ -1333,7 +1374,7 @@ ensure_prowlarr_application() {
 }
 
 # ---------------------------------------------------------------------------
-# Dispatch — alphabetical by service, matching the convention documented in
+# Dispatch: alphabetical by service, matching the convention documented in
 # docs/ROTATION.md for the sibling rotation scripts.
 # ---------------------------------------------------------------------------
 

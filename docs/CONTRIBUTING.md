@@ -45,13 +45,14 @@ welcome your pull requests:
    just the pre-flight checks with no containers needed at all; and
    `make bootstrap_tests` does a full clean bootstrap and runs
    `test_extended` in one step (only against a disposable clone, it
-   rewrites every credential). See [docs/MAKE_COMMANDS.md](MAKE_COMMANDS.md)
-   for the full list of test targets. Pull requests run the suite
-   automatically via the `integration` job in `pull-request-validation.yml`.
-   A maintainer can also trigger it, or a pre-commit/MegaLinter check-only
-   run, from a PR comment: `/run-tests` or `/run-check` (see
-   `.github/workflows/comment-dispatch.yml`). Still test manually for
-   anything the suite doesn't cover.
+   rewrites every credential). See [docs/TESTING.md](TESTING.md) for the
+   marker/tier breakdown and how to add a test, and
+   [docs/MAKE_COMMANDS.md](MAKE_COMMANDS.md) for the full list of test
+   targets. Pull requests run the suite automatically via the `integration`
+   job in `pull-request-validation.yml`. A maintainer can also trigger it, or
+   a pre-commit/MegaLinter check-only run, from a PR comment: `/run-tests` or
+   `/run-check` (see `.github/workflows/comment-dispatch.yml`). Still test
+   manually for anything the suite doesn't cover.
 10. Update the documentation accordingly
 11. Issue the pull request!
 
@@ -122,4 +123,5 @@ This document was adapted from the Github Gist <https://gist.github.com/briandk/
 
 ---
 
-See also: [README.md](../README.md), [docs/MAKE_COMMANDS.md](MAKE_COMMANDS.md)
+See also: [README.md](../README.md), [docs/MAKE_COMMANDS.md](MAKE_COMMANDS.md),
+[docs/TESTING.md](TESTING.md)

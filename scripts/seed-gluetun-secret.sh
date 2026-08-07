@@ -52,7 +52,7 @@ needs_setup() {
 fail_with_instructions() {
   echo "ERROR: $SECRET_FILE is missing or empty." >&2
   echo "Gluetun needs your own VPN credentials before bootstrap can start the" >&2
-  echo "stack. See README.md section 3.1 (Gluetun VPN Gateway) for Proton VPN," >&2
+  echo "stack. See README.md section 2 (Get your VPN credentials ready) for Proton VPN," >&2
   echo "or docs/VPN_PROVIDERS.md for other providers, then re-run 'make bootstrap'." >&2
   exit 1
 }
@@ -81,7 +81,7 @@ case "$choice" in
 1)
   echo ""
   echo "Paste the WireGuard PrivateKey from your Proton VPN config (see"
-  echo "README.md section 3.1 for how to generate one), or press Enter to"
+  echo "README.md section 2 for how to generate one), or press Enter to"
   echo "skip and edit ${SECRET_FILE} manually. Input is masked."
   key="$(read_masked "PrivateKey: ")"
   if [[ -z "$key" ]]; then

@@ -1,7 +1,7 @@
 # What `make bootstrap` does
 
 `make bootstrap` is the one command for first-time setup. See
-[README §3](../README.md#3-run-make-bootstrap) for the quick version; this
+[README §2](../README.md#2-run-make-bootstrap) for the quick version; this
 page is the full internals.
 
 The stack runs containers as a non-root user (uid=1000 inside the container).
@@ -23,15 +23,20 @@ one pass:
 4. Generates the self-signed certificate if one doesn't already exist (see
    [README's Certificate section](../README.md#certificate), or
    [docs/CERTIFICATES.md](CERTIFICATES.md) for the full reference).
-5. Starts the stack (`make start`), then waits up to 90 seconds for Gluetun
+5. Builds the two custom images (LazyLibrarian, Mylar) with
+   `make build_images`, so a fresh clone never fails to start those two
+   just because they use a locally built image rather than a pulled one.
+   See [docs/LAZYLIBRARIAN.md](LAZYLIBRARIAN.md) and
+   [docs/MYLAR.md](MYLAR.md).
+6. Starts the stack (`make start`), then waits up to 90 seconds for Gluetun
    to actually report a connected VPN before continuing. If that times out
    (wrong key, or provider/server settings in `configs/gluetun/.env` that
    don't match your account), bootstrap stops with an error instead of
    continuing into confusing failures further down the chain.
-6. Once Gluetun is confirmed connected, applies the Jellyfin base
+7. Once Gluetun is confirmed connected, applies the Jellyfin base
    URL/trusted proxy settings from `JELLYFIN_BASE_URL` and
    `JELLYFIN_KNOWN_PROXY` now that Jellyfin has generated its own config.
-7. Wires the app-to-app connections that only exist through each app's own
+8. Wires the app-to-app connections that only exist through each app's own
    live API (qBittorrent/SABnzbd as download clients in the Servarr apps,
    those apps registered in Prowlarr), and attempts the first-run setup that
    Jellyfin, Audiobookshelf, Calibre's content server, and Calibre-Web each
@@ -43,36 +48,13 @@ one pass:
    [docs/CONNECTIONS.md](CONNECTIONS.md) for exactly what this covers, and
    `make wire_connections` to re-run just this step later (after enabling an
    app that was disabled, for instance).
-8. Rotates every seeded API key and password (`make rotate_all`), so a
+9. Rotates every seeded API key and password (`make rotate_all`), so a
    fresh clone is fully secured the moment bootstrap finishes.
 
 It's meant to run once. See [docs/ROTATION.md](ROTATION.md) to rotate again
 later, and [docs/HARDENING.md](HARDENING.md) for the full permissions
 explanation. [docs/PERMISSIONS.md](PERMISSIONS.md) covers the ownership
 model itself and the `make permissions_check` / `permissions_repair` /
-`permissions_smoke` commands in more depth.
-
-## Full test coverage: `make bootstrap_tests`
-
-`.env.example` ships several profiles disabled by default (an optional
-observability stack, a couple of alternate/legacy apps), so a normal
-bootstrap never exercises their code paths. `make bootstrap_tests` enables
-every profile that has real pytest coverage, bootstraps, and runs the full
-test suite in one command, including a local, credential-free WireGuard
-endpoint (see [docs/VPN_MOCK.md](VPN_MOCK.md)) so qBittorrent, SABnzbd, and
-everything wired through them can start and get exercised without a real VPN
-provider account:
-
-```shell
-make bootstrap_tests
-```
-
-The profile overrides it applies come from `.env.tests`, merged onto `.env`
-by `scripts/enable-test-profiles.sh`: for each `KEY=value` line in
-`.env.tests`, it replaces that key's value in `.env` if the key already
-exists there, or appends the line if it doesn't. `.env.tests` itself only
-lists the lines that need to differ from `.env.example`'s own defaults.
-
-**Run this only against a disposable clone, never a real deployment.** It
-changes which profiles are enabled in `.env` and rewrites every credential,
-exactly like plain `make bootstrap` already does.
+`permissions_smoke` commands in more depth. For `make bootstrap_tests` (the
+release-validation variant) and everything else test related, see
+[docs/TESTING.md](TESTING.md).

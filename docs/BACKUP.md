@@ -5,6 +5,10 @@ This project has two backup modes:
 - `make backup` or `make backup-configs`: lean backup for day-to-day recovery.
 - `make backup-full`: larger backup that keeps application artwork and metadata.
 
+Both are manual. Run `make backup-schedule` to install a cron entry that runs
+`make backup` automatically (daily at 03:00 by default). See
+[Scheduling](#scheduling) below.
+
 Stop the containers before backing up or restoring if you need database-consistent
 archives:
 
@@ -57,6 +61,30 @@ The full backup includes `.env`, `certs/`, and all of `configs/`, including
 artwork and metadata caches. It still does not include repository metadata,
 tests, MegaLinter reports, media/download libraries, observability storage,
 runtime cache folders, or dependencies.
+
+## Scheduling
+
+```shell
+make backup-schedule
+```
+
+In a real terminal, this prompts for how often (daily or weekly, default
+daily) and what time (default 03:00), then installs a cron entry that runs
+`make backup` on that schedule, logging to `logs/backup.log`. Run in a
+non-interactive context, it applies the default (daily at 03:00) without
+prompting.
+
+The scheduled backup runs live, without stopping the stack first (unlike
+the "stop containers first" recommendation above for a database-consistent
+snapshot), so it favors staying non-disruptive over perfect consistency. If
+you want a stop-backup-start cycle instead, script that separately with
+`make stop && make backup && make start` on your own cron schedule.
+
+Re-running `make backup-schedule` replaces the previously scheduled entry
+rather than stacking a second one. See it any time with `crontab -l`; remove
+it with `crontab -l | grep -v 'schedule-backup.sh' | crontab -`. This only
+schedules `make backup` (the lean mode); for `make backup-full` on a
+schedule, add your own cron line instead.
 
 ## Restore
 

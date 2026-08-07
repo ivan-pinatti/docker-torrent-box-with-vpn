@@ -10,7 +10,7 @@ directly.
 
 | Target | What it does |
 | --- | --- |
-| `make bootstrap` | The one command for first-time setup: seeds every app's config from its `.example` templates, remaps directory ownership, generates the self-signed certificate, starts the stack, waits for Gluetun to connect, wires app-to-app connections, then rotates every seeded credential. Meant to run once. See [README §3](../README.md#3-run-make-bootstrap). |
+| `make bootstrap` | The one command for first-time setup: seeds every app's config from its `.example` templates, remaps directory ownership, generates the self-signed certificate, builds the two locally built images (LazyLibrarian, Mylar), starts the stack, waits for Gluetun to connect, wires app-to-app connections, then rotates every seeded credential. Meant to run once. See [README §2](../README.md#2-run-make-bootstrap). |
 | `make check_requirements` | Prints the versions of every required tool (make, podman/docker, compose, yq, xmlstarlet, kernel, WireGuard module) so you can confirm your host is ready before bootstrapping. |
 | `make install_requirements` | Prints OS-specific install commands for the required tools. Informational only, doesn't install anything itself. |
 | `make generate_certificate` | (Re)generates the self-signed TLS certificate and pushes the new password into every app's config. `bootstrap` calls this automatically if no certificate exists yet. |
@@ -30,7 +30,7 @@ directly.
 | `make heal_vpn_dependents` | Detects and restarts any container still attached to Gluetun's *previous* network namespace after Gluetun restarted on its own (its `restart: unless-stopped` policy, or a lost WireGuard handshake) outside of `make restart`. |
 | `make update_containers` | Stops the stack, pulls fresh images, and starts it back up. |
 | `make pull_docker_images` | Pulls every enabled image without stopping or restarting anything. |
-| `make build_images` | Builds the two custom images this stack maintains itself (LazyLibrarian, Mylar). |
+| `make build_images` | Builds the two custom images this stack maintains itself (LazyLibrarian, Mylar). `bootstrap` calls this automatically; run it by hand to rebuild after bumping `LAZYLIBRARIAN_VERSION`/`MYLAR_VERSION`. |
 
 ## Credentials and wiring
 
@@ -58,6 +58,7 @@ See [docs/PERMISSIONS.md](PERMISSIONS.md) for the ownership model these implemen
 | --- | --- |
 | `make backup` / `make backup-configs` | Lean backup: `.env`, `certs`, and `configs`, with logs/caches/large regenerable files excluded. |
 | `make backup-full` | Same scope as above but with far fewer exclusions, closer to a full snapshot. |
+| `make backup-schedule` | Installs a cron entry that runs `make backup` on a schedule (prompts for frequency/time in a real terminal, defaults to daily at 03:00 otherwise). See [docs/BACKUP.md](BACKUP.md#scheduling). |
 | `make restore-configs BACKUP=<path>` | Restores from a backup archive. Takes its own safety backup of the current state first. `BACKUP=` is required. |
 | `make restore-full` | Alias of `restore-configs`. |
 

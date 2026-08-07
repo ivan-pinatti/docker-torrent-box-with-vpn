@@ -62,7 +62,7 @@ STOP_VPN_ON_LIST := $(strip $(subst $(comma),$(space),$(STOP_VPN_ON)))
 STOP_ROUTE_FILES := $(if $(filter servarr,$(STOP_VPN_ON_LIST)),docker-compose.routes/servarr-vpn.yml,$(foreach service,$(VPN_ROUTE_SERVICES),$(if $(filter $(service),$(STOP_VPN_ON_LIST)),docker-compose.routes/$(service)-vpn.yml)))
 STOP_COMPOSE_FILES := --file docker-compose.yml $(foreach route_file,$(STOP_ROUTE_FILES),--file $(route_file))
 
-.PHONY: all backup backup-configs backup-full bootstrap bootstrap_tests build_images clean clean_all check_requirements \
+.PHONY: all backup backup-configs backup-full backup-schedule bootstrap bootstrap_tests build_images clean clean_all check_requirements \
 	configure_jellyfin_network \
 	detect_secrets_create_baseline down enable_test_profiles generate_certificate \
 	heal_vpn_dependents \
@@ -221,6 +221,8 @@ bootstrap: configs/flaresolverr/config/chromedriver
 		echo "Generating the self-signed certificate..."; \
 		$(MAKE) --no-print-directory generate_certificate; \
 	fi
+	@echo "Building custom images (LazyLibrarian, Mylar)..."
+	@$(MAKE) --no-print-directory build_images
 	@echo "Starting the stack for the first time..."
 	@$(MAKE) --no-print-directory start
 	@echo "Waiting for Gluetun to establish the VPN connection..."
@@ -276,6 +278,12 @@ backup-full:
 		$(COMMON_BACKUP_EXCLUDES) \
 		.env certs configs
 	@echo ".OK!"
+
+# Installs a cron entry that runs `make backup` on a schedule (default:
+# daily at 03:00). Prompts for frequency and time in a real terminal;
+# see scripts/schedule-backup.sh for the non-interactive fallback.
+backup-schedule:
+	@./scripts/schedule-backup.sh
 
 restore-configs:
 	@if [ -z "$(BACKUP)" ]; then echo "ERROR: BACKUP=/path/to/archive.tar.gz is required"; exit 1; fi
@@ -678,7 +686,7 @@ test_no_rotate_passwords: tests/.venv ## Run full test suite except password rot
 # rinse_and_repeat (stop/start and down/start cycles against the whole
 # stack) is the single most expensive marker by far and, unlike
 # rotation/wiring/killswitch, isn't testing a specific credential or
-# connection — it's a lifecycle-stability check best run deliberately
+# connection: it's a lifecycle-stability check best run deliberately
 # (before a release, after touching bootstrap/compose) rather than on
 # every `make test`. `bootstrap_tests` calls this, not plain `test`.
 test_extended: test ## Run the full suite plus rinse-and-repeat lifecycle cycles

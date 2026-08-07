@@ -79,4 +79,4 @@ way unless `.env.tests` is applied. Running `make bootstrap_tests` rewrites
 `configs/gluetun/.secret` and `.env` the same way plain `make bootstrap`
 rewrites every other credential, so it's meant for a disposable clone, not
 a deployment you care about. If you want your own real VPN, follow
-README.md section 3.1 or `docs/VPN_PROVIDERS.md` instead.
+README.md section 2 or `docs/VPN_PROVIDERS.md` instead.
