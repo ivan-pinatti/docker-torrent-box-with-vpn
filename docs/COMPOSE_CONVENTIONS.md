@@ -138,7 +138,7 @@ consuming file's correctness to always being invoked through the aggregate;
 see the git history on this file if you want the details.)
 
 ```yaml
-# docker-compose-nzb.yml — owns the secret (sabnzbd issues the key)
+# docker-compose-nzb.yml: owns the secret (sabnzbd issues the key)
 secrets:
   sabnzbd_api_key:
     file: ./configs/sabnzbd/secrets/api_key.txt
@@ -146,7 +146,7 @@ secrets:
 ```
 
 ```yaml
-# docker-compose-proxy.yml — consumes it, declares an identical copy
+# docker-compose-proxy.yml: consumes it, declares an identical copy
 secrets:
   sabnzbd_api_key:
     file: ./configs/sabnzbd/secrets/api_key.txt
@@ -225,8 +225,8 @@ part, since these aren't loaded via `env_file`:
 - `configs/<app>/<path-to-file>.example`, committed, same structure as the
   live file, with every credential-bearing field (API keys, web UI/service
   passwords, SSL cert passwords, third-party API keys) swapped for an
-  obviously-fake placeholder. Everything else — ports, `UrlBase`, feature
-  flags, indexer hostnames — is copied verbatim: it isn't a secret, and
+  obviously-fake placeholder. Everything else (ports, `UrlBase`, feature
+  flags, indexer hostnames) is copied verbatim: it isn't a secret, and
   matches the plain-commit case for files like `prometheus.yml`.
 - The live file (`config.xml`, `config.ini`, `nzbhydra.yml`, `.env`, ...)
   is gitignored: the per-app `.gitignore`'s allowlist (`!config/...`)
@@ -246,8 +246,8 @@ so a fresh bootstrap is at least internally consistent even though the real
 wiring still has to happen through each app's own UI.
 
 `make generate_certificate` already patches the SSL cert password into every
-seeded file that needs one — via `xmlstarlet` for the XML configs, `yq` for
-`nzbhydra.yml` — so the placeholder value in the `.example` is never what a
+seeded file that needs one (via `xmlstarlet` for the XML configs, `yq` for
+`nzbhydra.yml`), so the placeholder value in the `.example` is never what a
 running container actually sees.
 
 ## Shared anchors

@@ -2,8 +2,8 @@
 
 The stack ships with pre-configured API keys and passwords. `make bootstrap`
 already rotates all of them once, as its last step (after starting the stack
-and wiring app-to-app connections — see [docs/CONNECTIONS.md](CONNECTIONS.md)
-— since some rotations, qBittorrent's in particular, read the current
+and wiring app-to-app connections, see [docs/CONNECTIONS.md](CONNECTIONS.md),
+since some rotations, qBittorrent's in particular, read the current
 credential out of a DownloadClients entry that only exists once wiring has
 run). Everything below is for rotating again later: on a recurring schedule,
 after enabling a service that was disabled during bootstrap, or before
@@ -119,7 +119,7 @@ The non-Servarr targets:
   which `scripts/wire-connections.sh`'s `ensure_jellyfin_setup()` *attempts*
   to create through Jellyfin's own first-run Startup API (username and
   password both `jellyfin`) as part of `make wire_connections`/
-  `make bootstrap` — but that attempt is unreliable (see
+  `make bootstrap`, but that attempt is unreliable (see
   [docs/CONNECTIONS.md](CONNECTIONS.md)) and often doesn't succeed. When it
   hasn't, rotation skips Jellyfin with a note instead of failing; visit
   `http://localhost:${JELLYFIN_HTTP_PORT}/` once in a browser to complete
@@ -130,7 +130,7 @@ automatically so they load the new key, and Homepage is restarted (it reads
 every key here from a mounted secret file, not `env_file`, so a restart is
 enough). This homepage restart happens unconditionally at the end of every
 `rotate-api-keys.sh` invocation, including single-app targets, so if you
-script multiple rotations to run concurrently they can race on it — podman
+script multiple rotations to run concurrently they can race on it: podman
 refuses a restart while another one triggered it is still mid-transition
 ("container state improper"). The restart is retried against exactly that
 error rather than treated as fatal (see `retry()` in the script); a normal,
@@ -182,10 +182,10 @@ alphabetical by service.
   (`CALIBRE_GUI_WEB_HTTP_PORT`, default 8081) is checked separately and
   only informationally, since it defaults to the same port as Selkies'
   desktop-streaming data websocket inside the `lscr.io/linuxserver/calibre`
-  image itself — a pre-existing collision unrelated to credential rotation,
+  image itself: a pre-existing collision unrelated to credential rotation,
   not something this script can work around.
 - **Calibre-Web**: writes a new password hash for the `admin` user (the
-  image's own hardcoded default — not this project's usual per-app
+  image's own hardcoded default, not this project's usual per-app
   placeholder) directly to `app.db` (no API exists) and updates the shared
   secret file `configs/calibre-web/secrets/password.txt`, which Homepage
   reads directly. `ensure_calibre_web_setup()` sets `config_calibre_dir` to
@@ -203,7 +203,7 @@ alphabetical by service.
   mirroring Calibre's own handling of the same slow-restart image.
   Separately, the `admin` row has been observed to disappear from
   Calibre-Web's own user table sometime after its first real library is
-  configured and the app runs a while — organically, unrelated to any
+  configured and the app runs a while, organically, unrelated to any
   write this stack makes, and not yet root-caused. Rotation checks the
   actual row count rather than trusting a successful `UPDATE` with no
   matching rows, and skips with a note (rather than silently claiming

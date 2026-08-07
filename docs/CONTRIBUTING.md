@@ -44,7 +44,7 @@ welcome your pull requests:
    `rinse_and_repeat` lifecycle tests on top; `make test_prerequisites` runs
    just the pre-flight checks with no containers needed at all; and
    `make bootstrap_tests` does a full clean bootstrap and runs
-   `test_extended` in one step (only against a disposable clone — it
+   `test_extended` in one step (only against a disposable clone, it
    rewrites every credential). See [docs/MAKE_COMMANDS.md](MAKE_COMMANDS.md)
    for the full list of test targets. Pull requests run the suite
    automatically via the `integration` job in `pull-request-validation.yml`.

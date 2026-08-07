@@ -18,7 +18,7 @@ usable account at all until a human clicks through their own web UI once.
 
 `make bootstrap` runs this automatically, after the stack's first
 `make start` and before it rotates every seeded credential
-(`make rotate_all`) — wiring has to come first, since some rotations (
+(`make rotate_all`); wiring has to come first, since some rotations (
 qBittorrent's in particular) read the current credential out of a
 DownloadClients entry that only exists once wiring has run. Run it again by
 hand any time: after enabling an app that was previously disabled, or just to
@@ -49,7 +49,7 @@ table, created through `POST /api/<version>/downloadclient`. The script:
   rather than trusted from the schema default: qBittorrent's own
   `categories.json` uses each app's bare name (`radarr`, `sonarr`, ...), but
   e.g. Sonarr's own qBittorrent schema defaults to `tv-sonarr` instead of
-  `sonarr` — qBittorrent doesn't validate the category on creation, it just
+  `sonarr`: qBittorrent doesn't validate the category on creation, it just
   silently creates an empty one, which would silently break the
   pre-configured save-path layout. SABnzbd's categories are genre-based
   (`tv`, `movies`, `music`, `ebooks`, `mature`) and validates strictly, so an
@@ -58,7 +58,7 @@ table, created through `POST /api/<version>/downloadclient`. The script:
 
 Prowlarr gets both clients too, through the same `ensure_qbittorrent_client`/
 `ensure_sabnzbd_client` helpers (Prowlarr shares the identical DownloadClients
-schema shape with every other Servarr app) — this is what puts a working
+schema shape with every other Servarr app); this is what puts a working
 "Download" button on Prowlarr's own Interactive Search results, independent
 of anything the arr apps do with their own clients. The category is set to
 the bare string `prowlarr`, matching the same convention as the arr apps,
@@ -80,9 +80,9 @@ Proxy in Prowlarr's UI.
 If Prowlarr is enabled (`PROWLARR_PROFILE`), the script registers each of
 those apps as an Application via `POST /api/v1/applications`, so Prowlarr can
 push indexer sync to them (`syncLevel: fullSync`). Skipped entirely, with a
-note, if Prowlarr's container doesn't exist — the same no-op behavior
+note, if Prowlarr's container doesn't exist (the same no-op behavior
 `scripts/rotate-api-keys.sh`'s `update_prowlarr_application()` already has
-for a missing entry.
+for a missing entry).
 
 After registering the applications, the script triggers Prowlarr's
 `ApplicationIndexerSync` command and then verifies, through each arr app's
@@ -126,7 +126,7 @@ the real NZBHydra2 entry belongs in those seeds.
 
 Jellyfin, Audiobookshelf, Calibre's content server, and Calibre-Web all ship
 with no usable account at all until their own first-run setup wizard has
-been completed once — normally a manual, one-time click-through in a
+been completed once, normally a manual, one-time click-through in a
 browser. `scripts/wire-connections.sh` attempts to complete each one
 automatically, using the same placeholder username = password = app name
 convention as everywhere else, so `scripts/rotate-*.sh` always has an
@@ -138,9 +138,9 @@ runs. Jellyfin is not: see its entry below.
   → `/Startup/RemoteAccess` → `/Startup/Complete` sequence the setup wizard
   itself calls, then creates an API key and writes it to
   `configs/jellyfin/secrets/api_key.txt` (the only record of Jellyfin's
-  current key). No media libraries are configured — none are required to
+  current key). No media libraries are configured; none are required to
   complete the wizard, and adding them is a real choice left to you.
-  **This one is unreliable** — `/Startup/User` only succeeds once Jellyfin's
+  **This one is unreliable**: `/Startup/User` only succeeds once Jellyfin's
   own `UserManager` has lazily created its internal placeholder user
   (`InvalidOperationException: Sequence contains no elements` otherwise),
   and in repeated testing against genuinely fresh containers, that never
@@ -154,13 +154,13 @@ runs. Jellyfin is not: see its entry below.
   create the `root` user.
 - **Calibre's content server**: creates its own SQLite user via the
   documented, non-interactive `calibre-server --manage-users -- add`
-  command — this is a separate account from the desktop GUI/noVNC login,
+  command; this is a separate account from the desktop GUI/noVNC login,
   which already works out of the box from its own committed secret file.
 - **Calibre-Web**: sets `config_calibre_dir` directly in `app.db` (while
   stopped) to this stack's shared Calibre library, so the container isn't
   stuck redirecting every request to its own `/admin/dbconfig` setup page.
   Deliberately does **not** configure Calibre-Web's own HTTPS or rename its
-  default user (image default: `admin`) — both were tried, and reproducibly
+  default user (image default: `admin`); both were tried, and reproducibly
   wiped the entire `user` table (including the built-in "Guest" row) on the
   next start, for a reason not identified in the time available. Calibre-Web
   is therefore only ever reachable here over plain HTTP directly, or through

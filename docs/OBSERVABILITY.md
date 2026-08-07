@@ -5,10 +5,10 @@ Loki, and surfaces everything in Grafana dashboards with built-in alerting.
 
 ## Topics
 
-- [Monitoring](observability/MONITORING.md) — services, enabling, network architecture,
+- [Monitoring](observability/MONITORING.md): services, enabling, network architecture,
   Prometheus, Loki, and Alloy
-- [Dashboards](observability/DASHBOARDS.md) — provisioned dashboard conventions and panel patterns
-- [Alerting](observability/ALERTING.md) — alert rules, email (AWS SES), Telegram, and
+- [Dashboards](observability/DASHBOARDS.md): provisioned dashboard conventions and panel patterns
+- [Alerting](observability/ALERTING.md): alert rules, email (AWS SES), Telegram, and
   notification policy
 
 ## Quick links

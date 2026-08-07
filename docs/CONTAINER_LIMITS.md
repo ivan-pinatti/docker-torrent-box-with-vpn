@@ -9,7 +9,7 @@ up to half of one CPU when scheduled, but it does not reserve that capacity.
 Memory is the RAM ceiling.
 
 This stack does not set a `memswap_limit`. `podman-compose` (the version this
-stack targets) does not implement that Compose key at all — it silently drops
+stack targets) does not implement that Compose key at all: it silently drops
 it, regardless of what value is set. In its absence, Podman's own default
 applies: each container gets swap headroom equal to its memory limit (so a
 `1gb` memory limit effectively allows up to `2gb` of combined memory+swap).

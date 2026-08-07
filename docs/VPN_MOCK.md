@@ -26,7 +26,7 @@ without a real provider account.
    - Skips entirely if the job already looks done: `configs/gluetun/.secret`
      holds a real key *and* `configs/gluetun/.env` already has
      `VPN_SERVICE_PROVIDER=custom`. Both have to check out, not just the
-     secret — confirmed live, a run that saves the key but dies before
+     secret: confirmed live, a run that saves the key but dies before
      pointing gluetun's config at the mock (e.g. a missing `.env` var
      further down) leaves gluetun permanently configured for its original
      real provider while holding mock key material: it dials real VPN
@@ -68,7 +68,7 @@ without a real provider account.
 
 Every test that currently skips without a real VPN key becomes
 exercisable, most notably `tests/test_vpn_killswitch.py`, which only
-requires gluetun and the probe container to be genuinely healthy — it has
+requires gluetun and the probe container to be genuinely healthy: it has
 no idea whether the tunnel behind that health state is a real provider or
 a local mock.
 
