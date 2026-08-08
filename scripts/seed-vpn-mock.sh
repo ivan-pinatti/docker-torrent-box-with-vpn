@@ -45,12 +45,14 @@ if ! needs_setup; then
 fi
 
 if command -v podman >/dev/null 2>&1; then
+  RUNTIME=podman
   if command -v podman-compose >/dev/null 2>&1; then
     COMPOSE=(podman-compose)
   else
     COMPOSE=(podman compose)
   fi
 else
+  RUNTIME=docker
   COMPOSE=(docker compose)
 fi
 
@@ -60,6 +62,16 @@ echo "[vpn_mock] No real VPN key found; starting the local mock WireGuard endpoi
 # fix seed-gluetun-secret.sh already applies to itself, for the same
 # reason: both edit it before bootstrap otherwise would).
 ./scripts/seed-configs.sh "$GLUETUN_ENV" >/dev/null
+
+# docker-compose.yml's apps/services/media/observability networks are
+# external (make start creates them itself, see its own network create
+# calls): this runs before that, same ordering issue as above, so vpn_mock
+# (which attaches to services) needs them pre-created too, confirmed live.
+"$RUNTIME" network exists docker-torrent-box-with-vpn_apps || "$RUNTIME" network create docker-torrent-box-with-vpn_apps
+"$RUNTIME" network exists docker-torrent-box-with-vpn_services || "$RUNTIME" network create --internal --subnet "$(env_value SERVICES_SUBNET)" --ip-range "$(env_value SERVICES_DYNAMIC_IP_RANGE)" docker-torrent-box-with-vpn_services
+"$RUNTIME" network exists docker-torrent-box-with-vpn_media || "$RUNTIME" network create --subnet "$(env_value MEDIA_SUBNET)" --ip-range "$(env_value MEDIA_DYNAMIC_IP_RANGE)" docker-torrent-box-with-vpn_media
+"$RUNTIME" network exists docker-torrent-box-with-vpn_observability || "$RUNTIME" network create --internal --subnet "$(env_value OBSERVABILITY_SUBNET)" docker-torrent-box-with-vpn_observability
+
 "${COMPOSE[@]}" --file docker-compose.yml --profile enabled up -d vpn_mock >/dev/null
 
 echo "[vpn_mock] Waiting for peer keys to generate..."
