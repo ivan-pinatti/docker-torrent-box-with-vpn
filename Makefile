@@ -71,7 +71,7 @@ STOP_COMPOSE_FILES := --file docker-compose.yml $(foreach route_file,$(STOP_ROUT
 	install_requirements pull_docker_images pre_commit \
 	restore-configs restore-full \
 	restart sanity_fast sanity_full start start_library start_observability \
-	stop stop_all update_containers update_pre_commit test test_extended test_prerequisites \
+	stop stop_all update_containers update_pre_commit test test_ci test_extended test_prerequisites \
 	test_no_rotate_passwords
 
 BACKUP_DIR ?= backup
@@ -718,6 +718,21 @@ test: tests/.venv ## Run the full test suite (requires the stack to be running)
 	@tests/.venv/bin/pytest -n auto -m "not rotation and not pw_rotation and not wiring and not killswitch and not rinse_and_repeat" $(PYTEST_ARGS)
 	@tests/.venv/bin/pytest -n 4 -m "rotation_isolated" $(PYTEST_ARGS)
 	@tests/.venv/bin/pytest -m "(rotation or pw_rotation or wiring or killswitch) and not rotation_isolated" $(PYTEST_ARGS)
+
+# The serial (rotation or pw_rotation or wiring or killswitch) tier test
+# excludes above genuinely needs a real app restart to complete and
+# report healthy within its own wait budget, over and over, for dozens of
+# apps in a row. Confirmed live: that's reliable on a real bench's own
+# hardware (two full clean runs, zero failures each), but not on a
+# GitHub-hosted runner's shared, more constrained resources, where the
+# same restarts intermittently overrun the exact same wait budgets and
+# retry counts that are already tuned for exactly this kind of transient
+# "container state improper" race (see this file's own comment on
+# rotation_isolated above). CI runs this instead of plain test; make
+# bootstrap_tests (a real bench, pre-release) still runs the full thing.
+test_ci: tests/.venv ## Run the fast tiers only (read-only + rotation_isolated); what CI runs
+	@tests/.venv/bin/pytest -n auto -m "not rotation and not pw_rotation and not wiring and not killswitch and not rinse_and_repeat" $(PYTEST_ARGS)
+	@tests/.venv/bin/pytest -n 4 -m "rotation_isolated" $(PYTEST_ARGS)
 
 test_prerequisites: tests/.venv ## Run only pre-flight checks (no containers needed)
 	@tests/.venv/bin/pytest -m prerequisites $(PYTEST_ARGS)

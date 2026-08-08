@@ -24,6 +24,14 @@ them in three passes instead of one invocation:
    LazyLibrarian's Torznab entries) and can't safely run in parallel with
    each other.
 
+`make test_ci` runs tiers 1 and 2 only, no tier 3: the serial rotation/
+wiring/killswitch tier needs a real app restart to complete and report
+healthy within its own wait budget, over and over, for dozens of apps in a
+row, and that isn't reliable on a GitHub-hosted runner's shared, more
+constrained resources, confirmed live. This is what `pull-request-validation.yml`'s
+own integration job actually runs; it is not a substitute for `make test`
+or `make bootstrap_tests` and should not be reached for outside CI.
+
 `make test_extended` runs `make test` plus a fourth pass: `rinse_and_repeat`
 (stop/start and down/start lifecycle cycles), the single most expensive
 marker by far and the only one that exercises the whole stack's startup
