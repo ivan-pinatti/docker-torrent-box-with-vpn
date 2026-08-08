@@ -161,6 +161,14 @@ jobs:
           podman system migrate
           podman info
           pip install podman-compose
+          # tests/conftest.py's docker_client fixture talks to podman over
+          # this exact socket path, not the CLI; nothing starts it by
+          # default on ubuntu-latest, confirmed live (every container/auth
+          # test errored out at fixture setup with a plain
+          # FileNotFoundError on the socket path).
+          mkdir -p "/run/user/$(id -u)/podman"
+          nohup podman system service --time=0 "unix:///run/user/$(id -u)/podman/podman.sock" >/tmp/podman-service.log 2>&1 &
+          timeout 30 bash -c 'until [ -S "/run/user/'"$(id -u)"'/podman/podman.sock" ]; do sleep 1; done'
 
       - name: Create .env file
         shell: bash
