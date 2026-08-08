@@ -170,9 +170,41 @@ stop_existing() {
   done
 }
 
+container_running() {
+  podman container inspect -f '{{.State.Running}}' "$1" 2>/dev/null | grep -q '^true$'
+}
+
+# podman start can transiently fail with "container state improper" when
+# this app's container is also being touched right now by a concurrently
+# running rotation of the same app (its own password rotation, most
+# commonly, since both scripts stop/start the same container independently
+# and rotation_isolated's own parallel test tier runs both at once). That
+# isn't a real failure: it resolves itself within a few seconds once the
+# other script's own stop/start cycle finishes, so this is retried the same
+# way homepage's own recreate step already is, for the same reason, rather
+# than treated as fatal on the first attempt.
+start_containers_retrying() {
+  local timeout=30 elapsed=0 remaining=("$@") still_remaining c
+  while [[ ${#remaining[@]} -gt 0 ]]; do
+    still_remaining=()
+    for c in "${remaining[@]}"; do
+      container_running "$c" && continue
+      podman start "$c" >/dev/null 2>&1 || still_remaining+=("$c")
+    done
+    remaining=("${still_remaining[@]}")
+    [[ ${#remaining[@]} -eq 0 ]] && return 0
+    sleep 5
+    elapsed=$((elapsed + 5))
+    if [[ $elapsed -ge $timeout ]]; then
+      echo "ERROR: could not start: ${remaining[*]}" >&2
+      return 1
+    fi
+  done
+}
+
 start_stopped() {
   if [[ ${#STOPPED_CONTAINERS[@]} -gt 0 ]]; then
-    podman start "${STOPPED_CONTAINERS[@]}" >/dev/null
+    start_containers_retrying "${STOPPED_CONTAINERS[@]}"
   fi
 }
 
@@ -215,11 +247,11 @@ rotate_arr_apikey() {
   written=$(get_xml_apikey "$xml_path")
   if [[ "$written" != "$new_key" ]]; then
     echo "[$app_name] ERROR: ApiKey did not update as expected in $xml_path" >&2
-    podman start "$container_name" >/dev/null
+    start_containers_retrying "$container_name"
     return 1
   fi
 
-  podman start "$container_name" >/dev/null
+  start_containers_retrying "$container_name"
   echo "$new_key"
 }
 

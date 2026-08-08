@@ -258,9 +258,38 @@ stop_existing() {
   fi
 }
 
+# podman start can transiently fail with "container state improper" when
+# this app's container is also being touched right now by a concurrently
+# running rotation of the same app (its own API key rotation, most
+# commonly, since both scripts stop/start the same container independently
+# and rotation_isolated's own parallel test tier runs both at once). That
+# isn't a real failure: it resolves itself within a few seconds once the
+# other script's own stop/start cycle finishes, so this is retried the same
+# way homepage's own recreate step already is, for the same reason, rather
+# than treated as fatal on the first attempt. container_running is defined
+# further down; bash resolves that at call time, not here.
+start_containers_retrying() {
+  local timeout=30 elapsed=0 remaining=("$@") still_remaining c
+  while [[ ${#remaining[@]} -gt 0 ]]; do
+    still_remaining=()
+    for c in "${remaining[@]}"; do
+      container_running "$c" && continue
+      podman start "$c" >/dev/null 2>&1 || still_remaining+=("$c")
+    done
+    remaining=("${still_remaining[@]}")
+    [[ ${#remaining[@]} -eq 0 ]] && return 0
+    sleep 5
+    elapsed=$((elapsed + 5))
+    if [[ $elapsed -ge $timeout ]]; then
+      echo "ERROR: could not start: ${remaining[*]}" >&2
+      return 1
+    fi
+  done
+}
+
 start_stopped() {
   if [[ ${#STOPPED_CONTAINERS[@]} -gt 0 ]]; then
-    podman start "${STOPPED_CONTAINERS[@]}" >/dev/null
+    start_containers_retrying "${STOPPED_CONTAINERS[@]}"
   fi
 }
 
@@ -1151,7 +1180,7 @@ ensure_running() {
     echo "[$container] Waiting for it to become healthy..."
   else
     echo "[$container] Not running; starting it..."
-    podman start "$container" >/dev/null
+    start_containers_retrying "$container"
   fi
   retry 120 "[$container]" container_ready "$container"
 }
@@ -1217,7 +1246,7 @@ prestart_api_containers() {
   fi
   if [[ ${#to_start[@]} -gt 0 ]]; then
     echo "Starting stopped containers needed for rotation: ${to_start[*]}"
-    podman start "${to_start[@]}" >/dev/null
+    start_containers_retrying "${to_start[@]}"
   fi
   if [[ ${#to_wait[@]} -gt 0 ]]; then
     echo "Waiting for already-running containers to become healthy: ${to_wait[*]}"
