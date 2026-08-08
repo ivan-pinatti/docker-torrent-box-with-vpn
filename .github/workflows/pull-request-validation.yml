@@ -129,7 +129,7 @@ jobs:
 
   integration:
     name: Integration Tests
-    runs-on: ubuntu-latest-4-cores
+    runs-on: ubuntu-latest
     # make test alone (the last step below) ran ~27 minutes on this
     # session's own local benches: ~5s for the parallel read-only tier,
     # ~5min for the parallel rotation_isolated tier, ~22min for the serial
