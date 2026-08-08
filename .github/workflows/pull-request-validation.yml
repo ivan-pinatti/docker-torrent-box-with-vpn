@@ -162,23 +162,34 @@ jobs:
           podman info
           pip install podman-compose
 
-      - name: Create .env file (VPN disabled, no key in CI)
+      - name: Create .env file
         shell: bash
         run: |
           cp .env.example .env
-          # Disable VPN profile so containers that depend on it can start without a real key
-          sed -i 's/^GLUETUN_PROFILE=enabled/GLUETUN_PROFILE=disabled/' .env
           # make generate_certificate rejects .env.example's own LAN_IP placeholder
           # (OpenSSL needs a real IP for the certificate's subjectAltName); any
           # RFC 1918 address works here since nothing on the runner resolves it.
           sed -i 's/^LAN_IP=192.168.1.x/LAN_IP=192.168.1.100/' .env
 
-      - name: Inject VPN key if secret is available
-        if: ${{ env.PROTONVPN_PRIVATE_KEY != '' }}
+      - name: Set up VPN (real key if available, otherwise the local mock)
         shell: bash
         run: |
-          sed -i 's/^GLUETUN_PROFILE=disabled/GLUETUN_PROFILE=enabled/' .env
-          echo "${{ env.PROTONVPN_PRIVATE_KEY }}" > configs/gluetun/.secret
+          if [ -n "${{ env.PROTONVPN_PRIVATE_KEY }}" ]; then
+            echo "${{ env.PROTONVPN_PRIVATE_KEY }}" > configs/gluetun/.secret
+          else
+            # gluetun can't actually be skipped the way GLUETUN_PROFILE=disabled
+            # tries to: it's foundational, not optional the way other apps'
+            # profiles are, since every VPN-routed container's network_mode
+            # depends on it existing. Confirmed live: disabling its profile just
+            # makes make start's own explicit `up gluetun` call fail outright
+            # ("missing services [gluetun]") under podman-compose, which (unlike
+            # Docker Compose) doesn't let an explicitly named service override
+            # profile filtering. Point it at this repo's own credential-free
+            # mock WireGuard endpoint instead, the same mechanism make
+            # bootstrap_tests already uses; see docs/VPN_MOCK.md.
+            sed -i 's/^VPN_MOCK_PROFILE=disabled/VPN_MOCK_PROFILE=enabled/' .env
+            ./scripts/seed-vpn-mock.sh
+          fi
 
       - name: Read PYTHON_VERSION from .env
         shell: bash
