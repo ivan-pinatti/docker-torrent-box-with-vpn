@@ -158,7 +158,7 @@ configs/flaresolverr/config/chromedriver:
 # seeds it earlier in bootstrap's own recipe, since a Proton VPN setup needs
 # to edit it right away. Seeding it again later would hit seed-configs.sh's
 # already-exists prompt on every single bootstrap run.
-seed_all:
+seed_all: configs/flaresolverr/config/chromedriver
 	@echo "Remapping directory ownership into the container user namespace..."
 	@echo "  (rootless Podman: host uid maps to uid=0 inside containers;"
 	@echo "   app processes run as service-specific non-root UIDs)"
