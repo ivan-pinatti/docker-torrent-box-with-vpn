@@ -1,25 +1,23 @@
 ---
 name: MegaLinter
+run-name: "MegaLinter for #${{ inputs.pr_number }}"
 
 on:
-  pull_request:
-    branches:
-      - main
-  # workflow_dispatch's own pr_number input lets
-  # .github/workflows/comment-dispatch.yml re-run this against a PR's
-  # current head from a `/run-checks` comment; a plain manual run from the
-  # Actions tab (no input) just lints whichever ref it's dispatched on.
+  # Comment-gated only, dispatched by .github/workflows/comment-dispatch.yml
+  # from a `/run-megalinter` comment, itself gated on pr_check (pre-commit)
+  # having already passed for the PR's current head commit. No pull_request
+  # trigger: this never runs automatically on a plain push.
   #checkov:skip=CKV_GHA_7:workflow_dispatch itself requires write access to
   # trigger at all (GitHub platform-level gate, not something this file
-  # controls); permissions below are contents:read/pull-requests:read only,
-  # pr_number only selects a checkout ref, and this workflow is always
-  # dispatched from the trusted default-branch copy, never the PR's own
-  # (see comment-dispatch.yml).
+  # controls); permissions below are contents:read/pull-requests:write
+  # only, pr_number only selects a checkout ref, and this workflow is
+  # always dispatched from the trusted default-branch copy, never the PR's
+  # own (see comment-dispatch.yml).
   workflow_dispatch:
     inputs:
       pr_number:
         description: PR number to check out and lint
-        required: false
+        required: true
 
 permissions:
   contents: read
@@ -36,7 +34,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.pr_number && format('refs/pull/{0}/head', inputs.pr_number) || github.ref }}
+          ref: refs/pull/${{ inputs.pr_number }}/head
           # betterleaks scans commits, and REPOSITORY_BETTERLEAKS_PR_COMMITS_SCAN
           # resolves <target>^..<source>. The default shallow clone (depth 1)
           # has neither ref, so the secret scan would silently cover nothing.
