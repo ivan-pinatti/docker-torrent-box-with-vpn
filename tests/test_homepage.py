@@ -30,13 +30,14 @@ def test_homepage_widget_integrations(running_containers):
 
     # Homepage itself responding is not proof every upstream app it proxies
     # to has also finished settling after bootstrap's own credential
-    # rotation restarts; confirmed live, several apps still 401 a few
-    # seconds after their own container reports healthy on a slower
-    # runner. Retry before treating this as a real integration break.
+    # rotation restarts; confirmed live, several apps still 401 well after
+    # their own container reports healthy on a slower runner, and 3
+    # retries 10s apart (30s total) was not enough there. Retry longer
+    # before treating this as a real integration break.
     failures = homepage_widget_failures()
     attempts = 1
-    while failures and attempts < 4:
-        time.sleep(10)
+    while failures and attempts < 9:
+        time.sleep(15)
         failures = homepage_widget_failures()
         attempts += 1
     assert not failures, "Homepage widget integrations broken:\n" + "\n".join(failures)
