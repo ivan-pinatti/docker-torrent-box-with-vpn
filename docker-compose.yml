@@ -5,30 +5,31 @@ networks:
   wan:
     driver: bridge
 
+  # apps, services, media, and observability are created ahead of time by
+  # `make start` (see its own network create calls), not by compose, so
+  # every docker-compose.routes/*.yml override and every included compose
+  # file here can all attach to the same networks regardless of which one
+  # actually happens to run first. Real Docker Compose enforces network
+  # ownership strictly: without external: true here, it tries to create
+  # (and therefore own) these too, and fails outright with "conflicts with
+  # imported resource" once it finds one already exists, confirmed live in
+  # CI. Podman tolerates the same mismatch silently, which is why this
+  # went unnoticed locally.
   apps:
-    driver: bridge
+    external: true
+    name: docker-torrent-box-with-vpn_apps
 
   services:
-    driver: bridge
-    internal: true
-    ipam:
-      config:
-        - subnet: ${SERVICES_SUBNET}
-          ip_range: ${SERVICES_DYNAMIC_IP_RANGE}
+    external: true
+    name: docker-torrent-box-with-vpn_services
 
   media:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: ${MEDIA_SUBNET}
-          ip_range: ${MEDIA_DYNAMIC_IP_RANGE}
+    external: true
+    name: docker-torrent-box-with-vpn_media
 
   observability:
-    driver: bridge
-    internal: true
-    ipam:
-      config:
-        - subnet: ${OBSERVABILITY_SUBNET}
+    external: true
+    name: docker-torrent-box-with-vpn_observability
 
 include:
   - docker-compose-media-library.yml
