@@ -1,30 +1,11 @@
 ---
 name: Comment-Triggered Checks
 
-# Lets a maintainer comment on a PR to run checks against its current head
-# without needing a new push, as a strictly sequential, gated pipeline:
-#   /run-pre-commit -> pre-commit (PR Validation's pr_check job). No gate;
-#                       this is the first stage, and pr_check also runs
-#                       automatically on every push regardless.
-#   /run-megalinter  -> MegaLinter. Gated: the most recent PR Validation run
-#                       for this PR, started after its current head commit
-#                       was pushed, must have pr_check succeeding, or this
-#                       is refused with an explanatory comment instead of
-#                       dispatching.
-#   /run-full-tests  -> the test suite (PR Validation's prerequisites +
-#                       integration jobs, via job_scope: tests). Gated the
-#                       same way on the most recent MegaLinter run for this
-#                       PR having succeeded.
-# "Most recent run for this PR" is matched by each workflow's own run-name
-# (e.g. "PR Validation for #23"), not by head SHA: a workflow_dispatch run
-# reports the SHA of whatever ref it was dispatched from (always main
-# here, see below), not the PR commit it actually checked out internally.
-# "Started after the head commit was pushed" is a wall-clock check, not an
-# exact-commit one; a push landing in the few seconds between a gated
-# stage starting and finishing could let a stale result through. Given
-# this repository's actual usage (one maintainer, no concurrent pushes to
-# a PR mid-check), that gap is accepted rather than instrumented away.
-#
+# Lets a maintainer comment on a PR to re-run checks against its current
+# head without needing a new push:
+#   /run-check  -> pre-commit (PR Validation's pr_check job) + MegaLinter
+#   /run-tests  -> the test suite (PR Validation's prerequisites +
+#                  integration jobs, via job_scope: tests)
 # This job never checks out the PR's own code or workflow definitions: it
 # only reads PR metadata via the API and dispatches the target workflows
 # (always their trusted main-branch copies, workflow_dispatch requires
@@ -46,75 +27,41 @@ jobs:
     timeout-minutes: 2
     if: >
       github.event.issue.pull_request != null &&
-      (startsWith(github.event.comment.body, '/run-pre-commit') || startsWith(github.event.comment.body, '/run-megalinter') || startsWith(github.event.comment.body, '/run-full-tests')) &&
+      (startsWith(github.event.comment.body, '/run-check') || startsWith(github.event.comment.body, '/run-tests')) &&
       contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      REPO: ${{ github.repository }}
-      PR_NUMBER: ${{ github.event.issue.number }}
-      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
     steps:
       - name: Acknowledge
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh api "repos/${REPO}/issues/comments/${{ github.event.comment.id }}/reactions" \
+          gh api "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" \
             -f content='+1' --silent
 
-      - name: Resolve PR head commit's push time
-        id: pr
-        run: |
-          sha="$(gh api "repos/${REPO}/pulls/${PR_NUMBER}" --jq '.head.sha')"
-          pushed_at="$(gh api "repos/${REPO}/commits/${sha}" --jq '.commit.committer.date')"
-          echo "sha=${sha}" >>"$GITHUB_OUTPUT"
-          echo "pushed_at=${pushed_at}" >>"$GITHUB_OUTPUT"
-
-      - name: Trigger pre-commit
-        if: startsWith(github.event.comment.body, '/run-pre-commit')
+      - name: Trigger PR Validation (checks)
+        if: startsWith(github.event.comment.body, '/run-check')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh workflow run pull-request-validation.yml \
-            --ref "${DEFAULT_BRANCH}" \
-            -f pr_number="${PR_NUMBER}" \
+            --ref "${{ github.event.repository.default_branch }}" \
+            -f pr_number="${{ github.event.issue.number }}" \
             -f job_scope=checks
 
-      - name: Gate and trigger MegaLinter
-        if: startsWith(github.event.comment.body, '/run-megalinter')
+      - name: Trigger MegaLinter
+        if: startsWith(github.event.comment.body, '/run-check')
         env:
-          PUSHED_AT: ${{ steps.pr.outputs.pushed_at }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          run_id="$(gh run list --workflow=pull-request-validation.yml --limit 50 \
-            --json databaseId,displayTitle,createdAt \
-            --jq "[.[] | select(.displayTitle == \"PR Validation for #${PR_NUMBER}\" and .createdAt > \"${PUSHED_AT}\")] | sort_by(.createdAt) | last.databaseId")"
-          conclusion=""
-          if [ -n "${run_id}" ] && [ "${run_id}" != "null" ]; then
-            conclusion="$(gh api "repos/${REPO}/actions/runs/${run_id}/jobs" \
-              --jq '.jobs[] | select(.name == "Code Check") | .conclusion')"
-          fi
-          if [ "${conclusion}" = "success" ]; then
-            gh workflow run mega-linter.yml \
-              --ref "${DEFAULT_BRANCH}" \
-              -f pr_number="${PR_NUMBER}"
-          else
-            gh pr comment "${PR_NUMBER}" --repo "${REPO}" --body \
-              "\`/run-megalinter\` needs pre-commit (Code Check) to have already passed for the current commit. Run \`/run-pre-commit\` first, wait for it to finish, then try again."
-          fi
+          gh workflow run mega-linter.yml \
+            --ref "${{ github.event.repository.default_branch }}" \
+            -f pr_number="${{ github.event.issue.number }}"
 
-      - name: Gate and trigger full test suite
-        if: startsWith(github.event.comment.body, '/run-full-tests')
+      - name: Trigger PR Validation (tests)
+        if: startsWith(github.event.comment.body, '/run-tests')
         env:
-          PUSHED_AT: ${{ steps.pr.outputs.pushed_at }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          run_id="$(gh run list --workflow=mega-linter.yml --limit 50 \
-            --json databaseId,displayTitle,createdAt \
-            --jq "[.[] | select(.displayTitle == \"MegaLinter for #${PR_NUMBER}\" and .createdAt > \"${PUSHED_AT}\")] | sort_by(.createdAt) | last.databaseId")"
-          conclusion=""
-          if [ -n "${run_id}" ] && [ "${run_id}" != "null" ]; then
-            conclusion="$(gh run view "${run_id}" --repo "${REPO}" --json conclusion --jq .conclusion)"
-          fi
-          if [ "${conclusion}" = "success" ]; then
-            gh workflow run pull-request-validation.yml \
-              --ref "${DEFAULT_BRANCH}" \
-              -f pr_number="${PR_NUMBER}" \
-              -f job_scope=tests
-          else
-            gh pr comment "${PR_NUMBER}" --repo "${REPO}" --body \
-              "\`/run-full-tests\` needs MegaLinter to have already passed for the current commit. Run \`/run-megalinter\` first, wait for it to finish, then try again."
-          fi
+          gh workflow run pull-request-validation.yml \
+            --ref "${{ github.event.repository.default_branch }}" \
+            -f pr_number="${{ github.event.issue.number }}" \
+            -f job_scope=tests

@@ -1,26 +1,18 @@
 name: PR Validation
-run-name: >-
-  PR Validation for #${{ github.event_name == 'workflow_dispatch' && inputs.pr_number || github.event.pull_request.number }}
 on:
   pull_request:
     branches:
       - main
-  # Only pr_check (pre-commit) actually runs for this trigger; see its own
-  # if: below. prerequisites and integration are comment-gated and only run
-  # via workflow_dispatch, see .github/workflows/comment-dispatch.yml:
-  # `/run-full-tests` dispatches this with job_scope: tests once MegaLinter
-  # (itself gated on pr_check passing) has already passed for the PR's
-  # current head commit.
-  #
-  # Lets comment-dispatch.yml re-run this against a PR's current head from
-  # a `/run-pre-commit` or `/run-full-tests` comment, without needing a new
-  # push. Always dispatched off main (see that workflow), so this
-  # definition is never taken from the PR's own, potentially-modified copy;
-  # pr_number only controls which commit gets checked out below. job_scope
-  # narrows which jobs actually run: `/run-pre-commit` only wants pr_check,
-  # `/run-full-tests` only wants prerequisites + integration. A plain
-  # manual run from the Actions tab (job_scope left as "all") runs
-  # everything.
+  # Lets .github/workflows/comment-dispatch.yml re-run this against a PR's
+  # current head from a `/run-check` or `/run-tests` comment, without
+  # needing a new push. Always dispatched off main (see that workflow), so
+  # this definition is never taken from the PR's own, potentially-modified
+  # copy; pr_number only controls which commit gets checked out below.
+  # job_scope narrows which jobs actually run for that comment: `/run-check`
+  # only wants pr_check (pre-commit; MegaLinter is dispatched separately),
+  # `/run-tests` only wants prerequisites + integration. A plain manual run
+  # from the Actions tab (job_scope left as "all") behaves like a normal
+  # pull_request-triggered run.
   #checkov:skip=CKV_GHA_7:workflow_dispatch itself requires write access to
   # trigger at all (GitHub platform-level gate, not something this file
   # controls); permissions below are contents:read only, pr_number only
@@ -91,9 +83,7 @@ jobs:
     name: Prerequisite Checks
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    # Comment-gated only, unlike pr_check: never runs on a plain push, only
-    # via workflow_dispatch (see this file's own `on:` comment above).
-    if: github.event_name == 'workflow_dispatch' && inputs.job_scope != 'checks'
+    if: github.event_name != 'workflow_dispatch' || inputs.job_scope != 'checks'
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -127,11 +117,10 @@ jobs:
     needs: pr_check
     # No implicit success() here (an explicit if: replaces it), since
     # pr_check being skipped for job_scope: tests must not skip this too:
-    # only an actual pr_check failure should block it. Comment-gated only,
-    # same as prerequisites above: never runs on a plain push.
+    # only an actual pr_check failure should block it.
     if: >
       (needs.pr_check.result == 'success' || needs.pr_check.result == 'skipped') &&
-      github.event_name == 'workflow_dispatch' && inputs.job_scope != 'checks'
+      (github.event_name != 'workflow_dispatch' || inputs.job_scope != 'checks')
     env:
       PROTONVPN_PRIVATE_KEY: ${{ secrets.PROTONVPN_PRIVATE_KEY }}
       # ubuntu-latest ships a podman CLI binary with no functional daemon
