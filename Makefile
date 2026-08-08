@@ -62,7 +62,7 @@ STOP_VPN_ON_LIST := $(strip $(subst $(comma),$(space),$(STOP_VPN_ON)))
 STOP_ROUTE_FILES := $(if $(filter servarr,$(STOP_VPN_ON_LIST)),docker-compose.routes/servarr-vpn.yml,$(foreach service,$(VPN_ROUTE_SERVICES),$(if $(filter $(service),$(STOP_VPN_ON_LIST)),docker-compose.routes/$(service)-vpn.yml)))
 STOP_COMPOSE_FILES := --file docker-compose.yml $(foreach route_file,$(STOP_ROUTE_FILES),--file $(route_file))
 
-.PHONY: all backup backup-configs backup-full backup-schedule bootstrap bootstrap_tests build_images clean clean_all check_requirements \
+.PHONY: all backup backup-configs backup-full backup-schedule bootstrap bootstrap_tests build_images clean clean_all check_requirements seed_all \
 	configure_jellyfin_network configure_jdownloader2_api \
 	detect_secrets_create_baseline down enable_test_profiles generate_certificate \
 	heal_vpn_dependents \
@@ -145,17 +145,20 @@ configs/flaresolverr/config/chromedriver:
 		echo "[configs/flaresolverr/config/chromedriver] Seeded from the flaresolverr image."; \
 	fi
 
-# configs/gluetun/.env is deliberately absent from bootstrap's seed-configs.sh
-# list below, unlike every other app's config: seed-gluetun-secret.sh already
-# seeds it earlier in this recipe, since a Proton VPN setup needs to edit it
-# right away. Seeding it again later would hit seed-configs.sh's
+# Split out of bootstrap so anything that needs a fully seeded tree without
+# the rest of bootstrap's own steps (VPN credential prompts, certificate
+# generation, starting the stack) can depend on just this. CI's own
+# integration job is the reason this exists: it calls make start directly
+# rather than make bootstrap, and without this, every app whose compose
+# service references a secrets.yml/.env.secrets file that's normally seeded
+# here fails outright the moment that file doesn't exist yet.
+#
+# configs/gluetun/.env is deliberately absent from the seed-configs.sh list
+# below, unlike every other app's config: seed-gluetun-secret.sh already
+# seeds it earlier in bootstrap's own recipe, since a Proton VPN setup needs
+# to edit it right away. Seeding it again later would hit seed-configs.sh's
 # already-exists prompt on every single bootstrap run.
-bootstrap: configs/flaresolverr/config/chromedriver
-	@echo "Detecting UID/GID/TIMEZONE for .env..."
-	@./scripts/detect-system-values.sh .env
-	@echo "Checking Gluetun VPN credentials..."
-	@./scripts/seed-gluetun-secret.sh
-	@./scripts/seed-nginx-ports.sh
+seed_all:
 	@echo "Remapping directory ownership into the container user namespace..."
 	@echo "  (rootless Podman: host uid maps to uid=0 inside containers;"
 	@echo "   app processes run as service-specific non-root UIDs)"
@@ -217,6 +220,14 @@ bootstrap: configs/flaresolverr/config/chromedriver
 	@./scripts/seed-configs.sh configs/recyclarr/config/recyclarr.yml
 	@./scripts/seed-configs.sh configs/recyclarr/config/secrets.yml
 	@./scripts/permissions.py repair --runtime $(RUNTIME) --recursive
+
+bootstrap: configs/flaresolverr/config/chromedriver
+	@echo "Detecting UID/GID/TIMEZONE for .env..."
+	@./scripts/detect-system-values.sh .env
+	@echo "Checking Gluetun VPN credentials..."
+	@./scripts/seed-gluetun-secret.sh
+	@./scripts/seed-nginx-ports.sh
+	@$(MAKE) --no-print-directory seed_all
 	@if [ -f "$(CERTIFICATES_FOLDER)/server.pfx" ]; then \
 		echo "Certificate already exists at $(CERTIFICATES_FOLDER)/server.pfx, skipping generation (keeps a custom certificate you supplied yourself)."; \
 	else \

@@ -201,11 +201,20 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install scripts/permissions.py's dependency
-        # make start's permissions_repair step runs this script directly
+        # seed_all's own permissions_repair step runs this script directly
         # with the system Python, not tests/.venv (that only gets created
         # later, by make test's own dependency on it).
         shell: bash
         run: pip install pyyaml
+
+      - name: Seed every app's config and secrets
+        # make start alone, unlike make bootstrap, never seeds any of this:
+        # every app whose compose service references a secrets.yml or
+        # .env.secrets file normally seeded here fails outright the moment
+        # that file doesn't exist yet, confirmed live (calibre's own
+        # .env.secrets specifically, but this affects every app in the
+        # list, not just that one).
+        run: make seed_all
 
       - name: Generate self-signed certificate
         run: make generate_certificate
