@@ -166,6 +166,13 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Install scripts/permissions.py's dependency
+        # make start's permissions_repair step runs this script directly
+        # with the system Python, not tests/.venv (that only gets created
+        # later, by make test's own dependency on it).
+        shell: bash
+        run: pip install pyyaml
+
       - name: Generate self-signed certificate
         run: make generate_certificate
 

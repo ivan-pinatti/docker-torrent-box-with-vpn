@@ -61,3 +61,10 @@ eb05b15f4cb11b35785416f2d105bb4d66fee344:configs/readarr/config/config.xml:xml-c
 
 # configs/sonarr/config/config.xml
 eb05b15f4cb11b35785416f2d105bb4d66fee344:configs/sonarr/config/config.xml:xml-credential-element:8
+
+# docs/TESTING.md: not a credential at all, unlike every entry above. The
+# config-symbolic-password rule matches "pass:" followed by a backtick-quoted
+# identifier; "`make test_extended` runs `make test` plus a fourth pass:
+# `rinse_and_repeat`" means a test *run*, not a password. Confirmed live
+# against a real PR run.
+5d2438a57cc5864084d5dd4176c10afdff2d0bcb:docs/TESTING.md:config-symbolic-password:27
