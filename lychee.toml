@@ -13,6 +13,12 @@ exclude = [
   # Stack Overflow blocks automated checkers with a 403 regardless of URL
   # or user-agent (confirmed live, from this host); not a real dead link.
   "^https?://(www\\.)?stackoverflow\\.com/",
+  # contributor-covenant.org has failed with a connection error from
+  # GitHub-hosted runners specifically, twice, on unrelated PR Validation
+  # runs; reachable fine from everywhere else this was checked, including
+  # a plain curl from this host. Not a real dead link, all three retries
+  # and the 20s timeout above just aren't enough for whatever this is.
+  "^https?://(www\\.)?contributor-covenant\\.org/",
   "^https?://localhost(:[0-9]+)?(/.*)?$",
   "^https?://127\\.0\\.0\\.1(:[0-9]+)?(/.*)?$",
   "^https?://.*\\.internal(:[0-9]+)?(/.*)?$",
