@@ -36,13 +36,30 @@ jobs:
   pr_check:
     name: Code Check
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    # A cold pre-commit cache (no run has populated it yet, or a hook
+    # version bumped) needs real time to install every hook's own
+    # environment before it can check a single file; confirmed live, that
+    # alone took about 2 minutes on a completely cold cache. 3 minutes was
+    # never enough even ignoring that.
+    timeout-minutes: 8
     if: github.event_name != 'workflow_dispatch' || inputs.job_scope != 'tests'
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/pull/{0}/head', inputs.pr_number) || github.ref }}
+
+      - name: Install shfmt
+        # The jumanjihouse/pre-commit-hooks shfmt wrapper expects shfmt
+        # already on PATH; it doesn't install its own copy the way the
+        # Python/Node-based hooks do. ubuntu-latest doesn't ship it.
+        shell: bash
+        run: |
+          curl -sSL -o shfmt \
+            https://github.com/mvdan/sh/releases/download/v3.11.0/shfmt_v3.11.0_linux_amd64
+          echo "1904ec6bac715c1d05cd7f6612eec8f67a625c3749cb327e5bfb4127d09035ff  shfmt" | sha256sum --check
+          chmod +x shfmt
+          sudo mv shfmt /usr/local/bin/shfmt
 
       - name: Create .env file
         shell: bash
@@ -73,6 +90,10 @@ jobs:
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/pull/{0}/head', inputs.pr_number) || github.ref }}
 
+      - name: Install xmlstarlet
+        shell: bash
+        run: sudo apt-get update && sudo apt-get install -y xmlstarlet
+
       - name: Create .env file
         shell: bash
         run: cp .env.example .env
@@ -102,11 +123,21 @@ jobs:
       (github.event_name != 'workflow_dispatch' || inputs.job_scope != 'checks')
     env:
       PROTONVPN_PRIVATE_KEY: ${{ secrets.PROTONVPN_PRIVATE_KEY }}
+      # ubuntu-latest ships a podman CLI binary with no functional daemon
+      # behind it, alongside a working docker install. The Makefile's own
+      # CONTAINER_RUNTIME auto-detect only checks for the podman binary's
+      # presence, so without this it would still try (and fail) to use
+      # podman here.
+      CONTAINER_RUNTIME: docker
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/pull/{0}/head', inputs.pr_number) || github.ref }}
+
+      - name: Install xmlstarlet
+        shell: bash
+        run: sudo apt-get update && sudo apt-get install -y xmlstarlet
 
       - name: Create .env file (VPN disabled, no key in CI)
         shell: bash

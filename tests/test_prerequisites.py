@@ -20,6 +20,29 @@ def _version_tuple(version_str: str) -> tuple[int, ...]:
     return tuple(int(p) for p in parts[:3])
 
 
+def _detect_runtime() -> str:
+    """Pick whichever container runtime is both present and actually usable.
+
+    Prefer podman when it works, matching this project's own Makefile
+    default for local development. Some environments, GitHub Actions
+    runners in particular, ship a podman CLI binary with no functional
+    daemon behind it, so presence alone isn't enough: confirm `podman info`
+    actually succeeds before preferring it over docker.
+    """
+    if shutil.which("podman"):
+        try:
+            if (
+                subprocess.run(
+                    ["podman", "info"], capture_output=True, timeout=5
+                ).returncode
+                == 0
+            ):
+                return "podman"
+        except (subprocess.TimeoutExpired, OSError):
+            pass
+    return "docker"
+
+
 def test_docker_or_podman_available():
     has_docker = shutil.which("docker") is not None
     has_podman = shutil.which("podman") is not None
@@ -27,7 +50,7 @@ def test_docker_or_podman_available():
 
 
 def test_docker_version():
-    runtime = "podman" if shutil.which("podman") else "docker"
+    runtime = _detect_runtime()
     result = run([runtime, "--version"])
     assert result.returncode == 0, f"{runtime} --version failed: {result.stderr}"
     ver = _version_tuple(result.stdout)
@@ -50,7 +73,7 @@ def test_compose_available():
 
 
 def test_container_daemon_running():
-    runtime = "podman" if shutil.which("podman") else "docker"
+    runtime = _detect_runtime()
     result = run([runtime, "info"])
     assert result.returncode == 0, (
         f"{runtime} daemon is not running or not accessible: {result.stderr}"

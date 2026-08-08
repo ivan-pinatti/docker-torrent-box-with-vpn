@@ -17,6 +17,15 @@ ENABLE_LINTERS:
   - REPOSITORY_TRIVY
   - YAML_YAMLLINT
 
+# betterleaks' git-mode scan runs its own git invocation inside MegaLinter's
+# container, which doesn't inherit the checkout action's safe.directory
+# exception on the host: confirmed live, it fails outright with "detected
+# dubious ownership in repository at '/github/workspace'" without this.
+PRE_COMMANDS:
+  - command: git config --global --add safe.directory /github/workspace
+    cwd: root
+    run_before_linters: true
+
 DISABLE_ERRORS: false
 FLAVOR_SUGGESTIONS: false
 SHOW_ELAPSED_TIME: true

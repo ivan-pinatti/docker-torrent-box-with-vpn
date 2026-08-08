@@ -41,7 +41,15 @@ def test_mylar_reaches_jdownloader2_api(docker_client, running_containers):
 
     container = docker_client.containers.get("mylar")
     exit_code, output = container.exec_run(
-        ["curl", "-sS", "-o", "/dev/null", "-w", "%{http_code}", f"{jd2_url}/jd/version"],
+        [
+            "curl",
+            "-sS",
+            "-o",
+            "/dev/null",
+            "-w",
+            "%{http_code}",
+            f"{jd2_url}/jd/version",
+        ],
         stdout=True,
         stderr=True,
         demux=False,

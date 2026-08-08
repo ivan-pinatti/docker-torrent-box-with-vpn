@@ -23,7 +23,9 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read
+  # write, not just read: MegaLinter's own GitHub Comment Reporter posts its
+  # findings as a PR comment, confirmed live to 403 without this.
+  pull-requests: write
 
 jobs:
   megalinter:
