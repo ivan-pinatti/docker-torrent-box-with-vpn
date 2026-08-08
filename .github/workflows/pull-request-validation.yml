@@ -130,11 +130,12 @@ jobs:
   integration:
     name: Integration Tests
     runs-on: ubuntu-latest
-    # make test_ci (the last step below), not the full make test: see its
-    # own comment on that step for why. The two tiers it does run took
-    # ~5s and ~5min respectively on this session's own local benches;
-    # doubled for image pulls, stack startup, and a slower shared runner.
-    timeout-minutes: 20
+    # make test alone (the last step below) ran ~27 minutes on this
+    # session's own local benches: ~5s for the parallel read-only tier,
+    # ~5min for the parallel rotation_isolated tier, ~22min for the serial
+    # rotation/wiring/killswitch tier. 15 minutes for the whole job,
+    # image pulls and stack startup included, was never realistic.
+    timeout-minutes: 45
     needs: pr_check
     # No implicit success() here (an explicit if: replaces it), since
     # pr_check being skipped for job_scope: tests must not skip this too:
@@ -258,20 +259,14 @@ jobs:
           "; do sleep 5; done
           '
 
-      - name: Run integration tests
-        # make test_ci, not make test: the serial rotation/wiring/
-        # killswitch tier needs a real app restart to complete and report
-        # healthy within its own wait budget, over and over, for dozens
-        # of apps in a row, and that isn't reliable on a GitHub-hosted
-        # runner's shared, more constrained resources, confirmed live
-        # (many failures, "container state improper" among them, despite
-        # the exact same suite passing 100% clean twice on a real bench's
-        # own hardware the same night). test_ci's own killswitch marker
-        # exclusion already covers not having a real VPN key here, same
-        # as the make test invocation this replaced did explicitly.
-        # make bootstrap_tests (a real bench, pre-release) still runs the
-        # full thing, including this tier.
-        run: make test_ci
+      - name: Run integration tests (skip VPN kill-switch without key)
+        shell: bash
+        run: |
+          SKIP_MARKERS=""
+          if [ -z "${{ env.PROTONVPN_PRIVATE_KEY }}" ]; then
+            SKIP_MARKERS="-m 'not killswitch'"
+          fi
+          make test PYTEST_ARGS="$SKIP_MARKERS"
 
       - name: Tear down
         if: always()
