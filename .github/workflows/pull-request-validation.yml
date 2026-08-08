@@ -145,6 +145,10 @@ jobs:
           cp .env.example .env
           # Disable VPN profile so containers that depend on it can start without a real key
           sed -i 's/^GLUETUN_PROFILE=enabled/GLUETUN_PROFILE=disabled/' .env
+          # make generate_certificate rejects .env.example's own LAN_IP placeholder
+          # (OpenSSL needs a real IP for the certificate's subjectAltName); any
+          # RFC 1918 address works here since nothing on the runner resolves it.
+          sed -i 's/^LAN_IP=192.168.1.x/LAN_IP=192.168.1.100/' .env
 
       - name: Inject VPN key if secret is available
         if: ${{ env.PROTONVPN_PRIVATE_KEY != '' }}

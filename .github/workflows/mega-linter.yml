@@ -46,3 +46,13 @@ jobs:
         uses: oxsecurity/megalinter@v9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # betterleaks' own git invocation runs in a context that doesn't
+          # pick up a `git config --global` write, confirmed live: neither
+          # MegaLinter's own automatic safe.directory setup nor this
+          # workflow's own PRE_COMMANDS one prevented "detected dubious
+          # ownership" from betterleaks specifically. GIT_CONFIG_* env vars
+          # apply to any git subprocess that reads the environment,
+          # regardless of which $HOME/gitconfig file it would otherwise use.
+          GIT_CONFIG_COUNT: 1
+          GIT_CONFIG_KEY_0: safe.directory
+          GIT_CONFIG_VALUE_0: "*"
