@@ -134,7 +134,9 @@ jobs:
     # own comment on that step for why. The two tiers it does run took
     # ~5s and ~5min respectively on this session's own local benches;
     # doubled for image pulls, stack startup, and a slower shared runner.
-    timeout-minutes: 20
+    # A few extra minutes on top of that cover the wire_connections step
+    # (mostly concurrent per-app HTTP calls, with some retries up to 180s).
+    timeout-minutes: 25
     needs: pr_check
     # No implicit success() here (an explicit if: replaces it), since
     # pr_check being skipped for job_scope: tests must not skip this too:
@@ -257,6 +259,17 @@ jobs:
           print(starting); sys.exit(0 if not starting else 1)
           "; do sleep 5; done
           '
+
+      - name: Wire app-to-app connections
+        # Homepage's widgets read each app's API key from configs/<app>/secrets/
+        # api_key.txt, but Jellyfin and Audiobookshelf issue that key live
+        # through their own first-run API (see wire-connections.sh), and never
+        # from a seeded default the way the arr apps do. Skipping this step
+        # left both widgets, and Calibre-Web's own library path setup, on
+        # nothing but a seeded placeholder, confirmed live as the cause of
+        # this job's own Homepage widget failures. make bootstrap always runs
+        # this straight after make start for the same reason.
+        run: make wire_connections
 
       - name: Run integration tests
         # make test_ci, not make test: the serial rotation/wiring/
