@@ -3,6 +3,38 @@
 jDownloader2 is exposed on `JDOWNLOADER2_HTTP_PORT=5800` (VNC web interface) and
 `JDOWNLOADER2_API_PORT=3128` (local REST API).
 
+## Mylar connectivity
+
+Mylar reaches jDownloader2 at `jd2_url = http://<gluetun IP>:3128` (set in
+`configs/mylar/config/mylar/config.ini.example`) and its connection test hits
+`/jd/version`, part of jDownloader2's older `/jd` namespace. That namespace
+only answers once `deprecatedapienabled` is on, and by default jDownloader2
+also restricts both that namespace and its main REST API
+(`externinterfaceenabled`, the one `linkgrabberv2/addLinks` and friends live
+under) to loopback only, which Mylar's container can never reach since it
+does not share jDownloader2's network namespace.
+
+`make configure_jdownloader2_api` (part of `bootstrap`, run right after
+`make start`) opens both up by editing
+`configs/jdownloader2/config/cfg/org.jdownloader.api.RemoteAPIConfig.json`
+directly: `externinterfacelocalhostonly` and `deprecatedapilocalhostonly`
+both set to `false`, `deprecatedapienabled` set to `true`. This can't be
+done the way Jellyfin's `network.xml` is, by seeding a `.example` file
+before jDownloader2's first boot: the base image's own
+`55-jdownloader2.sh` init script only populates `/config/cfg` with its
+full set of default files if that directory does not already exist yet
+(`[ -d /config/cfg ] || cp -rv /defaults/cfg /config/cfg`). Seeding even
+one file into it ahead of time makes the directory "already exist," so
+every other default file, including
+`org.jdownloader.settings.GraphicalUserInterfaceSettings.json`, read on
+every boot, never gets created, and jDownloader2 crash-loops forever
+(confirmed live: a pre-seeded `RemoteAPIConfig.json.example` alone broke
+a fresh bootstrap outright). `configure_jdownloader2_api` waits for
+jDownloader2 to generate its own config on first boot, then stops the
+container, edits the file that already exists, and starts it again, the
+same stop-edit-start pattern used everywhere else in this repo for a
+running app's config.
+
 ## Web GUI authentication
 
 The `jlesage/jdownloader-2` image serves the web interface behind

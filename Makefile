@@ -63,7 +63,7 @@ STOP_ROUTE_FILES := $(if $(filter servarr,$(STOP_VPN_ON_LIST)),docker-compose.ro
 STOP_COMPOSE_FILES := --file docker-compose.yml $(foreach route_file,$(STOP_ROUTE_FILES),--file $(route_file))
 
 .PHONY: all backup backup-configs backup-full backup-schedule bootstrap bootstrap_tests build_images clean clean_all check_requirements \
-	configure_jellyfin_network \
+	configure_jellyfin_network configure_jdownloader2_api \
 	detect_secrets_create_baseline down enable_test_profiles generate_certificate \
 	heal_vpn_dependents \
 	rotate_all rotate_api_keys rotate_certificate rotate_passwords wire_connections \
@@ -245,6 +245,8 @@ bootstrap: configs/flaresolverr/config/chromedriver
 	@echo "Gluetun VPN connection established."
 	@echo "Applying Jellyfin network settings now that it has generated its config..."
 	@$(MAKE) --no-print-directory configure_jellyfin_network
+	@echo "Opening jDownloader2's API to Mylar now that it has generated its config..."
+	@$(MAKE) --no-print-directory configure_jdownloader2_api
 	@echo "Wiring app-to-app connections..."
 	@$(MAKE) --no-print-directory wire_connections
 	@echo "Rotating every seeded API key and password..."
@@ -412,6 +414,34 @@ configure_jellyfin_network:
 		--update '/NetworkConfiguration/CertificatePath' --value "/certs/server.pfx" \
 		--update '/NetworkConfiguration/EnableHttps' --value "true" \
 		"configs/jellyfin/config/network.xml"
+
+# jDownloader2 restricts its REST API and its older /jd namespace (the one
+# Mylar's connection test needs) to loopback by default, and disables the
+# /jd namespace outright until deprecatedapienabled is turned on. This
+# can't be seeded the way Jellyfin's network.xml is: the base image only
+# populates /config/cfg with its full set of default files if that
+# directory does not already exist yet
+# (`[ -d /config/cfg ] || cp -rv /defaults/cfg /config/cfg` in its own
+# 55-jdownloader2.sh init script), so pre-seeding even one file there stops
+# every other default file, including one read on every boot, from ever
+# being created, and jDownloader2 crash-loops forever. This has to run
+# after jDownloader2's own first boot instead, against the file it just
+# generated itself. See docs/JDOWNLOADER2.md.
+configure_jdownloader2_api:
+	@echo "Configuring jDownloader2's API access..."
+	@target="configs/jdownloader2/config/cfg/org.jdownloader.api.RemoteAPIConfig.json"; \
+	elapsed=0; \
+	while [ ! -f "$$target" ] && [ "$$elapsed" -lt 60 ]; do \
+		sleep 2; elapsed=$$((elapsed + 2)); \
+	done; \
+	if [ ! -f "$$target" ]; then \
+		echo "ERROR: $$target was not created after 60s; jDownloader2 may have failed to start."; \
+		exit 1; \
+	fi; \
+	$(COMPOSE) $(COMPOSE_FILES) --profile enabled stop jdownloader2; \
+	if [ "$(RUNTIME)" = "podman" ]; then runner="podman unshare"; else runner=""; fi; \
+	$$runner sh -c "jq -c '.externinterfaceenabled = true | .externinterfacelocalhostonly = false | .deprecatedapienabled = true | .deprecatedapilocalhostonly = false | .deprecatedapiport = 3128' '$$target' > '$$target.tmp' && mv '$$target.tmp' '$$target'"; \
+	$(COMPOSE) $(COMPOSE_FILES) --profile enabled start jdownloader2
 
 generate_certificate:
 	@if [ "$(LAN_IP)" = "192.168.1.x" ]; then \

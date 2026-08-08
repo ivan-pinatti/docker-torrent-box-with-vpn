@@ -16,6 +16,7 @@ directly.
 | `make generate_certificate` | (Re)generates the self-signed TLS certificate and pushes the new password into every app's config. `bootstrap` calls this automatically if no certificate exists yet. |
 | `make rotate_certificate` | Regenerates the certificate on an already-running stack (wraps `scripts/rotate-certificate.sh`). |
 | `make configure_jellyfin_network` | Sets Jellyfin's `BaseUrl`/`KnownProxies` in `network.xml`, seeded correctly by default so this is normally a no-op; only needed to correct drift after changing `JELLYFIN_BASE_URL`/`NGINX_MEDIA_IP`. `bootstrap` calls it automatically as a safety net. |
+| `make configure_jdownloader2_api` | Opens jDownloader2's REST API and older `/jd` namespace to the services network so Mylar can reach them, editing `RemoteAPIConfig.json` after jDownloader2's own first boot. `bootstrap` calls it automatically; see [JDOWNLOADER2.md](JDOWNLOADER2.md). |
 
 ## Starting, stopping, restarting
 
