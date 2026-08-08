@@ -1364,9 +1364,13 @@ fi
 # ---------------------------------------------------------------------------
 # Restart containers that consume rotated secrets, so they stop
 # authenticating with the old credentials. Every one of them reads its value
-# from a bind-mounted compose `secrets:` file (see
-# docs/COMPOSE_CONVENTIONS.md), whose contents are re-read on every start,
-# so a plain restart is enough; none of them need --force-recreate.
+# from a bind-mounted compose `secrets:` file (see docs/COMPOSE_CONVENTIONS.md).
+# homepage is the one exception: Compose's file-based secrets are
+# snapshotted once, at container creation, not re-read on every start, and
+# a plain restart does not pick up a changed host file. Confirmed live on a
+# real deployment: a rotated key on disk did not match what homepage's own
+# mounted secret still held after a restart. It gets --force-recreate of
+# its own, below, instead of joining the plain restart batch here.
 # ---------------------------------------------------------------------------
 
 RESTART_CONSUMERS=()
@@ -1410,7 +1414,14 @@ esac
 
 if [[ ${#RESTART_CONSUMERS[@]} -gt 0 ]]; then
   existing_consumers=()
+  recreate_homepage=false
   for consumer in "${RESTART_CONSUMERS[@]}"; do
+    if [[ "$consumer" == "homepage" ]]; then
+      if podman container exists homepage 2>/dev/null; then
+        recreate_homepage=true
+      fi
+      continue
+    fi
     if podman container exists "$consumer" 2>/dev/null; then
       existing_consumers+=("$consumer")
     fi
@@ -1419,6 +1430,14 @@ if [[ ${#RESTART_CONSUMERS[@]} -gt 0 ]]; then
     echo ""
     echo "Restarting secret consumers: ${existing_consumers[*]}"
     podman restart "${existing_consumers[@]}" >/dev/null
+  fi
+  if [[ "$recreate_homepage" == true ]]; then
+    echo ""
+    echo "Recreating homepage to load the new keys..."
+    if ! retry 30 "homepage" podman-compose --file docker-compose.yml --profile enabled up -d --force-recreate homepage; then
+      echo "ERROR: homepage still would not recreate after retries" >&2
+      exit 1
+    fi
   fi
 fi
 

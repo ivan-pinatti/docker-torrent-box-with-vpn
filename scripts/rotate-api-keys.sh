@@ -779,24 +779,28 @@ all)
 esac
 
 # ---------------------------------------------------------------------------
-# Homepage reads every key this script writes from a bind-mounted secret
-# file, not env_file, so a plain restart is enough to pick up new values
-# (env_file bakes in at container creation and would need --force-recreate;
-# a mounted file's contents are re-read on every restart).
+# Homepage reads every key this script writes from a bind-mounted compose
+# `secrets:` file. That is not the same as a live bind mount: Compose's
+# file-based secrets are snapshotted once, at container creation, the same
+# as env_file, and a plain restart does not re-read the host file if it
+# changed since then. Confirmed live on a real deployment: a rotated
+# sonarr key on disk did not match what homepage's own mounted secret
+# still held after a restart. --force-recreate is the only thing that
+# actually re-snapshots it.
 #
 # This step runs on every invocation of this script, including single-app
 # targets, so two rotations for different apps started around the same time
-# both land here. Podman refuses a restart while homepage is mid-transition
-# from the other invocation ("container state improper"), so the restart is
-# retried instead of treated as fatal; the other invocation's restart
-# finishes in a couple of seconds and this one succeeds right after.
+# both land here. Podman refuses this while homepage is mid-transition from
+# the other invocation ("container state improper"), so it is retried
+# instead of treated as fatal; the other invocation's recreate finishes in
+# a couple of seconds and this one succeeds right after.
 # ---------------------------------------------------------------------------
 
 if podman container exists homepage 2>/dev/null; then
   echo ""
-  echo "Restarting homepage to load the new keys..."
-  if ! retry 30 podman restart homepage; then
-    echo "ERROR: homepage still would not restart after retries" >&2
+  echo "Recreating homepage to load the new keys..."
+  if ! retry 30 podman-compose --file docker-compose.yml --profile enabled up -d --force-recreate homepage; then
+    echo "ERROR: homepage still would not recreate after retries" >&2
     exit 1
   fi
 fi
