@@ -130,7 +130,12 @@ jobs:
   integration:
     name: Integration Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # make test alone (the last step below) ran ~27 minutes on this
+    # session's own local benches: ~5s for the parallel read-only tier,
+    # ~5min for the parallel rotation_isolated tier, ~22min for the serial
+    # rotation/wiring/killswitch tier. 15 minutes for the whole job,
+    # image pulls and stack startup included, was never realistic.
+    timeout-minutes: 45
     needs: pr_check
     # No implicit success() here (an explicit if: replaces it), since
     # pr_check being skipped for job_scope: tests must not skip this too:
@@ -236,9 +241,15 @@ jobs:
         # folded into the free-text Status field ("Up 3 minutes
         # (healthy)"), not a docker compose-style newline-delimited object
         # per container with its own top-level Health key.
+        #
+        # 300s, not 120s: confirmed live, calibre-web and lidarr both took
+        # longer than 120s to report healthy on a runner's shared, more
+        # constrained resources than any local bench this session ran on.
+        # calibre-web in particular is already known to be slow on first
+        # boot; see docs/ROTATION.md.
         shell: bash
         run: |
-          timeout 120 bash -c '
+          timeout 300 bash -c '
             until podman ps --format json 2>/dev/null | \
               python3 -c "
           import sys, json
