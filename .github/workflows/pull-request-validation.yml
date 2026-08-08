@@ -94,6 +94,23 @@ jobs:
         shell: bash
         run: sudo apt-get update && sudo apt-get install -y xmlstarlet
 
+      - name: Set up rootless Podman
+        # ubuntu-latest ships Podman's binaries but doesn't delegate any
+        # subuid/subgid range to the runner user, so podman info hangs
+        # rather than reporting a real daemon, confirmed live. This is the
+        # runtime the project is actually built and documented for (see
+        # docs/PODMAN.md); every local bench validation this session ran
+        # on Podman, not Docker. podman-compose (not podman's own built-in
+        # compose subcommand, which falls back to whichever compose
+        # implementation it finds first, possibly Docker's own) matches
+        # the Makefile's own COMPOSE resolution for local dev exactly.
+        shell: bash
+        run: |
+          sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 "$(whoami)"
+          podman system migrate
+          podman info
+          pip install podman-compose
+
       - name: Create .env file
         shell: bash
         run: cp .env.example .env
@@ -123,12 +140,6 @@ jobs:
       (github.event_name != 'workflow_dispatch' || inputs.job_scope != 'checks')
     env:
       PROTONVPN_PRIVATE_KEY: ${{ secrets.PROTONVPN_PRIVATE_KEY }}
-      # ubuntu-latest ships a podman CLI binary with no functional daemon
-      # behind it, alongside a working docker install. The Makefile's own
-      # CONTAINER_RUNTIME auto-detect only checks for the podman binary's
-      # presence, so without this it would still try (and fail) to use
-      # podman here.
-      CONTAINER_RUNTIME: docker
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -138,6 +149,18 @@ jobs:
       - name: Install xmlstarlet
         shell: bash
         run: sudo apt-get update && sudo apt-get install -y xmlstarlet
+
+      - name: Set up rootless Podman
+        # See prerequisites job's own copy of this step for why it's
+        # needed. This is the runtime the project is actually built and
+        # documented for; every local bench validation this session ran
+        # on Podman, not Docker.
+        shell: bash
+        run: |
+          sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 "$(whoami)"
+          podman system migrate
+          podman info
+          pip install podman-compose
 
       - name: Create .env file (VPN disabled, no key in CI)
         shell: bash
@@ -180,14 +203,19 @@ jobs:
         run: make start
 
       - name: Wait for containers to be ready
+        # Reads straight from `podman ps`, not through a compose wrapper:
+        # podman's own --format json is a single JSON array with health
+        # folded into the free-text Status field ("Up 3 minutes
+        # (healthy)"), not a docker compose-style newline-delimited object
+        # per container with its own top-level Health key.
         shell: bash
         run: |
           timeout 120 bash -c '
-            until docker compose ps --format json 2>/dev/null | \
+            until podman ps --format json 2>/dev/null | \
               python3 -c "
           import sys, json
-          containers = [json.loads(l) for l in sys.stdin if l.strip()]
-          starting = [c[\"Name\"] for c in containers if c.get(\"Health\") == \"starting\"]
+          containers = json.load(sys.stdin)
+          starting = [c[\"Names\"] for c in containers if \"starting\" in c.get(\"Status\", \"\")]
           print(starting); sys.exit(0 if not starting else 1)
           "; do sleep 5; done
           '
