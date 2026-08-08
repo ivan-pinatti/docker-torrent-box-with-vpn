@@ -453,11 +453,20 @@ HOMEPAGE_WIDGET_PROBES = [
 
 
 def homepage_http(url: str, timeout: int = 30) -> tuple[int, str]:
-    """Fetch a URL from inside the homepage container (it only ships wget)."""
+    """Fetch a URL from inside the homepage container (it only ships wget).
+
+    Writes to a freshly-`mktemp`'d path, not a fixed one: pytest-xdist runs
+    multiple test workers concurrently, and a fixed path let two overlapping
+    calls race on the same file inside the container, one worker's `cat`
+    reading a response body that belonged to a different worker's request
+    entirely. Confirmed live: Sonarr's own widget probe returned an error
+    body whose URL pointed at Calibre Web's endpoint.
+    """
     script = (
-        f'code=$(wget -q -O /tmp/homepage_probe -S "{url}" 2>&1 '
+        "tmp=$(mktemp); "
+        f'code=$(wget -q -O "$tmp" -S "{url}" 2>&1 '
         "| grep -m1 \"HTTP/\" | awk '{print $2}'); "
-        'echo "$code"; cat /tmp/homepage_probe 2>/dev/null'
+        'echo "$code"; cat "$tmp" 2>/dev/null; rm -f "$tmp"'
     )
     result = subprocess.run(  # nosec B607 - podman is a trusted, fixed CLI in this stack
         ["podman", "exec", "homepage", "sh", "-c", script],

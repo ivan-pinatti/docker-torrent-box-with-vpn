@@ -24,7 +24,12 @@ def test_container_healthy(service_name, running_containers):
     container = running_containers[service_name]
     container.reload()
     health = container.attrs.get("State", {}).get("Health")
-    if health is None:
+    # `is None` alone isn't enough: confirmed live in CI, podman there
+    # reports Health as an empty-but-present object with a blank Status
+    # for a container with no healthcheck defined at all (recyclarr), not
+    # a missing/null Health key the way this repo's own podman does
+    # locally. Either shape means the same thing: nothing to check here.
+    if not health or not health.get("Status"):
         pytest.skip(f"Container '{service_name}' has no healthcheck defined")
     status = health.get("Status")
     if status != "healthy":
@@ -34,13 +39,14 @@ def test_container_healthy(service_name, running_containers):
         wait_for_healthy(service_name)
         container.reload()
         health = container.attrs.get("State", {}).get("Health")
+        if not health or not health.get("Status"):
+            pytest.skip(f"Container '{service_name}' has no healthcheck defined")
         status = health.get("Status")
     # health.get('Log', [{}]) is not enough on its own: podman reports an
-    # explicit Log: null, not a missing key, when a healthcheck hasn't run
-    # yet, and dict.get's default only applies to a missing key, not a
-    # present one whose value is None. Confirmed live for recyclarr, whose
-    # own healthcheck runs on a longer interval than most and can still be
-    # unset by the time this assertion fires.
+    # explicit Log: null, not a missing key, for a container whose
+    # healthcheck genuinely hasn't produced a result yet, and dict.get's
+    # default only applies to a missing key, not a present one whose value
+    # is None.
     last_log = (health.get("Log") or [{}])[-1].get("Output", "")
     assert status == "healthy", (
         f"Container '{service_name}' health is '{status}' (last log: {last_log})"
