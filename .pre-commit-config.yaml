@@ -105,7 +105,7 @@ repos:
         exclude: *app_managed
 
   - repo: https://github.com/streetsidesoftware/cspell-cli
-    rev: v9.7.0
+    rev: v10.0.1
     hooks:
       - id: cspell
         # configs/*/config/ is application-generated (Qt state, base64 blobs);
