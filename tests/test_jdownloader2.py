@@ -27,12 +27,36 @@ def _jd2_url() -> str | None:
     return None
 
 
+def _using_mock_vpn() -> bool:
+    """True once seed-vpn-mock.sh has pointed gluetun at the local mock endpoint."""
+    path = REPO_ROOT / "configs" / "gluetun" / ".env"
+    if not path.exists():
+        return False
+    for line in path.read_text().splitlines():
+        if line.strip() == "VPN_SERVICE_PROVIDER=custom":
+            return True
+    return False
+
+
 def test_mylar_reaches_jdownloader2_api(docker_client, running_containers):
     """Mylar's own jd2_url must be reachable and answer /jd/version with 200."""
     if env("MYLAR_PROFILE", "disabled").lower() != "enabled" or (
         env("JDOWNLOADER2_PROFILE", "disabled").lower() != "enabled"
     ):
         pytest.skip("mylar or jdownloader2 profile is disabled")
+    if _using_mock_vpn():
+        # jDownloader2 runs a mandatory self-update dance on its own first
+        # boot, before its RemoteAPIConfig.json (and therefore this API)
+        # exists at all, and that update needs real internet access. The
+        # mock WireGuard endpoint (see docs/VPN_MOCK.md) is a same-host hop
+        # purely for exercising gluetun's own connection logic, not a real
+        # route out; confirmed live, jDownloader2 gets stuck on its own
+        # "No Connection to the Internet" dialog behind it and never
+        # finishes booting. Not a bug in the fix this test covers, just an
+        # environment this specific app can't function in at all.
+        pytest.skip(
+            "jDownloader2 can't complete its own first-boot self-update behind the mock VPN"
+        )
     skip_if_not_running("mylar", running_containers)
     skip_if_not_running("jdownloader2", running_containers)
 

@@ -35,8 +35,15 @@ def test_container_healthy(service_name, running_containers):
         container.reload()
         health = container.attrs.get("State", {}).get("Health")
         status = health.get("Status")
+    # health.get('Log', [{}]) is not enough on its own: podman reports an
+    # explicit Log: null, not a missing key, when a healthcheck hasn't run
+    # yet, and dict.get's default only applies to a missing key, not a
+    # present one whose value is None. Confirmed live for recyclarr, whose
+    # own healthcheck runs on a longer interval than most and can still be
+    # unset by the time this assertion fires.
+    last_log = (health.get("Log") or [{}])[-1].get("Output", "")
     assert status == "healthy", (
-        f"Container '{service_name}' health is '{status}' (last log: {health.get('Log', [{}])[-1].get('Output', '')})"
+        f"Container '{service_name}' health is '{status}' (last log: {last_log})"
     )
 
 
