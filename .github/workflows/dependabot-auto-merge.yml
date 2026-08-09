@@ -23,10 +23,17 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Approve eligible Dependabot PR
+        # fetch-metadata reports the ecosystem using dependabot's internal,
+        # underscored naming (confirmed live: "pre_commit", not the
+        # "pre-commit" this repo's dependabot.yml itself is keyed under),
+        # so a hyphenated comparison here never matched anything; all ten
+        # PRs from the first run after this workflow existed skipped both
+        # steps below silently, none flagged as a failure since a skipped
+        # step isn't an error.
         if: |
           (
-            steps.metadata.outputs.package-ecosystem == 'pre-commit' ||
-            steps.metadata.outputs.package-ecosystem == 'github-actions'
+            steps.metadata.outputs.package-ecosystem == 'pre_commit' ||
+            steps.metadata.outputs.package-ecosystem == 'github_actions'
           ) && (
             steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
             steps.metadata.outputs.update-type == 'version-update:semver-minor'
@@ -39,8 +46,8 @@ jobs:
       - name: Enable auto-merge for eligible Dependabot PR
         if: |
           (
-            steps.metadata.outputs.package-ecosystem == 'pre-commit' ||
-            steps.metadata.outputs.package-ecosystem == 'github-actions'
+            steps.metadata.outputs.package-ecosystem == 'pre_commit' ||
+            steps.metadata.outputs.package-ecosystem == 'github_actions'
           ) && (
             steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
             steps.metadata.outputs.update-type == 'version-update:semver-minor'
