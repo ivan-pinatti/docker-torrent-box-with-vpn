@@ -5,6 +5,11 @@
   // Renovate handles Docker image versions pinned in .env via # renovate: annotations.
   extends: ["config:recommended"],
 
+  // config:recommended enables a standing "Dependency Dashboard" issue that
+  // never resolves on its own; PRs still open on the normal schedule below
+  // without it, this just drops the one consolidated overview issue.
+  dependencyDashboard: false,
+
   timezone: "America/Toronto",
   schedule: ["before 7am on Monday"],
 
