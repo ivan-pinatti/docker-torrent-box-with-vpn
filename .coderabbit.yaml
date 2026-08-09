@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.json
+#
+# CodeRabbit picks up CLAUDE.md automatically as review guidelines, so its
+# rules (no hyphens/dashes as punctuation, etc.) don't need restating here.
+
+language: en-US
+
+reviews:
+  path_filters:
+    # Vendored upstream source, bind-mounted to apply local patches. Not code
+    # we author, so it shouldn't be reviewed as if it were (matches the
+    # EDITORCONFIG_EDITORCONFIG_CHECKER/BASH_SHFMT exclusion in .mega-linter.yml).
+    - "!patches/**"
+    # Third-party arr-scripts bootstrap scripts, vendored the same way as
+    # patches/ (matches the BASH_SHELLCHECK exclusion in .mega-linter.yml).
+    - "!configs/*/custom-cont-init.d/**"
+    - "!configs/*/custom-services.d/**"
+  path_instructions:
+    - path: "docker-compose-*.yml"
+      instructions: >
+        Service blocks must follow the key order documented in
+        docs/COMPOSE_CONVENTIONS.md. Flag any service block whose keys
+        are out of that order.
+
+knowledge_base:
+  code_guidelines:
+    filePatterns:
+      # Not auto-detected the way CLAUDE.md is, so listed explicitly.
+      - "docs/COMPOSE_CONVENTIONS.md"
