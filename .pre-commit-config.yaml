@@ -78,7 +78,7 @@ repos:
         files: ^tests/requirements\.txt$
 
   - repo: https://github.com/editorconfig-checker/editorconfig-checker.python
-    rev: 3.6.1
+    rev: 3.8.0
     hooks:
       - id: editorconfig-checker
         exclude: &vendored_patches '^patches/'
@@ -105,7 +105,7 @@ repos:
         exclude: *app_managed
 
   - repo: https://github.com/streetsidesoftware/cspell-cli
-    rev: v9.7.0
+    rev: v10.0.1
     hooks:
       - id: cspell
         # configs/*/config/ is application-generated (Qt state, base64 blobs);
@@ -113,7 +113,7 @@ repos:
         exclude: '^patches/|^configs/.*/config/|^configs/.*/custom-(cont-init|services)\.d/|^\.gitleaksignore$'
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.11.6
+    rev: v0.16.1
     hooks:
       - id: ruff
         args: ["--fix"]
@@ -122,7 +122,7 @@ repos:
         files: ^tests/
 
   - repo: https://github.com/oxsecurity/megalinter
-    rev: v9.4.0
+    rev: v9.6.0
     hooks:
       - id: megalinter-incremental
         stages: [pre-commit]
@@ -132,6 +132,6 @@ repos:
         verbose: true
 
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.21.0
+    rev: v0.23.2
     hooks:
       - id: markdownlint-cli2
