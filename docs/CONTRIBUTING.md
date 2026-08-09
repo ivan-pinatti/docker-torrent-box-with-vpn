@@ -56,11 +56,12 @@ welcome your pull requests:
 10. Update the documentation accordingly
 11. Issue the pull request!
 
-## Any contributions you make will be under the MIT Software License
+## Any contributions you make will be under the Apache License 2.0
 
 In short, when you submit code changes, your submissions are understood to be
-under the same [MIT License](http://choosealicense.com/licenses/mit/) that covers
-the project. Feel free to contact the maintainers if that's a concern.
+under the same [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)
+that covers the project. Feel free to contact the maintainers if that's a
+concern.
 
 ## Report bugs using Github's [issues](https://github.com/briandk/transcriptase-atom/issues)
 
@@ -115,7 +116,7 @@ these conventions:
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under its MIT License.
+By contributing, you agree that your contributions will be licensed under its Apache License 2.0.
 
 ## References
 

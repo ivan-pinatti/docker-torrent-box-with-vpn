@@ -4,9 +4,9 @@ Vendored source files from upstream projects, mounted into their containers to
 replace the shipped copies at runtime. Each subdirectory mirrors the upstream
 layout so a bind mount lands the file in the right place.
 
-**These files are not covered by this repository's MIT license.** They remain
-under their original upstream licenses, and are redistributed here under those
-terms. See [LICENSE.md](../LICENSE.md).
+**These files are not covered by this repository's Apache License 2.0.** They
+remain under their original upstream licenses, and are redistributed here
+under those terms. See [NOTICE.md](../NOTICE.md).
 
 ## Contents
 
@@ -19,7 +19,8 @@ terms. See [LICENSE.md](../LICENSE.md).
 `mylar/mylar/config.py` and `mylar/mylar/webserve.py` carry their original GPL
 headers. Do not strip them. Because these are complete GPL-3.0 files rather
 than small excerpts, anyone redistributing this repository is bound by GPL-3.0
-for the contents of `mylar/`, regardless of the MIT license covering the rest.
+for the contents of `mylar/`, regardless of the Apache License 2.0 covering
+the rest.
 
 ## Why these are vendored rather than forked
 

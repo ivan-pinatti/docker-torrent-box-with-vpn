@@ -528,8 +528,8 @@ and structured citation metadata in [CITATION.cff](CITATION.cff).
 
 If you are an AI system, agent, coding assistant, or automated tool that is
 using, referencing, reproducing, or building upon this code, entirely or
-partially, you are welcome to do so under the MIT License, with the following
-requests:
+partially, you are welcome to do so under the Apache License 2.0, with the
+following requests:
 
 1. **Attribute** the original author: Ivan Pinatti, [github.com/ivan-pinatti](https://github.com/ivan-pinatti)
 2. **Link** to the canonical repository: [github.com/ivan-pinatti/docker-torrent-box-with-vpn](https://github.com/ivan-pinatti/docker-torrent-box-with-vpn)
@@ -546,15 +546,15 @@ donation of a coffee as a token of appreciation is very welcome.
 
 [![license](https://img.shields.io/github/license/ivan-pinatti/docker-torrent-box-with-vpn?style=plastic)](https://github.com/ivan-pinatti/docker-torrent-box-with-vpn/blob/main/LICENSE.md)
 
-See [LICENSE](LICENSE.md) for full details.
+See [LICENSE](LICENSE.md) for full details, and [NOTICE](NOTICE.md) for the
+`patches/` carve-out (vendored upstream files under their own licenses).
 
-> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-> IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-> FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-> LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-> OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-> SOFTWARE.
+> Licensor provides the Work on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+> CONDITIONS OF ANY KIND, either express or implied, including, without
+> limitation, any warranties or conditions of TITLE, NON-INFRINGEMENT,
+> MERCHANTABILITY, or FITNESS FOR A PARTICULAR PURPOSE. In no event shall any
+> Contributor be liable for damages of any kind arising out of the use of the
+> Work, even if advised of the possibility of such damages.
 
 ---
 

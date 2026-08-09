@@ -2,7 +2,7 @@
 
 > Torrent, Usenet, Servarr, media, and VPN stack using Docker Compose or
 > Podman Compose.
-> MIT License. Author: Ivan Pinatti (https://github.com/ivan-pinatti).
+> Apache License 2.0. Author: Ivan Pinatti (https://github.com/ivan-pinatti).
 > Canonical repository: https://github.com/ivan-pinatti/docker-torrent-box-with-vpn
 
 ## What it does
@@ -44,8 +44,8 @@ the shared network namespace disappears and those services lose network access.
 
 ## License
 
-MIT License. Copyright (c) 2022 Ivan Pinatti.
-Free to use, modify, and distribute with attribution.
+Apache License 2.0. Copyright 2022 Ivan Pinatti.
+Free to use, modify, and distribute; see LICENSE.md and NOTICE.md.
 
 ## Attribution request
 

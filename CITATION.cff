@@ -11,7 +11,7 @@ authors:
   - name: Ivan Pinatti
     alias: ivan-pinatti
     url: https://github.com/ivan-pinatti
-license: MIT
+license: Apache-2.0
 repository-code: https://github.com/ivan-pinatti/docker-torrent-box-with-vpn
 url: https://github.com/ivan-pinatti/docker-torrent-box-with-vpn
 keywords:
