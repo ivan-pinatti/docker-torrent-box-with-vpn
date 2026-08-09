@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2022 Ivan Pinatti
 set -euo pipefail
 
 # Rotate the self-signed certificate: regenerate server.key/server.crt/server.pfx

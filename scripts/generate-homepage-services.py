@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2022 Ivan Pinatti
 """Generate configs/homepage/config/services.yaml from services.yaml.template,
 dropping any app whose compose profile is disabled in .env, and dropping any
 section left empty as a result. Run on every `make start`, not just bootstrap,

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2022 Ivan Pinatti
 """Check and repair repo-managed file permissions for rootless containers."""
 
 from __future__ import annotations

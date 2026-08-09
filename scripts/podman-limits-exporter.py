@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2022 Ivan Pinatti
 """
 Prometheus exporter for per-container resource limits (CPU, PIDs) from the Podman API.
 Exposes podman_container_cpu_limit_vcpus and podman_container_pids_limit on :9889/metrics.

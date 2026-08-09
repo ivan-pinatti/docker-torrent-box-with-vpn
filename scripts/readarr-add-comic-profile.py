@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2022 Ivan Pinatti
 """Add a Comic quality profile with CBZ and CBR custom formats to Readarr.
 
 Run with Readarr stopped:

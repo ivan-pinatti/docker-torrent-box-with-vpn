@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2022 Ivan Pinatti
 set -eu
 
 script_dir="$(cd -- "$(dirname -- "$0")" && pwd)"

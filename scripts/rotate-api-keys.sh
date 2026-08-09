@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2022 Ivan Pinatti
 set -euo pipefail
 
 # Usage: ./scripts/rotate-api-keys.sh [sonarr|radarr|lidarr|readarr|whisparr|prowlarr|bazarr|lazylibrarian|mylar|nzbhydra2|jellyfin|all]

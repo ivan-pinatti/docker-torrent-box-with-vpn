@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2022 Ivan Pinatti
 # GNU Make reads the whole file for rules before giving up on a missing
 # include, so this rule lets *any* make target auto-create .env and
 # certs/cert.conf from their .example on a fresh clone, instead of every
