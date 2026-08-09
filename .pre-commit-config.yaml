@@ -78,7 +78,7 @@ repos:
         files: ^tests/requirements\.txt$
 
   - repo: https://github.com/editorconfig-checker/editorconfig-checker.python
-    rev: 3.6.1
+    rev: 3.8.0
     hooks:
       - id: editorconfig-checker
         exclude: &vendored_patches '^patches/'
