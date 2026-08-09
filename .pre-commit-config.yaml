@@ -113,7 +113,7 @@ repos:
         exclude: '^patches/|^configs/.*/config/|^configs/.*/custom-(cont-init|services)\.d/|^\.gitleaksignore$'
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.11.6
+    rev: v0.16.1
     hooks:
       - id: ruff
         args: ["--fix"]
