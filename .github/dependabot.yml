@@ -14,6 +14,10 @@ updates:
       prefix: "chore"
       include: "scope"
     open-pull-requests-limit: 5
+    groups:
+      pre-commit-hooks:
+        patterns:
+          - "*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -29,6 +33,10 @@ updates:
       prefix: "chore"
       include: "scope"
     open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"
 
   - package-ecosystem: "pip"
     directory: "/tests"
@@ -44,3 +52,7 @@ updates:
       prefix: "chore"
       include: "scope"
     open-pull-requests-limit: 5
+    groups:
+      test-dependencies:
+        patterns:
+          - "*"
