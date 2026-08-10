@@ -4,15 +4,19 @@
 # include, so this rule lets *any* make target auto-create .env and
 # certs/cert.conf from their .example on a fresh clone, instead of every
 # invocation dying with "No rule to make target '.env'" before bootstrap ever
-# runs. seed-configs.sh only copies when the file is missing, so a real .env
-# or cert.conf is never touched even if make considers it stale by mtime.
+# runs. Deliberately no .example prerequisite here: with one, make compares
+# mtimes and reruns seed-configs.sh (interactive skip/diff/replace prompt)
+# whenever .example is newer than the live file, e.g. after a git pull, even
+# though the live file already exists. Without a prerequisite, make only
+# runs the recipe when the live file is missing outright; seed-configs.sh
+# still checks for its .example itself and errors if that's absent.
 # This is bare plumbing only: detecting UID/GID/TIMEZONE is a visible part of
 # `make bootstrap` itself (see its recipe below), not a side effect of
 # whichever target happens to run first, including check_requirements.
-.env: .env.example
+.env:
 	@./scripts/seed-configs.sh .env
 
-certs/cert.conf: certs/cert.conf.example
+certs/cert.conf:
 	@./scripts/seed-configs.sh certs/cert.conf
 
 include .env certs/cert.conf
@@ -82,6 +86,15 @@ CONFIG_BACKUP_ARCHIVE := $(BACKUP_DIR)/configs-$(BACKUP_TIMESTAMP).tar.gz
 FULL_BACKUP_ARCHIVE := $(BACKUP_DIR)/full-$(BACKUP_TIMESTAMP).tar.gz
 RESTORE_SAFETY_ARCHIVE := $(BACKUP_DIR)/pre-restore-$(BACKUP_TIMESTAMP).tar.gz
 
+# These patterns are unanchored, so a bare name matches that directory at ANY
+# depth, not just at the top level. There is deliberately no `--exclude=data`
+# here: every tar below archives `.env certs configs`, so the top-level media
+# `data/` is never a candidate in the first place, and the pattern could only
+# ever match nested ones. It silently excluded configs/jellyfin/config/data
+# (Jellyfin's whole database: users, API keys, library) and configs/korsync/data
+# from every backup this repo has ever taken, which was discovered the worst
+# possible way, when a restore could not put them back. `cache` and `logs`
+# below are unanchored on purpose: dropping those at any depth is intended.
 COMMON_BACKUP_EXCLUDES := \
 	--exclude=.git \
 	--exclude=.codex \
@@ -91,7 +104,6 @@ COMMON_BACKUP_EXCLUDES := \
 	--exclude='*.log.*' \
 	--exclude='*.pid' \
 	--exclude=cache \
-	--exclude=data \
 	--exclude=logs \
 	--exclude=megalinter-reports \
 	--exclude=node_modules \
@@ -277,24 +289,37 @@ bootstrap: configs/flaresolverr/config/chromedriver
 		fi; \
 	fi
 
+# `backup` is an alias for `backup-configs`: the lean archive is the right
+# default for routine backups. Both restore through the same `restore-configs`
+# target (`restore-full` is just an alias for it too); a full backup is only
+# worth the extra size if you actually need the things it keeps that the lean
+# one strips: Jellyfin's metadata/cache, *arr MediaCover artwork, and
+# Recyclarr's cloned git repos.
 backup: backup-configs
 
 backup-configs:
-	@echo "Creating lean config backup at $(CONFIG_BACKUP_ARCHIVE)..."
-	@echo "For a FULL backup, run: make backup-full"
+	@echo "Config backup (lean): .env, certs, configs, minus logs, caches, and artwork."
+	@echo "For everything the lean backup strips, run: make backup-full"
 	@mkdir -p "$(BACKUP_DIR)"
-	@tar --create --gzip --file "$(CONFIG_BACKUP_ARCHIVE)" \
+	# --ignore-failed-read so one unreadable container-owned file cannot kill
+	# the whole backup; tar still warns per skipped file (see restore-configs).
+	@tar --create --gzip --warning=no-file-ignored --ignore-failed-read \
+		--file "$(CONFIG_BACKUP_ARCHIVE)" \
 		$(CONFIG_BACKUP_EXCLUDES) \
 		.env certs configs
-	@echo ".OK!"
+	@echo "Done: $(CONFIG_BACKUP_ARCHIVE) ($$(du -h "$(CONFIG_BACKUP_ARCHIVE)" | cut -f1))"
 
 backup-full:
-	@echo "Creating full config backup at $(FULL_BACKUP_ARCHIVE)..."
+	@echo "Config backup (full): .env, certs, configs, keeping Jellyfin metadata/cache,"
+	@echo "*arr MediaCover artwork, and Recyclarr's cloned git repos that backup-configs strips."
 	@mkdir -p "$(BACKUP_DIR)"
-	@tar --create --gzip --file "$(FULL_BACKUP_ARCHIVE)" \
+	# --ignore-failed-read so one unreadable container-owned file cannot kill
+	# the whole backup; tar still warns per skipped file (see restore-configs).
+	@tar --create --gzip --warning=no-file-ignored --ignore-failed-read \
+		--file "$(FULL_BACKUP_ARCHIVE)" \
 		$(COMMON_BACKUP_EXCLUDES) \
 		.env certs configs
-	@echo ".OK!"
+	@echo "Done: $(FULL_BACKUP_ARCHIVE) ($$(du -h "$(FULL_BACKUP_ARCHIVE)" | cut -f1))"
 
 # Installs a cron entry that runs `make backup` on a schedule (default:
 # daily at 03:00). Prompts for frequency and time in a real terminal;
@@ -307,7 +332,19 @@ restore-configs:
 	@if [ ! -f "$(BACKUP)" ]; then echo "ERROR: backup archive not found: $(BACKUP)"; exit 1; fi
 	@echo "Creating pre-restore safety backup at $(RESTORE_SAFETY_ARCHIVE)..."
 	@mkdir -p "$(BACKUP_DIR)"
-	@tar --create --gzip --file "$(RESTORE_SAFETY_ARCHIVE)" .env certs configs
+	# --ignore-failed-read: some files under configs/ are owned by a container's
+	# own UID with no group/other read bit (confirmed live: calibre's pulse
+	# runtime dir and jdownloader2's generated webauth-htpasswd), so this tar
+	# exits non-zero and, being the first step of the recipe, aborts the whole
+	# restore before it starts. tar still prints a "Cannot open" warning per
+	# skipped file, so they stay visible rather than silently missing. Same
+	# excludes as backup-full: without them this archives every cache and
+	# artwork directory, which is what makes it minutes slower than the backup
+	# targets it is meant to mirror.
+	@tar --create --gzip --warning=no-file-ignored --ignore-failed-read \
+		--file "$(RESTORE_SAFETY_ARCHIVE)" \
+		$(COMMON_BACKUP_EXCLUDES) \
+		.env certs configs
 	@echo "Restoring $(BACKUP)..."
 	@rm -rf .env certs configs
 	@tar --extract --gzip --file "$(BACKUP)" --directory .
