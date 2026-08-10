@@ -336,10 +336,22 @@ rotate_arr_password() {
     "${scheme}://127.0.0.1:${port}/${url_base}/api/${api_ver}/config/host")
 
   echo "[$app_name] Setting new password..."
+  # The username has to go up with the password. These apps keep credentials
+  # in their database, not config.xml, and they only create the user row when
+  # both fields arrive together: a PUT carrying just a password against an app
+  # that has no user yet is accepted with a 202 and silently stores nothing.
+  # Confirmed live on five apps whose databases had been reset: every login
+  # afterwards answered loginFailed=true, and config/host still reported
+  # username "" and an empty password. With authenticationMethod already
+  # "forms" that is a lockout, so this must not be left to chance.
+  # An existing username is preserved; only a missing one is filled in, using
+  # the container name, which is what the login validation below expects.
   local updated
   updated=$(echo "$config" | jq \
     --arg pw "$new_password" \
-    '.password = $pw | .passwordConfirmation = $pw')
+    --arg user "$container_name" \
+    '.username = (if ((.username // "") | length) == 0 then $user else .username end)
+     | .password = $pw | .passwordConfirmation = $pw')
 
   container_curl "$container_name" -sk -X PUT \
     -H "X-Api-Key: $api_key" \
