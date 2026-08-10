@@ -27,25 +27,20 @@ env_value() {
   grep -m1 "^${key}=" .env | cut -d= -f2-
 }
 
-PROWLARR_HTTPS_PORT="$(env_value PROWLARR_HTTPS_PORT)"
 JELLYFIN_HTTP_PORT="$(env_value JELLYFIN_HTTP_PORT)"
 # BaseUrl is a server-wide Jellyfin setting (see wire-connections.sh), not an
 # nginx-only rewrite, so every direct call here needs it too: a bare
 # http://127.0.0.1:<port>/... 302-redirects instead of answering, which
 # curl --fail treats as success, silently breaking every call below it.
 JELLYFIN_BASE_URL="$(env_value JELLYFIN_BASE_URL)"
-SONARR_HTTP_PORT="$(env_value SONARR_HTTP_PORT)"
-RADARR_HTTPS_PORT="$(env_value RADARR_HTTPS_PORT)"
-LIDARR_HTTPS_PORT="$(env_value LIDARR_HTTPS_PORT)"
-READARR_HTTPS_PORT="$(env_value READARR_HTTPS_PORT)"
-WHISPARR_HTTPS_PORT="$(env_value WHISPARR_HTTPS_PORT)"
 BAZARR_HTTP_PORT="$(env_value BAZARR_HTTP_PORT)"
 LAZYLIBRARIAN_HTTP_PORT="$(env_value LAZYLIBRARIAN_HTTP_PORT)"
-MYLAR_HTTPS_PORT="$(env_value MYLAR_HTTPS_PORT)"
-NZBHYDRA2_HTTPS_PORT="$(env_value NZBHYDRA2_HTTPS_PORT)"
-readonly PROWLARR_HTTPS_PORT JELLYFIN_HTTP_PORT JELLYFIN_BASE_URL SONARR_HTTP_PORT \
-  RADARR_HTTPS_PORT LIDARR_HTTPS_PORT READARR_HTTPS_PORT WHISPARR_HTTPS_PORT \
-  BAZARR_HTTP_PORT LAZYLIBRARIAN_HTTP_PORT MYLAR_HTTPS_PORT NZBHYDRA2_HTTPS_PORT
+# The *arr apps, Mylar, and NZBHydra2 deliberately have no port variables here:
+# their scheme, port, and UrlBase are read from each app's own config by
+# arr_endpoint()/mylar_endpoint()/nzbhydra_endpoint(), which are authoritative
+# where .env is only aspirational.
+readonly JELLYFIN_HTTP_PORT JELLYFIN_BASE_URL \
+  BAZARR_HTTP_PORT LAZYLIBRARIAN_HTTP_PORT
 
 # ---------------------------------------------------------------------------
 # Current (old) API keys, read from config.xml at rotation time
@@ -53,7 +48,42 @@ readonly PROWLARR_HTTPS_PORT JELLYFIN_HTTP_PORT JELLYFIN_BASE_URL SONARR_HTTP_PO
 
 get_xml_apikey() {
   local xml_file="$1"
-  grep -oPm1 '(?<=<ApiKey>)[^<]+' "$xml_file"
+  # `|| true`: see get_ini_apikey below for why a grep no-match here must
+  # not be allowed to kill the whole script under `set -e`. The *arr apps
+  # write ApiKey into config.xml synchronously on their very first boot, so
+  # this is far less likely to be empty in practice than LazyLibrarian's or
+  # Mylar's, but the failure mode if it ever is would be identical.
+  grep -oPm1 '(?<=<ApiKey>)[^<]+' "$xml_file" || true
+}
+
+# Every *arr call below (Prowlarr's application/indexer updates and the final
+# validation pass) used to hardcode a scheme, a port from .env, and a UrlBase
+# equal to the app's own name. That silently assumes each app is configured
+# exactly the way config.xml.example ships it. When an app is not, every one
+# of those calls targets a port nothing is listening on and reports the app
+# as broken even though its key rotated correctly. Confirmed live: five apps
+# whose config.xml had been regenerated with stock defaults (EnableSsl False,
+# empty UrlBase) answered fine on plain HTTP while the script kept probing
+# HTTPS and failing them all.
+#
+# The app's own config.xml is the authority on where it listens, so read the
+# endpoint from the same file this script already edits, rather than assuming.
+# Echoes "scheme port urlbase"; urlbase is "" or "/foo" (trailing slash
+# stripped, since callers always append a path starting with "/").
+arr_endpoint() {
+  local xml="$1" ssl base port scheme
+  ssl=$(grep -oPm1 '(?<=<EnableSsl>)[^<]*' "$xml" || true)
+  base=$(grep -oPm1 '(?<=<UrlBase>)[^<]*' "$xml" || true)
+  if [[ "${ssl,,}" == "true" ]]; then
+    scheme=https
+    port=$(grep -oPm1 '(?<=<SslPort>)[^<]*' "$xml" || true)
+  else
+    scheme=http
+    port=$(grep -oPm1 '(?<=<Port>)[^<]*' "$xml" || true)
+  fi
+  base="${base%/}"
+  [[ -n "$base" && "$base" != /* ]] && base="/$base"
+  echo "$scheme ${port} ${base}"
 }
 
 readonly SONARR_XML="configs/sonarr/config/config.xml"
@@ -141,7 +171,7 @@ readonly STOP_TIMEOUT=60
 readonly STOP_TIMEOUT_EXEMPT=(mylar)
 
 stop_container() {
-  local c exempt=() normal=()
+  local c exempt=() normal=() pids=()
   for c in "$@"; do
     if [[ " ${STOP_TIMEOUT_EXEMPT[*]} " == *" ${c} "* ]]; then
       exempt+=("$c")
@@ -150,14 +180,19 @@ stop_container() {
     fi
   done
   # Both batches run concurrently so an exempt container waiting out its
-  # timeout never serializes behind the others.
+  # timeout never serializes behind the others. A bare `wait` (no PIDs)
+  # always returns 0 regardless of how its background jobs exited, which
+  # under `set -e` silently turned a real `podman stop` failure into
+  # success; waiting on each PID by name surfaces it instead.
   if [[ ${#normal[@]} -gt 0 ]]; then
     podman stop --time "$STOP_TIMEOUT" "${normal[@]}" >/dev/null &
+    pids+=("$!")
   fi
   if [[ ${#exempt[@]} -gt 0 ]]; then
     podman stop "${exempt[@]}" >/dev/null &
+    pids+=("$!")
   fi
-  wait
+  wait "${pids[@]}"
 }
 
 STOPPED_CONTAINERS=()
@@ -257,6 +292,49 @@ rotate_arr_apikey() {
   echo "$new_key"
 }
 
+# Waits for Prowlarr's own API to answer before anything below tries to talk
+# to it. Prowlarr can still be mid-startup here, either because `make start`
+# hasn't finished settling yet or because an earlier step in this same run
+# stopped/started it, and a curl against a port nothing is listening on yet
+# fails immediately with exit 7, aborting the whole rotation under `set -e`
+# instead of just waiting the extra few seconds.
+#
+# `rotate_all` asks Prowlarr for this up to six times (once per downstream
+# app plus once for Prowlarr's own key). A Prowlarr that is actually down,
+# rather than just slow, used to cost the full 120s retry budget on every
+# one of those six calls, over 10 minutes of pure waiting before the run
+# even reached Bazarr. Once a wait has genuinely timed out, later calls
+# only get a single quick check instead of repaying the full budget; the
+# first miss already answered "is it coming up soon", the rest just confirm
+# that cheaply. Prowlarr's own rotation step still gets the full budget on
+# its first attempt regardless (PROWLARR_KNOWN_DOWN resets on any success),
+# since that is the call right after its own container was restarted and
+# the moment it is most likely to actually come up.
+# Builds a Prowlarr API URL from Prowlarr's own config.xml, so these calls
+# follow it if it is not serving HTTPS on the port .env advertises.
+# Args: path (starting with "/")
+prowlarr_url() {
+  local scheme port base
+  read -r scheme port base <<<"$(arr_endpoint "$PROWLARR_XML")"
+  echo "${scheme}://127.0.0.1:${port}${base}$1"
+}
+
+# Args: prowlarr_key
+PROWLARR_KNOWN_DOWN=""
+wait_for_prowlarr_ready() {
+  local prowlarr_key="$1"
+  local budget=120
+  [[ -n "$PROWLARR_KNOWN_DOWN" ]] && budget=0
+  if retry "$budget" container_curl prowlarr -sk --fail -o /dev/null --max-time 10 \
+    -H "X-Api-Key: ${prowlarr_key}" \
+    "$(prowlarr_url /api/v1/system/status)"; then
+    PROWLARR_KNOWN_DOWN=""
+    return 0
+  fi
+  PROWLARR_KNOWN_DOWN=1
+  return 1
+}
+
 # Update one application entry in Prowlarr with a new downstream API key.
 # The entry is looked up by name; apps without a Prowlarr application entry
 # are skipped, and so is a Prowlarr container that doesn't exist at all
@@ -273,10 +351,16 @@ update_prowlarr_application() {
     return 0
   fi
 
+  if ! wait_for_prowlarr_ready "$prowlarr_key"; then
+    echo "[Prowlarr] Didn't come up in time, skipping application update for '${app_name}'."
+    echo "[Prowlarr] Once it's healthy, re-run 'make wire_connections' to fix this."
+    return 0
+  fi
+
   local app_json
   app_json=$(container_curl prowlarr -sk \
     -H "X-Api-Key: $prowlarr_key" \
-    "https://127.0.0.1:${PROWLARR_HTTPS_PORT}/prowlarr/api/v1/applications" |
+    "$(prowlarr_url /api/v1/applications)" |
     jq --arg name "$app_name" 'map(select(.name == $name)) | first')
 
   if [[ -z "$app_json" || "$app_json" == "null" ]]; then
@@ -300,7 +384,7 @@ update_prowlarr_application() {
     -H "X-Api-Key: $prowlarr_key" \
     -H "Content-Type: application/json" \
     -d "$updated" \
-    "https://127.0.0.1:${PROWLARR_HTTPS_PORT}/prowlarr/api/v1/applications/${app_id}?forceSave=true" \
+    "$(prowlarr_url "/api/v1/applications/${app_id}?forceSave=true")" \
     >/dev/null
 }
 
@@ -322,9 +406,7 @@ propagate_prowlarr_key() {
     return 0
   fi
 
-  if ! retry 120 container_curl prowlarr -sk --fail -o /dev/null --max-time 10 \
-    -H "X-Api-Key: ${new_key}" \
-    "https://127.0.0.1:${PROWLARR_HTTPS_PORT}/prowlarr/api/v1/system/status"; then
+  if ! wait_for_prowlarr_ready "$new_key"; then
     echo "[Prowlarr] Didn't come back up with the new key in time, skipping indexer key propagation."
     echo "[Prowlarr] Once it's healthy, re-run 'make wire_connections' to fix this."
     return 0
@@ -334,23 +416,27 @@ propagate_prowlarr_key() {
   container_curl prowlarr -sk --fail -X POST \
     -H "X-Api-Key: ${new_key}" -H "Content-Type: application/json" \
     -d '{"name":"ApplicationIndexerSync"}' \
-    "https://127.0.0.1:${PROWLARR_HTTPS_PORT}/prowlarr/api/v1/command" >/dev/null || true
+    "$(prowlarr_url /api/v1/command)" >/dev/null || true
   sleep 15
 
+  # Scheme/port/UrlBase come from each app's own config.xml (see arr_endpoint),
+  # not from .env, so this follows an app that is not serving where .env says.
   local targets=(
-    "sonarr http ${SONARR_HTTP_PORT} v3 ${SONARR_XML}"
-    "radarr https ${RADARR_HTTPS_PORT} v3 ${RADARR_XML}"
-    "lidarr https ${LIDARR_HTTPS_PORT} v1 ${LIDARR_XML}"
-    "readarr https ${READARR_HTTPS_PORT} v1 ${READARR_XML}"
-    "whisparr https ${WHISPARR_HTTPS_PORT} v3 ${WHISPARR_XML}"
+    "sonarr v3 ${SONARR_XML}"
+    "radarr v3 ${RADARR_XML}"
+    "lidarr v1 ${LIDARR_XML}"
+    "readarr v1 ${READARR_XML}"
+    "whisparr v3 ${WHISPARR_XML}"
   )
-  local entry app scheme port api_version xml_path app_key indexers
+  local entry app scheme port base api_version xml_path app_key indexers
   for entry in "${targets[@]}"; do
-    read -r app scheme port api_version xml_path <<<"$entry"
+    read -r app api_version xml_path <<<"$entry"
     podman container exists "$app" 2>/dev/null || continue
     app_key=$(get_xml_apikey "$xml_path") || continue
+    [[ -n "$app_key" ]] || continue
+    read -r scheme port base <<<"$(arr_endpoint "$xml_path")"
     indexers=$(container_curl "$app" -sk --fail -H "X-Api-Key: ${app_key}" \
-      "${scheme}://127.0.0.1:${port}/${app}/api/${api_version}/indexer" 2>/dev/null) || continue
+      "${scheme}://127.0.0.1:${port}${base}/api/${api_version}/indexer" 2>/dev/null) || continue
 
     local rec id name updated
     while IFS= read -r rec; do
@@ -361,7 +447,7 @@ propagate_prowlarr_key() {
         '.fields |= map(if .name == "apiKey" then .value = $key else . end)')
       if container_curl "$app" -sk --fail -X PUT -H "X-Api-Key: ${app_key}" \
         -H "Content-Type: application/json" -d "$updated" \
-        "${scheme}://127.0.0.1:${port}/${app}/api/${api_version}/indexer/${id}?forceSave=true" >/dev/null; then
+        "${scheme}://127.0.0.1:${port}${base}/api/${api_version}/indexer/${id}?forceSave=true" >/dev/null; then
         echo "[Prowlarr] Updated ${app}'s indexer '${name}' with the new API key."
       else
         echo "[Prowlarr] WARNING: failed to update ${app}'s indexer '${name}' with the new API key."
@@ -545,14 +631,26 @@ rotate_bazarr() {
 }
 
 # LazyLibrarian and Mylar keep their API key as a unique "api_key = ..." line
-# in their config.ini and read it only at startup.
+# in their config.ini and read it only at startup. Confirmed live: on a
+# LazyLibrarian that has never fully completed its own first boot, that line
+# doesn't exist yet (every other section is already written), so grep finds
+# no match. `|| true` keeps that a plain empty result instead of a nonzero
+# exit: under `set -e`, `old_key=$(get_ini_apikey ...)` otherwise dies right
+# there with no error text at all, since grep prints nothing on no-match,
+# taking the entire `rotate_all` run down with it partway through Bazarr's
+# own rotation (confirmed live: the container that broke it was two steps
+# later in the sequence, with the config file already showing its new key).
 get_ini_apikey() {
-  grep -oPm1 '(?<=^api_key = ).*' "$1"
+  grep -oPm1 '(?<=^api_key = ).*' "$1" || true
 }
 
 rotate_lazylibrarian() {
   local old_key new_key
   old_key=$(get_ini_apikey "$LAZYLIBRARIAN_INI")
+  if [[ -z "$old_key" ]]; then
+    echo "[LazyLibrarian] No api_key in config.ini yet (let it finish its first boot), skipping."
+    return 0
+  fi
   new_key=$(gen_key)
 
   # LazyLibrarian persists its in-memory config on shutdown, which would
@@ -573,6 +671,10 @@ rotate_lazylibrarian() {
 rotate_mylar() {
   local old_key new_key
   old_key=$(get_ini_apikey "$MYLAR_INI")
+  if [[ -z "$old_key" ]]; then
+    echo "[Mylar] No api_key in config.ini yet (let it finish its first boot), skipping."
+    return 0
+  fi
   new_key=$(gen_key)
 
   # Mylar persists its in-memory config on shutdown, which would clobber a
@@ -596,8 +698,12 @@ rotate_nzbhydra2() {
   # nzbhydra.yml stores the key obfuscated ({OBF}...), so the plain current
   # key is read from a consumer (LazyLibrarian's Newznab entry). Writing a
   # plain value back is fine: NZBHydra re-obfuscates it on its next save.
+  # `old_key` is only for the summary line below, so an empty read (no such
+  # entry yet, e.g. LazyLibrarian hasn't synced with NZBHydra2 yet) should
+  # not stop the rotation itself; `|| true` keeps a grep no-match from
+  # killing the whole script under `set -e` the way it did here live.
   local old_key new_key
-  old_key=$(grep -oPm1 '(?<=^api = ).*' "$LAZYLIBRARIAN_INI")
+  old_key=$(grep -oPm1 '(?<=^api = ).*' "$LAZYLIBRARIAN_INI" || true)
   new_key=$(gen_key)
 
   # NZBHydra2, LazyLibrarian, and Mylar persist their configs on shutdown,
@@ -883,10 +989,16 @@ echo "======================================================================"
 # check retries while the restarted container comes back up.
 # ---------------------------------------------------------------------------
 
+# Endpoint comes from the app's own config.xml (see arr_endpoint) so a key
+# is never reported broken merely because the app serves plain HTTP, or on a
+# different port/UrlBase, than config.xml.example assumes.
+# Args: container xml_path api_ver key
 arr_key_ok() {
-  local container="$1" scheme="$2" port="$3" base="$4" api_ver="$5" key="$6"
+  local container="$1" xml_path="$2" api_ver="$3" key="$4"
+  local scheme port base
+  read -r scheme port base <<<"$(arr_endpoint "$xml_path")"
   container_curl "$container" -sk --fail -o /dev/null -H "X-Api-Key: ${key}" \
-    "${scheme}://127.0.0.1:${port}/${base}/api/${api_ver}/health"
+    "${scheme}://127.0.0.1:${port}${base}/api/${api_ver}/health"
 }
 
 bazarr_key_ok() {
@@ -902,17 +1014,45 @@ lazylibrarian_key_ok() {
   [[ -n "$body" && "$body" != *"Incorrect API key"* ]]
 }
 
+# Mylar's and NZBHydra2's own configs are authoritative for where they listen,
+# for the same reason arr_endpoint() exists: .env only says where they were
+# meant to listen. Both echo "scheme port urlbase" with urlbase "" or "/foo".
+mylar_endpoint() {
+  local ssl port base scheme
+  ssl=$(grep -oPm1 '(?<=^enable_https = ).*' "$MYLAR_INI" || true)
+  port=$(grep -oPm1 '(?<=^http_port = ).*' "$MYLAR_INI" || true)
+  base=$(grep -oPm1 '(?<=^http_root = ).*' "$MYLAR_INI" || true)
+  [[ "${ssl,,}" == "true" ]] && scheme=https || scheme=http
+  base="${base%/}"
+  [[ -n "$base" && "$base" != /* ]] && base="/$base"
+  echo "$scheme ${port} ${base}"
+}
+
+nzbhydra_endpoint() {
+  local ssl port base scheme
+  port=$(yq -r '.main.port // ""' "$NZBHYDRA_YML" 2>/dev/null || true)
+  ssl=$(yq -r '.main.ssl // false' "$NZBHYDRA_YML" 2>/dev/null || true)
+  base=$(yq -r '.main.urlBase // ""' "$NZBHYDRA_YML" 2>/dev/null || true)
+  [[ "${ssl,,}" == "true" ]] && scheme=https || scheme=http
+  [[ "$base" == "null" ]] && base=""
+  base="${base%/}"
+  [[ -n "$base" && "$base" != /* ]] && base="/$base"
+  echo "$scheme ${port} ${base}"
+}
+
 mylar_key_ok() {
-  local body
+  local body scheme port base
+  read -r scheme port base <<<"$(mylar_endpoint)"
   body=$(container_curl mylar -sk \
-    "https://127.0.0.1:${MYLAR_HTTPS_PORT}/mylar/api?cmd=getVersion&apikey=$1")
+    "${scheme}://127.0.0.1:${port}${base}/api?cmd=getVersion&apikey=$1")
   [[ -n "$body" && "$body" != *"Incorrect API key"* && "$body" != *"Invalid apikey"* ]]
 }
 
 nzbhydra_key_ok() {
-  local body
+  local body scheme port base
+  read -r scheme port base <<<"$(nzbhydra_endpoint)"
   body=$(container_curl nzbhydra2 -sk \
-    "https://127.0.0.1:${NZBHYDRA2_HTTPS_PORT}/nzbhydra2/api?t=caps&apikey=$1")
+    "${scheme}://127.0.0.1:${port}${base}/api?t=caps&apikey=$1")
   [[ -n "$body" && "$body" != *"<error"* ]]
 }
 
@@ -938,12 +1078,12 @@ echo ""
 echo "======================================================================"
 echo " Validating rotated API keys"
 echo "======================================================================"
-[[ -n "$SUMMARY_SONARR_NEW" ]] && validate sonarr 180 arr_key_ok sonarr http "$SONARR_HTTP_PORT" sonarr v3 "$SUMMARY_SONARR_NEW"
-[[ -n "$SUMMARY_RADARR_NEW" ]] && validate radarr 180 arr_key_ok radarr https "$RADARR_HTTPS_PORT" radarr v3 "$SUMMARY_RADARR_NEW"
-[[ -n "$SUMMARY_LIDARR_NEW" ]] && validate lidarr 180 arr_key_ok lidarr https "$LIDARR_HTTPS_PORT" lidarr v1 "$SUMMARY_LIDARR_NEW"
-[[ -n "$SUMMARY_READARR_NEW" ]] && validate readarr 180 arr_key_ok readarr https "$READARR_HTTPS_PORT" readarr v1 "$SUMMARY_READARR_NEW"
-[[ -n "$SUMMARY_WHISPARR_NEW" ]] && validate whisparr 180 arr_key_ok whisparr https "$WHISPARR_HTTPS_PORT" whisparr v3 "$SUMMARY_WHISPARR_NEW"
-[[ -n "$SUMMARY_PROWLARR_NEW" ]] && validate prowlarr 180 arr_key_ok prowlarr https "$PROWLARR_HTTPS_PORT" prowlarr v1 "$SUMMARY_PROWLARR_NEW"
+[[ -n "$SUMMARY_SONARR_NEW" ]] && validate sonarr 180 arr_key_ok sonarr "$SONARR_XML" v3 "$SUMMARY_SONARR_NEW"
+[[ -n "$SUMMARY_RADARR_NEW" ]] && validate radarr 180 arr_key_ok radarr "$RADARR_XML" v3 "$SUMMARY_RADARR_NEW"
+[[ -n "$SUMMARY_LIDARR_NEW" ]] && validate lidarr 180 arr_key_ok lidarr "$LIDARR_XML" v1 "$SUMMARY_LIDARR_NEW"
+[[ -n "$SUMMARY_READARR_NEW" ]] && validate readarr 180 arr_key_ok readarr "$READARR_XML" v1 "$SUMMARY_READARR_NEW"
+[[ -n "$SUMMARY_WHISPARR_NEW" ]] && validate whisparr 180 arr_key_ok whisparr "$WHISPARR_XML" v3 "$SUMMARY_WHISPARR_NEW"
+[[ -n "$SUMMARY_PROWLARR_NEW" ]] && validate prowlarr 180 arr_key_ok prowlarr "$PROWLARR_XML" v1 "$SUMMARY_PROWLARR_NEW"
 [[ -n "$SUMMARY_BAZARR_NEW" ]] && validate bazarr 180 bazarr_key_ok "$SUMMARY_BAZARR_NEW"
 [[ -n "$SUMMARY_LAZYLIBRARIAN_NEW" ]] && validate lazylibrarian 180 lazylibrarian_key_ok "$SUMMARY_LAZYLIBRARIAN_NEW"
 [[ -n "$SUMMARY_MYLAR_NEW" ]] && validate mylar 300 mylar_key_ok "$SUMMARY_MYLAR_NEW"
