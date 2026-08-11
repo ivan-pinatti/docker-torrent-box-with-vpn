@@ -114,6 +114,23 @@ COMMON_BACKUP_EXCLUDES := \
 	--exclude='configs/*/config/logs' \
 	--exclude='configs/*/config/*/logs'
 
+# --ignore-failed-read (see each tar below for why it is there) lets tar skip
+# what it cannot read and still exit 0, so without this a partial archive would
+# be reported as a complete one. Nothing here can vouch for every individual
+# file, but an archive missing an entire top-level tree is broken beyond doubt.
+# For restore-configs this check is what stands between a bad safety archive and
+# the `rm -rf` that follows it.
+define verify_archive_complete
+	@for required in .env certs configs; do \
+		tar --list --gzip --file "$(1)" 2>/dev/null \
+			| grep -qE "^$$required(/|$$)" || { \
+			echo "ERROR: $(1) is missing '$$required'."; \
+			echo "The archive is incomplete and will not be treated as usable."; \
+			exit 1; \
+		}; \
+	done
+endef
+
 CONFIG_BACKUP_EXCLUDES := $(COMMON_BACKUP_EXCLUDES) \
 	--exclude='*.db-shm' \
 	--exclude='*.db-wal' \
@@ -312,6 +329,7 @@ backup-configs:
 		--file "$(CONFIG_BACKUP_ARCHIVE)" \
 		$(CONFIG_BACKUP_EXCLUDES) \
 		.env certs configs
+	$(call verify_archive_complete,$(CONFIG_BACKUP_ARCHIVE))
 	@echo "Done: $(CONFIG_BACKUP_ARCHIVE) ($$(du -h "$(CONFIG_BACKUP_ARCHIVE)" | cut -f1))"
 
 backup-full:
@@ -324,6 +342,7 @@ backup-full:
 		--file "$(FULL_BACKUP_ARCHIVE)" \
 		$(COMMON_BACKUP_EXCLUDES) \
 		.env certs configs
+	$(call verify_archive_complete,$(FULL_BACKUP_ARCHIVE))
 	@echo "Done: $(FULL_BACKUP_ARCHIVE) ($$(du -h "$(FULL_BACKUP_ARCHIVE)" | cut -f1))"
 
 # Installs a cron entry that runs `make backup` on a schedule (default:
@@ -350,6 +369,7 @@ restore-configs:
 		--file "$(RESTORE_SAFETY_ARCHIVE)" \
 		$(COMMON_BACKUP_EXCLUDES) \
 		.env certs configs
+	$(call verify_archive_complete,$(RESTORE_SAFETY_ARCHIVE))
 	@echo "Restoring $(BACKUP)..."
 	@rm -rf .env certs configs
 	@tar --extract --gzip --file "$(BACKUP)" --directory .
