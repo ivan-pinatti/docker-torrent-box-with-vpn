@@ -625,6 +625,32 @@ pull_docker_images:
 	@echo "Pulling container images..."
 	@$(COMPOSE) $(COMPOSE_FILES) --profile enabled pull
 
+# Blocks until gluetun is actually up, and says why when it never gets there.
+# Both halves of the condition matter: a stopped container keeps reporting the
+# health status it had when it stopped, so matching on health alone passes
+# instantly against an exited gluetun (confirmed live: status=exited with
+# health=healthy). Everything using network_mode: container:gluetun would then
+# be started against a namespace that no longer exists.
+# The bare timeout only ever printed "did not become healthy in time", which
+# says nothing about whether the endpoint was unreachable, the key was rejected,
+# or the container had already exited. Diagnosing one CI occurrence meant
+# diffing two whole runs line by line to notice gluetun took 5s on the run that
+# worked and gave up at 120s on the one that did not. The state line and the
+# tail of gluetun's own log answer that in place.
+define wait_for_gluetun
+	@echo "Waiting for VPN gateway to be healthy (up to 120s)..."
+	@timeout 120 sh -c 'until $(RUNTIME) inspect gluetun --format "{{.State.Running}} {{.State.Health.Status}}" 2>/dev/null | grep -qx "true healthy"; do sleep 5; done' || { \
+		echo "ERROR: gluetun did not become healthy in time"; \
+		echo "--- gluetun state ---"; \
+		$(RUNTIME) inspect gluetun \
+			--format 'status={{.State.Status}} health={{.State.Health.Status}} exitcode={{.State.ExitCode}}' \
+			2>/dev/null || echo "(gluetun could not be inspected; it may never have been created)"; \
+		echo "--- gluetun log, last 40 lines ---"; \
+		$(RUNTIME) logs --tail 40 gluetun 2>&1 || echo "(no logs available)"; \
+		exit 1; \
+	}
+endef
+
 # podman-compose restarts every service concurrently with no dependency ordering
 # (see transfer_service_status() in podman_compose.py), so services using
 # network_mode: container:gluetun would race gluetun's own restart and could be
@@ -633,8 +659,7 @@ pull_docker_images:
 restart:
 	@echo "Restarting VPN gateway..."
 	@$(COMPOSE) $(STOP_COMPOSE_FILES) --profile enabled restart gluetun
-	@echo "Waiting for VPN gateway to be healthy (up to 120s)..."
-	@timeout 120 sh -c 'until $(RUNTIME) inspect gluetun --format "{{.State.Health.Status}}" 2>/dev/null | grep -q healthy; do sleep 5; done' || (echo "ERROR: gluetun did not become healthy in time"; exit 1)
+	$(call wait_for_gluetun)
 	@echo "Restarting remaining containers..."
 	@services=$$($(COMPOSE) $(STOP_COMPOSE_FILES) --profile enabled config --services 2>/dev/null | grep -vx gluetun); \
 	$(COMPOSE) $(STOP_COMPOSE_FILES) --profile enabled restart $$services
@@ -729,8 +754,7 @@ start: permissions_repair
 	@$(RUNTIME) network exists docker-torrent-box-with-vpn_observability || $(RUNTIME) network create --internal --subnet ${OBSERVABILITY_SUBNET} docker-torrent-box-with-vpn_observability
 	@echo "Starting VPN gateway..."
 	@$(COMPOSE) $(COMPOSE_FILES) --profile enabled up --detach --no-recreate gluetun
-	@echo "Waiting for VPN gateway to be healthy (up to 120s)..."
-	@timeout 120 sh -c 'until $(RUNTIME) inspect gluetun --format "{{.State.Health.Status}}" 2>/dev/null | grep -q healthy; do sleep 5; done' || (echo "ERROR: gluetun did not become healthy in time"; exit 1)
+	$(call wait_for_gluetun)
 	@echo "Starting all containers..."
 	@$(COMPOSE) $(COMPOSE_FILES) --profile enabled up --detach --no-recreate
 	@echo "$(VPN_ON)" > $(VPN_STATE_FILE)
