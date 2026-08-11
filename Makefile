@@ -127,10 +127,12 @@ BACKUP_SKIPPABLE := (/\.config/pulse|/\.cache/|webauth-htpasswd)
 # things, so the exit code alone cannot be trusted. This reads back what tar
 # reported skipping and fails on anything outside BACKUP_SKIPPABLE, which is
 # the difference between tolerating a pulse socket and quietly dropping a
-# database. Args: 1 archive path, 2 exclude flags.
+# database. LC_ALL=C because those diagnostics are what gets matched: under a
+# localized tar the English pattern finds nothing, every skip reads as clean,
+# and the check silently stops checking. Args: 1 archive path, 2 exclude flags.
 define create_archive_checked
 	@errlog="$$(mktemp)"; \
-	tar --create --gzip --warning=no-file-ignored --ignore-failed-read \
+	LC_ALL=C tar --create --gzip --warning=no-file-ignored --ignore-failed-read \
 		--file "$(1)" $(2) .env certs configs 2>"$$errlog"; \
 	status=$$?; \
 	cat "$$errlog" >&2; \
@@ -793,7 +795,7 @@ tests/.venv:
 # stack. rinse_and_repeat is excluded here entirely; see test_extended.
 test: tests/.venv ## Run the full test suite (requires the stack to be running)
 	@tests/.venv/bin/pytest -n auto -m "not rotation and not pw_rotation and not wiring and not killswitch and not rinse_and_repeat" $(PYTEST_ARGS)
-	@tests/.venv/bin/pytest -n 4 -m "rotation_isolated" $(PYTEST_ARGS)
+	@tests/.venv/bin/pytest -n 4 --dist loadgroup -m "rotation_isolated" $(PYTEST_ARGS)
 	@tests/.venv/bin/pytest -m "(rotation or pw_rotation or wiring or killswitch) and not rotation_isolated" $(PYTEST_ARGS)
 
 # The serial (rotation or pw_rotation or wiring or killswitch) tier test
@@ -809,7 +811,7 @@ test: tests/.venv ## Run the full test suite (requires the stack to be running)
 # bootstrap_tests (a real bench, pre-release) still runs the full thing.
 test_ci: tests/.venv ## Run the fast tiers only (read-only + rotation_isolated); what CI runs
 	@tests/.venv/bin/pytest -n auto -m "not rotation and not pw_rotation and not wiring and not killswitch and not rinse_and_repeat" $(PYTEST_ARGS)
-	@tests/.venv/bin/pytest -n 4 -m "rotation_isolated" $(PYTEST_ARGS)
+	@tests/.venv/bin/pytest -n 4 --dist loadgroup -m "rotation_isolated" $(PYTEST_ARGS)
 
 test_prerequisites: tests/.venv ## Run only pre-flight checks (no containers needed)
 	@tests/.venv/bin/pytest -m prerequisites $(PYTEST_ARGS)
