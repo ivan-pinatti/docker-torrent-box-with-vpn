@@ -27,12 +27,18 @@ MANIFEST = REPO_ROOT / "permissions.yml"
 # whenever STORAGE_REMOTE is configured; see docs/STORAGE.md. Without this,
 # `make start` dies before starting anything, because it depends on
 # permissions_repair and the first setfacl against the share exits non-zero.
+#
+# NFS is deliberately absent: it carries real uid/gid and supports ACLs, so the
+# manifest applies there as it does on local disk. That is the whole reason
+# docs/STORAGE.md offers it as the alternative to SMB. It is not unconditional,
+# since an export that squashes root, or a server without NFSACL/NFSv4 ACL
+# support, will reject the chown or setfacl. Failing loudly is the right
+# outcome for a setup chosen specifically to preserve ownership, rather than
+# silently skipping and leaving the tree with whatever the export decided.
 UNMANAGED_FSTYPES = frozenset(
     {
         "cifs",
         "smb3",
-        "nfs",
-        "nfs4",
         "vfat",
         "exfat",
         "msdos",
