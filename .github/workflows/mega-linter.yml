@@ -27,6 +27,13 @@ permissions:
   # findings as a PR comment, confirmed live to 403 without this.
   pull-requests: write
 
+# A push supersedes whatever is still linting for the same PR. Without this a
+# quick series of pushes leaves several full lints running, each posting its
+# own PR comment about a commit that has already been replaced.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   megalinter:
     name: MegaLinter

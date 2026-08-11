@@ -32,6 +32,17 @@ on:
 permissions:
   contents: read
 
+# A push supersedes whatever is still running for the same PR, so a rapid
+# series of pushes does not leave several full validations racing each other
+# to an answer that no longer matters. Integration Tests is the reason this
+# matters: it spins the whole stack up, and a superseded copy of it will
+# happily run for twenty minutes describing a commit nobody is looking at.
+# Keyed on the PR number where there is one, falling back to the ref so a
+# workflow_dispatch run gets its own group instead of cancelling a real one.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   pr_check:
     name: Code Check
@@ -78,6 +89,15 @@ jobs:
         uses: pre-commit/action@v3.0.1
         with:
           extra_args: --all-files
+        env:
+          # .pre-commit-config.yaml runs megalinter-incremental at the
+          # pre-commit stage, which under --all-files is the same sweep the
+          # MegaLinter workflow already performs on the same commit. Both took
+          # very nearly four minutes, doing identical work and reporting the
+          # same failures twice. The standalone workflow keeps it, since that
+          # is the one with the reporter output and the uploaded artifacts;
+          # this job drops it and is left checking what only pre-commit checks.
+          SKIP: megalinter-incremental
 
   prerequisites:
     name: Prerequisite Checks
@@ -127,6 +147,35 @@ jobs:
       - name: Create test venv and run prerequisite tests
         run: make test_prerequisites
 
+  changes:
+    name: Detect Changed Paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/pull/{0}/head', inputs.pr_number) || github.ref }}
+
+      - name: Filter
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          # Anything that can change how the stack behaves at runtime. A PR
+          # touching only prose cannot break an integration test, and standing
+          # a whole stack up to prove that costs more than the check is worth.
+          # Deliberately broad: the default when in doubt is to run the tests,
+          # so this lists what is safe to skip on rather than what to run on.
+          filters: |
+            code:
+              - '**'
+              - '!**/*.md'
+              - '!docs/**'
+              - '!**/.gitkeep'
+              - '!CITATION.cff'
+
   integration:
     name: Integration Tests
     runs-on: ubuntu-latest
@@ -137,13 +186,17 @@ jobs:
     # A few extra minutes on top of that cover the wire_connections step
     # (mostly concurrent per-app HTTP calls, with some retries up to 180s).
     timeout-minutes: 25
-    needs: pr_check
+    needs: [pr_check, changes]
     # No implicit success() here (an explicit if: replaces it), since
     # pr_check being skipped for job_scope: tests must not skip this too:
     # only an actual pr_check failure should block it.
+    # The changes.outputs.code test skips the stack entirely for prose-only
+    # PRs. An explicit /run-tests comment arrives as a workflow_dispatch and
+    # bypasses it, so the escape hatch stays open when the filter is wrong.
     if: >
       (needs.pr_check.result == 'success' || needs.pr_check.result == 'skipped') &&
-      (github.event_name != 'workflow_dispatch' || inputs.job_scope != 'checks')
+      (github.event_name != 'workflow_dispatch' || inputs.job_scope != 'checks') &&
+      (needs.changes.outputs.code == 'true' || github.event_name == 'workflow_dispatch')
     env:
       PROTONVPN_PRIVATE_KEY: ${{ secrets.PROTONVPN_PRIVATE_KEY }}
     steps:
