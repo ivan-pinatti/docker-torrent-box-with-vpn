@@ -114,12 +114,42 @@ COMMON_BACKUP_EXCLUDES := \
 	--exclude='configs/*/config/logs' \
 	--exclude='configs/*/config/*/logs'
 
-# --ignore-failed-read (see each tar below for why it is there) lets tar skip
-# what it cannot read and still exit 0, so without this a partial archive would
-# be reported as a complete one. Nothing here can vouch for every individual
-# file, but an archive missing an entire top-level tree is broken beyond doubt.
-# For restore-configs this check is what stands between a bad safety archive and
-# the `rm -rf` that follows it.
+# The only paths tar is allowed to silently omit. All are container-owned
+# runtime state that the host user genuinely cannot read and that no restore
+# needs: calibre's PulseAudio runtime directory, its cache, and jdownloader2's
+# generated webauth-htpasswd. Anything else going missing means the archive is
+# not what it claims to be.
+BACKUP_SKIPPABLE := (/\.config/pulse|/\.cache/|webauth-htpasswd)
+
+# Runs one archive creation and refuses to call a partial result a success.
+# --ignore-failed-read is what stops a single unreadable container-owned file
+# from aborting the whole run, but it also makes tar exit 0 after omitting
+# things, so the exit code alone cannot be trusted. This reads back what tar
+# reported skipping and fails on anything outside BACKUP_SKIPPABLE, which is
+# the difference between tolerating a pulse socket and quietly dropping a
+# database. Args: 1 archive path, 2 exclude flags.
+define create_archive_checked
+	@errlog="$$(mktemp)"; \
+	tar --create --gzip --warning=no-file-ignored --ignore-failed-read \
+		--file "$(1)" $(2) .env certs configs 2>"$$errlog"; \
+	status=$$?; \
+	cat "$$errlog" >&2; \
+	unexpected="$$(grep -E 'Cannot (open|stat|read)' "$$errlog" \
+		| grep -vE '$(BACKUP_SKIPPABLE)' || true)"; \
+	rm -f "$$errlog"; \
+	if [ "$$status" -ne 0 ]; then exit "$$status"; fi; \
+	if [ -n "$$unexpected" ]; then \
+		echo "ERROR: $(1) omitted files that are not known-skippable:"; \
+		echo "$$unexpected"; \
+		echo "Refusing to report an incomplete archive as complete."; \
+		exit 1; \
+	fi
+endef
+
+# Post-condition on the finished archive, complementing the check above: that
+# one watches what tar reported, this one checks what actually landed. A tree
+# absent entirely is broken beyond argument, and for restore-configs this is
+# the last thing standing between a bad safety archive and the `rm -rf`.
 define verify_archive_complete
 	@for required in .env certs configs; do \
 		tar --list --gzip --file "$(1)" 2>/dev/null \
@@ -323,12 +353,7 @@ backup-configs:
 	@echo "Config backup (lean): .env, certs, configs, minus logs, caches, and artwork."
 	@echo "For everything the lean backup strips, run: make backup-full"
 	@mkdir -p "$(BACKUP_DIR)"
-	# --ignore-failed-read so one unreadable container-owned file cannot kill
-	# the whole backup; tar still warns per skipped file (see restore-configs).
-	@tar --create --gzip --warning=no-file-ignored --ignore-failed-read \
-		--file "$(CONFIG_BACKUP_ARCHIVE)" \
-		$(CONFIG_BACKUP_EXCLUDES) \
-		.env certs configs
+	$(call create_archive_checked,$(CONFIG_BACKUP_ARCHIVE),$(CONFIG_BACKUP_EXCLUDES))
 	$(call verify_archive_complete,$(CONFIG_BACKUP_ARCHIVE))
 	@echo "Done: $(CONFIG_BACKUP_ARCHIVE) ($$(du -h "$(CONFIG_BACKUP_ARCHIVE)" | cut -f1))"
 
@@ -336,12 +361,7 @@ backup-full:
 	@echo "Config backup (full): .env, certs, configs, keeping Jellyfin metadata"
 	@echo "and Recyclarr's cloned git repos that backup-configs strips."
 	@mkdir -p "$(BACKUP_DIR)"
-	# --ignore-failed-read so one unreadable container-owned file cannot kill
-	# the whole backup; tar still warns per skipped file (see restore-configs).
-	@tar --create --gzip --warning=no-file-ignored --ignore-failed-read \
-		--file "$(FULL_BACKUP_ARCHIVE)" \
-		$(COMMON_BACKUP_EXCLUDES) \
-		.env certs configs
+	$(call create_archive_checked,$(FULL_BACKUP_ARCHIVE),$(COMMON_BACKUP_EXCLUDES))
 	$(call verify_archive_complete,$(FULL_BACKUP_ARCHIVE))
 	@echo "Done: $(FULL_BACKUP_ARCHIVE) ($$(du -h "$(FULL_BACKUP_ARCHIVE)" | cut -f1))"
 
@@ -356,19 +376,12 @@ restore-configs:
 	@if [ ! -f "$(BACKUP)" ]; then echo "ERROR: backup archive not found: $(BACKUP)"; exit 1; fi
 	@echo "Creating pre-restore safety backup at $(RESTORE_SAFETY_ARCHIVE)..."
 	@mkdir -p "$(BACKUP_DIR)"
-	# --ignore-failed-read: some files under configs/ are owned by a container's
-	# own UID with no group/other read bit (confirmed live: calibre's pulse
-	# runtime dir and jdownloader2's generated webauth-htpasswd), so this tar
-	# exits non-zero and, being the first step of the recipe, aborts the whole
-	# restore before it starts. tar still prints a "Cannot open" warning per
-	# skipped file, so they stay visible rather than silently missing. Same
-	# excludes as backup-full: without them this archives every cache and
+	# Same excludes as backup-full: without them this archives every cache and
 	# artwork directory, which is what makes it minutes slower than the backup
-	# targets it is meant to mirror.
-	@tar --create --gzip --warning=no-file-ignored --ignore-failed-read \
-		--file "$(RESTORE_SAFETY_ARCHIVE)" \
-		$(COMMON_BACKUP_EXCLUDES) \
-		.env certs configs
+	# targets it is meant to mirror. create_archive_checked tolerates only the
+	# container-owned runtime files in BACKUP_SKIPPABLE and fails on anything
+	# else, which matters most here: everything below this line is destructive.
+	$(call create_archive_checked,$(RESTORE_SAFETY_ARCHIVE),$(COMMON_BACKUP_EXCLUDES))
 	$(call verify_archive_complete,$(RESTORE_SAFETY_ARCHIVE))
 	@echo "Restoring $(BACKUP)..."
 	@rm -rf .env certs configs
