@@ -19,6 +19,23 @@ MEDIA_COVERS_FOLDER="${DATA_FOLDER}/media/covers"
 APP_BACKUPS_FOLDER="${DATA_FOLDER}/backups"
 ```
 
+## Keep DATA_FOLDER Repository Relative
+
+External storage is mounted **at** `data/` rather than pointed at from
+elsewhere: `STORAGE_MOUNTPOINT` defaults to `${DATA_FOLDER}`, and
+`scripts/permissions.py` resolves every path in `permissions.yml` against the
+repository root, refusing anything that escapes it. That containment check is
+deliberate, since the manifest drives recursive `chown` and `setfacl` under
+`podman unshare`.
+
+A mount at `data/` keeps those paths inside the repository, so ownership
+handling and the external-filesystem detection below both work normally.
+Pointing `DATA_FOLDER` at an absolute path outside the repository instead
+would leave compose reading from one tree while the permissions manifest
+managed another. Symlinking `data/` elsewhere does not work either: the
+symlink resolves outside the repository and the manifest run stops with
+`refusing path outside repository`.
+
 ## The One Share Rule
 
 If `data/` moves onto a network share, it must be **one share, mounted once**.
