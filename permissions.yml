@@ -334,6 +334,7 @@ paths:
     mode: "0750"
     chown_files: true
     acl: [{identity: calibre_web, perms: r-x}]
+    default_acl: [{identity: calibre_web, perms: r-x}]
 
   # Cover art relocated out of each app's config directory and bind mounted
   # back over /config/MediaCover (see MEDIA_COVERS_FOLDER in .env). Each app
@@ -393,7 +394,6 @@ paths:
     owner: whisparr
     mode: "0750"
     chown_files: true
-    default_acl: [{identity: calibre_web, perms: r-x}]
 
   - path: data/recycle
     owner: root
