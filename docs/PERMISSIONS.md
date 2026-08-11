@@ -119,12 +119,20 @@ mapping and is why app processes still run as service-specific non-root UIDs.
 
 ## External Storage
 
-On filesystems that carry no per-file ownership or POSIX ACLs (CIFS, NFS, FAT
-variants), `scripts/permissions.py` skips `chown`, `chmod` and `setfacl` for the
-affected paths and prints a note, while still creating the directories and still
-running the hardlink smoke test. Access there comes from the mount options
-instead. `check` and `repair` both behave this way, so `make start` continues to
-work when `data/` is a network mount. See [STORAGE.md](STORAGE.md).
+On filesystems that carry no per-file ownership or POSIX ACLs (CIFS/SMB, FAT
+variants, NTFS), `scripts/permissions.py` skips `chown`, `chmod` and `setfacl`
+for the affected paths and prints a note, while still creating the directories
+and still running the hardlink smoke test. Access there comes from the mount
+options instead. `check` and `repair` both behave this way, so `make start`
+continues to work when `data/` is on one of them.
+
+NFS is **not** in that group. It carries real uid/gid and supports ACLs, so the
+manifest applies there exactly as it does on local disk, which is why
+[STORAGE.md](STORAGE.md) offers it as the alternative to SMB. That assumes the
+export cooperates: one that squashes root, or a server without NFSACL/NFSv4 ACL
+support, will reject the `chown` or `setfacl` and the run stops with that
+error. For a setup chosen specifically to preserve ownership, failing loudly
+beats silently leaving the tree to whatever the export decided.
 
 ## Hardlinks
 

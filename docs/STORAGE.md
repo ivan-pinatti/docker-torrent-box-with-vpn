@@ -129,9 +129,17 @@ it depends on `permissions_repair`.
 
 ## NFS as an Alternative
 
-NFSv4 preserves real uid/gid and ACLs, which would let `permissions.yml` apply
-unchanged rather than being skipped. It also supports Kerberos authentication.
-If the server offers it, it is worth comparing before committing to SMB.
+NFS preserves real uid/gid and supports ACLs, so `permissions.yml` applies
+there exactly as it does on local disk, rather than being skipped the way it is
+on CIFS. NFSv4 also supports Kerberos authentication. If the server offers it,
+it is worth comparing before committing to SMB.
+
+That does depend on the export cooperating. An export that squashes root, or a
+server without NFSACL/NFSv4 ACL support, will reject the `chown` or `setfacl`
+and `make permissions_repair` will stop with that error rather than skip it.
+That is deliberate: on storage chosen specifically to preserve ownership, a
+silent skip would leave the tree with whatever the export decided and no
+indication the model had stopped applying.
 
 ---
 
