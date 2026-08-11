@@ -134,6 +134,9 @@ def test_backup_full_keeps_app_artwork_but_not_repo_or_media_state(tmp_path):
 
     assert "data/media/covers/lidarr/1/poster.jpg" not in names
     assert "data/backups/lidarr/scheduled/backup.zip" not in names
+    # --exclude=cache is unanchored and lives in COMMON_BACKUP_EXCLUDES, so the
+    # full mode drops caches too. Deliberate: the big ones are transcodes.
+    assert "configs/jellyfin/config/cache/transcodes/file" not in names
     assert "configs/lidarr/config/asp/key.xml" not in names
     assert "configs/jellyfin/config/.aspnet/DataProtection-Keys/key.xml" not in names
     assert ".git/config" not in names

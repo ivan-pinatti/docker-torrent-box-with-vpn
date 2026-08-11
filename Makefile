@@ -293,7 +293,9 @@ bootstrap: configs/flaresolverr/config/chromedriver
 # default for routine backups. Both restore through the same `restore-configs`
 # target (`restore-full` is just an alias for it too); a full backup is only
 # worth the extra size if you actually need the things it keeps that the lean
-# one strips: Jellyfin's metadata/cache and Recyclarr's cloned git repos.
+# one strips: Jellyfin's metadata library and Recyclarr's cloned git repos.
+# Caches are not among them. --exclude=cache in COMMON_BACKUP_EXCLUDES is
+# unanchored, so both modes drop every directory named cache wherever it sits.
 # *arr MediaCover artwork and scheduled backups are no longer among them: both
 # now live under data/ (MEDIA_COVERS_FOLDER and APP_BACKUPS_FOLDER), so neither
 # mode archives them. The excludes below are kept for setups predating that
@@ -313,7 +315,7 @@ backup-configs:
 	@echo "Done: $(CONFIG_BACKUP_ARCHIVE) ($$(du -h "$(CONFIG_BACKUP_ARCHIVE)" | cut -f1))"
 
 backup-full:
-	@echo "Config backup (full): .env, certs, configs, keeping Jellyfin metadata/cache"
+	@echo "Config backup (full): .env, certs, configs, keeping Jellyfin metadata"
 	@echo "and Recyclarr's cloned git repos that backup-configs strips."
 	@mkdir -p "$(BACKUP_DIR)"
 	# --ignore-failed-read so one unreadable container-owned file cannot kill
