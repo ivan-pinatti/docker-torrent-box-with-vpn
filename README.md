@@ -429,7 +429,7 @@ make backup
 
 This creates a lean backup of `.env`, `certs/`, and restore-critical app config
 state under `backup/`. For a larger backup that also includes Jellyfin's
-metadata and caches, run:
+metadata library, run:
 
 ```shell
 make backup-full

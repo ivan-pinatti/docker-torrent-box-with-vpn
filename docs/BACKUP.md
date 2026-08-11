@@ -3,7 +3,7 @@
 This project has two backup modes:
 
 - `make backup` or `make backup-configs`: lean backup for day-to-day recovery.
-- `make backup-full`: larger backup that keeps Jellyfin metadata and caches.
+- `make backup-full`: larger backup that keeps Jellyfin's metadata library.
 
 Both are manual. Run `make backup-schedule` to install a cron entry that runs
 `make backup` automatically (daily at 03:00 by default). See
@@ -64,7 +64,7 @@ backup modes.
 
 ## Full Config Backup
 
-Use the full mode when you also want Jellyfin's metadata and cache state:
+Use the full mode when you also want Jellyfin's metadata library:
 
 ```shell
 make backup-full
@@ -77,9 +77,12 @@ backup/full-YYYY-MM-DD-HHMMSS.tar.gz
 ```
 
 The full backup includes `.env`, `certs/`, and all of `configs/`, including
-metadata caches. It still does not include repository metadata, tests,
-MegaLinter reports, media/download libraries, observability storage, runtime
-cache folders, or dependencies.
+Jellyfin's metadata library. Caches are **not** among them: `--exclude=cache`
+is unanchored and applies to both modes, so any directory named `cache` is
+dropped wherever it appears. That is deliberate, since the largest of them
+hold regenerable transcodes. It also does not include repository metadata,
+tests, MegaLinter reports, media/download libraries, observability storage, or
+dependencies.
 
 ## Scheduling
 
