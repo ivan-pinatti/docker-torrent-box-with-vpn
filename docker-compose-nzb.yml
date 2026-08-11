@@ -70,7 +70,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/sabnzbd/config:/config:z
-      - ${USENET_FOLDER}:/data/usenet:z
+      - ${USENET_FOLDER}:/data/usenet${DATA_VOLUME_FLAGS}
     healthcheck:
       <<: *healthcheck-defaults
       test: >
@@ -111,7 +111,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/nzbget/config:/config:z
-      - ${USENET_FOLDER}:/data/usenet:z
+      - ${USENET_FOLDER}:/data/usenet${DATA_VOLUME_FLAGS}
   nzbhydra2:
     <<: *limit-nzbhydra2
     image: docker.io/linuxserver/nzbhydra2:${NZBHYDRA2_VERSION}
@@ -132,8 +132,8 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/nzbhydra2/config:/config:z
-      - ${TORRENT_BLACKHOLE_FOLDER}:/downloads/torrents/blackhole:z
-      - ${USENET_BLACKHOLE_FOLDER}:/downloads/usenet/blackhole:z
+      - ${TORRENT_BLACKHOLE_FOLDER}:/downloads/torrents/blackhole${DATA_VOLUME_FLAGS}
+      - ${USENET_BLACKHOLE_FOLDER}:/downloads/usenet/blackhole${DATA_VOLUME_FLAGS}
     healthcheck:
       <<: *healthcheck-defaults
       test: >

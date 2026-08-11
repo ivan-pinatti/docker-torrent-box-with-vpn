@@ -109,7 +109,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/jellyfin/config:/config:z
-      - ${DATA_FOLDER}:/data:z
+      - ${DATA_FOLDER}:/data${DATA_VOLUME_FLAGS}
     healthcheck:
       interval: 60s
       retries: 5
@@ -145,7 +145,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/audiobookshelf/config:/config:z
       - ${CONFIG_FOLDER}/audiobookshelf/metadata:/metadata:z
-      - ${DATA_FOLDER}:/data:z
+      - ${DATA_FOLDER}:/data${DATA_VOLUME_FLAGS}
     healthcheck:
       <<: *healthcheck-defaults
       test: wget -q -O /dev/null http://127.0.0.1:${AUDIOBOOKSHELF_HTTP_PORT}/ping || exit 1
@@ -191,7 +191,7 @@ services:
       - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/calibre/config:/config:z
       - ${CONFIG_FOLDER}/calibre/custom-cont-init.d:/custom-cont-init.d:z
-      - ${DATA_FOLDER}:/data:z
+      - ${DATA_FOLDER}:/data${DATA_VOLUME_FLAGS}
     healthcheck:
       <<: *healthcheck-defaults
       # No --fail on purpose: the GUI answers 401 when web authentication is
@@ -228,7 +228,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/calibre-web/config:/config:z
-      - ${DATA_FOLDER}:/data:z
+      - ${DATA_FOLDER}:/data${DATA_VOLUME_FLAGS}
     healthcheck:
       <<: *healthcheck-defaults
       # Calibre-Web only ever runs on plain HTTP here (see wire-connections.sh:

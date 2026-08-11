@@ -32,8 +32,15 @@ def _fixture(root: Path) -> None:
     _write(root / "configs/lidarr/config/logs.db", "log database\n")
     _write(root / "configs/lidarr/config/logs/lidarr.log", "log\n")
     _write(root / "configs/lidarr/config/asp/key.xml", "data protection key\n")
+    # Legacy in-configs locations. Cover art and scheduled backups now live
+    # under data/ (MEDIA_COVERS_FOLDER, APP_BACKUPS_FOLDER), but the Makefile
+    # keeps these excludes for setups predating that move, so they stay covered.
     _write(root / "configs/lidarr/config/MediaCover/1/poster.jpg", "artwork\n")
     _write(root / "configs/lidarr/config/Backups/scheduled/backup.zip", "zip\n")
+    # Current locations. Neither backup mode may ever archive these: the
+    # scheduled backups in particular can run to hundreds of MiB.
+    _write(root / "data/media/covers/lidarr/1/poster.jpg", "artwork\n")
+    _write(root / "data/backups/lidarr/scheduled/backup.zip", "zip\n")
     _write(root / "configs/lidarr/config/Sentry/event.json", "{}\n")
     _write(root / "configs/whisparr/config.bak/asp/key.xml", "legacy key\n")
     _write(root / "configs/whisparr/config.v2.bak/asp/key.xml", "legacy key\n")
@@ -77,7 +84,9 @@ def test_backup_configs_creates_lean_archive(tmp_path):
 
     result = _make(tmp_path, "backup-configs", "BACKUP_TIMESTAMP=2026-04-27-101112")
 
-    assert "For a FULL backup, run: make backup-full" in result.stdout
+    assert "For everything the lean backup strips, run: make backup-full" in (
+        result.stdout
+    )
     archive = tmp_path / "backup/configs-2026-04-27-101112.tar.gz"
     names = _archive_names(archive)
 
@@ -91,6 +100,8 @@ def test_backup_configs_creates_lean_archive(tmp_path):
 
     assert "configs/lidarr/config/MediaCover/1/poster.jpg" not in names
     assert "configs/lidarr/config/Backups/scheduled/backup.zip" not in names
+    assert "data/media/covers/lidarr/1/poster.jpg" not in names
+    assert "data/backups/lidarr/scheduled/backup.zip" not in names
     assert "configs/lidarr/config/Sentry/event.json" not in names
     assert "configs/lidarr/config/logs/lidarr.log" not in names
     assert "configs/lidarr/config/asp/key.xml" not in names
@@ -121,6 +132,8 @@ def test_backup_full_keeps_app_artwork_but_not_repo_or_media_state(tmp_path):
     assert "configs/jellyfin/config/metadata/People/A/person.jpg" in names
     assert "configs/audiobookshelf/metadata/backups/abs.zip" in names
 
+    assert "data/media/covers/lidarr/1/poster.jpg" not in names
+    assert "data/backups/lidarr/scheduled/backup.zip" not in names
     assert "configs/lidarr/config/asp/key.xml" not in names
     assert "configs/jellyfin/config/.aspnet/DataProtection-Keys/key.xml" not in names
     assert ".git/config" not in names

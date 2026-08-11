@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import argparse
+import functools
 import os
 import shlex
 import shutil
@@ -18,6 +19,81 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = REPO_ROOT / "permissions.yml"
+
+# Filesystems that cannot represent per-file ownership or POSIX ACLs. There the
+# mount options fix uid, gid and mode for the whole tree, so chown, chmod and
+# setfacl either fail outright or silently do nothing, and the manifest's
+# ownership model simply does not apply. DATA_FOLDER sits on one of these
+# whenever STORAGE_REMOTE is configured; see docs/STORAGE.md. Without this,
+# `make start` dies before starting anything, because it depends on
+# permissions_repair and the first setfacl against the share exits non-zero.
+UNMANAGED_FSTYPES = frozenset(
+    {
+        "cifs",
+        "smb3",
+        "nfs",
+        "nfs4",
+        "vfat",
+        "exfat",
+        "msdos",
+        "ntfs",
+        "ntfs3",
+        "fuseblk",
+    }
+)
+
+
+@functools.cache
+def mount_table() -> tuple[tuple[str, str], ...]:
+    """Mountpoints and their filesystem types, longest mountpoint first."""
+    entries: list[tuple[str, str]] = []
+    try:
+        with open("/proc/self/mounts", encoding="utf-8") as handle:
+            for line in handle:
+                fields = line.split()
+                if len(fields) >= 3:
+                    entries.append((fields[1].replace("\\040", " "), fields[2]))
+    except OSError:
+        return ()
+    entries.sort(key=lambda item: len(item[0]), reverse=True)
+    return tuple(entries)
+
+
+def path_fstype(path: Path) -> str | None:
+    """Filesystem type backing path, by longest mountpoint prefix match.
+
+    Deliberately string based rather than stat based so it also answers for
+    paths that do not exist yet: repair() creates directories as it walks the
+    manifest, and needs the answer before the mkdir.
+    """
+    target = str(path)
+    for mountpoint, fstype in mount_table():
+        if target == mountpoint or target.startswith(mountpoint.rstrip("/") + "/"):
+            return fstype
+    return None
+
+
+def unmanaged_fstype(path: Path) -> str | None:
+    """The fstype if path is on a filesystem the manifest cannot manage."""
+    fstype = path_fstype(path)
+    return fstype if fstype in UNMANAGED_FSTYPES else None
+
+
+def report_unmanaged(skipped: dict[str, str]) -> None:
+    if not skipped:
+        return
+    by_type: dict[str, list[str]] = {}
+    for rel, fstype in skipped.items():
+        by_type.setdefault(fstype, []).append(rel)
+    for fstype, paths in sorted(by_type.items()):
+        print(
+            f"note: skipped ownership and ACLs for {len(paths)} path(s) on {fstype}: "
+            f"{paths[0]}{' ...' if len(paths) > 1 else ''}"
+        )
+        print(
+            f"      {fstype} carries no per-file ownership or POSIX ACLs; access "
+            "there comes from the mount options instead."
+        )
 
 
 def load_manifest() -> dict[str, Any]:
@@ -61,6 +137,12 @@ def runtime_prefix(runtime: str) -> list[str]:
     return []
 
 
+def ensure_dir(path: Path, *, runtime: str, dry_run: bool) -> None:
+    result = run([*runtime_prefix(runtime), "mkdir", "-p", str(path)], dry_run=dry_run)
+    if result.returncode != 0:
+        raise SystemExit(result.stderr.strip() or f"failed to create: {path}")
+
+
 def chmod_chown(
     manifest: dict[str, Any],
     entry: dict[str, Any],
@@ -70,9 +152,7 @@ def chmod_chown(
     dry_run: bool,
 ) -> None:
     path = safe_path(entry["path"])
-    result = run([*runtime_prefix(runtime), "mkdir", "-p", str(path)], dry_run=dry_run)
-    if result.returncode != 0:
-        raise SystemExit(result.stderr.strip() or f"failed to create: {path}")
+    ensure_dir(path, runtime=runtime, dry_run=dry_run)
 
     uid, gid = identity_id(manifest, entry.get("owner"))
     prefix = runtime_prefix(runtime)
@@ -242,11 +322,16 @@ def manifest_entry_for_path(
 
 def check(manifest: dict[str, Any], *, runtime: str) -> int:
     failures: list[str] = []
+    skipped: dict[str, str] = {}
     host_acl = host_access_acl(manifest, default=False)
     host_default_acl = host_access_acl(manifest, default=True)
     for entry in manifest.get("paths", []):
         rel = entry["path"]
         path = safe_path(rel)
+        fstype = unmanaged_fstype(path)
+        if fstype:
+            skipped[rel] = fstype
+            continue
         expected_uid, expected_gid = identity_id(manifest, entry.get("owner"))
         try:
             actual_uid, actual_gid, actual_mode = stat_namespace(path, runtime)
@@ -279,6 +364,7 @@ def check(manifest: dict[str, Any], *, runtime: str) -> int:
                         failures.append(
                             f"{rel}: missing host default ACL {expected_acl}"
                         )
+    report_unmanaged(skipped)
     if failures:
         print("\n".join(failures))
         return 1
@@ -295,11 +381,21 @@ def repair(
 ) -> None:
     if runtime == "podman" and not shutil.which("podman"):
         raise SystemExit("podman is required for rootless permission repair")
+    skipped: dict[str, str] = {}
     for entry in manifest.get("paths", []):
+        path = safe_path(entry["path"])
+        fstype = unmanaged_fstype(path)
+        if fstype:
+            # The tree still has to exist, the apps expect these directories.
+            # Only the ownership and ACL work is meaningless here.
+            ensure_dir(path, runtime=runtime, dry_run=dry_run)
+            skipped[entry["path"]] = fstype
+            continue
         chmod_chown(
             manifest, entry, runtime=runtime, recursive=recursive, dry_run=dry_run
         )
         set_acl(manifest, entry, runtime=runtime, recursive=recursive, dry_run=dry_run)
+    report_unmanaged(skipped)
 
 
 def smoke(manifest: dict[str, Any], *, runtime: str) -> int:

@@ -3,7 +3,7 @@
 This project has two backup modes:
 
 - `make backup` or `make backup-configs`: lean backup for day-to-day recovery.
-- `make backup-full`: larger backup that keeps application artwork and metadata.
+- `make backup-full`: larger backup that keeps Jellyfin metadata and caches.
 
 Both are manual. Run `make backup-schedule` to install a cron entry that runs
 `make backup` automatically (daily at 03:00 by default). See
@@ -43,9 +43,28 @@ The full `/metadata` tree is bind mounted on the host at
 Use this when you want the smallest practical backup that can restore service
 settings, secrets, certificates, and primary app databases.
 
+## What Neither Mode Covers
+
+Two things the *arr apps used to keep inside `configs/` now live under `data/`
+instead, so **no backup mode archives them**:
+
+| What | Where it lives now | `.env` variable |
+| ---- | ------------------ | --------------- |
+| Cover art (`/config/MediaCover`) | `data/media/covers/<app>` | `MEDIA_COVERS_FOLDER` |
+| Scheduled database backups (`/config/Backups`) | `data/backups/<app>` | `APP_BACKUPS_FOLDER` |
+
+Both are bind mounted back over the app's own config paths, so the apps are
+unaware of the move. Cover art is regenerable: the apps refetch it on a
+metadata refresh. The scheduled backups are not, and they are deliberately out
+here so they survive losing the host that `configs/` sits on. Whatever storage
+`data/` is on is responsible for them; see [STORAGE.md](STORAGE.md).
+
+The primary databases themselves stay in `configs/` and are covered by both
+backup modes.
+
 ## Full Config Backup
 
-Use the full mode when you also want application artwork and metadata state:
+Use the full mode when you also want Jellyfin's metadata and cache state:
 
 ```shell
 make backup-full
@@ -58,9 +77,9 @@ backup/full-YYYY-MM-DD-HHMMSS.tar.gz
 ```
 
 The full backup includes `.env`, `certs/`, and all of `configs/`, including
-artwork and metadata caches. It still does not include repository metadata,
-tests, MegaLinter reports, media/download libraries, observability storage,
-runtime cache folders, or dependencies.
+metadata caches. It still does not include repository metadata, tests,
+MegaLinter reports, media/download libraries, observability storage, runtime
+cache folders, or dependencies.
 
 ## Scheduling
 

@@ -119,9 +119,20 @@ data/usenet/**
 data/media/**
 !data/media/*/
 !data/media/*/.gitkeep
+# Cover art is one level deeper (data/media/covers/<app>), so it needs its own
+# negations, same as data/usenet/complete/*/ above. Structure only: the images
+# themselves stay ignored.
+!data/media/covers/*/
+!data/media/covers/*/.gitkeep
 data/recycle/**
 !data/recycle/*/
 !data/recycle/*/.gitkeep
+# Scheduled *arr database backups (data/backups/<app>). These contain real
+# library data and can run to hundreds of MiB, so only the structure is kept.
+data/backups/**
+!data/backups/.gitkeep
+!data/backups/*/
+!data/backups/*/.gitkeep
 
 # Observability storage — keep structure, ignore runtime data
 storage/alloy/data/*
