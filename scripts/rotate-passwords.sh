@@ -112,10 +112,16 @@ readonly GRAFANA_INI="configs/grafana/config/grafana.ini"
 # via compose `secrets:`. See docs/COMPOSE_CONVENTIONS.md.
 readonly GRAFANA_HOMEPAGE_AUTH_SECRET="configs/grafana/secrets/homepage_auth.txt" # pragma: allowlist secret
 readonly CALIBREWEB_DB="configs/calibre-web/config/app.db"
-# The image's own hardcoded default username, not this project's usual
-# per-app placeholder; see scripts/wire-connections.sh's
-# ensure_calibre_web_setup() for why it's never renamed.
-readonly CALIBREWEB_USER="admin"
+# The image's own default username, not this project's usual per-app
+# placeholder; see scripts/wire-connections.sh's ensure_calibre_web_setup()
+# for why this project never renames it. It is only the fallback, because
+# nothing stops the account from having been renamed in the app itself:
+# confirmed live on an install whose sole admin row was named "calibre", where
+# assuming "admin" made this rotation skip the app entirely, reporting "No
+# user 'admin' in app.db" while leaving that install's real password
+# untouched and absent from the summary. calibre_web_admin_user() below asks
+# app.db who the admin actually is and only falls back to this.
+readonly CALIBREWEB_DEFAULT_USER="admin"
 # Single source of truth for Calibre-Web's password, consumed via compose
 # `secrets:` by homepage. See docs/COMPOSE_CONVENTIONS.md.
 readonly CALIBREWEB_PASSWORD_SECRET="configs/calibre-web/secrets/password.txt" # pragma: allowlist secret
@@ -351,7 +357,7 @@ rotate_arr_password() {
     --arg pw "$new_password" \
     --arg user "$container_name" \
     '.username = (if ((.username // "") | length) == 0 then $user else .username end)
-     | .password = $pw | .passwordConfirmation = $pw')
+    | .password = $pw | .passwordConfirmation = $pw')
 
   container_curl "$container_name" -sk -X PUT \
     -H "X-Api-Key: $api_key" \
@@ -615,12 +621,35 @@ PYEOF
   SUMMARY_CALIBRE_NEW="$new_password"
 }
 
+# Calibre-Web stores its role bitmask in user.role, where bit 0 is
+# ROLE_ADMIN (Guest, for instance, is 32 and not an admin). Picks the
+# lowest-id admin so the choice is stable, and prints nothing if app.db is
+# missing or has no admin row, leaving the caller with the default.
+calibre_web_admin_user() {
+  [[ -f "$CALIBREWEB_DB" ]] || return 0
+  python3 - <<PYEOF 2>/dev/null || true
+import sqlite3
+try:
+    conn = sqlite3.connect("file:$CALIBREWEB_DB?mode=ro", uri=True)
+    row = conn.execute("SELECT name FROM user WHERE role & 1 = 1 ORDER BY id LIMIT 1").fetchone()
+    conn.close()
+    if row:
+        print(row[0])
+except Exception:
+    pass
+PYEOF
+}
+
 rotate_calibre_web() {
   # Calibre-Web has no password API; the hash is written directly to app.db
   # (werkzeug pbkdf2 format) while the app is stopped, then Homepage's
   # credential is updated.
   local new_password
   new_password=$(gen_password)
+
+  local CALIBREWEB_USER
+  CALIBREWEB_USER=$(calibre_web_admin_user)
+  CALIBREWEB_USER="${CALIBREWEB_USER:-$CALIBREWEB_DEFAULT_USER}"
 
   echo "[Calibre-Web] Stopping container to update app.db..."
   stop_container calibre-web
@@ -1604,9 +1633,17 @@ calibre_content_server_ok() {
 }
 
 calibre_web_login_ok() {
+  # Whatever rotate_calibre_web() actually wrote to, which is not necessarily
+  # the image default; fall back the same way it does so this still resolves
+  # if the rotation was skipped.
+  local user="${SUMMARY_CALIBRE_WEB_USER:-}"
+  if [[ -z "$user" ]]; then
+    user=$(calibre_web_admin_user)
+    user="${user:-$CALIBREWEB_DEFAULT_USER}"
+  fi
   local code
   code=$(container_curl calibre-web -s -o /dev/null -w '%{http_code}' \
-    -u "${CALIBREWEB_USER}:$1" \
+    -u "${user}:$1" \
     "http://127.0.0.1:${CALIBRE_WEB_CONTAINER_HTTP_PORT}/opds/stats")
   [[ "$code" == "200" ]]
 }
