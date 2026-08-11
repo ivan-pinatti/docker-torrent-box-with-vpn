@@ -85,6 +85,20 @@ Importers own only their target libraries and recycle folders:
 | `data/media/calibre-library` | `calibre` | `calibre_web` read |
 | `configs/korsync/data` | `korsync` | |
 
+Two app-owned trees sit under `data/` without being libraries. Each app writes
+only its own subdirectory, so these follow the `configs/<app>/config` ownership
+pattern rather than the shared-library one above, with no cross-app ACLs:
+
+| Path | Owner | Mounted at |
+| --- | --- | --- |
+| `data/media/covers/<app>` | that app | `/config/MediaCover` |
+| `data/backups/<app>` | that app | `/config/Backups` |
+
+`<app>` is `sonarr`, `radarr`, `readarr`, `lidarr` or `whisparr` for covers,
+plus `prowlarr` for backups. Neither has an app setting to relocate it, so both
+are bind mounts back over the app's own config paths. See
+[STORAGE.md](STORAGE.md) for why they live out here.
+
 Service-specific config, cache, and storage paths are declared in
 `permissions.yml` as well. Add new writable paths there before mounting them
 read-write in compose.
@@ -102,6 +116,15 @@ its library or config directory, and importer ACLs still control which
 containers can write. The tradeoff is that root processes inside rootless
 containers also appear as namespace uid `0`; that is inherent to rootless UID
 mapping and is why app processes still run as service-specific non-root UIDs.
+
+## External Storage
+
+On filesystems that carry no per-file ownership or POSIX ACLs (CIFS, NFS, FAT
+variants), `scripts/permissions.py` skips `chown`, `chmod` and `setfacl` for the
+affected paths and prints a note, while still creating the directories and still
+running the hardlink smoke test. Access there comes from the mount options
+instead. `check` and `repair` both behave this way, so `make start` continues to
+work when `data/` is a network mount. See [STORAGE.md](STORAGE.md).
 
 ## Hardlinks
 

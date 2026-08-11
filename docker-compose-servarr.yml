@@ -15,7 +15,7 @@ x-servarr-common: &servarr-common
   volumes: &servarr-volumes
     - /etc/localtime:/etc/localtime:ro
     - ${CERTIFICATES_FOLDER}:/certs:ro,z
-    - ${DATA_FOLDER}:/data:z
+    - ${DATA_FOLDER}:/data${DATA_VOLUME_FLAGS}
 
 x-healthcheck-defaults: &healthcheck-defaults
   interval: 60s
@@ -89,7 +89,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/bazarr/config:/config:z
-      - ${DATA_FOLDER}:/data:z
+      - ${DATA_FOLDER}:/data${DATA_VOLUME_FLAGS}
     healthcheck:
       <<: *healthcheck-defaults
       test: curl --fail http://127.0.0.1:${BAZARR_HTTP_PORT}/bazarr/ || exit 1
@@ -112,9 +112,11 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/lidarr/config:/config:z
+      - ${APP_BACKUPS_FOLDER}/lidarr:/config/Backups${DATA_VOLUME_FLAGS}
+      - ${MEDIA_COVERS_FOLDER}/lidarr:/config/MediaCover${DATA_VOLUME_FLAGS}
       - ${CONFIG_FOLDER}/lidarr/custom-cont-init.d:/custom-cont-init.d:z
       - ${CONFIG_FOLDER}/lidarr/custom-services.d:/custom-services.d:z
-      - ${DATA_FOLDER}:/data:z
+      - ${DATA_FOLDER}:/data${DATA_VOLUME_FLAGS}
     healthcheck:
       <<: *healthcheck-defaults
       test: >
@@ -140,6 +142,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/prowlarr/config:/config:z
+      - ${APP_BACKUPS_FOLDER}/prowlarr:/config/Backups${DATA_VOLUME_FLAGS}
     healthcheck:
       <<: *healthcheck-defaults
       test: >
@@ -165,7 +168,9 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/radarr/config:/config:z
-      - ${DATA_FOLDER}:/data:z
+      - ${APP_BACKUPS_FOLDER}/radarr:/config/Backups${DATA_VOLUME_FLAGS}
+      - ${MEDIA_COVERS_FOLDER}/radarr:/config/MediaCover${DATA_VOLUME_FLAGS}
+      - ${DATA_FOLDER}:/data${DATA_VOLUME_FLAGS}
     healthcheck:
       <<: *healthcheck-defaults
       test: >
@@ -191,7 +196,9 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/readarr/config:/config:z
-      - ${DATA_FOLDER}:/data:z
+      - ${APP_BACKUPS_FOLDER}/readarr:/config/Backups${DATA_VOLUME_FLAGS}
+      - ${MEDIA_COVERS_FOLDER}/readarr:/config/MediaCover${DATA_VOLUME_FLAGS}
+      - ${DATA_FOLDER}:/data${DATA_VOLUME_FLAGS}
     healthcheck:
       <<: *healthcheck-defaults
       test: >
@@ -240,7 +247,9 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/sonarr/config:/config:z
-      - ${DATA_FOLDER}:/data:z
+      - ${APP_BACKUPS_FOLDER}/sonarr:/config/Backups${DATA_VOLUME_FLAGS}
+      - ${MEDIA_COVERS_FOLDER}/sonarr:/config/MediaCover${DATA_VOLUME_FLAGS}
+      - ${DATA_FOLDER}:/data${DATA_VOLUME_FLAGS}
     healthcheck:
       <<: *healthcheck-defaults
       test: >
@@ -298,7 +307,9 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/whisparr/config:/config:z
-      - ${DATA_FOLDER}:/data:z
+      - ${APP_BACKUPS_FOLDER}/whisparr:/config/Backups${DATA_VOLUME_FLAGS}
+      - ${MEDIA_COVERS_FOLDER}/whisparr:/config/MediaCover${DATA_VOLUME_FLAGS}
+      - ${DATA_FOLDER}:/data${DATA_VOLUME_FLAGS}
     healthcheck:
       <<: *healthcheck-defaults
       test: >
@@ -332,7 +343,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/lazylibrarian/config:/config:z
-      - ${DATA_FOLDER}:/data:z
+      - ${DATA_FOLDER}:/data${DATA_VOLUME_FLAGS}
       # login()/logout() double-prefixed HTTP_ROOT onto from_page, which is
       # already prefixed (nginx forwards this app's URIs unstripped). 404'd
       # the very first post-login redirect every time. See patches/README.md.
@@ -363,7 +374,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/mylar/config:/config:z
-      - ${DATA_FOLDER}:/data:z
+      - ${DATA_FOLDER}:/data${DATA_VOLUME_FLAGS}
       - ./patches/mylar/lib/qbittorrent/client.py:/app/mylar3/lib/qbittorrent/client.py:ro,z
       - ./patches/mylar/mylar/torrent/clients/qbittorrent.py:/app/mylar3/mylar/torrent/clients/qbittorrent.py:ro,z
       - ./patches/mylar/mylar/config.py:/app/mylar3/mylar/config.py:ro,z

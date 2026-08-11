@@ -1,8 +1,0 @@
-# Ignore everything in this directory
-*
-
-# Except .gitignore
-!.gitignore
-
-# metadata.db is owned by the calibre container and contains personal
-# library data; never unignore it here (see root .gitignore)

@@ -278,8 +278,10 @@ finishes. Meant to run once. See
 [docs/CONNECTIONS.md](docs/CONNECTIONS.md) for exactly what gets wired,
 [docs/ROTATION.md](docs/ROTATION.md) to rotate again later,
 [docs/TESTING.md](docs/TESTING.md) for `make bootstrap_tests` and the test suite,
-and [docs/PERMISSIONS.md](docs/PERMISSIONS.md) /
-[docs/HARDENING.md](docs/HARDENING.md) for the directory-ownership model.
+[docs/PERMISSIONS.md](docs/PERMISSIONS.md) /
+[docs/HARDENING.md](docs/HARDENING.md) for the directory-ownership model,
+and [docs/STORAGE.md](docs/STORAGE.md) for the data layout and running `data/`
+on external storage.
 
 Once it finishes, open the dashboard at the URL the last line printed
 (`https://<domain>/` by default) for links to every app:
@@ -426,12 +428,16 @@ make backup
 ```
 
 This creates a lean backup of `.env`, `certs/`, and restore-critical app config
-state under `backup/`. For a larger backup that includes artwork and metadata
-caches, run:
+state under `backup/`. For a larger backup that also includes Jellyfin's
+metadata and caches, run:
 
 ```shell
 make backup-full
 ```
+
+Note that *arr cover art and scheduled database backups live under `data/`
+rather than `configs/`, so neither mode archives them; see
+[docs/STORAGE.md](docs/STORAGE.md).
 
 See [docs/BACKUP.md](docs/BACKUP.md) for restore commands and the full include/exclude
 policy.

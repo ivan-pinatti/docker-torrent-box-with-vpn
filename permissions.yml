@@ -105,6 +105,13 @@ paths:
     default_acl:
       - {identity: qbittorrent, perms: rwx}
       - {identity: whisparr, perms: rwx}
+  # Only used when qBittorrent's Session\TempPathEnabled is turned on. Declared
+  # anyway so enabling it cannot land incomplete downloads somewhere unmounted,
+  # which is what the old /downloads/incomplete/ setting would have done.
+  - path: data/torrents/incomplete
+    owner: qbittorrent
+    mode: "0750"
+    chown_files: true
   - path: data/torrents/blackhole
     owner: root
     mode: "0770"
@@ -327,6 +334,65 @@ paths:
     mode: "0750"
     chown_files: true
     acl: [{identity: calibre_web, perms: r-x}]
+
+  # Cover art relocated out of each app's config directory and bind mounted
+  # back over /config/MediaCover (see MEDIA_COVERS_FOLDER in .env). Each app
+  # writes only its own subdirectory, so ownership mirrors configs/<app>/config
+  # rather than the shared-library pattern used above. chown_files because the
+  # apps create thousands of image files here.
+  - path: data/media/covers
+    owner: root
+    mode: "0755"
+  - path: data/media/covers/lidarr
+    owner: lidarr
+    mode: "0750"
+    chown_files: true
+  - path: data/media/covers/radarr
+    owner: radarr
+    mode: "0750"
+    chown_files: true
+  - path: data/media/covers/readarr
+    owner: readarr
+    mode: "0750"
+    chown_files: true
+  - path: data/media/covers/sonarr
+    owner: sonarr
+    mode: "0750"
+    chown_files: true
+  - path: data/media/covers/whisparr
+    owner: whisparr
+    mode: "0750"
+    chown_files: true
+
+  # Scheduled database backups, bind mounted back over /config/Backups (see
+  # APP_BACKUPS_FOLDER in .env). Same per-app ownership rationale as covers.
+  - path: data/backups
+    owner: root
+    mode: "0755"
+  - path: data/backups/lidarr
+    owner: lidarr
+    mode: "0750"
+    chown_files: true
+  - path: data/backups/prowlarr
+    owner: prowlarr
+    mode: "0750"
+    chown_files: true
+  - path: data/backups/radarr
+    owner: radarr
+    mode: "0750"
+    chown_files: true
+  - path: data/backups/readarr
+    owner: readarr
+    mode: "0750"
+    chown_files: true
+  - path: data/backups/sonarr
+    owner: sonarr
+    mode: "0750"
+    chown_files: true
+  - path: data/backups/whisparr
+    owner: whisparr
+    mode: "0750"
+    chown_files: true
     default_acl: [{identity: calibre_web, perms: r-x}]
 
   - path: data/recycle

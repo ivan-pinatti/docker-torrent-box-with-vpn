@@ -68,7 +68,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/qbittorrent/config:/config:z
-      - ${TORRENTS_FOLDER}:/data/torrents:z
+      - ${TORRENTS_FOLDER}:/data/torrents${DATA_VOLUME_FLAGS}
     healthcheck:
       <<: *healthcheck-defaults
       test: curl --fail --insecure https://${GLUETUN_SERVICES_IP}:${QBITTORRENT_HTTPS_PORT}/ || exit 1
@@ -106,7 +106,7 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/jdownloader2/config:/config:z
-      - ${DOWNLOADS_FOLDER}:/data/downloads:z
+      - ${DOWNLOADS_FOLDER}:/data/downloads${DATA_VOLUME_FLAGS}
       - ./patches/jdownloader2/10-webauth.sh:/etc/cont-init.d/10-webauth.sh:ro,z
     healthcheck:
       <<: *healthcheck-defaults
