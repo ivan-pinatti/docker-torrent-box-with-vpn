@@ -30,16 +30,17 @@ point at the same server, because the kernel compares superblocks rather than
 paths. Split `data/torrents` and `data/media` across separate mounts and every
 import silently falls back to a full copy.
 
-The cost is not theoretical. Measured on a real library here:
+The cost is not theoretical. On a seeding setup, most of the library is
+hardlinked into the download tree, so `du` on either directory alone reports
+close to the size of the whole tree. Lose the links and those bytes stop being
+shared: the same content can approach twice the disk it occupied before.
 
-```text
-data/torrents alone   162 GiB
-data/media alone      135 GiB
-whole data/ tree      166 GiB
+To see how much is at stake on a given install, count what is currently
+shared:
+
+```shell
+find data -type f -links +1 | wc -l
 ```
-
-Almost all of the library is hardlinked into the download tree. Losing the
-links takes 166 GiB to roughly 297 GiB.
 
 ## Verifying a Share Before Committing to It
 
