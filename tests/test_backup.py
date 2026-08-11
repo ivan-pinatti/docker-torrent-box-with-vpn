@@ -1,3 +1,4 @@
+import os
 import subprocess
 import tarfile
 from pathlib import Path
@@ -143,6 +144,52 @@ def test_backup_full_keeps_app_artwork_but_not_repo_or_media_state(tmp_path):
     assert "tests/test_placeholder.py" not in names
     assert "megalinter-reports/report.txt" not in names
     assert "data/torrents/file" not in names
+
+
+def test_backup_fails_when_a_required_file_is_unreadable(tmp_path):
+    """--ignore-failed-read must not turn a dropped database into a success."""
+    if os.geteuid() == 0:
+        import pytest
+
+        pytest.skip("root ignores the permission bits this test relies on")
+    _fixture(tmp_path)
+    unreadable = tmp_path / "configs/sonarr/config/sonarr.db"
+    _write(unreadable, "critical\n")
+    unreadable.chmod(0o000)
+
+    result = subprocess.run(
+        [
+            "make",
+            "--no-print-directory",
+            "-f",
+            str(MAKEFILE),
+            "backup-configs",
+            "BACKUP_TIMESTAMP=unreadable",
+        ],
+        cwd=tmp_path,
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode != 0
+    assert "not known-skippable" in result.stdout
+
+
+def test_backup_tolerates_known_container_owned_files(tmp_path):
+    """The pulse runtime directory is unreadable by design and must be skippable."""
+    if os.geteuid() == 0:
+        import pytest
+
+        pytest.skip("root ignores the permission bits this test relies on")
+    _fixture(tmp_path)
+    pulse = tmp_path / "configs/calibre/config/.config/pulse/runtime"
+    _write(pulse, "socket\n")
+    pulse.chmod(0o000)
+
+    _make(tmp_path, "backup-configs", "BACKUP_TIMESTAMP=skippable")
+
+    assert (tmp_path / "backup/configs-skippable.tar.gz").exists()
 
 
 def test_restore_requires_explicit_existing_backup(tmp_path):
