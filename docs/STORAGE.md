@@ -127,6 +127,47 @@ the full ownership model.
 Without that detection `make start` would fail before starting anything, since
 it depends on `permissions_repair`.
 
+### Never Mount External Storage Directly Under /config
+
+LinuxServer images run `lsiown -R abc:abc /config` on **every** container start.
+Mount a share at a path inside `/config` and that walk crosses the network, once
+per start, forever. It cannot even converge: the CIFS mount forces a single
+`uid=`, so those files always report an owner that is not `abc`, and the filter
+`! -user abc` matches the whole set again on the next start.
+
+Confirmed live: Lidarr with its artwork bind mounted at `/config/MediaCover`
+never finished starting. The chown sat in uninterruptible sleep against
+thousands of files over SMB, and the container went unhealthy.
+
+Mount outside `/config` and put a symlink where the app expects the directory:
+
+```yaml
+- ${MEDIA_COVERS_FOLDER}/lidarr:/mediacover${DATA_VOLUME_FLAGS}
+- ${APP_BACKUPS_FOLDER}/lidarr:/appbackups${DATA_VOLUME_FLAGS}
+```
+
+with `configs/lidarr/config/MediaCover -> /mediacover` and
+`configs/lidarr/config/Backups -> /appbackups`. `lsiown`'s `find` runs without
+`-L`, so it does not descend into a symlinked directory: it touches one link
+instead of the tree behind it. Measured on a test tree, the same walk visited 2
+entries via a symlink against 9 for a real directory, and the real case is
+thousands. The apps follow the symlink and neither knows the difference.
+
+### Cold Reads and Proxy Timeouts
+
+The first listing of a large library has to stat every item across the network,
+and that can outrun nginx's 60s `proxy_read_timeout` while the app itself is
+healthy. Lidarr's `/api/v1/artist` took over a minute cold and 2s once the
+attribute cache had filled, surfacing in the browser as a 504 and the app's own
+"Failed to load" page.
+
+Two settings blunt this: `proxy_read_timeout 180s` on the app locations in
+`configs/nginx/templates/default.conf.template`, and a longer `actimeo` in
+`STORAGE_CIFS_EXTRA_OPTIONS` so cached metadata survives between visits. The
+tradeoff on `actimeo` is that changes made directly on the server take that
+long to become visible to the stack, which for a media library is not a
+concern.
+
 ## NFS as an Alternative
 
 NFS preserves real uid/gid and supports ACLs, so `permissions.yml` applies
