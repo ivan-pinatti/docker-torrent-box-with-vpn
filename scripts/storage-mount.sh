@@ -12,7 +12,11 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
-FSTAB=/etc/fstab
+# Both are overridable so the boot-entry path can be exercised by the test
+# suite against a throwaway fstab with no privileges. Nothing else should set
+# them: the defaults are what a real install uses.
+FSTAB="${FSTAB:-/etc/fstab}"
+SUDO="${SUDO-sudo}"
 FSTAB_MARKER="# docker-torrent-box-with-vpn external storage"
 
 # Reads one key from .env, stripping surrounding quotes. Deliberately not a
@@ -130,7 +134,7 @@ cmd_mount() {
     die "$mountpoint_abs is not empty. Refusing to mount over existing data; move it aside first."
   fi
   log "mounting $STORAGE_REMOTE -> $mountpoint_abs"
-  sudo mount -t cifs -o "$(mount_options)" "$STORAGE_REMOTE" "$mountpoint_abs" ||
+  $SUDO mount -t cifs -o "$(mount_options)" "$STORAGE_REMOTE" "$mountpoint_abs" ||
     die "mount failed. Check the share name, credentials and that cifs-utils is installed."
   log "mounted."
   verify_mount
@@ -145,9 +149,9 @@ cmd_unmount() {
     die "stack containers are running; stop them first (make stop_all)."
   fi
   log "unmounting $mountpoint_abs"
-  sudo umount "$mountpoint_abs" 2>/dev/null || {
+  $SUDO umount "$mountpoint_abs" 2>/dev/null || {
     log "busy; retrying lazily"
-    sudo umount --lazy "$mountpoint_abs" || die "unmount failed."
+    $SUDO umount --lazy "$mountpoint_abs" || die "unmount failed."
   }
   log "unmounted."
 }
@@ -200,14 +204,23 @@ cmd_install_boot() {
   read -r reply
   [ "$reply" = "yes" ] || die "aborted."
   local backup="${FSTAB}.$(date +%Y-%m-%d-%H%M%S).bak"
-  sudo cp -a "$FSTAB" "$backup"
+  $SUDO cp -a "$FSTAB" "$backup"
   log "backed up $FSTAB -> $backup"
-  printf '%s\n%s' "$FSTAB_MARKER" "$(fstab_line)" | sudo tee -a "$FSTAB" >/dev/null
+  # An fstab whose last line has no newline would otherwise get the marker
+  # appended onto the end of it, silently corrupting that entry. Append the
+  # missing newline first, and end our own block with one so a later edit
+  # starts on a fresh line.
+  if [ -s "$FSTAB" ] && [ -n "$(tail -c 1 "$FSTAB")" ]; then
+    printf '\n' | $SUDO tee -a "$FSTAB" >/dev/null
+  fi
+  printf '%s\n%s\n' "$FSTAB_MARKER" "$(fstab_line)" | $SUDO tee -a "$FSTAB" >/dev/null
   # Prove it parses before trusting it to a reboot.
-  if ! sudo findmnt --verify --verbose >/dev/null 2>&1; then
+  if ! $SUDO findmnt --verify --verbose --tab-file "$FSTAB" >/dev/null 2>&1; then
     log "WARNING: findmnt --verify reported problems; review $FSTAB (backup at $backup)."
   fi
-  sudo systemctl daemon-reload 2>/dev/null || true
+  # Only the system fstab has a systemd generator behind it; reloading for
+  # any other file would be a no-op that still stalls on polkit.
+  [ "$FSTAB" = /etc/fstab ] && { $SUDO systemctl daemon-reload 2>/dev/null || true; }
   log "installed. The share will mount on first access after boot."
 }
 
@@ -217,10 +230,12 @@ cmd_uninstall_boot() {
     return 0
   }
   local backup="${FSTAB}.$(date +%Y-%m-%d-%H%M%S).bak"
-  sudo cp -a "$FSTAB" "$backup"
+  $SUDO cp -a "$FSTAB" "$backup"
   log "backed up $FSTAB -> $backup"
-  sudo sed -i "\|^${FSTAB_MARKER}\$|,+1d" "$FSTAB"
-  sudo systemctl daemon-reload 2>/dev/null || true
+  $SUDO sed -i "\|^${FSTAB_MARKER}\$|,+1d" "$FSTAB"
+  # Only the system fstab has a systemd generator behind it; reloading for
+  # any other file would be a no-op that still stalls on polkit.
+  [ "$FSTAB" = /etc/fstab ] && { $SUDO systemctl daemon-reload 2>/dev/null || true; }
   log "removed."
 }
 
