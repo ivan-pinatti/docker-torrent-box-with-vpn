@@ -230,7 +230,7 @@ cmd_install_boot() {
   # Only the system fstab has a systemd generator behind it; reloading for
   # any other file would be a no-op that still stalls on polkit.
   [ "$FSTAB" = /etc/fstab ] && { $SUDO systemctl daemon-reload 2>/dev/null || true; }
-  log "installed. The share will mount on first access after boot."
+  log "installed. The share will mount at boot, once the network is up."
 }
 
 cmd_uninstall_boot() {
