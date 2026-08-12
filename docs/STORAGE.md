@@ -147,7 +147,27 @@ Mount outside `/config` and put a symlink where the app expects the directory:
 ```
 
 with `configs/lidarr/config/MediaCover -> /mediacover` and
-`configs/lidarr/config/Backups -> /appbackups`. `lsiown`'s `find` runs without
+`configs/lidarr/config/Backups -> /appbackups`.
+
+Those links are declared in `permissions.yml` under `symlinks:` and created by
+`scripts/permissions.py repair`, which `make start` already depends on, so a
+fresh clone gets them without a manual step. `permissions.py check` reports any
+that are missing or pointing somewhere else.
+
+Repair never deletes a directory that has anything in it. On an install that
+ran before the move, `configs/<app>/config/MediaCover` is a real directory
+holding the existing artwork, and it stops with that path named. Move the
+contents onto the mounted tree and remove the empty directory, then re-run:
+
+```shell
+mv configs/sonarr/config/MediaCover/* data/media/covers/sonarr/
+rmdir configs/sonarr/config/MediaCover
+make permissions_repair
+```
+
+Without the link the app silently creates that directory itself and writes
+there, which is on local disk rather than the data tree, and `make backup`
+excludes those paths so nothing flags it. `lsiown`'s `find` runs without
 `-L`, so it does not descend into a symlinked directory: it touches one link
 instead of the tree behind it. Measured on a test tree, the same walk visited 2
 entries via a symlink against 9 for a real directory, and the real case is
