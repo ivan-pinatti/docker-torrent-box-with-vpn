@@ -231,13 +231,23 @@ def test_fstab_entry_keeps_serverino(fake_repo, fstab):
 
 
 def test_fstab_entry_has_the_boot_safety_options(fake_repo, fstab):
-    """nofail so a NAS that is down cannot block boot, _netdev so it waits for
-    the network, x-systemd.automount so boot does not stall on it."""
+    """_netdev so it waits for the network, nofail so a NAS that is down
+    cannot hold up boot."""
     _write_env(fake_repo)
     _install(fake_repo, fstab)
     line = fstab.read_text().splitlines()[-1]
-    for option in ("_netdev", "nofail", "x-systemd.automount"):
+    for option in ("_netdev", "nofail"):
         assert option in line, f"{option} missing from {line}"
+
+
+def test_fstab_entry_does_not_use_automount(fake_repo, fstab):
+    """An autofs mount reports its source as 'systemd-1' until something
+    touches the path, and findmnt reads mountinfo without touching it. With
+    x-systemd.automount every check here would read a healthy share as NOT
+    MOUNTED after a reboot, and make start would refuse to run."""
+    _write_env(fake_repo)
+    _install(fake_repo, fstab)
+    assert "automount" not in fstab.read_text().splitlines()[-1]
 
 
 def test_fstab_entry_is_well_formed(fake_repo, fstab):

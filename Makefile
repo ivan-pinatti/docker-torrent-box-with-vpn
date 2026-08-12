@@ -756,10 +756,10 @@ bootstrap_tests: enable_test_profiles
 	@$(MAKE) --no-print-directory test_extended
 
 # Refuses to start when external storage is configured but not mounted. The
-# fstab entry uses nofail and x-systemd.automount so a NAS that is down cannot
-# block boot, which means the stack can otherwise come up against an empty
-# data/ and the downloaders will happily write into the directory underneath
-# the mountpoint. See docs/STORAGE.md.
+# fstab entry uses nofail so a NAS that is down cannot hold up boot, which
+# means the stack can otherwise come up against an empty data/ and the
+# downloaders will happily write into the directory underneath the mountpoint.
+# See docs/STORAGE.md.
 storage_guard:
 	@./scripts/storage-mount.sh status >/dev/null 2>&1 || { \
 		remote="$$(grep -m1 '^STORAGE_REMOTE=' .env | cut -d= -f2- | tr -d '"')"; \

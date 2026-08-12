@@ -180,12 +180,21 @@ cmd_status() {
 }
 
 fstab_line() {
-  # nofail so a NAS that is down cannot block boot, _netdev so the mount waits
-  # for the network, and x-systemd.automount so it happens on first access
-  # rather than stalling startup. The trade is that the stack can start with an
-  # empty data/, which is why make start refuses when STORAGE_REMOTE is set and
-  # the share is not mounted.
-  printf '%s %s cifs %s,_netdev,nofail,x-systemd.automount 0 0\n' \
+  # _netdev so the mount waits for the network, and nofail so a NAS that is
+  # down cannot hold up boot: with nofail the unit is only wanted by
+  # remote-fs.target and is not ordered before it, so boot carries on without
+  # waiting either way.
+  #
+  # Deliberately not x-systemd.automount. It would leave an autofs mount at the
+  # path until something touches it, and autofs reports its source as
+  # 'systemd-1', so every findmnt based check here would read a healthy share
+  # as NOT MOUNTED for as long as nothing had accessed it. nofail already
+  # provides the only thing automount was wanted for.
+  #
+  # The trade either way is that the stack can reach `make start` before the
+  # share is up, which is why that target refuses when STORAGE_REMOTE is set
+  # and the share is not mounted.
+  printf '%s %s cifs %s,_netdev,nofail 0 0\n' \
     "$STORAGE_REMOTE" "$mountpoint_abs" "$(mount_options)"
 }
 

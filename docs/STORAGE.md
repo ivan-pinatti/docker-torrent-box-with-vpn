@@ -168,6 +168,36 @@ tradeoff on `actimeo` is that changes made directly on the server take that
 long to become visible to the stack, which for a media library is not a
 concern.
 
+## Surviving a Reboot
+
+`make storage_install_boot` appends one `/etc/fstab` entry, after printing the
+exact line and requiring you to type `yes`. It backs the file up first and
+verifies the result parses.
+
+The options are `_netdev,nofail` plus everything from the `### EXTERNAL
+STORAGE` block. `_netdev` orders the mount after the network. `nofail` means
+the unit is only *wanted* by `remote-fs.target` and is not ordered before it,
+so a NAS that is down cannot hold up boot.
+
+**Not `x-systemd.automount`.** It sounds like the right tool and is the wrong
+one here. It leaves an autofs mount at the path until something accesses it,
+and autofs reports its source as `systemd-1` rather than the share:
+
+```shell
+findmnt -t autofs -o TARGET,SOURCE,FSTYPE
+```
+
+Every check in `storage-mount.sh` matches on `--source`, and `findmnt` reads
+`/proc/self/mountinfo` without ever touching the path, so it cannot trigger the
+automount it is asking about. The result is that `make storage_status` reports
+`NOT MOUNTED` and `make start` refuses, on a healthy share, after every reboot
+until something happens to touch `data/`. `nofail` already gives the
+non-blocking boot that automount was wanted for.
+
+Because the mount is not ordered before boot completes, the stack can still
+reach `make start` before the share is up. That is what `storage_guard`
+catches, and why it fails closed.
+
 ## NFS as an Alternative
 
 NFS preserves real uid/gid and supports ACLs, so `permissions.yml` applies
