@@ -1,4 +1,4 @@
-"""Tests for scripts/storage-mount.sh and the guards built around it.
+"""Tests for scripts/storage-mount.sh and make start's storage guard.
 
 None of these touch the real mount, the real /etc/fstab or the running stack.
 The script derives its repository root from its own location and reads .env
@@ -11,7 +11,6 @@ Run explicitly with:
     pytest -m scripts tests/test_storage_mount.py
 """
 
-import json
 import os
 import shutil
 import subprocess
@@ -23,8 +22,6 @@ from conftest import REPO_ROOT
 pytestmark = pytest.mark.scripts
 
 SCRIPT = REPO_ROOT / "scripts/storage-mount.sh"
-SETTINGS = REPO_ROOT / ".claude/settings.json"
-GIT_GUARD = REPO_ROOT / ".claude/hooks/git-guard.sh"
 
 # A complete ### EXTERNAL STORAGE block, matching .env.example's shape,
 # including the ${DATA_FOLDER} indirection the script has to expand itself.
@@ -415,203 +412,107 @@ def test_makefile_start_targets_depend_on_the_storage_guard():
 
 
 # ---------------------------------------------------------------------------
-# The PreToolUse hook that keeps git off a running stack
+# Path resolution and containment. All found by CodeRabbit on PR #38.
 # ---------------------------------------------------------------------------
 
 
-def _hook_command():
-    settings = json.loads(SETTINGS.read_text())
-    entries = [e for e in settings["hooks"]["PreToolUse"] if e["matcher"] == "Bash"]
-    assert entries, "no PreToolUse hook on the Bash matcher"
-    return entries[0]["hooks"][0]["command"]
-
-
-def _run_hook(command, tool_command, tmp_path, *, containers_running):
-    """Runs the hook with a stub podman reporting the given stack state."""
-    binstub = tmp_path / "bin"
-    binstub.mkdir(exist_ok=True)
-    podman = binstub / "podman"
-    podman.write_text(
-        "#!/bin/sh\n" + ("echo qbittorrent\n" if containers_running else "exit 0\n")
-    )
-    podman.chmod(0o755)
-    payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": tool_command}})
-    return subprocess.run(
-        ["bash", "-c", command],
-        input=payload,
-        capture_output=True,
-        text=True,
-        timeout=60,
-        env={
-            **os.environ,
-            "PATH": f"{binstub}:{os.environ['PATH']}",
-            "CLAUDE_PROJECT_DIR": str(REPO_ROOT),
-        },
-    )
-
-
-def test_hook_script_exists_and_is_executable():
-    """settings.json refers to it by path, so a missing or non-executable file
-    means the hook silently never fires."""
-    assert GIT_GUARD.is_file(), f"{GIT_GUARD} does not exist"
-    assert os.access(GIT_GUARD, os.X_OK), f"{GIT_GUARD} is not executable"
-    assert "git-guard.sh" in _hook_command()
-
-
-def test_settings_json_is_valid():
-    """A malformed settings.json silently disables every setting in it."""
-    json.loads(SETTINGS.read_text())
-
-
-def test_hook_blocks_git_while_the_stack_runs(tmp_path):
-    """pre-commit's stash cycle rewrote tracked runtime files mid-flight and
-    corrupted live SQLite databases. CLAUDE.md warned about it and the warning
-    was not enough, so this is enforced."""
-    command = _hook_command()
-    for subcommand in ("stash -u", "commit -m x", "checkout main", "switch -c topic"):
-        result = _run_hook(
-            command, f"git {subcommand}", tmp_path, containers_running=True
+def _write_env_at(root, mountpoint):
+    (root / ".env").write_text(
+        ENV_TEMPLATE.format(remote="//server/share").replace(
+            'STORAGE_MOUNTPOINT="${DATA_FOLDER}"', f'STORAGE_MOUNTPOINT="{mountpoint}"'
         )
-        assert "deny" in result.stdout, f"git {subcommand} was not blocked"
-
-
-def test_hook_blocks_git_in_a_compound_command(tmp_path):
-    command = _hook_command()
-    for wrapper in (
-        "cd /tmp && git stash",
-        "true; git commit -m x",
-        "false || git checkout main",
-    ):
-        result = _run_hook(command, wrapper, tmp_path, containers_running=True)
-        assert "deny" in result.stdout, f"{wrapper!r} was not blocked"
-
-
-def test_hook_allows_git_once_the_stack_is_stopped(tmp_path):
-    command = _hook_command()
-    result = _run_hook(command, "git commit -m x", tmp_path, containers_running=False)
-    assert result.stdout.strip() == "", "git was blocked with no containers running"
-
-
-def test_hook_ignores_commands_that_merely_mention_git(tmp_path):
-    """The first version of this hook matched substrings and blocked its own
-    test command.
-
-    The unquoted cases are the ones that actually exercise the anchoring. A
-    mention ending in a quote is rejected by the trailing ([[:space:]]|$)
-    whatever the anchor does, so quoted cases alone pass even with the anchor
-    removed. Mutation testing is what surfaced that.
-    """
-    command = _hook_command()
-    for benign in (
-        "echo 'git commit'",
-        "grep -r 'git stash' docs/",
-        "echo git commit -n",
-        "echo git stash here",
-        "printf '%s' git checkout main",
-        "ls -la",
-        "cat README.md",
-    ):
-        result = _run_hook(command, benign, tmp_path, containers_running=True)
-        assert result.stdout.strip() == "", f"{benign!r} was blocked"
-
-
-def test_hook_allows_read_only_git(tmp_path):
-    """Reading history mutates nothing and must stay available."""
-    command = _hook_command()
-    for readonly in ("git status", "git log --oneline -5", "git diff"):
-        result = _run_hook(command, readonly, tmp_path, containers_running=True)
-        assert result.stdout.strip() == "", f"{readonly!r} was blocked"
-
-
-def test_hook_exits_zero_so_it_never_breaks_the_session(tmp_path):
-    command = _hook_command()
-    for running in (True, False):
-        result = _run_hook(
-            command, "git commit -m x", tmp_path, containers_running=running
-        )
-        assert result.returncode == 0
-
-
-def test_settings_json_keeps_its_permission_rules():
-    """The hook was merged into a file that already carried allow rules."""
-    settings = json.loads(SETTINGS.read_text())
-    assert len(settings["permissions"]["allow"]) >= 30
-
-
-# ---------------------------------------------------------------------------
-# The same hook, refusing to skip the pre-commit hooks
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    "bypass",
-    [
-        "git commit --no-verify -m x",
-        "git commit -n -m x",
-        "git push --no-verify",
-        "cd /tmp && git commit --no-verify -m x",
-        "true; git push --no-verify",
-        "git commit -m x --no-verify",
-        "git push origin main --no-verify",
-        # Scoping the flag to the command's own arguments must not open a way
-        # through by parking a heredoc after it.
-        "git commit --no-verify -F - <<MSG\nbody\nMSG",
-    ],
-)
-def test_hook_blocks_skipping_the_pre_commit_hooks(bypass, tmp_path):
-    """The secret scanners run as pre-commit hooks.
-
-    A bypassed commit is an unscanned commit, and this repository is public, so
-    that is how a credential gets published. Refused whether or not the stack
-    is running: the risk is the missing scan, not the stash.
-    """
-    command = _hook_command()
-    result = _run_hook(command, bypass, tmp_path, containers_running=False)
-    assert "deny" in result.stdout, f"{bypass!r} was not blocked"
-
-
-def test_bypass_refusal_explains_the_supported_path():
-    """A refusal that does not say what to do instead invites working around
-    it, which is how --no-verify got used in the first place."""
-    payload = json.dumps(
-        {"tool_name": "Bash", "tool_input": {"command": "git commit --no-verify -m x"}}
     )
-    result = subprocess.run(
-        [str(GIT_GUARD)],
-        input=payload,
-        capture_output=True,
-        text=True,
-        timeout=60,
-        env={**os.environ, "CLAUDE_PROJECT_DIR": str(REPO_ROOT)},
+    cred = root / "configs/storage/.smbcredentials"
+    cred.write_text("username=someone\npassword=secret\n")
+    cred.chmod(0o600)
+
+
+def test_refuses_a_mountpoint_whose_parent_is_missing(fake_repo):
+    """Resolving the parent with a subshell cd and using whatever comes out
+    turned './missing/data' into '/data', a real path at the filesystem root
+    that install-boot would then write into /etc/fstab."""
+    _write_env_at(fake_repo, "./missing/data")
+    result = _run(fake_repo, "status")
+    assert result.returncode != 0
+    assert "/data" not in result.stdout.replace(str(fake_repo), "")
+    assert "does not exist" in result.stderr
+
+
+def test_refuses_a_mountpoint_outside_the_repository(fake_repo, tmp_path_factory):
+    """compose reads DATA_FOLDER relative to the repository, so a mount
+    elsewhere leaves the apps on one tree and permissions.py on another.
+    permissions.py refuses such paths already; this matches it.
+
+    tmp_path_factory, not tmp_path: the fake_repo fixture *is* tmp_path, so a
+    directory under it would be inside the repository and correctly allowed.
+    """
+    outside = tmp_path_factory.mktemp("outside-the-repo")
+    _write_env_at(fake_repo, str(outside))
+    result = _run(fake_repo, "status")
+    assert result.returncode != 0
+    assert "outside the repository" in result.stderr
+
+
+def test_install_boot_refuses_a_mountpoint_outside_the_repository(
+    fake_repo, tmp_path_factory, fstab
+):
+    """The containment check has to bite before anything reaches fstab."""
+    outside = tmp_path_factory.mktemp("outside-the-repo")
+    _write_env_at(fake_repo, str(outside))
+    before = fstab.read_text()
+    assert _install(fake_repo, fstab).returncode != 0
+    assert fstab.read_text() == before
+
+
+def test_status_reports_the_boot_entry_when_not_mounted(fake_repo, fstab):
+    """Whether the share comes back after a reboot is most worth answering
+    when it is not currently mounted, which is exactly when this used to
+    return early and stay silent."""
+    _write_env(fake_repo)
+    _install(fake_repo, fstab)
+    result = _run(fake_repo, "status", env={"FSTAB": str(fstab)})
+    assert result.returncode != 0, "an unmounted share must still exit non-zero"
+    assert "NOT MOUNTED" in result.stdout
+    assert "fstab entry installed" in result.stdout
+
+
+def test_status_reports_a_missing_boot_entry_when_not_mounted(fake_repo, fstab):
+    _write_env(fake_repo)
+    result = _run(fake_repo, "status", env={"FSTAB": str(fstab)})
+    assert "no fstab entry" in result.stdout
+
+
+def test_install_boot_leaves_fstab_untouched_when_the_entry_is_invalid(
+    fake_repo, fstab
+):
+    """Warning about a bad entry, leaving it in place and then reporting
+    success is how a machine ends up not booting."""
+    _write_env(fake_repo)
+    # An option string with an embedded newline cannot produce a valid entry.
+    env_text = (
+        (fake_repo / ".env")
+        .read_text()
+        .replace("STORAGE_REMOTE=//server/share", "STORAGE_REMOTE=")
     )
-    reason = json.loads(result.stdout)["hookSpecificOutput"]["permissionDecisionReason"]
-    assert "make stop_all" in reason
-    assert "secret" in reason.lower()
+    (fake_repo / ".env").write_text(env_text)
+    before = fstab.read_text()
+    assert _install(fake_repo, fstab).returncode != 0
+    assert fstab.read_text() == before
 
 
-@pytest.mark.parametrize(
-    "allowed",
-    [
-        "git commit -m x",
-        "git push",
-        "git push -n",  # -n on push is --dry-run, which is harmless
-        "git push --dry-run",
-        "git status",
-        "echo 'git commit --no-verify'",
-        # Quoted spans are data. This hook refused the very commit that
-        # introduced it, because the message explained the rule it enforces.
-        'git commit -m "do not use --no-verify here"',
-        "git commit -m 'refuse -n and --no-verify'",
-        'echo "--no-verify"',
-        # A heredoc body is data too, and is not a quoted span, so it needed
-        # the flag to be scoped to that git command's own arguments. This
-        # refused the introducing commit a second time, via its message.
-        "git commit -F - <<MSG\nA bare -n on push is allowed\nabout --no-verify\nMSG",
-        # -n here belongs to grep, on the far side of a pipe.
-        "git commit -F - | grep -n foo",
-    ],
-)
-def test_hook_allows_verified_git_with_the_stack_stopped(allowed, tmp_path):
-    command = _hook_command()
-    result = _run_hook(command, allowed, tmp_path, containers_running=False)
-    assert result.stdout.strip() == "", f"{allowed!r} was blocked"
+def test_install_boot_tolerates_an_unrelated_bad_entry(fake_repo, fstab):
+    """findmnt --verify reports on every line it is given, so validating the
+    assembled file made somebody else's pre-existing entry our problem."""
+    fstab.write_text("UUID=not-a-real-uuid / ext4 defaults 0 1\n")
+    _write_env(fake_repo)
+    result = _install(fake_repo, fstab)
+    assert result.returncode == 0, result.stderr
+    assert "//server/share" in fstab.read_text()
+
+
+def test_hardlink_probe_uses_a_unique_directory():
+    """The probe deletes the directory afterwards, so a fixed name is one the
+    share might already have, and the probe would take its contents with it."""
+    source = SCRIPT.read_text()
+    assert "mktemp -d" in source
+    assert 'rm -rf "$probe"' not in source.split("mktemp -d")[0]

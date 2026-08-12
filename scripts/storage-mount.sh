@@ -57,15 +57,35 @@ STORAGE_REMOTE="$(env_value STORAGE_REMOTE || printf '')"
 STORAGE_MOUNTPOINT="$(expand_env "$(env_value STORAGE_MOUNTPOINT || printf "$DATA_FOLDER")")"
 STORAGE_CREDENTIALS_FILE="$(expand_env "$(env_value STORAGE_CREDENTIALS_FILE || printf "$CONFIG_FOLDER/storage/.smbcredentials")")"
 
-# Absolute paths: fstab needs them, and so does every mount check below.
-mountpoint_abs="$(cd "$(dirname "$STORAGE_MOUNTPOINT")" 2>/dev/null && pwd)/$(basename "$STORAGE_MOUNTPOINT")"
-credentials_abs="$repo_root/${STORAGE_CREDENTIALS_FILE#./}"
-
 log() { printf '%s\n' "$*"; }
 die() {
   printf 'ERROR: %s\n' "$*" >&2
   exit 1
 }
+
+# Absolute paths: fstab needs them, and so does every mount check below.
+#
+# Resolving the parent with a subshell cd and taking whatever comes out is not
+# safe. When the parent does not exist the cd fails, the substitution is empty,
+# and './missing/data' silently becomes '/data'. That is a real mountpoint at
+# the root of the filesystem, and install-boot would write it to /etc/fstab.
+# Resolve the parent explicitly and refuse if it is not there.
+mountpoint_parent="$(cd "$(dirname "$STORAGE_MOUNTPOINT")" 2>/dev/null && pwd || true)"
+[ -n "$mountpoint_parent" ] ||
+  die "cannot resolve $STORAGE_MOUNTPOINT: $(dirname "$STORAGE_MOUNTPOINT") does not exist. Create it, or fix STORAGE_MOUNTPOINT in .env."
+mountpoint_abs="$mountpoint_parent/$(basename "$STORAGE_MOUNTPOINT")"
+
+# The mountpoint has to stay inside the repository, for the same reason
+# permissions.py refuses manifest paths outside it: compose reads DATA_FOLDER
+# relative to the repository, and a mount somewhere else leaves the apps
+# reading one tree while the permissions manifest manages another. See
+# docs/STORAGE.md, "Keep DATA_FOLDER Repository Relative".
+case "$mountpoint_abs" in
+"$repo_root" | "$repo_root"/*) ;;
+*) die "refusing mountpoint outside the repository: $mountpoint_abs (STORAGE_MOUNTPOINT must stay under $repo_root)" ;;
+esac
+
+credentials_abs="$repo_root/${STORAGE_CREDENTIALS_FILE#./}"
 
 require_configured() {
   [ -n "$STORAGE_REMOTE" ] || die "STORAGE_REMOTE is empty in .env; external storage is not configured."
@@ -107,8 +127,15 @@ verify_mount() {
   esac
   # The whole point of one share is that imports hardlink instead of copying.
   # Prove it here rather than discovering it after a library has doubled.
-  probe="$mountpoint_abs/.storage-probe"
-  rm -rf "$probe" 2>/dev/null || true
+  #
+  # mktemp rather than a fixed name: this deletes the directory afterwards, and
+  # a fixed name is one the share might already have, in which case the probe
+  # would take somebody else's data with it.
+  probe="$(mktemp -d "$mountpoint_abs/.storage-probe.XXXXXX" 2>/dev/null || true)"
+  if [ -z "$probe" ]; then
+    log "WARNING: could not create a probe directory on the share; skipping the hardlink check."
+    return 0
+  fi
   if mkdir -p "$probe/a" "$probe/b" 2>/dev/null &&
     : >"$probe/a/f" 2>/dev/null &&
     ln "$probe/a/f" "$probe/b/f" 2>/dev/null &&
@@ -163,20 +190,25 @@ cmd_status() {
     log "state:      external storage not configured"
     return 0
   fi
+  local mounted=0
   if is_mounted; then
+    mounted=1
     log "state:      mounted"
     log "fstype:     $(findmnt --noheadings --output FSTYPE --target "$mountpoint_abs")"
     log "options:    $(findmnt --noheadings --output OPTIONS --target "$mountpoint_abs")"
     df -h "$mountpoint_abs" | tail -1 | awk '{printf "space:      %s used of %s (%s free)\n", $3, $2, $4}'
   else
     log "state:      NOT MOUNTED"
-    return 1
   fi
+  # Reported either way. Returning early on an unmounted share was exactly
+  # backwards: "is this set up to come back after a reboot" is most worth
+  # answering when the share is not currently there.
   if grep -qF "$FSTAB_MARKER" "$FSTAB" 2>/dev/null; then
     log "boot:       fstab entry installed"
   else
     log "boot:       no fstab entry (run: make storage_install_boot)"
   fi
+  [ "$mounted" = 1 ] || return 1
 }
 
 fstab_line() {
@@ -215,18 +247,37 @@ cmd_install_boot() {
   local backup="${FSTAB}.$(date +%Y-%m-%d-%H%M%S).bak"
   $SUDO cp -a "$FSTAB" "$backup"
   log "backed up $FSTAB -> $backup"
+
+  # Build the whole candidate file and validate that, rather than appending to
+  # the real one and checking afterwards. Warning about a bad entry while
+  # leaving it in place, and then reporting success, is how a machine ends up
+  # not booting.
+  #
   # An fstab whose last line has no newline would otherwise get the marker
-  # appended onto the end of it, silently corrupting that entry. Append the
-  # missing newline first, and end our own block with one so a later edit
-  # starts on a fresh line.
-  if [ -s "$FSTAB" ] && [ -n "$(tail -c 1 "$FSTAB")" ]; then
-    printf '\n' | $SUDO tee -a "$FSTAB" >/dev/null
+  # appended onto the end of it, silently corrupting that entry. Add the
+  # missing newline, and end our own block with one so a later edit starts on
+  # a fresh line.
+  local candidate entry_only
+  candidate="$(mktemp)" || die "could not create a temporary file."
+  entry_only="$(mktemp)" || die "could not create a temporary file."
+  cat "$FSTAB" >"$candidate"
+  if [ -s "$candidate" ] && [ -n "$(tail -c 1 "$candidate")" ]; then
+    printf '\n' >>"$candidate"
   fi
-  printf '%s\n%s\n' "$FSTAB_MARKER" "$(fstab_line)" | $SUDO tee -a "$FSTAB" >/dev/null
-  # Prove it parses before trusting it to a reboot.
-  if ! $SUDO findmnt --verify --verbose --tab-file "$FSTAB" >/dev/null 2>&1; then
-    log "WARNING: findmnt --verify reported problems; review $FSTAB (backup at $backup)."
+  printf '%s\n%s\n' "$FSTAB_MARKER" "$(fstab_line)" >>"$candidate"
+
+  # Verify the new entry on its own rather than the assembled file. findmnt
+  # --verify reports on every line it is given, so an unrelated entry that
+  # someone already has in their fstab would otherwise block this install and
+  # read as though the generated line were at fault.
+  printf '%s\n' "$(fstab_line)" >"$entry_only"
+  if ! findmnt --verify --verbose --tab-file "$entry_only" >/dev/null 2>&1; then
+    rm -f "$candidate" "$entry_only"
+    die "the generated entry does not parse; $FSTAB is unchanged (backup at $backup). Check STORAGE_REMOTE and the mount options in .env."
   fi
+
+  $SUDO cp "$candidate" "$FSTAB"
+  rm -f "$candidate" "$entry_only"
   # Only the system fstab has a systemd generator behind it; reloading for
   # any other file would be a no-op that still stalls on polkit.
   [ "$FSTAB" = /etc/fstab ] && { $SUDO systemctl daemon-reload 2>/dev/null || true; }
