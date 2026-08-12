@@ -38,6 +38,11 @@ server {
   ssl_protocols         TLSv1.2 TLSv1.3;
   ssl_ciphers           HIGH:!aNULL:!MD5;
 
+  # A cold library listing has to stat every item, and on external storage
+  # that first call can outrun nginx's 60s default and return 504 while the
+  # app itself is fine. Confirmed live: Lidarr's /api/v1/artist took over a
+  # minute cold and 2s once cached. Set here so every location inherits it.
+  proxy_read_timeout     180s;
   proxy_cache            proxy_cache;
   proxy_cache_methods    GET HEAD;
   proxy_cache_revalidate on;
@@ -106,11 +111,6 @@ server {
 ## Servarr
   location /bazarr/ {
     proxy_pass                  $bazarr_upstream;
-    # A cold library listing has to stat every item, and on external
-    # storage that first call can outrun nginx's 60s default and return
-    # 504 while the app itself is fine. Confirmed live: Lidarr's
-    # /api/v1/artist took over a minute cold and 2s once cached.
-    proxy_read_timeout          180s;
     proxy_ssl_verify            off;
     proxy_redirect              off;
     proxy_http_version          1.1;
@@ -148,11 +148,6 @@ server {
 
   location /lidarr/ {
     proxy_pass                  $lidarr_upstream;
-    # A cold library listing has to stat every item, and on external
-    # storage that first call can outrun nginx's 60s default and return
-    # 504 while the app itself is fine. Confirmed live: Lidarr's
-    # /api/v1/artist took over a minute cold and 2s once cached.
-    proxy_read_timeout          180s;
     proxy_ssl_verify            off;
     proxy_redirect              off;
     proxy_http_version          1.1;
@@ -188,11 +183,6 @@ server {
 
   location /prowlarr/ {
     proxy_pass                  $prowlarr_upstream;
-    # A cold library listing has to stat every item, and on external
-    # storage that first call can outrun nginx's 60s default and return
-    # 504 while the app itself is fine. Confirmed live: Lidarr's
-    # /api/v1/artist took over a minute cold and 2s once cached.
-    proxy_read_timeout          180s;
     proxy_ssl_verify            off;
     proxy_redirect              off;
     proxy_http_version          1.1;
@@ -211,11 +201,6 @@ server {
 
   location /radarr/ {
     proxy_pass                  $radarr_upstream;
-    # A cold library listing has to stat every item, and on external
-    # storage that first call can outrun nginx's 60s default and return
-    # 504 while the app itself is fine. Confirmed live: Lidarr's
-    # /api/v1/artist took over a minute cold and 2s once cached.
-    proxy_read_timeout          180s;
     proxy_ssl_verify            off;
     proxy_redirect              off;
     proxy_http_version          1.1;
@@ -234,11 +219,6 @@ server {
 
   location /readarr/ {
     proxy_pass                  $readarr_upstream;
-    # A cold library listing has to stat every item, and on external
-    # storage that first call can outrun nginx's 60s default and return
-    # 504 while the app itself is fine. Confirmed live: Lidarr's
-    # /api/v1/artist took over a minute cold and 2s once cached.
-    proxy_read_timeout          180s;
     proxy_ssl_verify            off;
     proxy_redirect              off;
     proxy_http_version          1.1;
@@ -257,11 +237,6 @@ server {
 
   location /sonarr/ {
     proxy_pass                  $sonarr_upstream;
-    # A cold library listing has to stat every item, and on external
-    # storage that first call can outrun nginx's 60s default and return
-    # 504 while the app itself is fine. Confirmed live: Lidarr's
-    # /api/v1/artist took over a minute cold and 2s once cached.
-    proxy_read_timeout          180s;
     proxy_ssl_verify            off;
     proxy_redirect              off;
     proxy_http_version          1.1;
@@ -280,11 +255,6 @@ server {
 
   location /whisparr/ {
     proxy_pass                  $whisparr_upstream;
-    # A cold library listing has to stat every item, and on external
-    # storage that first call can outrun nginx's 60s default and return
-    # 504 while the app itself is fine. Confirmed live: Lidarr's
-    # /api/v1/artist took over a minute cold and 2s once cached.
-    proxy_read_timeout          180s;
     proxy_ssl_verify            off;
     proxy_redirect              off;
     proxy_http_version          1.1;
@@ -649,11 +619,6 @@ server {
 ## NZB (continued)
   location /lazylibrarian/ {
     proxy_pass                  $lazylibrarian_upstream;
-    # A cold library listing has to stat every item, and on external
-    # storage that first call can outrun nginx's 60s default and return
-    # 504 while the app itself is fine. Confirmed live: Lidarr's
-    # /api/v1/artist took over a minute cold and 2s once cached.
-    proxy_read_timeout          180s;
     proxy_ssl_verify            off;
     proxy_redirect              off;
     # LazyLibrarian and Mylar are both cherrypy apps that default to a
@@ -680,11 +645,6 @@ server {
 
   location /mylar/ {
     proxy_pass                  $mylar_upstream;
-    # A cold library listing has to stat every item, and on external
-    # storage that first call can outrun nginx's 60s default and return
-    # 504 while the app itself is fine. Confirmed live: Lidarr's
-    # /api/v1/artist took over a minute cold and 2s once cached.
-    proxy_read_timeout          180s;
     proxy_ssl_verify            off;
     proxy_redirect              off;
     # See the matching comment on /lazylibrarian/ above: both apps default
