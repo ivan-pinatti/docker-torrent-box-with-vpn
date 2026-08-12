@@ -193,6 +193,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs: [changes]
+    # Narrower than the workflow default, which also grants pull-requests:
+    # read for dorny/paths-filter in the changes job. This job runs Renovate
+    # through npx and has no reason to hold a token that can read PRs.
+    permissions:
+      contents: read
     # Only when that one file changes. The validator downloads Renovate to run,
     # which is not worth paying for on PRs that cannot have affected it.
     if: >-
