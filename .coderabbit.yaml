@@ -15,7 +15,23 @@ reviews:
     # patches/ (matches the BASH_SHELLCHECK exclusion in .mega-linter.yml).
     - "!configs/*/custom-cont-init.d/**"
     - "!configs/*/custom-services.d/**"
+  tools:
+    dotenvLint:
+      # This repo runs dotenv-linter itself, via ENV_DOTENV_LINTER in
+      # .mega-linter.yml, so nothing is lost by not running it twice.
+      #
+      # Its UnorderedKey rule is the reason for turning it off here. .env.example
+      # is grouped by function with explanatory comments rather than sorted
+      # alphabetically, which produces 155 UnorderedKey reports against the file
+      # as it stands. CodeRabbit surfaced one of them on consecutive reviews, and
+      # acting on it separates a key from the others it belongs with.
+      enabled: false
   path_instructions:
+    - path: ".env.example"
+      instructions: >
+        Keys are deliberately grouped by function, with comments explaining
+        each group, rather than sorted alphabetically. Do not suggest
+        reordering them.
     - path: "docker-compose-*.yml"
       instructions: >
         Service blocks must follow the key order documented in
