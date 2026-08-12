@@ -655,9 +655,24 @@ pull_docker_images:
 # diffing two whole runs line by line to notice gluetun took 5s on the run that
 # worked and gave up at 120s on the one that did not. The state line and the
 # tail of gluetun's own log answer that in place.
+# Waits on gluetun's own health endpoint as well as the container's health
+# status, and treats either as ready.
+#
+# Podman runs healthchecks from transient systemd timers, and where that
+# plumbing is unavailable the status simply stays "starting" forever. CI hit
+# exactly that: gluetun's log showed the tunnel up and the public IP fetched
+# about a second after start, while podman still reported health=starting two
+# minutes later. Waiting only on the container status turns a working gateway
+# into a failed build.
+#
+# The probe is the same request the compose healthcheck makes, run directly,
+# so this is not a weaker check. It just does not depend on whether anything
+# scheduled it.
 define wait_for_gluetun
-	@echo "Waiting for VPN gateway to be healthy (up to 120s)..."
-	@timeout 120 sh -c 'until $(RUNTIME) inspect gluetun --format "{{.State.Running}} {{.State.Health.Status}}" 2>/dev/null | grep -qx "true healthy"; do sleep 5; done' || { \
+	@echo "Waiting for VPN gateway to be healthy (up to 180s)..."
+	@timeout 180 sh -c 'until $(RUNTIME) inspect gluetun --format "{{.State.Running}} {{.State.Health.Status}}" 2>/dev/null | grep -qx "true healthy" \
+		|| { $(RUNTIME) inspect gluetun --format "{{.State.Running}}" 2>/dev/null | grep -qx true \
+			&& $(RUNTIME) exec gluetun wget -q -O /dev/null http://127.0.0.1:9999/ 2>/dev/null; }; do sleep 5; done' || { \
 		echo "ERROR: gluetun did not become healthy in time"; \
 		echo "--- gluetun state ---"; \
 		$(RUNTIME) inspect gluetun \

@@ -372,6 +372,68 @@ def test_quoted_text_that_reads_like_a_command_is_not_one(quoted, stub_bin):
     assert decision == "allow", f"{quoted!r} was blocked"
 
 
+@pytest.mark.parametrize(
+    "wrapped",
+    [
+        "command git commit -m x",
+        "env CI=1 git reset --hard",
+        "env A=1 B=2 git stash",
+        "/usr/bin/git push --no-verify",
+        "sudo git clean -fdx",
+        "\\git stash",
+        "exec git rebase main",
+        "time git merge main",
+    ],
+)
+def test_wrapped_git_invocations_are_still_git(wrapped, stub_bin):
+    """git is not always spelled "git" at the start of the command, and every
+    one of these ran it while walking straight past the matchers."""
+    decision, _ = _decision(wrapped, stub_bin(containers_running=True))
+    assert decision == "deny", f"{wrapped!r} was not blocked"
+
+
+@pytest.mark.parametrize(
+    "not_git", ["mygit stash", "digit reset", "./scripts/gitless.sh", "legit commit"]
+)
+def test_wrapper_matching_does_not_over_reach(not_git, stub_bin):
+    """Allowing a path prefix must not turn any word ending in git into git."""
+    decision, _ = _decision(not_git, stub_bin(containers_running=True))
+    assert decision == "allow", f"{not_git!r} was blocked"
+
+
+def test_honours_an_overridden_compose_project_name(tmp_path):
+    """The Makefile takes COMPOSE_PROJECT_NAME from the environment before
+    falling back to the directory name. Deriving it from the directory alone
+    means an install that overrides it finds no containers, and the guard
+    quietly passes everything."""
+    binstub = tmp_path / "bin"
+    binstub.mkdir()
+    podman = binstub / "podman"
+    podman.write_text(
+        '#!/bin/sh\ncase "$*" in *custom-project*) echo qbittorrent;; esac\n'
+    )
+    podman.chmod(0o755)
+    path = f"{binstub}:{os.environ['PATH']}"
+
+    payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": "git stash"}})
+
+    def decide(project):
+        env = {**os.environ, "PATH": path, "CLAUDE_PROJECT_DIR": str(REPO_ROOT)}
+        env["COMPOSE_PROJECT_NAME"] = project
+        result = subprocess.run(  # noqa: S603 - GIT_GUARD is a path inside this repo
+            ["bash", str(GIT_GUARD)],
+            input=payload,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            env=env,
+        )
+        return "deny" if result.stdout.strip() else "allow"
+
+    assert decide("custom-project") == "deny", "the override was ignored"
+    assert decide("") == "allow", "the stub reports no containers for the default name"
+
+
 def test_heredoc_bodies_are_data(stub_bin):
     """A heredoc body runs across lines and each line can look exactly like a
     command, so writing a test case or a commit message in one was reading as

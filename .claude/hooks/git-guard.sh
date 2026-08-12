@@ -92,6 +92,17 @@ AT_COMMAND='(^|[;&|(]|&&|\|\|)[[:space:]]*'
 # optionally followed by its value.
 GIT_OPTIONS='([[:space:]]+-[^[:space:]]+([[:space:]]+[^-[:space:]][^[:space:]]*)?)*'
 
+# git is not always spelled "git" at the start of the command. Every one of
+# `command git`, `env CI=1 git`, `sudo git`, `/usr/bin/git` and `\git` runs it
+# just the same, and all of them walked straight past the matchers below.
+# env is the awkward one: its assignments sit between it and the command.
+WRAPPERS='((command|builtin|exec|sudo|nohup|time|env)([[:space:]]+[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*)*[[:space:]]+)*'
+
+# A leading backslash suppresses alias lookup; a path prefix names the binary
+# outright. The optional group needs the trailing slash so that "mygit" is not
+# read as git.
+GIT='\\?([^[:space:]]*/)?git'
+
 # Everything that rewrites tracked files in the working tree, not just the
 # stash that caused the original corruption. reset --hard, restore and clean
 # are all at least as destructive.
@@ -125,19 +136,28 @@ deny() {
 #    using it, and this hook refused the commit that introduced it twice over.
 ARGUMENTS_BEFORE='([^;&|]*[[:space:]])?'
 
-if matches_flags "${AT_COMMAND}git${GIT_OPTIONS}[[:space:]]+commit[[:space:]]${ARGUMENTS_BEFORE}(--no-verify|-n)([[:space:]]|\$)"; then
+if matches_flags "${AT_COMMAND}${WRAPPERS}${GIT}${GIT_OPTIONS}[[:space:]]+commit[[:space:]]${ARGUMENTS_BEFORE}(--no-verify|-n)([[:space:]]|\$)"; then
   deny "git commit --no-verify is not allowed in this repository. It skips the pre-commit hooks, which is where the secret scanning runs, so a bypassed commit can publish credentials to a public repo. If pre-commit is failing, fix what it reports. If it is blocked because the stack is running, stop the stack (make stop_all) and commit normally: that is the supported path, and pre-commit's stash cycle is only dangerous against live databases."
 fi
 
-if matches_flags "${AT_COMMAND}git${GIT_OPTIONS}[[:space:]]+push[[:space:]]${ARGUMENTS_BEFORE}--no-verify([[:space:]]|\$)"; then
+if matches_flags "${AT_COMMAND}${WRAPPERS}${GIT}${GIT_OPTIONS}[[:space:]]+push[[:space:]]${ARGUMENTS_BEFORE}--no-verify([[:space:]]|\$)"; then
   deny "git push --no-verify is not allowed in this repository. It skips the pre-push hooks, which run the full MegaLinter pass including the secret scanners."
 fi
 
 # 2. Working-tree operations against a running stack. podman is queried only
 #    once the command already matched, so the common case costs nothing.
-if matches_verbs "${AT_COMMAND}git${GIT_OPTIONS}[[:space:]]+${WORKTREE_VERBS}([[:space:]]|\$)"; then
+if matches_verbs "${AT_COMMAND}${WRAPPERS}${GIT}${GIT_OPTIONS}[[:space:]]+${WORKTREE_VERBS}([[:space:]]|\$)"; then
   command -v podman >/dev/null 2>&1 || exit 0
-  project="$(basename "${CLAUDE_PROJECT_DIR:-$PWD}")"
+  # Same precedence the Makefile uses for COMPOSE_PROJECT_NAME, which is
+  # `?=` and so takes the environment first, falling back to the directory
+  # name. Deriving it from the directory alone means an install that overrides
+  # it finds no containers and this guard quietly passes everything.
+  root="${CLAUDE_PROJECT_DIR:-$PWD}"
+  project="${COMPOSE_PROJECT_NAME:-}"
+  if [ -z "$project" ] && [ -f "$root/.env" ]; then
+    project="$(sed -n 's/^COMPOSE_PROJECT_NAME=//p' "$root/.env" | head -1 | tr -d '"'"'"'')"
+  fi
+  [ -n "$project" ] || project="$(basename "$root")"
   running="$(podman ps --filter "label=com.docker.compose.project=${project}" --format '{{.Names}}' 2>/dev/null)"
   if [ -n "$running" ]; then
     deny "The stack is running, so this would rewrite a working tree the containers are actively writing to. pre-commit stashes the tree, and on 2026-07-07 that rewrote tracked runtime files mid-flight and corrupted live SQLite databases. Run 'make stop_all' first, then repeat this command. Do not reach for --no-verify: that skips the secret scanning and is refused separately."
