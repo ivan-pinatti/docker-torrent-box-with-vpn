@@ -74,6 +74,7 @@ STOP_COMPOSE_FILES := --file docker-compose.yml $(foreach route_file,$(STOP_ROUT
 	heal_vpn_dependents \
 	rotate_all rotate_api_keys rotate_certificate rotate_passwords wire_connections \
 	disk_status korsync_users permissions_check permissions_repair permissions_smoke permissions_host_smoke prune_cache rotate_nginx_logs \
+	storage_mount storage_unmount storage_status storage_install_boot storage_uninstall_boot storage_guard \
 	install_requirements pull_docker_images pre_commit \
 	restore-configs restore-full \
 	restart sanity_fast sanity_full start start_library start_observability \
@@ -588,6 +589,23 @@ pre_commit:
 disk_status:
 	@./scripts/disk-status.sh
 
+# External storage (see docs/STORAGE.md). All settings come from .env's
+# ### EXTERNAL STORAGE block; these are inert while STORAGE_REMOTE is empty.
+storage_mount:
+	@./scripts/storage-mount.sh mount
+
+storage_unmount:
+	@./scripts/storage-mount.sh unmount
+
+storage_status:
+	@./scripts/storage-mount.sh status
+
+storage_install_boot:
+	@./scripts/storage-mount.sh install-boot
+
+storage_uninstall_boot:
+	@./scripts/storage-mount.sh uninstall-boot
+
 korsync_users:
 	@./scripts/korsync-users.sh $(ARGS)
 
@@ -737,7 +755,22 @@ bootstrap_tests: enable_test_profiles
 	@$(MAKE) --no-print-directory bootstrap
 	@$(MAKE) --no-print-directory test_extended
 
-start: permissions_repair
+# Refuses to start when external storage is configured but not mounted. The
+# fstab entry uses nofail and x-systemd.automount so a NAS that is down cannot
+# block boot, which means the stack can otherwise come up against an empty
+# data/ and the downloaders will happily write into the directory underneath
+# the mountpoint. See docs/STORAGE.md.
+storage_guard:
+	@./scripts/storage-mount.sh status >/dev/null 2>&1 || { \
+		remote="$$(grep -m1 '^STORAGE_REMOTE=' .env | cut -d= -f2- | tr -d '"')"; \
+		if [ -n "$$remote" ]; then \
+			echo "ERROR: STORAGE_REMOTE is set ($$remote) but the share is not mounted."; \
+			echo "Run 'make storage_mount' first, or clear STORAGE_REMOTE to use local disk."; \
+			exit 1; \
+		fi; \
+	}
+
+start: storage_guard permissions_repair
 	@echo "Generating Homepage's services.yaml for the currently enabled profiles..."
 	@./scripts/generate-homepage-services.py
 	@if [ "$(RUNTIME)" = "podman" ]; then \
@@ -759,14 +792,14 @@ start: permissions_repair
 	@$(COMPOSE) $(COMPOSE_FILES) --profile enabled up --detach --no-recreate
 	@echo "$(VPN_ON)" > $(VPN_STATE_FILE)
 
-start_library: permissions_repair
+start_library: storage_guard permissions_repair
 	@echo "Starting Media Library containers..."
 	@$(RUNTIME) network exists docker-torrent-box-with-vpn_apps || $(RUNTIME) network create docker-torrent-box-with-vpn_apps
 	@$(RUNTIME) network exists docker-torrent-box-with-vpn_services || $(RUNTIME) network create --internal --subnet ${SERVICES_SUBNET} --ip-range ${SERVICES_DYNAMIC_IP_RANGE} docker-torrent-box-with-vpn_services
 	@$(RUNTIME) network exists docker-torrent-box-with-vpn_media || $(RUNTIME) network create --subnet ${MEDIA_SUBNET} --ip-range ${MEDIA_DYNAMIC_IP_RANGE} docker-torrent-box-with-vpn_media
 	@$(COMPOSE) --file docker-compose.yml --file docker-compose-media-library.yml --profile enabled up --detach --no-recreate
 
-start_observability: permissions_repair
+start_observability: storage_guard permissions_repair
 	@echo "Starting Observability containers..."
 	@$(RUNTIME) network exists docker-torrent-box-with-vpn_apps || $(RUNTIME) network create docker-torrent-box-with-vpn_apps
 	@$(RUNTIME) network exists docker-torrent-box-with-vpn_services || $(RUNTIME) network create --internal --subnet ${SERVICES_SUBNET} --ip-range ${SERVICES_DYNAMIC_IP_RANGE} docker-torrent-box-with-vpn_services
