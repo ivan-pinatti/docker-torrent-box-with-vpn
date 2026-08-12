@@ -58,7 +58,10 @@ mountpoint_abs="$(cd "$(dirname "$STORAGE_MOUNTPOINT")" 2>/dev/null && pwd)/$(ba
 credentials_abs="$repo_root/${STORAGE_CREDENTIALS_FILE#./}"
 
 log() { printf '%s\n' "$*"; }
-die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+die() {
+  printf 'ERROR: %s\n' "$*" >&2
+  exit 1
+}
 
 require_configured() {
   [ -n "$STORAGE_REMOTE" ] || die "STORAGE_REMOTE is empty in .env; external storage is not configured."
@@ -96,16 +99,16 @@ verify_mount() {
   local opts probe
   opts="$(findmnt --noheadings --output OPTIONS --target "$mountpoint_abs" 2>/dev/null || true)"
   case ",$opts," in
-    *,noserverino,*) log "WARNING: mounted with noserverino; hardlinks will be invisible to rsync -H and to the apps." ;;
+  *,noserverino,*) log "WARNING: mounted with noserverino; hardlinks will be invisible to rsync -H and to the apps." ;;
   esac
   # The whole point of one share is that imports hardlink instead of copying.
   # Prove it here rather than discovering it after a library has doubled.
   probe="$mountpoint_abs/.storage-probe"
   rm -rf "$probe" 2>/dev/null || true
   if mkdir -p "$probe/a" "$probe/b" 2>/dev/null &&
-     : > "$probe/a/f" 2>/dev/null &&
-     ln "$probe/a/f" "$probe/b/f" 2>/dev/null &&
-     [ "$(stat -c %h "$probe/a/f" 2>/dev/null)" = "2" ]; then
+    : >"$probe/a/f" 2>/dev/null &&
+    ln "$probe/a/f" "$probe/b/f" 2>/dev/null &&
+    [ "$(stat -c %h "$probe/a/f" 2>/dev/null)" = "2" ]; then
     log "hardlinks: OK (link count 2 across subdirectories)"
   else
     log "WARNING: hardlink probe failed; imports will copy instead of link."
@@ -115,7 +118,10 @@ verify_mount() {
 
 cmd_mount() {
   require_configured
-  if is_mounted; then log "already mounted: $STORAGE_REMOTE -> $mountpoint_abs"; return 0; fi
+  if is_mounted; then
+    log "already mounted: $STORAGE_REMOTE -> $mountpoint_abs"
+    return 0
+  fi
   mkdir -p "$mountpoint_abs"
   # The check that matters most. A mount that silently fails leaves the apps
   # writing into the local directory underneath, which looks completely normal
@@ -131,7 +137,10 @@ cmd_mount() {
 }
 
 cmd_unmount() {
-  if ! is_mounted; then log "not mounted: $mountpoint_abs"; return 0; fi
+  if ! is_mounted; then
+    log "not mounted: $mountpoint_abs"
+    return 0
+  fi
   if stack_containers_running; then
     die "stack containers are running; stop them first (make stop_all)."
   fi
@@ -146,7 +155,10 @@ cmd_unmount() {
 cmd_status() {
   log "remote:     ${STORAGE_REMOTE:-<not configured>}"
   log "mountpoint: $mountpoint_abs"
-  if [ -z "$STORAGE_REMOTE" ]; then log "state:      external storage not configured"; return 0; fi
+  if [ -z "$STORAGE_REMOTE" ]; then
+    log "state:      external storage not configured"
+    return 0
+  fi
   if is_mounted; then
     log "state:      mounted"
     log "fstype:     $(findmnt --noheadings --output FSTYPE --target "$mountpoint_abs")"
@@ -200,7 +212,10 @@ cmd_install_boot() {
 }
 
 cmd_uninstall_boot() {
-  grep -qF "$FSTAB_MARKER" "$FSTAB" 2>/dev/null || { log "no entry found in $FSTAB"; return 0; }
+  grep -qF "$FSTAB_MARKER" "$FSTAB" 2>/dev/null || {
+    log "no entry found in $FSTAB"
+    return 0
+  }
   local backup="${FSTAB}.$(date +%Y-%m-%d-%H%M%S).bak"
   sudo cp -a "$FSTAB" "$backup"
   log "backed up $FSTAB -> $backup"
@@ -210,10 +225,10 @@ cmd_uninstall_boot() {
 }
 
 case "${1:-}" in
-  mount)          cmd_mount ;;
-  unmount)        cmd_unmount ;;
-  status)         cmd_status ;;
-  install-boot)   cmd_install_boot ;;
-  uninstall-boot) cmd_uninstall_boot ;;
-  *) die "usage: $(basename "$0") {mount|unmount|status|install-boot|uninstall-boot}" ;;
+mount) cmd_mount ;;
+unmount) cmd_unmount ;;
+status) cmd_status ;;
+install-boot) cmd_install_boot ;;
+uninstall-boot) cmd_uninstall_boot ;;
+*) die "usage: $(basename "$0") {mount|unmount|status|install-boot|uninstall-boot}" ;;
 esac
