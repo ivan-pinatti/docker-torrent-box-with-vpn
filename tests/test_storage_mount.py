@@ -24,6 +24,7 @@ pytestmark = pytest.mark.scripts
 
 SCRIPT = REPO_ROOT / "scripts/storage-mount.sh"
 SETTINGS = REPO_ROOT / ".claude/settings.json"
+GIT_GUARD = REPO_ROOT / ".claude/hooks/git-guard.sh"
 
 # A complete ### EXTERNAL STORAGE block, matching .env.example's shape,
 # including the ${DATA_FOLDER} indirection the script has to expand itself.
@@ -441,8 +442,20 @@ def _run_hook(command, tool_command, tmp_path, *, containers_running):
         capture_output=True,
         text=True,
         timeout=60,
-        env={**os.environ, "PATH": f"{binstub}:{os.environ['PATH']}"},
+        env={
+            **os.environ,
+            "PATH": f"{binstub}:{os.environ['PATH']}",
+            "CLAUDE_PROJECT_DIR": str(REPO_ROOT),
+        },
     )
+
+
+def test_hook_script_exists_and_is_executable():
+    """settings.json refers to it by path, so a missing or non-executable file
+    means the hook silently never fires."""
+    assert GIT_GUARD.is_file(), f"{GIT_GUARD} does not exist"
+    assert os.access(GIT_GUARD, os.X_OK), f"{GIT_GUARD} is not executable"
+    assert "git-guard.sh" in _hook_command()
 
 
 def test_settings_json_is_valid():
@@ -481,11 +494,20 @@ def test_hook_allows_git_once_the_stack_is_stopped(tmp_path):
 
 def test_hook_ignores_commands_that_merely_mention_git(tmp_path):
     """The first version of this hook matched substrings and blocked its own
-    test command."""
+    test command.
+
+    The unquoted cases are the ones that actually exercise the anchoring. A
+    mention ending in a quote is rejected by the trailing ([[:space:]]|$)
+    whatever the anchor does, so quoted cases alone pass even with the anchor
+    removed. Mutation testing is what surfaced that.
+    """
     command = _hook_command()
     for benign in (
         "echo 'git commit'",
         "grep -r 'git stash' docs/",
+        "echo git commit -n",
+        "echo git stash here",
+        "printf '%s' git checkout main",
         "ls -la",
         "cat README.md",
     ):
@@ -514,3 +536,82 @@ def test_settings_json_keeps_its_permission_rules():
     """The hook was merged into a file that already carried allow rules."""
     settings = json.loads(SETTINGS.read_text())
     assert len(settings["permissions"]["allow"]) >= 30
+
+
+# ---------------------------------------------------------------------------
+# The same hook, refusing to skip the pre-commit hooks
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "bypass",
+    [
+        "git commit --no-verify -m x",
+        "git commit -n -m x",
+        "git push --no-verify",
+        "cd /tmp && git commit --no-verify -m x",
+        "true; git push --no-verify",
+        "git commit -m x --no-verify",
+        "git push origin main --no-verify",
+        # Scoping the flag to the command's own arguments must not open a way
+        # through by parking a heredoc after it.
+        "git commit --no-verify -F - <<MSG\nbody\nMSG",
+    ],
+)
+def test_hook_blocks_skipping_the_pre_commit_hooks(bypass, tmp_path):
+    """The secret scanners run as pre-commit hooks.
+
+    A bypassed commit is an unscanned commit, and this repository is public, so
+    that is how a credential gets published. Refused whether or not the stack
+    is running: the risk is the missing scan, not the stash.
+    """
+    command = _hook_command()
+    result = _run_hook(command, bypass, tmp_path, containers_running=False)
+    assert "deny" in result.stdout, f"{bypass!r} was not blocked"
+
+
+def test_bypass_refusal_explains_the_supported_path():
+    """A refusal that does not say what to do instead invites working around
+    it, which is how --no-verify got used in the first place."""
+    payload = json.dumps(
+        {"tool_name": "Bash", "tool_input": {"command": "git commit --no-verify -m x"}}
+    )
+    result = subprocess.run(
+        [str(GIT_GUARD)],
+        input=payload,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env={**os.environ, "CLAUDE_PROJECT_DIR": str(REPO_ROOT)},
+    )
+    reason = json.loads(result.stdout)["hookSpecificOutput"]["permissionDecisionReason"]
+    assert "make stop_all" in reason
+    assert "secret" in reason.lower()
+
+
+@pytest.mark.parametrize(
+    "allowed",
+    [
+        "git commit -m x",
+        "git push",
+        "git push -n",  # -n on push is --dry-run, which is harmless
+        "git push --dry-run",
+        "git status",
+        "echo 'git commit --no-verify'",
+        # Quoted spans are data. This hook refused the very commit that
+        # introduced it, because the message explained the rule it enforces.
+        'git commit -m "do not use --no-verify here"',
+        "git commit -m 'refuse -n and --no-verify'",
+        'echo "--no-verify"',
+        # A heredoc body is data too, and is not a quoted span, so it needed
+        # the flag to be scoped to that git command's own arguments. This
+        # refused the introducing commit a second time, via its message.
+        "git commit -F - <<MSG\nA bare -n on push is allowed\nabout --no-verify\nMSG",
+        # -n here belongs to grep, on the far side of a pipe.
+        "git commit -F - | grep -n foo",
+    ],
+)
+def test_hook_allows_verified_git_with_the_stack_stopped(allowed, tmp_path):
+    command = _hook_command()
+    result = _run_hook(command, allowed, tmp_path, containers_running=False)
+    assert result.stdout.strip() == "", f"{allowed!r} was blocked"

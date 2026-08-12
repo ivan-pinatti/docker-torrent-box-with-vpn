@@ -40,8 +40,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cmd=\"$(jq -r '.tool_input.command // \"\"')\"; if printf '%s' \"$cmd\" | grep -qE '(^|[;&|(]|&&|\\|\\|)[[:space:]]*git[[:space:]]+(stash|commit|checkout|switch)([[:space:]]|$)' && [ -n \"$(podman ps --filter label=com.docker.compose.project=docker-torrent-box-with-vpn --format '{{.Names}}' 2>/dev/null)\" ]; then printf '%s' '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Stack containers are running. git stash/commit/checkout/switch rewrite the working tree, and a pre-commit stash cycle corrupted live SQLite databases on 2026-07-07. Run make stop_all first.\"}}'; fi; exit 0",
-            "statusMessage": "Checking the stack is stopped before touching the working tree"
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/git-guard.sh\"",
+            "statusMessage": "Checking this git command is safe to run here"
           }
         ]
       }
