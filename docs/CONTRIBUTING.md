@@ -56,6 +56,13 @@ welcome your pull requests:
       version you intend to merge. Pushing again after labelling re-runs them,
       because a required check only counts against the current head commit.
 
+   The required `Integration Tests` check stays red until the suite has passed
+   on the current head commit, so a pull request cannot be merged without it.
+   It is a separate few-second job from the suite (`Integration Suite`), which
+   is what makes that true: a job skipped by its own condition is reported to
+   branch protection as successful, so gating the suite alone would have made
+   an unlabelled pull request mergeable with no tests at all.
+
    `/run-check` re-runs the two lint layers the same way. Both comments are
    restricted to repository collaborators.
 8. Dependabot opens weekly pull requests for `.pre-commit-config.yaml` hook revs

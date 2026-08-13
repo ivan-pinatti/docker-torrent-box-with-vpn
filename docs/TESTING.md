@@ -43,10 +43,14 @@ head commit, while a required status check is evaluated against the pull
 request's own head: the tests would run, pass, and leave the pull request
 blocked regardless.
 
-Until the label goes on, a pull request carries lint results only, and that is
-the trade being made here: one can sit green on `Code Check` and `MegaLinter`
-having never run a test at all. Ask for the run before merging anything that
-touches the stack.
+Until the label goes on, the required `Integration Tests` check is **red**, and
+the pull request cannot be merged. That check is a separate few-second job from
+the suite itself (`Integration Suite`), and it exists for one reason: a job
+skipped by its own `if` is reported to branch protection as successful, so
+gating the suite on a label would otherwise have made an unlabelled pull
+request *more* mergeable, not less. The gate is never skipped, so the answer
+never depends on how a skip is interpreted. It passes only when the suite has
+actually passed on the current head commit.
 
 `make test_extended` runs `make test` plus a fourth pass: `rinse_and_repeat`
 (stop/start and down/start lifecycle cycles), the single most expensive
