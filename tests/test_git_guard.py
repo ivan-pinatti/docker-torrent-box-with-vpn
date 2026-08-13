@@ -846,19 +846,49 @@ def test_cd_options_do_not_hide_the_directory(option, tmp_path, stub_bin):
     assert decision == "deny"
 
 
-def test_git_dash_c_targets_are_refused_rather_than_guessed(tmp_path, stub_bin):
-    """`git -C <dir> commit` names a directory the reader cannot attribute, and
-    guessing wrong means an unscanned commit rather than a refused one, so it is
-    refused with the rewrite named."""
-    installed = _init_repo(tmp_path / "dashC-installed")
-    fresh = _init_repo(tmp_path / "dashC-fresh", hook_installed=False)
+@pytest.mark.parametrize(
+    "selector",
+    [
+        "-C {fresh}",
+        "--git-dir={fresh}/.git --work-tree={fresh}",
+        "--git-dir {fresh}/.git",
+        "--work-tree={fresh}",
+    ],
+)
+def test_repository_selectors_are_refused_rather_than_guessed(
+    selector, tmp_path, stub_bin
+):
+    """-C, --git-dir and --work-tree all point the commit at a repository other
+    than the one the command appears to run in. None resolves from the text with
+    any confidence, and guessing wrong means an unscanned commit rather than a
+    refused one, so all three are refused with the rewrite named.
+
+    Verified against git 2.55.0 that --git-dir/--work-tree really do relocate
+    the commit (CodeRabbit, PR #40).
+    """
+    installed = _init_repo(tmp_path / f"sel-installed{abs(hash(selector))}")
+    fresh = _init_repo(
+        tmp_path / f"sel-fresh{abs(hash(selector))}", hook_installed=False
+    )
     decision, reason = _decision(
-        f"git -C {fresh} commit -m x",
+        f"git {selector.format(fresh=fresh)} commit -m x",
         stub_bin(containers_running=False),
         cwd=installed,
     )
     assert decision == "deny"
     assert "cd <dir> && git commit" in reason, "the refusal must name the rewrite"
+
+
+def test_a_selector_named_in_a_commit_message_is_data(tmp_path, stub_bin):
+    """Quoted spans are data. Rule 1 was refused by its own commit message
+    twice for exactly this reason."""
+    repo = _init_repo(tmp_path / "selector-in-message")
+    decision, _ = _decision(
+        "git add -A && git commit -q -m 'stop guessing --work-tree targets'",
+        stub_bin(containers_running=False),
+        cwd=repo,
+    )
+    assert decision == "allow"
 
 
 def test_a_scoped_hooks_path_with_two_commits_is_refused(tmp_path, stub_bin):
@@ -890,6 +920,24 @@ def test_a_scoped_hooks_path_with_one_commit_is_still_honoured(tmp_path, stub_bi
     hook.chmod(0o755)
     decision, _ = _decision(
         f"git -c core.hooksPath={elsewhere} commit -m x",
+        stub_bin(containers_running=False),
+        cwd=repo,
+    )
+    assert decision == "allow"
+
+
+def test_a_selector_inside_an_unrelated_quoted_argument_is_data(tmp_path, stub_bin):
+    """The selector check reads the form with quoted spans removed, not the one
+    with only quote characters removed.
+
+    `-m` values are stripped from the flags form anyway, so a commit message
+    naming a selector cannot tell the two apart. A quoted argument to a
+    different command can: here `--work-tree=` belongs to echo, and reading the
+    flags form would refuse the commit for it.
+    """
+    repo = _init_repo(tmp_path / "selector-in-argument")
+    decision, _ = _decision(
+        "echo '--work-tree=/tmp/nowhere' && git commit -m x",
         stub_bin(containers_running=False),
         cwd=repo,
     )

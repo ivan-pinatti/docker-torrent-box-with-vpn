@@ -238,8 +238,14 @@ $session_dir"
   # So the two constructs that cannot be attributed to one commit are refused
   # outright rather than guessed at. Both have an obvious rewrite, named in the
   # refusal, and neither is a shape this repository's own commands use.
-  if printf '%s' "$cmd_verbs" | grep -qE "${AT_COMMAND}${WRAPPERS}${GIT}[[:space:]]+[^;&|]*-C[[:space:]]"; then
-    deny "git -C <dir> commit cannot be checked for installed hooks, because the directory it targets is not resolvable from the command text, and guessing wrong here means an unscanned commit rather than a refused one. Write it as 'cd <dir> && git commit ...' instead, which is checked."
+  # -C, --git-dir and --work-tree are the same construct wearing three hats:
+  # each points git at a repository other than the one the command appears to
+  # run in, and none of them is resolvable from the text with any confidence.
+  # Verified against git 2.55.0 that --git-dir/--work-tree really do relocate
+  # the commit (CodeRabbit, PR #40).
+  REPO_SELECTORS='(-C[[:space:]]|--git-dir[[:space:]=]|--work-tree[[:space:]=])'
+  if printf '%s' "$cmd_verbs" | grep -qE "${AT_COMMAND}${WRAPPERS}${GIT}[[:space:]]+[^;&|]*${REPO_SELECTORS}"; then
+    deny "git -C, --git-dir and --work-tree point the commit at a repository other than the one this command appears to run in, and which one cannot be resolved from the command text. Guessing wrong means an unscanned commit rather than a refused one, so this is refused instead. Write it as 'cd <dir> && git commit ...', which is checked."
   fi
 
   # `-c core.hooksPath=<dir>` applies to the one git command carrying it, so
