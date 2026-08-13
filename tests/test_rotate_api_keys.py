@@ -221,22 +221,43 @@ def _prowlarr_stored_key(app_name: str) -> str | None:
     return json.loads(row[0]).get("apiKey")
 
 
-def _set_prowlarr_key_for_app(prowlarr_api_key: str, app_name: str, key: str):
-    """Write an app's API key back into Prowlarr's Applications table."""
-    app_json = _prowlarr_application(prowlarr_api_key, app_name)
-    assert app_json is not None, f"Prowlarr application '{app_name}' not found"
-    for field in app_json.get("fields", []):
-        if field.get("name") == "apiKey":
-            field["value"] = key
+def _set_prowlarr_key_for_app(
+    prowlarr_api_key: str, app_name: str, key: str, timeout: int = 60
+):
+    """Write an app's API key back into Prowlarr's Applications table.
+
+    This is a read-modify-write against a record other workers also touch.
+    rotation_isolated runs several arr-app cases in parallel and each rewrites
+    its own Prowlarr application, so the record can change between the read and
+    the write, and Prowlarr rejects the stale copy with a 400. Prowlarr is also
+    restarted during these rotations, which fails the write outright.
+
+    Re-read and retry rather than asserting on a single attempt. Observed live
+    in CI as "Could not restore Prowlarr application 'Sonarr': 400".
+    """
     port = int(ENV.get("PROWLARR_HTTPS_PORT", "6969"))
-    status, _ = container_http(
-        "prowlarr",
-        f"https://127.0.0.1:{port}/prowlarr/api/v1/applications/{app_json['id']}",
-        method="PUT",
-        headers={"X-Api-Key": prowlarr_api_key, "Content-Type": "application/json"},
-        data=json.dumps(app_json),
-        timeout=TIMEOUT,
-    )
+    deadline = time.time() + timeout
+    status = None
+    while time.time() < deadline:
+        app_json = _prowlarr_application(prowlarr_api_key, app_name)
+        if app_json is not None:
+            for field in app_json.get("fields", []):
+                if field.get("name") == "apiKey":
+                    field["value"] = key
+            status, _ = container_http(
+                "prowlarr",
+                f"https://127.0.0.1:{port}/prowlarr/api/v1/applications/{app_json['id']}",
+                method="PUT",
+                headers={
+                    "X-Api-Key": prowlarr_api_key,
+                    "Content-Type": "application/json",
+                },
+                data=json.dumps(app_json),
+                timeout=TIMEOUT,
+            )
+            if status in (200, 202):
+                return
+        time.sleep(3)
     assert status in (200, 202), (
         f"Could not restore Prowlarr application '{app_name}': {status}"
     )
@@ -268,7 +289,7 @@ def _restore_api_key_secret(app: str, old_key: str):
     path.chmod(0o644)
 
 
-def _assert_homepage_widget_ok(app: str, action: str, timeout: int = 30):
+def _assert_homepage_widget_ok(app: str, action: str, timeout: int = 90):
     # rotation_isolated runs several of these arr-app cases in parallel
     # (pytest -n 4), and every one of them restarts the shared homepage
     # container as part of its own rotate/restore cycle. wait_for_homepage_
@@ -278,6 +299,11 @@ def _assert_homepage_widget_ok(app: str, action: str, timeout: int = 30):
     # broken. Confirmed live: two concurrent workers (lidarr, sonarr) both
     # hit this on the same run. Retry the whole ready+widget check instead
     # of asserting on a single sample.
+    #
+    # 30s was not enough on a loaded runner: CI still failed here with
+    # "Radarr (queue/status): HTTP 0", homepage simply not answering yet.
+    # Four workers each restarting the same container serialises those
+    # restarts, so the window has to cover all of them, not just one.
     deadline = time.time() + timeout
     failures: list[str] = []
     while time.time() < deadline:
