@@ -52,12 +52,7 @@ review has settled.
    still reporting success, so nothing tells you they were missing until CI
    fails on something the hooks catch locally.
 4. MegaLinter runs incrementally at `pre-commit` and as a broader gate at
-   `pre-push`, while the focused hooks still run directly in `pre-commit`. It
-   uses the `security` flavor, which carries only the scanners that need the
-   whole working tree (betterleaks, checkov, trivy, bandit, shellcheck,
-   yamllint). Everything file-shaped is a pre-commit hook instead, so it runs
-   at commit time rather than minutes later in CI, and the image is a 1.36 GB
-   download rather than 4.77 GB.
+   `pre-push`, while the focused hooks still run directly in `pre-commit`.
    `pre-push` also sweeps the fast hooks across every file, which is the scope
    CI uses. Without that sweep a violation in a file your branch never touched
    passes locally and fails in CI, which is what a linter version bump
