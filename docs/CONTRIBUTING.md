@@ -19,7 +19,29 @@ This project uses [Github Flow](https://guides.github.com/introduction/flow/inde
 so all code changes happen through pull requests.
 
 Pull requests are the best way to propose changes to the codebase. I actively
-welcome your pull requests:
+welcome your pull requests.
+
+### The short version
+
+| Stage | What runs | What you do |
+| --- | --- | --- |
+| Open as a **draft** | `Code Check` (pre-commit), then `MegaLinter` if it passes | Fix whatever they report |
+| **Mark ready for review** | CodeRabbit reviews (it skips drafts) | Address its comments, pushing fixes |
+| Comment **`/run-tests`** | The integration suite, against your PR | Wait for it to go green |
+| Merge | | |
+
+Checks run in this order on purpose, so a cheap failure is never paid for
+twice and the expensive one is spent only on the version being merged. The
+integration suite stands the whole stack up and takes upward of twelve
+minutes; it never runs on an unlabelled push. Only repository collaborators
+can ask for it, and the required `Integration Tests` check stays red until it
+has passed on the current head commit, so nothing merges untested.
+
+If you are contributing from a fork, you cannot apply the label yourself. Say
+so in the pull request and a maintainer will run the suite for you once the
+review has settled.
+
+### The detail
 
 1. Fork the repo and create your branch from `main`.
 2. If you don't have it yet, please install pre-commit. More info:
