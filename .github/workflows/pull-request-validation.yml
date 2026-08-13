@@ -14,15 +14,14 @@ on:
     # restated here rather than inherited.
     types: [opened, synchronize, reopened, labeled, ready_for_review]
   # Lets .github/workflows/comment-dispatch.yml re-run this against a PR's
-  # current head from a `/run-check` or `/run-tests` comment, without
-  # needing a new push. Always dispatched off main (see that workflow), so
+  # current head from a `/run-check` comment, without needing a new push. Always dispatched off main (see that workflow), so
   # this definition is never taken from the PR's own, potentially-modified
   # copy; pr_number only controls which commit gets checked out below.
   # job_scope narrows which jobs actually run for that comment: `/run-check`
-  # wants pr_check (pre-commit) and the MegaLinter job that follows it.
-  # `/run-tests` no longer comes through here at all, it applies a label
-  # instead (see comment-dispatch.yml for why), so the `tests` scope is left
-  # for a manual run from the Actions tab only. A plain manual run (job_scope
+  # wants pr_check (pre-commit) and the MegaLinter job that follows it. There is
+  # no comment for the suite, which is started by the `run-tests` label instead
+  # (see comment-dispatch.yml for why a comment cannot), so the `tests` scope is
+  # left for a manual run from the Actions tab only. A plain manual run (job_scope
   # left as "all") behaves like a normal pull_request-triggered run, except
   # that it also runs the suite, which an unlabelled pull_request does not.
   #checkov:skip=CKV_GHA_7:workflow_dispatch itself requires write access to
@@ -309,10 +308,10 @@ jobs:
     # timing out at 25 minutes before reaching a single test. Nothing in those
     # runs could have been affected by the change.
     #
-    # A code owner applies the label by commenting `/run-tests`, which
-    # comment-dispatch.yml restricts to OWNER, MEMBER and COLLABORATOR: that
-    # restriction is the gate, and labelling is restricted to collaborators by
-    # GitHub anyway. Once labelled, a further push does re-run this, which is
+    # A code owner applies the `run-tests` label directly, which GitHub already
+    # restricts to collaborators, so the permission model needs no check of our
+    # own. A comment cannot do it: a label applied by a workflow's GITHUB_TOKEN
+    # triggers nothing, by design (see comment-dispatch.yml). Once labelled, a further push does re-run this, which is
     # deliberate. A required status check is evaluated against the head commit,
     # so a result from before the last push would not count for the merge even
     # if it were kept.
@@ -322,7 +321,7 @@ jobs:
     #
     # !cancelled() rather than always(): a need being skipped must not skip this
     # too (pr_check and megalinter are both skipped for job_scope: tests, which
-    # is the scope `/run-tests` dispatches), but a cancelled run must not go on
+    # is the scope a manual tests-only dispatch uses), but a cancelled run must
     # to spend twenty minutes standing the stack up. Only an actual failure of
     # one of the lint layers blocks it.
     if: >-
@@ -571,11 +570,11 @@ jobs:
             fi
             if [ "$DRAFT" = "true" ]; then
               echo "::notice::Still a draft, so the integration suite is not required yet."
-              echo "Comment /run-tests before marking this ready for review."
+              echo "Apply the run-tests label before marking this ready for review."
               exit 0
             fi
             echo "The integration suite has not run on this commit."
-            echo "Comment /run-tests on the pull request to label it and run them."
+            echo "Apply the run-tests label to the pull request to run them."
             exit 1
           fi
           echo "The integration suite did not pass on this commit (result: $RESULT)."

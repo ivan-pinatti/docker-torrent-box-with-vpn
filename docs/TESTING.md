@@ -33,9 +33,10 @@ own integration job actually runs; it is not a substitute for `make test`
 or `make bootstrap_tests` and should not be reached for outside CI.
 
 That integration job does not run on an unlabelled push. It stands the whole
-stack up and takes upward of twelve minutes, so a code owner asks for it by
-commenting `/run-tests` on the pull request once the change has settled, which
-applies the `run-tests` label and starts the job.
+stack up and takes upward of twelve minutes, so a code owner applies the
+`run-tests` label once the change has settled, which starts the job. There is
+no comment shortcut: a label applied by a workflow's own GITHUB_TOKEN triggers
+nothing, because GitHub suppresses runs from events its own token creates.
 
 The label, rather than a `workflow_dispatch`, is what makes the result count.
 A dispatched run is dispatched off `main`, so its check attaches to `main`'s

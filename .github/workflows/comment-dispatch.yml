@@ -5,12 +5,18 @@ name: Comment-Triggered Checks
 # head without needing a new push:
 #   /run-check  -> pre-commit and MegaLinter (PR Validation's pr_check job and
 #                  the megalinter job that follows it, via job_scope: checks)
-#   /run-tests  -> the test suite (PR Validation's prerequisites +
-#                  integration jobs, via job_scope: tests)
 #
-# /run-tests is not just a convenience any more: integration no longer runs on
-# a push at all, so this is the only way to ask for it. The author_association
-# check below is therefore the gate on who can spend that runner time.
+# There is deliberately no /run-tests here. The integration suite is started by
+# the `run-tests` label, and a label applied by this workflow's GITHUB_TOKEN
+# does not trigger anything: GitHub suppresses workflow runs from events its own
+# token creates, to stop workflows looping. Confirmed live on PR #41, where the
+# label was applied, the labeled event was swallowed, and nothing ran until the
+# same label was applied by a person.
+#
+# workflow_dispatch is the documented exception to that rule, which is why
+# /run-check still works while /run-tests could not. Apply the label instead,
+# from the sidebar or `gh pr edit <n> --add-label run-tests`; only collaborators
+# can, so the permission model is the same and there is no token to hold.
 # This job never checks out the PR's own code or workflow definitions: it
 # only reads PR metadata via the API and dispatches the target workflows
 # (always their trusted main-branch copies, workflow_dispatch requires
@@ -32,7 +38,7 @@ jobs:
     timeout-minutes: 2
     if: >
       github.event.issue.pull_request != null &&
-      (startsWith(github.event.comment.body, '/run-check') || startsWith(github.event.comment.body, '/run-tests')) &&
+      startsWith(github.event.comment.body, '/run-check') &&
       contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
     steps:
       - name: Acknowledge
@@ -51,22 +57,3 @@ jobs:
             --ref "${{ github.event.repository.default_branch }}" \
             -f pr_number="${{ github.event.issue.number }}" \
             -f job_scope=checks
-
-      # Labels rather than dispatches. A workflow_dispatch run is dispatched off
-      # main, so its check attaches to main's HEAD, while a required status
-      # check is evaluated against the pull request's head commit: the tests
-      # would run, pass, and leave the pull request blocked regardless. Applying
-      # the label fires a pull_request event against the right commit, so the
-      # result counts for the merge.
-      #
-      # Removed first, and the failure ignored, so that asking twice works: a
-      # label that is already present fires nothing when added again.
-      - name: Label for tests
-        if: startsWith(github.event.comment.body, '/run-tests')
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh pr edit "${{ github.event.issue.number }}" \
-            --repo "${{ github.repository }}" --remove-label run-tests || true
-          gh pr edit "${{ github.event.issue.number }}" \
-            --repo "${{ github.repository }}" --add-label run-tests

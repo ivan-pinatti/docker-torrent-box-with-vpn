@@ -27,19 +27,18 @@ welcome your pull requests.
 | --- | --- | --- |
 | Open as a **draft** | `Code Check` (pre-commit), then `MegaLinter` if it passes | Fix whatever they report |
 | **Mark ready for review** | CodeRabbit reviews (it skips drafts) | Address its comments, pushing fixes |
-| Comment **`/run-tests`** | The integration suite, against your PR | Wait for it to go green |
+| Apply the **`run-tests`** label | The integration suite, against your PR | Wait for it to go green |
 | Merge | | |
 
 Checks run in this order on purpose, so a cheap failure is never paid for
 twice and the expensive one is spent only on the version being merged. The
 integration suite stands the whole stack up and takes upward of twelve
 minutes; it never runs on an unlabelled push. Only repository collaborators
-can ask for it, and the required `Tests Verified` check stays red until it
+can apply it, and the required `Tests Verified` check stays red until it
 has passed on the current head commit, so nothing merges untested.
 
-If you are contributing from a fork, you cannot apply the label yourself. Say
-so in the pull request and a maintainer will run the suite for you once the
-review has settled.
+If you are contributing from a fork you cannot apply the label yourself. Say so
+in the pull request and a maintainer will apply it once the review has settled.
 
 ### The detail
 
@@ -74,8 +73,9 @@ review has settled.
       re-reviewing after every formatting fix.
    3. **Address the review, pushing fixes as needed.** Each push re-runs the
       two lint layers, and CodeRabbit re-reviews.
-   4. **Comment `/run-tests` once the review is settled.** That applies the
-      `run-tests` label, which is what actually starts the integration tests;
+   4. **Apply the `run-tests` label once the review is settled.** From the
+      sidebar, or `gh pr edit <n> --add-label run-tests`. The label is what
+      starts the integration tests;
       they never run on an unlabelled push. They stand the whole stack up and
       take upward of twelve minutes, so they are worth spending once, on the
       version you intend to merge. Pushing again after labelling re-runs them,
@@ -88,8 +88,10 @@ review has settled.
    branch protection as successful, so gating the suite alone would have made
    an unlabelled pull request mergeable with no tests at all.
 
-   `/run-check` re-runs the two lint layers the same way. Both comments are
-   restricted to repository collaborators.
+   `/run-check` re-runs the two lint layers from a comment. There is no
+   equivalent comment for the suite: a label applied by a workflow's own token
+   triggers nothing, by GitHub's design, so the label has to come from a person.
+   Only collaborators can label or use `/run-check`.
 8. Dependabot opens weekly pull requests for `.pre-commit-config.yaml` hook revs
    and GitHub Action version bumps. Eligible patch and minor updates are
    approved and marked for auto-merge once the required checks pass.
@@ -107,12 +109,11 @@ review has settled.
    rewrites every credential). See [docs/TESTING.md](TESTING.md) for the
    marker/tier breakdown and how to add a test, and
    [docs/MAKE_COMMANDS.md](MAKE_COMMANDS.md) for the full list of test
-   targets. Pull requests do not run the suite on their own: a maintainer asks
-   for it by commenting `/run-tests`, which applies the `run-tests` label and
-   starts the `Integration Tests` job in `pull-request-validation.yml`.
-   `/run-check` re-runs the lint layers the same way (see
-   `.github/workflows/comment-dispatch.yml`). Still test manually for anything
-   the suite doesn't cover.
+   targets. Pull requests do not run the suite on their own: a maintainer applies
+   the `run-tests` label, which starts the `Integration Tests` job in
+   `pull-request-validation.yml`. `/run-check` re-runs the lint layers from a
+   comment (see `.github/workflows/comment-dispatch.yml`). Still test manually
+   for anything the suite doesn't cover.
 11. Update the documentation accordingly
 12. Issue the pull request!
 
