@@ -25,6 +25,10 @@ welcome your pull requests:
 2. If you don't have it yet, please install pre-commit. More info:
    <https://pre-commit.com/>
 3. After pre-commit is installed, add the hooks by running `pre-commit install`.
+   Do this in every clone, including throwaway ones. `git clone` does not carry
+   the hooks over, and a commit made without them runs no checks at all while
+   still reporting success, so nothing tells you they were missing until CI
+   fails on something the hooks catch locally.
 4. MegaLinter runs incrementally at `pre-commit` and as a broader gate at
    `pre-push`, while the focused hooks still run directly in `pre-commit`.
 5. Pull requests also run the MegaLinter workflow in GitHub Actions, so the same

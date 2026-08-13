@@ -1,9 +1,15 @@
 """Tests for .claude/hooks/git-guard.sh, the PreToolUse hook on the Bash tool.
 
-The hook enforces two rules that were prose in CLAUDE.md and got broken anyway:
-no skipping the pre-commit hooks, and no working-tree git operations while the
-stack is running. Nothing here runs git or touches the real stack; podman is
-stubbed on PATH so both stack states are deterministic.
+The hook enforces three rules that were prose in CLAUDE.md and got broken
+anyway: no skipping the pre-commit hooks, no working-tree git operations while
+the stack is running, and no committing into a clone where the hooks were never
+installed.
+
+Nothing here touches the real stack; podman is stubbed on PATH so both stack
+states are deterministic. Rule 3 does need real repositories, so those cases
+build throwaway ones under tmp_path rather than asking about this checkout,
+whose answer depends on whether anyone has run `pre-commit install` in it (CI
+never has, a developer's clone usually has).
 
 Run explicitly with:
     pytest -m scripts tests/test_git_guard.py
@@ -60,9 +66,49 @@ def stub_bin(tmp_path):
     return _build
 
 
-def _decision(tool_command, path):
+def _init_repo(path, *, uses_pre_commit=True, hook_installed=True, executable=True):
+    """A throwaway git repository in whichever rule 3 state is asked for."""
+    path.mkdir(parents=True, exist_ok=True)
+    subprocess.run(  # noqa: S603 - fixed argv, path is pytest's tmp_path
+        ["git", "init", "-q", str(path)], check=True, capture_output=True, timeout=60
+    )
+    if uses_pre_commit:
+        (path / ".pre-commit-config.yaml").touch()
+    if hook_installed:
+        hook = path / ".git" / "hooks" / "pre-commit"
+        hook.write_text("#!/bin/sh\n")
+        hook.chmod(0o755 if executable else 0o644)
+    return path
+
+
+_DEFAULT_CWD = None
+
+
+@pytest.fixture(scope="session", autouse=True)
+def default_cwd(tmp_path_factory):
+    """The directory every case that is not about rule 3 reports as its cwd.
+
+    Without this they inherit this checkout, where rule 3's answer depends on
+    whether `pre-commit install` has been run: locally it usually has, in CI it
+    never has, so `git commit -m x` would be allowed on one and refused on the
+    other. Pointing them at a repository that is unambiguously installed keeps
+    every rule 1 and rule 2 expectation about the same thing it was before.
+    """
+    global _DEFAULT_CWD
+    repo = _init_repo(tmp_path_factory.mktemp("hooks-installed"))
+    _DEFAULT_CWD = str(repo)
+    return repo
+
+
+def _decision(tool_command, path, cwd=None):
     """Returns "allow" or "deny" for a command, plus the refusal reason."""
-    payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": tool_command}})
+    payload = json.dumps(
+        {
+            "tool_name": "Bash",
+            "cwd": str(cwd) if cwd is not None else _DEFAULT_CWD,
+            "tool_input": {"command": tool_command},
+        }
+    )
     result = subprocess.run(  # noqa: S603 - GIT_GUARD is a path inside this repo
         ["bash", str(GIT_GUARD)],
         input=payload,
@@ -452,3 +498,192 @@ def test_a_command_after_a_heredoc_still_counts(stub_bin):
         stub_bin(containers_running=True),
     )
     assert decision == "deny"
+
+
+# ---------------------------------------------------------------------------
+# Rule 3: no committing where the hooks were never installed
+#
+# `git clone` does not install them, so a fresh clone runs nothing on commit and
+# still reports success. On 2026-08-12 that put two commits into a test bench
+# and failed CI on findings the hooks catch locally. Rule 1 only ever sees an
+# explicit --no-verify, so it cannot help here.
+# ---------------------------------------------------------------------------
+
+
+def test_blocks_a_commit_where_the_hook_is_not_installed(tmp_path, stub_bin):
+    repo = _init_repo(tmp_path / "fresh-clone", hook_installed=False)
+    decision, reason = _decision(
+        "git commit -m x", stub_bin(containers_running=False), cwd=repo
+    )
+    assert decision == "deny"
+    assert "pre-commit install" in reason, "the refusal must say how to fix it"
+
+
+def test_allows_a_commit_where_the_hook_is_installed(tmp_path, stub_bin):
+    repo = _init_repo(tmp_path / "installed")
+    decision, _ = _decision(
+        "git commit -m x", stub_bin(containers_running=False), cwd=repo
+    )
+    assert decision == "allow"
+
+
+def test_repos_that_do_not_configure_pre_commit_are_left_alone(tmp_path, stub_bin):
+    """Otherwise every unrelated repository would be refused for missing a hook
+    it never asked for."""
+    repo = _init_repo(
+        tmp_path / "no-pre-commit", uses_pre_commit=False, hook_installed=False
+    )
+    decision, _ = _decision(
+        "git commit -m x", stub_bin(containers_running=False), cwd=repo
+    )
+    assert decision == "allow"
+
+
+def test_a_directory_that_is_not_a_repo_is_left_alone(tmp_path, stub_bin):
+    """git itself gives a clear error; refusing here would replace it with a
+    confusing one."""
+    plain = tmp_path / "not-a-repo"
+    plain.mkdir()
+    decision, _ = _decision(
+        "git commit -m x", stub_bin(containers_running=False), cwd=plain
+    )
+    assert decision == "allow"
+
+
+def test_a_present_but_non_executable_hook_does_not_count(tmp_path, stub_bin):
+    """git skips a hook it cannot execute, silently, which is the whole problem
+    this rule exists for."""
+    repo = _init_repo(tmp_path / "chmod-644", executable=False)
+    decision, _ = _decision(
+        "git commit -m x", stub_bin(containers_running=False), cwd=repo
+    )
+    assert decision == "deny"
+
+
+def test_core_hooks_path_counts_as_installed(tmp_path, stub_bin):
+    """Hooks do not have to live in .git/hooks, so the lookup asks git where
+    they are rather than assuming."""
+    repo = _init_repo(tmp_path / "hooks-path", hook_installed=False)
+    elsewhere = tmp_path / "shared-hooks"
+    elsewhere.mkdir()
+    hook = elsewhere / "pre-commit"
+    hook.write_text("#!/bin/sh\n")
+    hook.chmod(0o755)
+    subprocess.run(  # noqa: S603 - fixed argv, paths are pytest's tmp_path
+        ["git", "-C", str(repo), "config", "core.hooksPath", str(elsewhere)],
+        check=True,
+        capture_output=True,
+        timeout=60,
+    )
+    decision, _ = _decision(
+        "git commit -m x", stub_bin(containers_running=False), cwd=repo
+    )
+    assert decision == "allow"
+
+
+@pytest.mark.parametrize("hook_installed", [True, False])
+def test_a_worktree_answers_for_the_repo_it_belongs_to(
+    hook_installed, tmp_path, stub_bin
+):
+    """A worktree has no .git/hooks of its own; it shares the parent's. Asking
+    for .git/hooks relative to the worktree would refuse every commit made in
+    one, however well installed the parent is."""
+    repo = _init_repo(
+        tmp_path / f"parent-{hook_installed}", hook_installed=hook_installed
+    )
+    for argv in (
+        ["git", "-C", str(repo), "add", "-A"],
+        [
+            "git",
+            "-C",
+            str(repo),
+            "-c",
+            "user.email=t@e",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-q",
+            "--no-verify",
+            "-m",
+            "init",
+        ],
+        [
+            "git",
+            "-C",
+            str(repo),
+            "worktree",
+            "add",
+            "-q",
+            "--detach",
+            str(tmp_path / f"wt-{hook_installed}"),
+            "HEAD",
+        ],
+    ):
+        subprocess.run(argv, check=True, capture_output=True, timeout=60)  # noqa: S603
+    decision, _ = _decision(
+        "git commit -m x",
+        stub_bin(containers_running=False),
+        cwd=tmp_path / f"wt-{hook_installed}",
+    )
+    assert decision == ("allow" if hook_installed else "deny")
+
+
+def test_a_leading_cd_decides_which_repo_is_checked(tmp_path, stub_bin):
+    """Commands against another checkout are written `cd <dir> && git ...`, so
+    the session directory is the wrong thing to ask about."""
+    installed = _init_repo(tmp_path / "cd-installed")
+    fresh = _init_repo(tmp_path / "cd-fresh", hook_installed=False)
+
+    denied, _ = _decision(
+        f"cd {fresh} && git add -A && git commit -m x",
+        stub_bin(containers_running=False),
+        cwd=installed,
+    )
+    allowed, _ = _decision(
+        f"cd {installed} && git commit -m x",
+        stub_bin(containers_running=False),
+        cwd=fresh,
+    )
+    assert denied == "deny", "the cd target was ignored"
+    assert allowed == "allow", "the session directory overrode the cd target"
+
+
+@pytest.mark.parametrize(
+    "read_only",
+    ["git status", "git log --oneline -5", "git diff", "git push", "git stash list"],
+)
+def test_rule_three_only_looks_at_commits(read_only, tmp_path, stub_bin):
+    repo = _init_repo(tmp_path / "reads", hook_installed=False)
+    decision, _ = _decision(read_only, stub_bin(containers_running=False), cwd=repo)
+    assert decision == "allow", f"{read_only!r} was blocked"
+
+
+@pytest.mark.parametrize(
+    "invocation",
+    [
+        "sudo git commit -m x",
+        "\\git commit -m x",
+        "/usr/bin/git commit -m x",
+        "env CI=1 git commit -m x",
+        "git -c user.name=x commit -m y",
+        "make lint && git commit -m x",
+    ],
+)
+def test_rule_three_sees_the_same_spellings_the_other_rules_do(
+    invocation, tmp_path, stub_bin
+):
+    repo = _init_repo(tmp_path / "spellings", hook_installed=False)
+    decision, _ = _decision(invocation, stub_bin(containers_running=False), cwd=repo)
+    assert decision == "deny", f"{invocation!r} slipped past rule 3"
+
+
+def test_a_commit_message_naming_the_rule_is_not_a_commit_elsewhere(tmp_path, stub_bin):
+    """The quoted span is data. Rule 1 was refused by its own commit message
+    twice over for exactly this reason."""
+    repo = _init_repo(tmp_path / "message", hook_installed=False)
+    decision, _ = _decision(
+        "echo 'git commit needs pre-commit install'",
+        stub_bin(containers_running=False),
+        cwd=repo,
+    )
+    assert decision == "allow"

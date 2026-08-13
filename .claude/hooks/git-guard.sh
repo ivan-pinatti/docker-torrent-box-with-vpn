@@ -7,7 +7,7 @@
 # command, so every path that is not an explicit refusal must fall through to
 # the exit 0 at the bottom.
 #
-# Enforces two rules that were previously prose in CLAUDE.md and were broken
+# Enforces three rules that were previously prose in CLAUDE.md and were broken
 # anyway:
 #
 #   1. No skipping the pre-commit hooks. They run the secret scanners, and a
@@ -15,6 +15,10 @@
 #   2. No working-tree git operations while the stack is running. pre-commit
 #      stashes the working tree, and doing that against live SQLite databases
 #      corrupted them on 2026-07-07.
+#   3. No committing into a clone where the hooks were never installed. Rule 1
+#      catches a deliberate bypass, but a fresh clone reaches the same place
+#      with no flag at all: git clone does not install them, so every commit
+#      silently runs nothing and still reports success.
 set -uo pipefail
 
 # Refusal JSON is built by hand here because this runs before jq is known to
@@ -142,6 +146,62 @@ fi
 
 if matches_flags "${AT_COMMAND}${WRAPPERS}${GIT}${GIT_OPTIONS}[[:space:]]+push[[:space:]]${ARGUMENTS_BEFORE}--no-verify([[:space:]]|\$)"; then
   deny "git push --no-verify is not allowed in this repository. It skips the pre-push hooks, which run the full MegaLinter pass including the secret scanners."
+fi
+
+# 3. Committing where the hooks were never installed. On 2026-08-12 two commits
+#    went out of a fresh test-bench clone having run no hooks at all, and CI
+#    failed on findings the local run would have caught. Nothing was bypassed:
+#    `git clone` just does not install them, and the result is indistinguishable
+#    from a clean run.
+#
+#    Scoped to commit. push is left alone deliberately: pre-push runs the full
+#    MegaLinter pass, which is slow enough that blocking on its absence would
+#    cost more than it catches, and rule 1 still refuses an explicit
+#    --no-verify there.
+if matches_verbs "${AT_COMMAND}${WRAPPERS}${GIT}${GIT_OPTIONS}[[:space:]]+commit([[:space:]]|\$)"; then
+  command -v git >/dev/null 2>&1 || exit 0
+
+  # Which repository the commit lands in. A command that works on another
+  # checkout says so with a leading `cd`, which is the only redirection
+  # resolved here: `git -C <dir> commit` is not, so it is checked against the
+  # session directory instead and can answer for the wrong repository. That is
+  # a known gap rather than an oversight, and it fails open, because a wrong
+  # refusal on a path nothing here uses is worse than the miss.
+  target_dir="$(printf '%s' "$payload" | jq -r '.cwd // empty' 2>/dev/null)"
+  [ -n "$target_dir" ] || target_dir="${CLAUDE_PROJECT_DIR:-$PWD}"
+
+  cd_arg="$(
+    printf '%s' "$cmd_verbs" |
+      sed -nE 's/(^|[;&|(]|&&|\|\|)[[:space:]]*cd[[:space:]]+([^[:space:];&|)]+).*/\2/p' |
+      head -1
+  )"
+  case "$cd_arg" in
+  "") ;;
+  /*) target_dir="$cd_arg" ;;
+  *) target_dir="$target_dir/$cd_arg" ;;
+  esac
+
+  # Not a repository at all: git itself will say so, and refusing here would
+  # only replace a clear error with a confusing one.
+  if git -C "$target_dir" rev-parse --git-dir >/dev/null 2>&1; then
+    toplevel="$(git -C "$target_dir" rev-parse --show-toplevel 2>/dev/null)"
+    # Only repositories that actually configure pre-commit are held to this.
+    # Without the check, every unrelated repository this agent ever commits in
+    # would be refused for missing a hook it never wanted.
+    if [ -n "$toplevel" ] && [ -f "$toplevel/.pre-commit-config.yaml" ]; then
+      # --git-path rather than a hardcoded .git/hooks: it resolves core.hooksPath
+      # when set, and points a worktree at the parent's hooks directory, which is
+      # where a worktree's hooks genuinely live (verified, git 2.55.0).
+      hooks_dir="$(git -C "$target_dir" rev-parse --git-path hooks 2>/dev/null)"
+      case "$hooks_dir" in
+      /*) ;;
+      *) hooks_dir="$toplevel/$hooks_dir" ;;
+      esac
+      if [ ! -x "$hooks_dir/pre-commit" ]; then
+        deny "This repository configures pre-commit, but ${hooks_dir}/pre-commit does not exist, so this commit would run no hooks at all and still report success. That is how two commits left an unhooked clone on 2026-08-12 and failed CI on findings the hooks catch, and the same gap would let an unscanned secret through. Run 'pre-commit install' in ${toplevel} first, then repeat this command."
+      fi
+    fi
+  fi
 fi
 
 # 2. Working-tree operations against a running stack. podman is queried only
