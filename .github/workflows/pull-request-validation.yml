@@ -9,10 +9,11 @@ on:
   # this definition is never taken from the PR's own, potentially-modified
   # copy; pr_number only controls which commit gets checked out below.
   # job_scope narrows which jobs actually run for that comment: `/run-check`
-  # only wants pr_check (pre-commit; MegaLinter is dispatched separately),
+  # wants pr_check (pre-commit) and the MegaLinter job that follows it,
   # `/run-tests` only wants prerequisites + integration. A plain manual run
   # from the Actions tab (job_scope left as "all") behaves like a normal
-  # pull_request-triggered run.
+  # pull_request-triggered run, except that it also runs integration, which a
+  # pull_request event no longer does on its own.
   #checkov:skip=CKV_GHA_7:workflow_dispatch itself requires write access to
   # trigger at all (GitHub platform-level gate, not something this file
   # controls); permissions below are contents:read only, pr_number only
@@ -151,12 +152,55 @@ jobs:
       - name: Create test venv and run prerequisite tests
         run: make test_prerequisites
 
+  megalinter:
+    name: MegaLinter
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Was its own workflow, which meant it ran alongside pre-commit rather than
+    # after it: a change that fails a pre-commit hook still spent ~4 minutes of
+    # runner time being told the same thing twice, in a different format. As a
+    # job it can wait for that answer. It is the slower and broader of the two
+    # lint layers, so it only makes sense to spend it once the fast one agrees.
+    needs: [pr_check]
+    if: >-
+      ${{ (github.event_name != 'workflow_dispatch' || inputs.job_scope != 'tests')
+      && needs.pr_check.result == 'success' }}
+    permissions:
+      contents: read
+      # write, not just read: MegaLinter's own GitHub Comment Reporter posts its
+      # findings as a PR comment, confirmed live to 403 without this. The
+      # workflow's own default is pull-requests: read, for the paths filter.
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/pull/{0}/head', inputs.pr_number) || github.ref }}
+          # betterleaks scans commits, and REPOSITORY_BETTERLEAKS_PR_COMMITS_SCAN
+          # resolves <target>^..<source>. The default shallow clone (depth 1)
+          # has neither ref, so the secret scan would silently cover nothing.
+          fetch-depth: 0
+
+      - name: MegaLinter
+        uses: oxsecurity/megalinter@v9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # betterleaks' own git invocation runs in a context that doesn't
+          # pick up a `git config --global` write, confirmed live: neither
+          # MegaLinter's own automatic safe.directory setup nor this
+          # workflow's own PRE_COMMANDS one prevented "detected dubious
+          # ownership" from betterleaks specifically. GIT_CONFIG_* env vars
+          # apply to any git subprocess that reads the environment,
+          # regardless of which $HOME/gitconfig file it would otherwise use.
+          GIT_CONFIG_COUNT: 1
+          GIT_CONFIG_KEY_0: safe.directory
+          GIT_CONFIG_VALUE_0: "*"
+
   changes:
     name: Detect Changed Paths
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      code: ${{ steps.filter.outputs.code }}
       renovate: ${{ steps.filter.outputs.renovate }}
     steps:
       - name: Checkout
@@ -173,18 +217,7 @@ jobs:
           # everything and the negations below never get a say, so `code` came
           # out true for a docs-only PR and the filter was decorative.
           predicate-quantifier: every
-          # Anything that can change how the stack behaves at runtime. A PR
-          # touching only prose cannot break an integration test, and standing
-          # a whole stack up to prove that costs more than the check is worth.
-          # Deliberately broad: the default when in doubt is to run the tests,
-          # so this lists what is safe to skip on rather than what to run on.
           filters: |
-            code:
-              - '**'
-              - '!**/*.md'
-              - '!docs/**'
-              - '!**/.gitkeep'
-              - '!CITATION.cff'
             renovate:
               - '.github/renovate.json5'
 
@@ -235,21 +268,29 @@ jobs:
     # A few extra minutes on top of that cover the wire_connections step
     # (mostly concurrent per-app HTTP calls, with some retries up to 180s).
     timeout-minutes: 25
-    needs: [pr_check, prerequisites, changes]
-    # !cancelled() rather than always(): a need being skipped must not skip
-    # this too (pr_check is skipped for job_scope: tests, prerequisites for
-    # job_scope: checks), but a cancelled run must not go on to spend twenty
-    # minutes standing the stack up. That distinction matters now the workflow
-    # cancels superseded runs. Only an actual failure of either gate blocks it.
-    # The changes.outputs.code test skips the stack entirely for prose-only
-    # PRs. An explicit /run-tests comment arrives as a workflow_dispatch and
-    # bypasses it, so the escape hatch stays open when the filter is wrong.
+    needs: [pr_check, prerequisites, megalinter]
+    # Runs only from a code owner's `/run-tests` comment, never automatically on
+    # a push. It stands the whole stack up, and one pull request went through
+    # five pushes for a change to a shell hook and its unit tests, spending
+    # something like a hundred minutes of runner time on it, twice timing out at
+    # 25 minutes before reaching a single test. Nothing in those runs could have
+    # been affected by the change. comment-dispatch.yml restricts who can ask
+    # (OWNER, MEMBER, COLLABORATOR), which is the gate; this is the other half
+    # of it, and the cost is that a pull request carries no test result until
+    # someone asks for one.
+    #
+    # !cancelled() rather than always(): a need being skipped must not skip this
+    # too (pr_check and megalinter are both skipped for job_scope: tests, which
+    # is the scope `/run-tests` dispatches), but a cancelled run must not go on
+    # to spend twenty minutes standing the stack up. Only an actual failure of
+    # one of the lint layers blocks it.
     if: >-
       ${{ !cancelled()
+      && github.event_name == 'workflow_dispatch'
+      && inputs.job_scope != 'checks'
       && (needs.pr_check.result == 'success' || needs.pr_check.result == 'skipped')
-      && (needs.prerequisites.result == 'success' || needs.prerequisites.result == 'skipped')
-      && (github.event_name != 'workflow_dispatch' || inputs.job_scope != 'checks')
-      && (needs.changes.outputs.code == 'true' || github.event_name == 'workflow_dispatch') }}
+      && (needs.megalinter.result == 'success' || needs.megalinter.result == 'skipped')
+      && (needs.prerequisites.result == 'success' || needs.prerequisites.result == 'skipped') }}
     env:
       PROTONVPN_PRIVATE_KEY: ${{ secrets.PROTONVPN_PRIVATE_KEY }}
     steps:

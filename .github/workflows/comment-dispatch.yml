@@ -3,9 +3,14 @@ name: Comment-Triggered Checks
 
 # Lets a maintainer comment on a PR to re-run checks against its current
 # head without needing a new push:
-#   /run-check  -> pre-commit (PR Validation's pr_check job) + MegaLinter
+#   /run-check  -> pre-commit and MegaLinter (PR Validation's pr_check job and
+#                  the megalinter job that follows it, via job_scope: checks)
 #   /run-tests  -> the test suite (PR Validation's prerequisites +
 #                  integration jobs, via job_scope: tests)
+#
+# /run-tests is not just a convenience any more: integration no longer runs on
+# a push at all, so this is the only way to ask for it. The author_association
+# check below is therefore the gate on who can spend that runner time.
 # This job never checks out the PR's own code or workflow definitions: it
 # only reads PR metadata via the API and dispatches the target workflows
 # (always their trusted main-branch copies, workflow_dispatch requires
@@ -46,15 +51,6 @@ jobs:
             --ref "${{ github.event.repository.default_branch }}" \
             -f pr_number="${{ github.event.issue.number }}" \
             -f job_scope=checks
-
-      - name: Trigger MegaLinter
-        if: startsWith(github.event.comment.body, '/run-check')
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh workflow run mega-linter.yml \
-            --ref "${{ github.event.repository.default_branch }}" \
-            -f pr_number="${{ github.event.issue.number }}"
 
       - name: Trigger PR Validation (tests)
         if: startsWith(github.event.comment.body, '/run-tests')

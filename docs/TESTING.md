@@ -32,6 +32,13 @@ constrained resources, confirmed live. This is what `pull-request-validation.yml
 own integration job actually runs; it is not a substitute for `make test`
 or `make bootstrap_tests` and should not be reached for outside CI.
 
+That integration job does not run on a push. It stands the whole stack up and
+takes upward of twelve minutes, so a code owner asks for it by commenting
+`/run-tests` on the pull request, once the change has settled. Until then a
+pull request carries lint results only, and that is the trade being made here:
+one can sit green on `Code Check` and `MegaLinter` having never run a test at
+all. Ask for the run before merging anything that touches the stack.
+
 `make test_extended` runs `make test` plus a fourth pass: `rinse_and_repeat`
 (stop/start and down/start lifecycle cycles), the single most expensive
 marker by far and the only one that exercises the whole stack's startup

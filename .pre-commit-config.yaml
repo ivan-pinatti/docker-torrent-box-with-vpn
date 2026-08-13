@@ -121,6 +121,27 @@ repos:
       - id: ruff-format
         files: ^tests/
 
+  # CI runs `pre-commit run --all-files`, while the commit-stage hooks only ever
+  # see staged files and the push-stage ones only the range being pushed. A
+  # violation in a file the branch never touched therefore passes locally and
+  # fails in CI, which is what a linter version bump produces. This runs the
+  # same sweep CI does, before the push rather than after it.
+  #
+  # It cannot recurse: `pre-commit run --all-files` selects the pre-commit
+  # stage, and this hook is pre-push only. megalinter-incremental is skipped
+  # inside it because under --all-files that is the same work megalinter-full
+  # does immediately afterwards, and doing it twice costs about four minutes
+  # for one answer.
+  - repo: local
+    hooks:
+      - id: all-files-sweep
+        name: Run the fast hooks over every file, as CI does
+        entry: env SKIP=megalinter-incremental pre-commit run --all-files
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+        always_run: true
+
   - repo: https://github.com/oxsecurity/megalinter
     rev: v9.6.0
     hooks:

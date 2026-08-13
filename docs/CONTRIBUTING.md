@@ -31,17 +31,31 @@ welcome your pull requests:
    fails on something the hooks catch locally.
 4. MegaLinter runs incrementally at `pre-commit` and as a broader gate at
    `pre-push`, while the focused hooks still run directly in `pre-commit`.
-5. Pull requests also run the MegaLinter workflow in GitHub Actions, so the same
-   checks are enforced even if local hooks are not installed.
+   `pre-push` also sweeps the fast hooks across every file, which is the scope
+   CI uses. Without that sweep a violation in a file your branch never touched
+   passes locally and fails in CI, which is what a linter version bump
+   produces.
+5. Pull requests run the same checks in GitHub Actions, so they are enforced
+   even if local hooks are not installed.
 6. Use `make sanity_fast` for the normal local check path and `make sanity_full`
    for the full repository check path.
-7. Dependabot opens weekly pull requests for `.pre-commit-config.yaml` hook revs
+7. Checks run in order rather than all at once, so a cheap failure is not paid
+   for twice. `Code Check` (pre-commit) runs first, `MegaLinter` only once that
+   passes, and the integration tests do not run on a push at all: a code owner
+   asks for them by commenting `/run-tests` on the pull request. They stand the
+   whole stack up and take upward of twelve minutes, so they are worth spending
+   once the change has settled rather than on every push. `/run-check` re-runs
+   the two lint layers the same way. Open the pull request as a draft and mark
+   it ready for review once the lint checks are green: CodeRabbit skips drafts,
+   so it reviews once against an already-clean diff instead of re-reviewing
+   after each formatting fix.
+8. Dependabot opens weekly pull requests for `.pre-commit-config.yaml` hook revs
    and GitHub Action version bumps. Eligible patch and minor updates are
    approved and marked for auto-merge once the required checks pass.
-8. Adhere to the commit message guidelines as this repository uses
+9. Adhere to the commit message guidelines as this repository uses
    [semantic versioning](https://semver.org/). More info:
    <https://github.com/mathieudutour/github-tag-action#bumping>
-9. The repository has a pytest suite under `tests/` covering container health,
+10. The repository has a pytest suite under `tests/` covering container health,
    security hardening, credential rotation, app-to-app wiring, and VPN
    killswitch behavior. `make test` runs it against a running stack (needs
    `make bootstrap` first); `make test_extended` adds the slower
@@ -52,13 +66,13 @@ welcome your pull requests:
    rewrites every credential). See [docs/TESTING.md](TESTING.md) for the
    marker/tier breakdown and how to add a test, and
    [docs/MAKE_COMMANDS.md](MAKE_COMMANDS.md) for the full list of test
-   targets. Pull requests run the suite automatically via the `integration`
-   job in `pull-request-validation.yml`. A maintainer can also trigger it, or
-   a pre-commit/MegaLinter check-only run, from a PR comment: `/run-tests` or
-   `/run-check` (see `.github/workflows/comment-dispatch.yml`). Still test
-   manually for anything the suite doesn't cover.
-10. Update the documentation accordingly
-11. Issue the pull request!
+   targets. Pull requests do not run the suite on their own: a maintainer asks
+   for it by commenting `/run-tests`, which dispatches the `integration` job in
+   `pull-request-validation.yml`. `/run-check` re-runs the lint layers the same
+   way (see `.github/workflows/comment-dispatch.yml`). Still test manually for
+   anything the suite doesn't cover.
+11. Update the documentation accordingly
+12. Issue the pull request!
 
 ## Any contributions you make will be under the Apache License 2.0
 
