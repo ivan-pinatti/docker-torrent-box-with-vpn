@@ -89,7 +89,7 @@ services:
   # unmodified against it. Disabled by default; only scripts/seed-vpn-mock.sh
   # ever populates gluetun's config to actually point at it.
   vpn_mock:
-    image: docker.io/linuxserver/wireguard:${VPN_MOCK_VERSION}
+    image: lscr.io/linuxserver/wireguard:${VPN_MOCK_VERSION}
     container_name: vpn_mock
     profiles: ["${VPN_MOCK_PROFILE}"]
     networks:

@@ -27,6 +27,17 @@ PRE_COMMANDS:
     run_before_linters: true
 
 DISABLE_ERRORS: false
+# Off because there is nothing to suggest, checked rather than assumed. Pulling
+# the full image costs 2m45s of MegaLinter's ~4m job (run 31713218776), so a
+# smaller flavor would have been worth having. Turned on for run 31717459784,
+# which printed no suggestion at all: the linters enabled above span ACTION,
+# BASH, EDITORCONFIG, ENV, JSON, MARKDOWN, PYTHON, SPELL, REPOSITORY and YAML,
+# and the flavors are language-oriented, so no flavor covers this set. The full
+# image is the right one here.
+#
+# Caching it is not the alternative either: it is larger uncompressed than the
+# whole 10 GB repository cache quota, and loading it costs about what pulling
+# it does, while evicting the pre-commit cache that does earn its place.
 FLAVOR_SUGGESTIONS: false
 # Silences the "MegaLinter <version> is out!" banner printed after every run.
 # The action is pinned by major (@v9) and so already tracks the latest 9.x, and

@@ -3,16 +3,28 @@ on:
   pull_request:
     branches:
       - main
+    # `labeled` is what lets the integration job run as a real pull_request
+    # check. A workflow_dispatch run is dispatched off main, so its check
+    # attaches to main's HEAD rather than the pull request's, and a required
+    # status check is evaluated against the pull request's head commit: the
+    # tests would pass and the pull request would stay blocked anyway. Adding
+    # the `run-tests` label fires this event against the right commit.
+    #
+    # Naming any type replaces the default set, so the three defaults are
+    # restated here rather than inherited.
+    types: [opened, synchronize, reopened, labeled]
   # Lets .github/workflows/comment-dispatch.yml re-run this against a PR's
   # current head from a `/run-check` or `/run-tests` comment, without
   # needing a new push. Always dispatched off main (see that workflow), so
   # this definition is never taken from the PR's own, potentially-modified
   # copy; pr_number only controls which commit gets checked out below.
   # job_scope narrows which jobs actually run for that comment: `/run-check`
-  # only wants pr_check (pre-commit; MegaLinter is dispatched separately),
-  # `/run-tests` only wants prerequisites + integration. A plain manual run
-  # from the Actions tab (job_scope left as "all") behaves like a normal
-  # pull_request-triggered run.
+  # wants pr_check (pre-commit) and the MegaLinter job that follows it.
+  # `/run-tests` no longer comes through here at all, it applies a label
+  # instead (see comment-dispatch.yml for why), so the `tests` scope is left
+  # for a manual run from the Actions tab only. A plain manual run (job_scope
+  # left as "all") behaves like a normal pull_request-triggered run, except
+  # that it also runs the suite, which an unlabelled pull_request does not.
   #checkov:skip=CKV_GHA_7:workflow_dispatch itself requires write access to
   # trigger at all (GitHub platform-level gate, not something this file
   # controls); permissions below are contents:read only, pr_number only
@@ -38,8 +50,8 @@ permissions:
 
 # A push supersedes whatever is still running for the same PR, so a rapid
 # series of pushes does not leave several full validations racing each other
-# to an answer that no longer matters. Integration Tests is the reason this
-# matters: it spins the whole stack up, and a superseded copy of it will
+# to an answer that no longer matters. The Integration Suite job is the reason
+# this matters: it spins the whole stack up, and a superseded copy of it will
 # happily run for twenty minutes describing a commit nobody is looking at.
 # Keyed on the PR number where there is one, falling back to the ref so a
 # workflow_dispatch run gets its own group instead of cancelling a real one.
@@ -151,12 +163,55 @@ jobs:
       - name: Create test venv and run prerequisite tests
         run: make test_prerequisites
 
+  megalinter:
+    name: MegaLinter
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Was its own workflow, which meant it ran alongside pre-commit rather than
+    # after it: a change that fails a pre-commit hook still spent ~4 minutes of
+    # runner time being told the same thing twice, in a different format. As a
+    # job it can wait for that answer. It is the slower and broader of the two
+    # lint layers, so it only makes sense to spend it once the fast one agrees.
+    needs: [pr_check]
+    if: >-
+      ${{ (github.event_name != 'workflow_dispatch' || inputs.job_scope != 'tests')
+      && needs.pr_check.result == 'success' }}
+    permissions:
+      contents: read
+      # write, not just read: MegaLinter's own GitHub Comment Reporter posts its
+      # findings as a PR comment, confirmed live to 403 without this. The
+      # workflow's own default is pull-requests: read, for the paths filter.
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/pull/{0}/head', inputs.pr_number) || github.ref }}
+          # betterleaks scans commits, and REPOSITORY_BETTERLEAKS_PR_COMMITS_SCAN
+          # resolves <target>^..<source>. The default shallow clone (depth 1)
+          # has neither ref, so the secret scan would silently cover nothing.
+          fetch-depth: 0
+
+      - name: MegaLinter
+        uses: oxsecurity/megalinter@v9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # betterleaks' own git invocation runs in a context that doesn't
+          # pick up a `git config --global` write, confirmed live: neither
+          # MegaLinter's own automatic safe.directory setup nor this
+          # workflow's own PRE_COMMANDS one prevented "detected dubious
+          # ownership" from betterleaks specifically. GIT_CONFIG_* env vars
+          # apply to any git subprocess that reads the environment,
+          # regardless of which $HOME/gitconfig file it would otherwise use.
+          GIT_CONFIG_COUNT: 1
+          GIT_CONFIG_KEY_0: safe.directory
+          GIT_CONFIG_VALUE_0: "*"
+
   changes:
     name: Detect Changed Paths
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      code: ${{ steps.filter.outputs.code }}
       renovate: ${{ steps.filter.outputs.renovate }}
     steps:
       - name: Checkout
@@ -173,18 +228,7 @@ jobs:
           # everything and the negations below never get a say, so `code` came
           # out true for a docs-only PR and the filter was decorative.
           predicate-quantifier: every
-          # Anything that can change how the stack behaves at runtime. A PR
-          # touching only prose cannot break an integration test, and standing
-          # a whole stack up to prove that costs more than the check is worth.
-          # Deliberately broad: the default when in doubt is to run the tests,
-          # so this lists what is safe to skip on rather than what to run on.
           filters: |
-            code:
-              - '**'
-              - '!**/*.md'
-              - '!docs/**'
-              - '!**/.gitkeep'
-              - '!CITATION.cff'
             renovate:
               - '.github/renovate.json5'
 
@@ -226,7 +270,7 @@ jobs:
         run: npx --yes --package renovate@42.99.0 renovate-config-validator --strict
 
   integration:
-    name: Integration Tests
+    name: Integration Suite
     runs-on: ubuntu-latest
     # make test_ci (the last step below), not the full make test: see its
     # own comment on that step for why. The two tiers it does run took
@@ -235,21 +279,38 @@ jobs:
     # A few extra minutes on top of that cover the wire_connections step
     # (mostly concurrent per-app HTTP calls, with some retries up to 180s).
     timeout-minutes: 25
-    needs: [pr_check, prerequisites, changes]
-    # !cancelled() rather than always(): a need being skipped must not skip
-    # this too (pr_check is skipped for job_scope: tests, prerequisites for
-    # job_scope: checks), but a cancelled run must not go on to spend twenty
-    # minutes standing the stack up. That distinction matters now the workflow
-    # cancels superseded runs. Only an actual failure of either gate blocks it.
-    # The changes.outputs.code test skips the stack entirely for prose-only
-    # PRs. An explicit /run-tests comment arrives as a workflow_dispatch and
-    # bypasses it, so the escape hatch stays open when the filter is wrong.
+    needs: [pr_check, prerequisites, megalinter]
+    # Runs only once the `run-tests` label is on the pull request, never on an
+    # unlabelled push. It stands the whole stack up, and one pull request went
+    # through five pushes for a change to a shell hook and its unit tests,
+    # spending something like a hundred minutes of runner time on it, twice
+    # timing out at 25 minutes before reaching a single test. Nothing in those
+    # runs could have been affected by the change.
+    #
+    # A code owner applies the label by commenting `/run-tests`, which
+    # comment-dispatch.yml restricts to OWNER, MEMBER and COLLABORATOR: that
+    # restriction is the gate, and labelling is restricted to collaborators by
+    # GitHub anyway. Once labelled, a further push does re-run this, which is
+    # deliberate. A required status check is evaluated against the head commit,
+    # so a result from before the last push would not count for the merge even
+    # if it were kept.
+    #
+    # The cost of all this is that a pull request carries no test result at all
+    # until someone asks for one.
+    #
+    # !cancelled() rather than always(): a need being skipped must not skip this
+    # too (pr_check and megalinter are both skipped for job_scope: tests, which
+    # is the scope `/run-tests` dispatches), but a cancelled run must not go on
+    # to spend twenty minutes standing the stack up. Only an actual failure of
+    # one of the lint layers blocks it.
     if: >-
       ${{ !cancelled()
+      && ((github.event_name == 'pull_request'
+      && contains(github.event.pull_request.labels.*.name, 'run-tests'))
+      || (github.event_name == 'workflow_dispatch' && inputs.job_scope != 'checks'))
       && (needs.pr_check.result == 'success' || needs.pr_check.result == 'skipped')
-      && (needs.prerequisites.result == 'success' || needs.prerequisites.result == 'skipped')
-      && (github.event_name != 'workflow_dispatch' || inputs.job_scope != 'checks')
-      && (needs.changes.outputs.code == 'true' || github.event_name == 'workflow_dispatch') }}
+      && (needs.megalinter.result == 'success' || needs.megalinter.result == 'skipped')
+      && (needs.prerequisites.result == 'success' || needs.prerequisites.result == 'skipped') }}
     env:
       PROTONVPN_PRIVATE_KEY: ${{ secrets.PROTONVPN_PRIVATE_KEY }}
     steps:
@@ -334,15 +395,40 @@ jobs:
         # that file doesn't exist yet, confirmed live (calibre's own
         # .env.secrets specifically, but this affects every app in the
         # list, not just that one).
+        # Bounded because it is not just file seeding: its own
+        # configs/flaresolverr/config/chromedriver prerequisite runs a
+        # container to extract chromedriver, so this step performs the job's
+        # first Docker Hub pull. A run stalled here for over four minutes,
+        # having previously stalled in Start stack, which is the same cause
+        # wearing a different step name.
+        timeout-minutes: 8
         run: make seed_all
 
       - name: Generate self-signed certificate
+        timeout-minutes: 3
         run: make generate_certificate
 
+      - name: Pull container images
+        # Split out of `make start` so the pull is visible and bounded on its
+        # own. Three runs on this pull request stalled in `Start stack` for
+        # long enough to hit the job's 25 minute cap, and the only thing the
+        # log said was "The operation was canceled": with the pull folded into
+        # the same step there was no way to tell a slow registry from a
+        # container that never comes up.
+        timeout-minutes: 12
+        run: make pull_docker_images
+
       - name: Start stack
+        # Every long step carries its own timeout. Without them the job-level
+        # 25 minutes was the only bound, so a single stuck step burned the
+        # whole budget and reported nothing about which one it was. These sum
+        # to more than 25 deliberately: the job cap stays the outer bound, and
+        # these exist to name the culprit, not to replace it.
+        timeout-minutes: 10
         run: make start
 
       - name: Wait for containers to be ready
+        timeout-minutes: 7
         # Reads straight from `podman ps`, not through a compose wrapper:
         # podman's own --format json is a single JSON array with health
         # folded into the free-text Status field ("Up 3 minutes
@@ -375,6 +461,7 @@ jobs:
         # nothing but a seeded placeholder, confirmed live as the cause of
         # this job's own Homepage widget failures. make bootstrap always runs
         # this straight after make start for the same reason.
+        timeout-minutes: 10
         run: make wire_connections
 
       - name: Run integration tests
@@ -393,8 +480,45 @@ jobs:
         # The wiring_readonly subset does run here: it reads back what the
         # wire_connections step above just wired, and restarts nothing. See
         # the Makefile's own comment on test_ci.
+        timeout-minutes: 12
         run: make test_ci
 
       - name: Tear down
         if: always()
+        timeout-minutes: 5
         run: make stop_all
+
+  # The required status check, and the only job here named "Integration Tests".
+  # The suite itself is "Integration Suite" above.
+  #
+  # It exists because a job skipped by its own `if` is reported to branch
+  # protection as successful. Gating the suite on a label therefore had the
+  # exact opposite effect to the one intended: an unlabelled pull request
+  # showed Integration Tests satisfied and could be merged having never run a
+  # test. This job is never skipped, so the answer never depends on how a skip
+  # is interpreted. It is red until the suite has actually passed on this
+  # commit, and it costs a couple of seconds.
+  integration_required:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [integration]
+    # Not always(): a cancelled run is superseded by a newer one, and failing
+    # here would just report a stale contradiction of it.
+    if: ${{ !cancelled() }}
+    steps:
+      - name: Require the suite to have passed on this commit
+        env:
+          RESULT: ${{ needs.integration.result }}
+        run: |
+          if [ "$RESULT" = "success" ]; then
+            echo "Integration suite passed on this commit."
+            exit 0
+          fi
+          if [ "$RESULT" = "skipped" ]; then
+            echo "The integration suite has not run on this commit."
+            echo "Comment /run-tests on the pull request to label it and run them."
+            exit 1
+          fi
+          echo "The integration suite did not pass on this commit (result: $RESULT)."
+          exit 1

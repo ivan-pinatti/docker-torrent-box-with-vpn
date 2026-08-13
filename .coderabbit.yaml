@@ -6,6 +6,19 @@
 language: en-US
 
 reviews:
+  auto_review:
+    # CodeRabbit is a GitHub App posting a check, not a workflow job, so it
+    # cannot be ordered after the linters with `needs:` the way the MegaLinter
+    # job now is. Skipping drafts is the only lever, and it is the one that
+    # matters: open a pull request as a draft, let pre-commit and MegaLinter
+    # finish, then mark it ready for review. CodeRabbit then reviews once,
+    # against a diff the mechanical linters have already cleaned, instead of
+    # re-reviewing after every formatting fix.
+    #
+    # This is the default. Stated explicitly because the whole review order
+    # depends on it, and a default that quietly changes would change the order
+    # with it.
+    drafts: false
   path_filters:
     # Vendored upstream source, bind-mounted to apply local patches. Not code
     # we author, so it shouldn't be reviewed as if it were (matches the

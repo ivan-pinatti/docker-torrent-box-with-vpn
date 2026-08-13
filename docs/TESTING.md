@@ -32,6 +32,26 @@ constrained resources, confirmed live. This is what `pull-request-validation.yml
 own integration job actually runs; it is not a substitute for `make test`
 or `make bootstrap_tests` and should not be reached for outside CI.
 
+That integration job does not run on an unlabelled push. It stands the whole
+stack up and takes upward of twelve minutes, so a code owner asks for it by
+commenting `/run-tests` on the pull request once the change has settled, which
+applies the `run-tests` label and starts the job.
+
+The label, rather than a `workflow_dispatch`, is what makes the result count.
+A dispatched run is dispatched off `main`, so its check attaches to `main`'s
+head commit, while a required status check is evaluated against the pull
+request's own head: the tests would run, pass, and leave the pull request
+blocked regardless.
+
+Until the label goes on, the required `Integration Tests` check is **red**, and
+the pull request cannot be merged. That check is a separate few-second job from
+the suite itself (`Integration Suite`), and it exists for one reason: a job
+skipped by its own `if` is reported to branch protection as successful, so
+gating the suite on a label would otherwise have made an unlabelled pull
+request *more* mergeable, not less. The gate is never skipped, so the answer
+never depends on how a skip is interpreted. It passes only when the suite has
+actually passed on the current head commit.
+
 `make test_extended` runs `make test` plus a fourth pass: `rinse_and_repeat`
 (stop/start and down/start lifecycle cycles), the single most expensive
 marker by far and the only one that exercises the whole stack's startup

@@ -40,7 +40,7 @@ secrets:
 services:
   qbittorrent:
     <<: *limit-downloaders
-    image: docker.io/linuxserver/qbittorrent:${QBITTORRENT_VERSION}
+    image: lscr.io/linuxserver/qbittorrent:${QBITTORRENT_VERSION}
     container_name: qbittorrent
     depends_on:
       ${VPN_PROVIDER}:

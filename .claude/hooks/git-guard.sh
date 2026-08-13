@@ -7,7 +7,7 @@
 # command, so every path that is not an explicit refusal must fall through to
 # the exit 0 at the bottom.
 #
-# Enforces two rules that were previously prose in CLAUDE.md and were broken
+# Enforces three rules that were previously prose in CLAUDE.md and were broken
 # anyway:
 #
 #   1. No skipping the pre-commit hooks. They run the secret scanners, and a
@@ -15,6 +15,10 @@
 #   2. No working-tree git operations while the stack is running. pre-commit
 #      stashes the working tree, and doing that against live SQLite databases
 #      corrupted them on 2026-07-07.
+#   3. No committing into a clone where the hooks were never installed. Rule 1
+#      catches a deliberate bypass, but a fresh clone reaches the same place
+#      with no flag at all: git clone does not install them, so every commit
+#      silently runs nothing and still reports success.
 set -uo pipefail
 
 # Refusal JSON is built by hand here because this runs before jq is known to
@@ -142,6 +146,159 @@ fi
 
 if matches_flags "${AT_COMMAND}${WRAPPERS}${GIT}${GIT_OPTIONS}[[:space:]]+push[[:space:]]${ARGUMENTS_BEFORE}--no-verify([[:space:]]|\$)"; then
   deny "git push --no-verify is not allowed in this repository. It skips the pre-push hooks, which run the full MegaLinter pass including the secret scanners."
+fi
+
+# 3. Committing where the hooks were never installed. On 2026-08-12 two commits
+#    went out of a fresh test-bench clone having run no hooks at all, and CI
+#    failed on findings the local run would have caught. Nothing was bypassed:
+#    `git clone` just does not install them, and the result is indistinguishable
+#    from a clean run.
+#
+#    Scoped to commit. push is left alone deliberately: pre-push runs the full
+#    MegaLinter pass, which is slow enough that blocking on its absence would
+#    cost more than it catches, and rule 1 still refuses an explicit
+#    --no-verify there.
+if matches_verbs "${AT_COMMAND}${WRAPPERS}${GIT}${GIT_OPTIONS}[[:space:]]+commit([[:space:]]|\$)"; then
+  command -v git >/dev/null 2>&1 || exit 0
+
+  session_dir="$(printf '%s' "$payload" | jq -r '.cwd // empty' 2>/dev/null)"
+  [ -n "$session_dir" ] || session_dir="${CLAUDE_PROJECT_DIR:-$PWD}"
+
+  # Only a `cd` that runs *before* the commit can decide where it lands. Taking
+  # the first one anywhere in the string let `git commit -m x && cd /hooked`
+  # answer for the wrong directory entirely, which is a refusal turned into a
+  # pass (CodeRabbit, PR #40). Newlines are flattened first because they
+  # separate commands exactly as `;` does, so a `cd` on a later line is still
+  # after the commit.
+  flat="$(printf '%s' "$cmd_verbs" | tr '\n' ';')"
+  # `#` delimits the expression, not `/`: GIT matches an optional path prefix
+  # and so contains a slash of its own, which silently broke `s/.../.../` into
+  # an expression sed could not parse, and left this empty.
+  before_commit="$(
+    printf '%s' "$flat" |
+      sed -E "s#${AT_COMMAND}${WRAPPERS}${GIT}${GIT_OPTIONS}[[:space:]]+commit([[:space:]].*)?\$##"
+  )"
+
+  # Every directory the commit might run in, and a refusal if any of them is
+  # unhooked. Collected from the whole command rather than just the part before
+  # the commit, because a compound command can carry more than one: truncating
+  # at the first `git commit` hid the second one's directory entirely, so
+  # `git commit -m a; cd /unhooked && git commit -m b` passed (CodeRabbit,
+  # PR #40). Splitting on parentheses collects a subshell's `cd` too.
+  #
+  # This is deliberately the conservative reading. `cd /unhooked && cd /hooked
+  # && git commit` refuses, even though only the second directory is the one
+  # git would use, because tracking that properly means tracking shell state
+  # through the command. A wrong refusal costs one `pre-commit install`; a
+  # wrong pass costs an unscanned commit in a public repository.
+  # Option tokens are skipped before taking the operand. `cd -P /repo` recorded
+  # `-P` as the directory, which is not a repository, so the real one went
+  # unchecked (CodeRabbit, PR #40). Covers -L, -P and --.
+  candidates="$(
+    printf '%s' "$flat" |
+      tr ';&|()' '\n\n\n\n\n' |
+      sed -nE 's/^[[:space:]]*cd([[:space:]]+-[^[:space:]]+)*[[:space:]]+([^[:space:]]+).*/\2/p'
+  )"
+  # The session directory drops out only when the command plainly leaves it
+  # before committing. A `cd` inside parentheses does not: its effect ends with
+  # the subshell, so the commit still runs here.
+  case "$before_commit" in
+  *"("*) session_is_candidate=yes ;;
+  *)
+    if printf '%s' "$before_commit" | grep -qE '(^|[;&|(]|&&|\|\|)[[:space:]]*cd[[:space:]]'; then
+      session_is_candidate=no
+    else
+      session_is_candidate=yes
+    fi
+    ;;
+  esac
+  if [ "$session_is_candidate" = yes ]; then
+    candidates="$candidates
+$session_dir"
+  fi
+  [ -n "$candidates" ] || candidates="$session_dir"
+
+  # `git -c core.hooksPath=<dir> commit` applies to that one command, so asking
+  # the repository where its hooks live answers about a different directory than
+  # the one git is about to use.
+  #
+  # Matched without regard to case, because git config keys are themselves
+  # case-insensitive and `-c core.hookspath=<dir>` works exactly as well
+  # (CodeRabbit, PR #40). The value keeps its case: it is a path. Spelling the
+  # key with no value at all needs no handling here, git refuses to parse it and
+  # the commit never runs.
+  hooks_override="$(
+    printf '%s' "$cmd_flags" |
+      sed -nE 's/.*core\.hooksPath=([^[:space:]]+).*/\1/Ip' | head -1
+  )"
+
+  # Past this point the command is being read, not executed, and four rounds of
+  # review on this file have all found the same shape of bug: a construct the
+  # reader resolves to the wrong directory, which turns a refusal into a pass.
+  # So the two constructs that cannot be attributed to one commit are refused
+  # outright rather than guessed at. Both have an obvious rewrite, named in the
+  # refusal, and neither is a shape this repository's own commands use.
+  # -C, --git-dir and --work-tree are the same construct wearing three hats:
+  # each points git at a repository other than the one the command appears to
+  # run in, and none of them is resolvable from the text with any confidence.
+  # Verified against git 2.55.0 that --git-dir/--work-tree really do relocate
+  # the commit (CodeRabbit, PR #40).
+  REPO_SELECTORS='(-C[[:space:]]|--git-dir[[:space:]=]|--work-tree[[:space:]=])'
+  if printf '%s' "$cmd_verbs" | grep -qE "${AT_COMMAND}${WRAPPERS}${GIT}[[:space:]]+[^;&|]*${REPO_SELECTORS}"; then
+    deny "git -C, --git-dir and --work-tree point the commit at a repository other than the one this command appears to run in, and which one cannot be resolved from the command text. Guessing wrong means an unscanned commit rather than a refused one, so this is refused instead. Write it as 'cd <dir> && git commit ...', which is checked."
+  fi
+
+  # `-c core.hooksPath=<dir>` applies to the one git command carrying it, so
+  # with more than one commit in the same line there is no way to tell which
+  # commit it belongs to, and applying it to all of them let a later commit
+  # inherit an override it never had.
+  # grep -o and count the matches, not grep -c: that counts matching *lines*,
+  # and a compound command carrying two commits is usually one line, so it
+  # always answered 1.
+  commit_count="$(
+    printf '%s' "$flat" |
+      grep -oE "${AT_COMMAND}${WRAPPERS}${GIT}${GIT_OPTIONS}[[:space:]]+commit([[:space:]]|\$)" |
+      grep -c .
+  )"
+  if [ -n "$hooks_override" ] && [ "${commit_count:-0}" -gt 1 ]; then
+    deny "This command carries a command-scoped core.hooksPath and more than one git commit, so there is no way to tell which commit the override belongs to. Run the commits as separate commands."
+  fi
+
+  while IFS= read -r candidate; do
+    [ -n "$candidate" ] || continue
+    case "$candidate" in
+    /*) ;;
+    *) candidate="$session_dir/$candidate" ;;
+    esac
+
+    # Not a repository at all: git itself will say so, and refusing here would
+    # only replace a clear error with a confusing one.
+    git -C "$candidate" rev-parse --git-dir >/dev/null 2>&1 || continue
+    toplevel="$(git -C "$candidate" rev-parse --show-toplevel 2>/dev/null)"
+    # Only repositories that actually configure pre-commit are held to this.
+    # Without the check, every unrelated repository this agent ever commits in
+    # would be refused for missing a hook it never wanted.
+    [ -n "$toplevel" ] && [ -f "$toplevel/.pre-commit-config.yaml" ] || continue
+
+    if [ -n "$hooks_override" ]; then
+      hooks_dir="$hooks_override"
+    else
+      # --git-path rather than a hardcoded .git/hooks: it resolves core.hooksPath
+      # when set, and points a worktree at the parent's hooks directory, which is
+      # where a worktree's hooks genuinely live (verified, git 2.55.0).
+      hooks_dir="$(git -C "$candidate" rev-parse --git-path hooks 2>/dev/null)"
+    fi
+    case "$hooks_dir" in
+    /*) ;;
+    *) hooks_dir="$toplevel/$hooks_dir" ;;
+    esac
+
+    if [ ! -x "$hooks_dir/pre-commit" ]; then
+      deny "This repository configures pre-commit, but ${hooks_dir}/pre-commit does not exist, so this commit would run no hooks at all and still report success. That is how two commits left an unhooked clone on 2026-08-12 and failed CI on findings the hooks catch, and the same gap would let an unscanned secret through. Run 'pre-commit install' in ${toplevel} first, then repeat this command."
+    fi
+  done <<EOF
+$candidates
+EOF
 fi
 
 # 2. Working-tree operations against a running stack. podman is queried only

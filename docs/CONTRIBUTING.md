@@ -19,25 +19,81 @@ This project uses [Github Flow](https://guides.github.com/introduction/flow/inde
 so all code changes happen through pull requests.
 
 Pull requests are the best way to propose changes to the codebase. I actively
-welcome your pull requests:
+welcome your pull requests.
+
+### The short version
+
+| Stage | What runs | What you do |
+| --- | --- | --- |
+| Open as a **draft** | `Code Check` (pre-commit), then `MegaLinter` if it passes | Fix whatever they report |
+| **Mark ready for review** | CodeRabbit reviews (it skips drafts) | Address its comments, pushing fixes |
+| Comment **`/run-tests`** | The integration suite, against your PR | Wait for it to go green |
+| Merge | | |
+
+Checks run in this order on purpose, so a cheap failure is never paid for
+twice and the expensive one is spent only on the version being merged. The
+integration suite stands the whole stack up and takes upward of twelve
+minutes; it never runs on an unlabelled push. Only repository collaborators
+can ask for it, and the required `Integration Tests` check stays red until it
+has passed on the current head commit, so nothing merges untested.
+
+If you are contributing from a fork, you cannot apply the label yourself. Say
+so in the pull request and a maintainer will run the suite for you once the
+review has settled.
+
+### The detail
 
 1. Fork the repo and create your branch from `main`.
 2. If you don't have it yet, please install pre-commit. More info:
    <https://pre-commit.com/>
 3. After pre-commit is installed, add the hooks by running `pre-commit install`.
+   Do this in every clone, including throwaway ones. `git clone` does not carry
+   the hooks over, and a commit made without them runs no checks at all while
+   still reporting success, so nothing tells you they were missing until CI
+   fails on something the hooks catch locally.
 4. MegaLinter runs incrementally at `pre-commit` and as a broader gate at
    `pre-push`, while the focused hooks still run directly in `pre-commit`.
-5. Pull requests also run the MegaLinter workflow in GitHub Actions, so the same
-   checks are enforced even if local hooks are not installed.
+   `pre-push` also sweeps the fast hooks across every file, which is the scope
+   CI uses. Without that sweep a violation in a file your branch never touched
+   passes locally and fails in CI, which is what a linter version bump
+   produces.
+5. Pull requests run the same checks in GitHub Actions, so they are enforced
+   even if local hooks are not installed.
 6. Use `make sanity_fast` for the normal local check path and `make sanity_full`
    for the full repository check path.
-7. Dependabot opens weekly pull requests for `.pre-commit-config.yaml` hook revs
+7. Checks run in order rather than all at once, so a cheap failure is not paid
+   for twice, and the review flow is:
+
+   1. **Open the pull request as a draft.** `Code Check` (pre-commit) runs
+      first and `MegaLinter` only once that passes. CodeRabbit skips drafts.
+   2. **Mark it ready for review once both are green.** That is what starts
+      CodeRabbit, so it reviews an already-clean diff once, rather than
+      re-reviewing after every formatting fix.
+   3. **Address the review, pushing fixes as needed.** Each push re-runs the
+      two lint layers, and CodeRabbit re-reviews.
+   4. **Comment `/run-tests` once the review is settled.** That applies the
+      `run-tests` label, which is what actually starts the integration tests;
+      they never run on an unlabelled push. They stand the whole stack up and
+      take upward of twelve minutes, so they are worth spending once, on the
+      version you intend to merge. Pushing again after labelling re-runs them,
+      because a required check only counts against the current head commit.
+
+   The required `Integration Tests` check stays red until the suite has passed
+   on the current head commit, so a pull request cannot be merged without it.
+   It is a separate few-second job from the suite (`Integration Suite`), which
+   is what makes that true: a job skipped by its own condition is reported to
+   branch protection as successful, so gating the suite alone would have made
+   an unlabelled pull request mergeable with no tests at all.
+
+   `/run-check` re-runs the two lint layers the same way. Both comments are
+   restricted to repository collaborators.
+8. Dependabot opens weekly pull requests for `.pre-commit-config.yaml` hook revs
    and GitHub Action version bumps. Eligible patch and minor updates are
    approved and marked for auto-merge once the required checks pass.
-8. Adhere to the commit message guidelines as this repository uses
+9. Adhere to the commit message guidelines as this repository uses
    [semantic versioning](https://semver.org/). More info:
    <https://github.com/mathieudutour/github-tag-action#bumping>
-9. The repository has a pytest suite under `tests/` covering container health,
+10. The repository has a pytest suite under `tests/` covering container health,
    security hardening, credential rotation, app-to-app wiring, and VPN
    killswitch behavior. `make test` runs it against a running stack (needs
    `make bootstrap` first); `make test_extended` adds the slower
@@ -48,13 +104,13 @@ welcome your pull requests:
    rewrites every credential). See [docs/TESTING.md](TESTING.md) for the
    marker/tier breakdown and how to add a test, and
    [docs/MAKE_COMMANDS.md](MAKE_COMMANDS.md) for the full list of test
-   targets. Pull requests run the suite automatically via the `integration`
-   job in `pull-request-validation.yml`. A maintainer can also trigger it, or
-   a pre-commit/MegaLinter check-only run, from a PR comment: `/run-tests` or
-   `/run-check` (see `.github/workflows/comment-dispatch.yml`). Still test
-   manually for anything the suite doesn't cover.
-10. Update the documentation accordingly
-11. Issue the pull request!
+   targets. Pull requests do not run the suite on their own: a maintainer asks
+   for it by commenting `/run-tests`, which dispatches the `integration` job in
+   `pull-request-validation.yml`. `/run-check` re-runs the lint layers the same
+   way (see `.github/workflows/comment-dispatch.yml`). Still test manually for
+   anything the suite doesn't cover.
+11. Update the documentation accordingly
+12. Issue the pull request!
 
 ## Any contributions you make will be under the Apache License 2.0
 

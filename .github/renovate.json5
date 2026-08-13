@@ -92,12 +92,32 @@
       customType: "regex",
       // Matches the pattern:
       //   # renovate: depName=<image> [versioning=<scheme>]
-      //   VAR_VERSION=<currentValue>
+      //   VAR_VERSION=<currentValue>[@<currentDigest>]
+      //
+      // currentValue stops at the @ so the digest is captured separately.
+      // Without its own group Renovate has nowhere to write an updated digest,
+      // and the pins would quietly rot into permanently stale images, which is
+      // worse than not pinning at all. The group is optional because two tags
+      // are deliberately left floating (see .env.example).
+      //
+      // depName carries the full registry, not just the repository. The digest
+      // has to be resolved where the image is actually fetched from: most
+      // registries serve the same artifact, but prom/node-exporter v1.11.1 is
+      // sha256:e9cff4fc on Docker Hub and sha256:0f422f62 on quay.io, so a
+      // bare repository name would be ambiguous exactly where it matters.
       managerFilePatterns: ["/^\\.env\\.example$/"],
       matchStrings: [
-        "# renovate: depName=(?<depName>[^\\s\\n]+)(?:\\s+versioning=(?<versioning>[^\\s\\n]+))?\\n[A-Z0-9_]+=(?<currentValue>[^\\n]+)",
+        "# renovate: depName=(?<depName>[^\\s\\n]+)(?:\\s+versioning=(?<versioning>[^\\s\\n]+))?\\n[A-Z0-9_]+=(?<currentValue>[^@\\n]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?",
       ],
       datasourceTemplate: "docker",
     },
   ],
+
+  // Keep the digests current alongside the tags. Every image that names a
+  // version is pinned to its manifest-list digest, so a republished tag no
+  // longer changes what runs without a pull request saying so. Multi-arch is
+  // preserved: the pinned digest is the OCI image index, not a per-platform
+  // manifest, verified against lscr.io/linuxserver/sonarr:4.0.19 whose index
+  // carries four manifests.
+  pinDigests: true,
 }
