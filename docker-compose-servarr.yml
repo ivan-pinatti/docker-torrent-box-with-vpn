@@ -73,7 +73,7 @@ secrets:
 services:
   bazarr:
     <<: [*servarr-common, *limit-servarr]
-    image: docker.io/linuxserver/bazarr:${BAZARR_VERSION}
+    image: lscr.io/linuxserver/bazarr:${BAZARR_VERSION}
     container_name: bazarr
     profiles: ["${BAZARR_PROFILE}"]
     networks:
@@ -96,7 +96,7 @@ services:
 
   lidarr:
     <<: [*servarr-common, *limit-servarr]
-    image: docker.io/linuxserver/lidarr:${LIDARR_VERSION}
+    image: lscr.io/linuxserver/lidarr:${LIDARR_VERSION}
     container_name: lidarr
     profiles: ["${LIDARR_PROFILE}"]
     networks:
@@ -126,7 +126,7 @@ services:
 
   prowlarr:
     <<: [*servarr-common, *limit-servarr]
-    image: docker.io/linuxserver/prowlarr:${PROWLARR_VERSION}
+    image: lscr.io/linuxserver/prowlarr:${PROWLARR_VERSION}
     container_name: prowlarr
     profiles: ["${PROWLARR_PROFILE}"]
     networks:
@@ -152,7 +152,7 @@ services:
 
   radarr:
     <<: [*servarr-common, *limit-servarr]
-    image: docker.io/linuxserver/radarr:${RADARR_VERSION}
+    image: lscr.io/linuxserver/radarr:${RADARR_VERSION}
     container_name: radarr
     profiles: ["${RADARR_PROFILE}"]
     networks:
@@ -180,7 +180,7 @@ services:
 
   readarr:
     <<: [*servarr-common, *limit-servarr]
-    image: docker.io/linuxserver/readarr:${READARR_VERSION}
+    image: lscr.io/linuxserver/readarr:${READARR_VERSION}
     container_name: readarr
     profiles: ["${READARR_PROFILE}"]
     networks:
@@ -231,7 +231,7 @@ services:
 
   sonarr:
     <<: [*servarr-common, *limit-servarr]
-    image: docker.io/linuxserver/sonarr:${SONARR_VERSION}
+    image: lscr.io/linuxserver/sonarr:${SONARR_VERSION}
     container_name: sonarr
     profiles: ["${SONARR_PROFILE}"]
     networks:
