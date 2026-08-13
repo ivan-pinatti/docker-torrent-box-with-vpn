@@ -731,9 +731,15 @@ def test_a_cd_inside_a_subshell_does_not_move_the_commit(tmp_path, stub_bin):
     assert decision == "deny"
 
 
-def test_the_last_cd_before_the_commit_wins(tmp_path, stub_bin):
-    """Every directory the commit might run in is checked, so an unhooked one
-    anywhere in the chain is refused."""
+def test_any_unhooked_candidate_in_a_cd_chain_refuses(tmp_path, stub_bin):
+    """Deliberately the conservative reading, not "the last cd wins".
+
+    Only the final directory is the one git actually uses, so this refuses a
+    commit that would have been fine. Resolving it properly means tracking shell
+    state through the command; until then a wrong refusal costs one
+    `pre-commit install`, while a wrong pass costs an unscanned commit in a
+    public repository.
+    """
     installed = _init_repo(tmp_path / "chain-installed")
     fresh = _init_repo(tmp_path / "chain-fresh", hook_installed=False)
     decision, _ = _decision(
@@ -774,3 +780,51 @@ def test_a_command_scoped_hooks_path_that_is_installed_is_allowed(tmp_path, stub
         cwd=repo,
     )
     assert decision == "allow"
+
+
+def test_every_commit_in_a_compound_command_is_checked(tmp_path, stub_bin):
+    """Truncating at the first `git commit` hid a second one's directory.
+
+    From a hooked session, `git commit -m a; cd /unhooked && git commit -m b`
+    left nothing before the first commit, so only the session directory was
+    checked and the second commit ran unhooked (CodeRabbit, PR #40).
+    """
+    installed = _init_repo(tmp_path / "multi-installed")
+    fresh = _init_repo(tmp_path / "multi-fresh", hook_installed=False)
+    decision, _ = _decision(
+        f"git commit -m first; cd {fresh} && git commit -m second",
+        stub_bin(containers_running=False),
+        cwd=installed,
+    )
+    assert decision == "deny"
+
+
+def test_the_hooks_path_key_is_matched_without_regard_to_case(tmp_path, stub_bin):
+    """git config keys are case-insensitive, so `-c core.hookspath=<dir>` sets
+    it just as well as the camel-cased spelling (CodeRabbit, PR #40)."""
+    repo = _init_repo(tmp_path / "lowercase-key")
+    empty = tmp_path / "lowercase-empty"
+    empty.mkdir()
+    decision, _ = _decision(
+        f"git -c core.hookspath={empty} commit -m x",
+        stub_bin(containers_running=False),
+        cwd=repo,
+    )
+    assert decision == "deny"
+
+
+def test_the_hooks_path_value_keeps_its_case(tmp_path, stub_bin):
+    """Matching the key case-insensitively must not lowercase the path, which
+    would stop resolving to a real directory."""
+    repo = _init_repo(tmp_path / "MixedCase-repo", hook_installed=False)
+    elsewhere = tmp_path / "MixedCase-Hooks"
+    elsewhere.mkdir()
+    hook = elsewhere / "pre-commit"
+    hook.write_text("#!/bin/sh\n")
+    hook.chmod(0o755)
+    decision, _ = _decision(
+        f"git -c core.hooksPath={elsewhere} commit -m x",
+        stub_bin(containers_running=False),
+        cwd=repo,
+    )
+    assert decision == "allow", "the path was probably case-folded"

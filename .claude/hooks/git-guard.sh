@@ -179,28 +179,54 @@ if matches_verbs "${AT_COMMAND}${WRAPPERS}${GIT}${GIT_OPTIONS}[[:space:]]+commit
       sed -E "s#${AT_COMMAND}${WRAPPERS}${GIT}${GIT_OPTIONS}[[:space:]]+commit([[:space:]].*)?\$##"
   )"
 
-  # Every directory the commit might run in, not just the likeliest one, and a
-  # refusal if any of them is unhooked. Splitting on parentheses means a `cd`
-  # inside a subshell is collected too; its effect does not actually outlive the
-  # subshell, so the session directory is kept as a candidate alongside it
-  # rather than being replaced by it.
+  # Every directory the commit might run in, and a refusal if any of them is
+  # unhooked. Collected from the whole command rather than just the part before
+  # the commit, because a compound command can carry more than one: truncating
+  # at the first `git commit` hid the second one's directory entirely, so
+  # `git commit -m a; cd /unhooked && git commit -m b` passed (CodeRabbit,
+  # PR #40). Splitting on parentheses collects a subshell's `cd` too.
+  #
+  # This is deliberately the conservative reading. `cd /unhooked && cd /hooked
+  # && git commit` refuses, even though only the second directory is the one
+  # git would use, because tracking that properly means tracking shell state
+  # through the command. A wrong refusal costs one `pre-commit install`; a
+  # wrong pass costs an unscanned commit in a public repository.
   candidates="$(
-    printf '%s' "$before_commit" |
+    printf '%s' "$flat" |
       tr ';&|()' '\n\n\n\n\n' |
       sed -nE 's/^[[:space:]]*cd[[:space:]]+([^[:space:]]+).*/\1/p'
   )"
+  # The session directory drops out only when the command plainly leaves it
+  # before committing. A `cd` inside parentheses does not: its effect ends with
+  # the subshell, so the commit still runs here.
   case "$before_commit" in
-  *"("*) candidates="$candidates
-$session_dir" ;;
+  *"("*) session_is_candidate=yes ;;
+  *)
+    if printf '%s' "$before_commit" | grep -qE '(^|[;&|(]|&&|\|\|)[[:space:]]*cd[[:space:]]'; then
+      session_is_candidate=no
+    else
+      session_is_candidate=yes
+    fi
+    ;;
   esac
+  if [ "$session_is_candidate" = yes ]; then
+    candidates="$candidates
+$session_dir"
+  fi
   [ -n "$candidates" ] || candidates="$session_dir"
 
   # `git -c core.hooksPath=<dir> commit` applies to that one command, so asking
   # the repository where its hooks live answers about a different directory than
   # the one git is about to use.
+  #
+  # Matched without regard to case, because git config keys are themselves
+  # case-insensitive and `-c core.hookspath=<dir>` works exactly as well
+  # (CodeRabbit, PR #40). The value keeps its case: it is a path. Spelling the
+  # key with no value at all needs no handling here, git refuses to parse it and
+  # the commit never runs.
   hooks_override="$(
     printf '%s' "$cmd_flags" |
-      sed -nE 's/.*core\.hooksPath=([^[:space:]]+).*/\1/p' | head -1
+      sed -nE 's/.*core\.hooksPath=([^[:space:]]+).*/\1/Ip' | head -1
   )"
 
   while IFS= read -r candidate; do
