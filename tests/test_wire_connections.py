@@ -16,6 +16,7 @@ Run explicitly with:
     pytest -m wiring tests/test_wire_connections.py
 """
 
+import json
 import subprocess
 import time
 from datetime import UTC
@@ -439,3 +440,152 @@ def test_wiring_is_idempotent(running_containers):
                 f"[{app}] expected exactly one {implementation} client after "
                 f"re-running, found {len(matches)}"
             )
+
+
+# ---------------------------------------------------------------------------
+# Jellyfin connections
+#
+# Without these nothing tells Jellyfin to rescan after an import, so a
+# finished download stays invisible until Jellyfin's own scheduled scan. The
+# connection is an *arr "Connection" of type MediaBrowser, which is their name
+# for Emby/Jellyfin.
+# ---------------------------------------------------------------------------
+
+
+def _notifications(app: str, running_containers: dict) -> list[dict]:
+    skip_if_not_running(app, running_containers)
+    scheme, port_var, api_ver, _ = ARR_APPS[app]
+    status, body = container_http(
+        app,
+        f"{scheme}://127.0.0.1:{_env(port_var)}/{app}/api/{api_ver}/notification",
+        headers={"X-Api-Key": _api_key(app)},
+        timeout=TIMEOUT,
+    )
+    assert status == 200, f"[{app}] GET notification failed: {status} {body[:200]}"
+    return json.loads(body)
+
+
+def _supports_jellyfin(app: str, running_containers: dict) -> bool:
+    """Whether the app offers a MediaBrowser implementation at all."""
+    skip_if_not_running(app, running_containers)
+    scheme, port_var, api_ver, _ = ARR_APPS[app]
+    status, body = container_http(
+        app,
+        f"{scheme}://127.0.0.1:{_env(port_var)}/{app}/api/{api_ver}/notification/schema",
+        headers={"X-Api-Key": _api_key(app)},
+        timeout=TIMEOUT,
+    )
+    assert status == 200, f"[{app}] GET notification/schema failed: {status}"
+    return any(s.get("implementation") == "MediaBrowser" for s in json.loads(body))
+
+
+def _jellyfin_connection(app: str, running_containers: dict) -> dict | None:
+    matches = [
+        n
+        for n in _notifications(app, running_containers)
+        if n["implementation"] == "MediaBrowser"
+    ]
+    assert len(matches) <= 1, f"[{app}] expected at most one Jellyfin connection"
+    return matches[0] if matches else None
+
+
+@pytest.mark.parametrize("app", sorted(ARR_APPS))
+def test_jellyfin_connection_matches_what_the_app_supports(app, running_containers):
+    """Wired exactly when the app offers MediaBrowser, and not otherwise.
+
+    Readarr does not offer it: Jellyfin does not take a book library from it,
+    so its equivalents there are Kavita and Subsonic. Written as an
+    equivalence rather than a hardcoded app list so it stays correct if
+    upstream adds or drops support.
+    """
+    if not is_enabled(app):
+        pytest.skip(f"service '{app}' profile is disabled")
+    if not is_enabled("jellyfin"):
+        pytest.skip("jellyfin profile is disabled")
+    supported = _supports_jellyfin(app, running_containers)
+    wired = _jellyfin_connection(app, running_containers) is not None
+    assert wired == supported, (
+        f"[{app}] supports MediaBrowser={supported} but wired={wired}"
+    )
+
+
+@pytest.mark.parametrize("app", sorted(ARR_APPS))
+def test_jellyfin_connection_points_at_a_reachable_jellyfin(app, running_containers):
+    """Jellyfin is on the media network and the *arr apps are not, so the
+    connection has to reach the port Jellyfin publishes on the host. The
+    address is probed at wiring time rather than assumed, so assert the
+    result is usable rather than equal to any particular value."""
+    if not is_enabled(app) or not is_enabled("jellyfin"):
+        pytest.skip("app or jellyfin profile is disabled")
+    connection = _jellyfin_connection(app, running_containers)
+    if connection is None:
+        pytest.skip(f"{app} does not support Jellyfin connections")
+
+    host = _field(connection, "host")
+    port = _field(connection, "port")
+    assert host, f"[{app}] Jellyfin connection has no host"
+    assert port == int(_env("JELLYFIN_HTTP_PORT"))
+    assert _field(connection, "urlBase") == _env("JELLYFIN_BASE_URL")
+    assert _field(connection, "updateLibrary") is True, (
+        f"[{app}] updateLibrary is off, so Jellyfin would never be told to rescan"
+    )
+
+    status, _ = container_http(
+        app,
+        f"http://{host}:{port}{_env('JELLYFIN_BASE_URL')}/System/Info/Public",
+        timeout=TIMEOUT,
+    )
+    assert status == 200, (
+        f"[{app}] Jellyfin is not reachable at {host}:{port} from inside the container"
+    )
+
+
+@pytest.mark.parametrize("app", sorted(ARR_APPS))
+def test_jellyfin_connection_has_library_update_triggers(app, running_containers):
+    """A connection with no triggers is wired and useless.
+
+    The apps do not agree on the names: Sonarr and Radarr have onDownload,
+    Lidarr has onReleaseImport instead, and newer versions add
+    onImportComplete. Require at least one of them plus the rename trigger.
+    """
+    if not is_enabled(app) or not is_enabled("jellyfin"):
+        pytest.skip("app or jellyfin profile is disabled")
+    connection = _jellyfin_connection(app, running_containers)
+    if connection is None:
+        pytest.skip(f"{app} does not support Jellyfin connections")
+
+    import_triggers = ("onDownload", "onImportComplete", "onReleaseImport")
+    enabled = [t for t in import_triggers if connection.get(t)]
+    assert enabled, (
+        f"[{app}] no import trigger enabled ({import_triggers}); Jellyfin would "
+        "never be told about a finished download"
+    )
+    assert connection.get("onUpgrade"), f"[{app}] onUpgrade is off"
+    assert connection.get("onRename"), f"[{app}] onRename is off"
+
+
+@pytest.mark.parametrize("app", sorted(ARR_APPS))
+def test_jellyfin_connection_passes_the_apps_own_test(app, running_containers):
+    """The check the Test button in the UI performs.
+
+    Asserting the row exists only proves something was written; this proves
+    the app can actually talk to Jellyfin with the key and address it stored.
+    """
+    if not is_enabled(app) or not is_enabled("jellyfin"):
+        pytest.skip("app or jellyfin profile is disabled")
+    connection = _jellyfin_connection(app, running_containers)
+    if connection is None:
+        pytest.skip(f"{app} does not support Jellyfin connections")
+
+    scheme, port_var, api_ver, _ = ARR_APPS[app]
+    status, body = container_http(
+        app,
+        f"{scheme}://127.0.0.1:{_env(port_var)}/{app}/api/{api_ver}/notification/test",
+        headers={"X-Api-Key": _api_key(app), "Content-Type": "application/json"},
+        method="POST",
+        data=json.dumps(connection),
+        timeout=60,
+    )
+    assert status in (200, 202), (
+        f"[{app}] Jellyfin connection failed its own Test: {status} {body[:300]}"
+    )
