@@ -8,6 +8,10 @@ the default `make test` run because they create real, persistent state.
 Unlike the rotation tests, there is no restore-after-test: a wired connection
 is meant to stay, not act as a temporary probe value.
 
+The Jellyfin cases at the bottom are additionally marked `wiring_readonly`:
+they only read the wiring back, so they skip the script run and CI does run
+them. See pytest.ini and the Makefile's comment on test_ci.
+
 App ports are not published to the host, so all API calls run curl inside the
 target container (see conftest.container_http), matching how the wiring
 script itself talks to the apps.
@@ -90,8 +94,22 @@ def _field(client: dict, name: str) -> object:
 
 
 @pytest.fixture(scope="module", autouse=True)
-def run_wire_connections():
-    """Run the wiring script once for the whole module (it's idempotent)."""
+def run_wire_connections(request):
+    """Run the wiring script once for the whole module (it's idempotent).
+
+    Skipped when every selected test in this module is wiring_readonly. Those
+    only read back wiring that already exists, so running the script buys them
+    nothing and would cost minutes of real writes against live apps. That is
+    what lets CI run the read-only subset in its fast tier, off the back of its
+    own `make wire_connections` step, without pulling in the serial tier this
+    module otherwise belongs to (see the Makefile's own comment on test_ci).
+    """
+    selected = [item for item in request.session.items if item.path == request.path]
+    if selected and all(
+        item.get_closest_marker("wiring_readonly") for item in selected
+    ):
+        return None
+
     result = subprocess.run(  # nosec B603 - fixed path, no user input
         [str(SCRIPT)],
         cwd=REPO_ROOT,
@@ -449,6 +467,11 @@ def test_wiring_is_idempotent(running_containers):
 # finished download stays invisible until Jellyfin's own scheduled scan. The
 # connection is an *arr "Connection" of type MediaBrowser, which is their name
 # for Emby/Jellyfin.
+#
+# All of these are wiring_readonly: they read the connection back and exercise
+# the app's own Test action, which reports reachability without writing
+# anything. Nothing here restarts a container or creates persistent state, so
+# unlike the rest of this module they are cheap and stable enough for CI.
 # ---------------------------------------------------------------------------
 
 
@@ -489,6 +512,7 @@ def _jellyfin_connection(app: str, running_containers: dict) -> dict | None:
     return matches[0] if matches else None
 
 
+@pytest.mark.wiring_readonly
 @pytest.mark.parametrize("app", sorted(ARR_APPS))
 def test_jellyfin_connection_matches_what_the_app_supports(app, running_containers):
     """Wired exactly when the app offers MediaBrowser, and not otherwise.
@@ -509,6 +533,7 @@ def test_jellyfin_connection_matches_what_the_app_supports(app, running_containe
     )
 
 
+@pytest.mark.wiring_readonly
 @pytest.mark.parametrize("app", sorted(ARR_APPS))
 def test_jellyfin_connection_points_at_a_reachable_jellyfin(app, running_containers):
     """Jellyfin is on the media network and the *arr apps are not, so the
@@ -540,6 +565,7 @@ def test_jellyfin_connection_points_at_a_reachable_jellyfin(app, running_contain
     )
 
 
+@pytest.mark.wiring_readonly
 @pytest.mark.parametrize("app", sorted(ARR_APPS))
 def test_jellyfin_connection_has_library_update_triggers(app, running_containers):
     """A connection with no triggers is wired and useless.
@@ -564,6 +590,7 @@ def test_jellyfin_connection_has_library_update_triggers(app, running_containers
     assert connection.get("onRename"), f"[{app}] onRename is off"
 
 
+@pytest.mark.wiring_readonly
 @pytest.mark.parametrize("app", sorted(ARR_APPS))
 def test_jellyfin_connection_passes_the_apps_own_test(app, running_containers):
     """The check the Test button in the UI performs.

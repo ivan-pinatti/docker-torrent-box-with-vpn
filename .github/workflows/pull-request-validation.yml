@@ -390,6 +390,9 @@ jobs:
         # as the make test invocation this replaced did explicitly.
         # make bootstrap_tests (a real bench, pre-release) still runs the
         # full thing, including this tier.
+        # The wiring_readonly subset does run here: it reads back what the
+        # wire_connections step above just wired, and restarts nothing. See
+        # the Makefile's own comment on test_ci.
         run: make test_ci
 
       - name: Tear down

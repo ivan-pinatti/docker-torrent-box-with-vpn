@@ -885,9 +885,18 @@ test: tests/.venv ## Run the full test suite (requires the stack to be running)
 # "container state improper" race (see this file's own comment on
 # rotation_isolated above). CI runs this instead of plain test; make
 # bootstrap_tests (a real bench, pre-release) still runs the full thing.
-test_ci: tests/.venv ## Run the fast tiers only (read-only + rotation_isolated); what CI runs
+#
+# wiring_readonly is the exception to that wiring exclusion: it only reads the
+# wiring back and runs each app's own Test action, so it neither restarts a
+# container nor writes anything, and the module's autouse fixture skips
+# re-running wire-connections.sh when that is the whole selection. It does need
+# the wiring to already exist, which the CI job's own `make wire_connections`
+# step (and, locally, make bootstrap) does. Serial rather than -n auto: it is a
+# handful of HTTP calls, so a worker pool costs more to start than it saves.
+test_ci: tests/.venv ## Run the fast tiers only (read-only + rotation_isolated + wiring_readonly); what CI runs
 	@tests/.venv/bin/pytest -n auto -m "not rotation and not pw_rotation and not wiring and not killswitch and not rinse_and_repeat" $(PYTEST_ARGS)
 	@tests/.venv/bin/pytest -n 4 --dist loadgroup -m "rotation_isolated" $(PYTEST_ARGS)
+	@tests/.venv/bin/pytest -m "wiring_readonly" $(PYTEST_ARGS)
 
 test_prerequisites: tests/.venv ## Run only pre-flight checks (no containers needed)
 	@tests/.venv/bin/pytest -m prerequisites $(PYTEST_ARGS)
