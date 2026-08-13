@@ -395,9 +395,17 @@ jobs:
         # that file doesn't exist yet, confirmed live (calibre's own
         # .env.secrets specifically, but this affects every app in the
         # list, not just that one).
+        # Bounded because it is not just file seeding: its own
+        # configs/flaresolverr/config/chromedriver prerequisite runs a
+        # container to extract chromedriver, so this step performs the job's
+        # first Docker Hub pull. A run stalled here for over four minutes,
+        # having previously stalled in Start stack, which is the same cause
+        # wearing a different step name.
+        timeout-minutes: 8
         run: make seed_all
 
       - name: Generate self-signed certificate
+        timeout-minutes: 3
         run: make generate_certificate
 
       - name: Pull container images
