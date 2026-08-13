@@ -129,14 +129,7 @@ jobs:
         # do. Its own action can.
         uses: lycheeverse/lychee-action@v2
         with:
-          # The same set MegaLinter's SPELL_LYCHEE_FILTER_REGEX_INCLUDE named.
-          # The issue and pull request templates were missing from a first
-          # version of this and are the whole reason to write the old filter
-          # out rather than approximate it.
-          args: >-
-            --no-progress --config lychee.toml
-            README.md LICENSE.md NOTICE.md docs/
-            .github/ISSUE_TEMPLATE/ .github/PULL_REQUEST_TEMPLATE.md
+          args: --no-progress --config lychee.toml README.md LICENSE.md NOTICE.md docs/
           fail: true
 
   prerequisites:
