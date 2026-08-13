@@ -27,17 +27,18 @@ PRE_COMMANDS:
     run_before_linters: true
 
 DISABLE_ERRORS: false
-# Temporarily true to find out which flavor covers the 16 linters enabled
-# above. The default image is the full one, carrying every linter for every
-# language, and pulling it costs 2m45s of MegaLinter's ~4m job, measured on run
-# 31713218776. None of Java, Go, Rust, PHP or Salesforce is wanted here, so a
-# flavor should cut most of that permanently, without the cache management a
-# docker save/load would need (and the image is larger than the 10 GB
-# repository cache quota anyway).
+# Off because there is nothing to suggest, checked rather than assumed. Pulling
+# the full image costs 2m45s of MegaLinter's ~4m job (run 31713218776), so a
+# smaller flavor would have been worth having. Turned on for run 31717459784,
+# which printed no suggestion at all: the linters enabled above span ACTION,
+# BASH, EDITORCONFIG, ENV, JSON, MARKDOWN, PYTHON, SPELL, REPOSITORY and YAML,
+# and the flavors are language-oriented, so no flavor covers this set. The full
+# image is the right one here.
 #
-# Set back to false once the flavor is pinned: this also prints the release
-# banner, which is why it was off.
-FLAVOR_SUGGESTIONS: true
+# Caching it is not the alternative either: it is larger uncompressed than the
+# whole 10 GB repository cache quota, and loading it costs about what pulling
+# it does, while evicting the pre-commit cache that does earn its place.
+FLAVOR_SUGGESTIONS: false
 # Silences the "MegaLinter <version> is out!" banner printed after every run.
 # The action is pinned by major (@v9) and so already tracks the latest 9.x, and
 # the banner has been announcing a version older than the one actually running.
