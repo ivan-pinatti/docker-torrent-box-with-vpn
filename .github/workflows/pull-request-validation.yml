@@ -400,10 +400,27 @@ jobs:
       - name: Generate self-signed certificate
         run: make generate_certificate
 
+      - name: Pull container images
+        # Split out of `make start` so the pull is visible and bounded on its
+        # own. Three runs on this pull request stalled in `Start stack` for
+        # long enough to hit the job's 25 minute cap, and the only thing the
+        # log said was "The operation was canceled": with the pull folded into
+        # the same step there was no way to tell a slow registry from a
+        # container that never comes up.
+        timeout-minutes: 12
+        run: make pull_docker_images
+
       - name: Start stack
+        # Every long step carries its own timeout. Without them the job-level
+        # 25 minutes was the only bound, so a single stuck step burned the
+        # whole budget and reported nothing about which one it was. These sum
+        # to more than 25 deliberately: the job cap stays the outer bound, and
+        # these exist to name the culprit, not to replace it.
+        timeout-minutes: 10
         run: make start
 
       - name: Wait for containers to be ready
+        timeout-minutes: 7
         # Reads straight from `podman ps`, not through a compose wrapper:
         # podman's own --format json is a single JSON array with health
         # folded into the free-text Status field ("Up 3 minutes
@@ -436,6 +453,7 @@ jobs:
         # nothing but a seeded placeholder, confirmed live as the cause of
         # this job's own Homepage widget failures. make bootstrap always runs
         # this straight after make start for the same reason.
+        timeout-minutes: 10
         run: make wire_connections
 
       - name: Run integration tests
@@ -454,10 +472,12 @@ jobs:
         # The wiring_readonly subset does run here: it reads back what the
         # wire_connections step above just wired, and restarts nothing. See
         # the Makefile's own comment on test_ci.
+        timeout-minutes: 12
         run: make test_ci
 
       - name: Tear down
         if: always()
+        timeout-minutes: 5
         run: make stop_all
 
   # The required status check, and the only job here named "Integration Tests".
