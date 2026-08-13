@@ -33,9 +33,15 @@ own integration job actually runs; it is not a substitute for `make test`
 or `make bootstrap_tests` and should not be reached for outside CI.
 
 That integration job does not run on an unlabelled push. It stands the whole
-stack up and takes upward of twelve minutes, so a code owner asks for it by
-commenting `/run-tests` on the pull request once the change has settled, which
-applies the `run-tests` label and starts the job.
+stack up and takes upward of twelve minutes, so a code owner applies the
+`run-tests` label once the change has settled, which starts the job. There is
+no comment shortcut: a label applied by a workflow's own GITHUB_TOKEN triggers
+nothing, because GitHub suppresses runs from events its own token creates.
+
+The label is consumed by the run that it starts. Left in place it would sit on
+the pull request and start another twelve minute run on anything that fires the
+workflow again, reopening a closed pull request included, since the label
+belongs to the pull request rather than the branch.
 
 The label, rather than a `workflow_dispatch`, is what makes the result count.
 A dispatched run is dispatched off `main`, so its check attaches to `main`'s
@@ -43,9 +49,14 @@ head commit, while a required status check is evaluated against the pull
 request's own head: the tests would run, pass, and leave the pull request
 blocked regardless.
 
-Until the label goes on, the required `Integration Tests` check is **red**, and
-the pull request cannot be merged. That check is a separate few-second job from
-the suite itself (`Integration Suite`), and it exists for one reason: a job
+Until the label goes on, the required `Tests Verified` check is **red**, and
+the pull request cannot be merged. The one exception is a pull request that
+changes nothing but prose: if the `code` paths filter reports no runtime files
+touched, the gate waives the suite, since prose cannot break an integration
+test and an eleven minute stack run to prove it costs more than the check is
+worth. The waiver applies only when the suite never ran. A suite that ran and
+failed is a failure whatever the diff touched. That check is a separate few-second job from
+the suite itself (`Integration Tests`), and it exists for one reason: a job
 skipped by its own `if` is reported to branch protection as successful, so
 gating the suite on a label would otherwise have made an unlabelled pull
 request *more* mergeable, not less. The gate is never skipped, so the answer

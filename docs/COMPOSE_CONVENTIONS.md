@@ -63,7 +63,7 @@ Reasoning for the less obvious placements:
 ```yaml
 sonarr:
   <<: [*servarr-common, *limit-servarr]
-  image: lscr.io/linuxserver/sonarr:${SONARR_VERSION}
+  image: docker.io/linuxserver/sonarr:${SONARR_VERSION}
   container_name: sonarr
   profiles: ["${SONARR_PROFILE}"]
   networks:

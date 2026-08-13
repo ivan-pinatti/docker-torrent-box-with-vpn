@@ -104,14 +104,6 @@ repos:
       - id: yamllint
         exclude: *app_managed
 
-  - repo: https://github.com/streetsidesoftware/cspell-cli
-    rev: v10.0.1
-    hooks:
-      - id: cspell
-        # configs/*/config/ is application-generated (Qt state, base64 blobs);
-        # .gitleaksignore is machine-generated commit fingerprints.
-        exclude: '^patches/|^configs/.*/config/|^configs/.*/custom-(cont-init|services)\.d/|^\.gitleaksignore$'
-
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.16.1
     hooks:
@@ -142,15 +134,37 @@ repos:
         pass_filenames: false
         always_run: true
 
+  # Moved out of MegaLinter with the switch to its cupcake flavor, which is the
+  # one linter that flavor does not carry. Same scope and skip list it had
+  # there: tests/ only, and B101 (assert) because pytest is built on it.
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.9.4
+    hooks:
+      - id: bandit
+        files: ^tests/
+        exclude: ^tests/\.venv/
+        args: ["--skip", "B101,B105,B314,B404,B405,B501,B603,B607"]
+
+  # Pinned to the same flavor and release CI runs. The standalone cspell hook
+  # used to live above this and was removed: it resolved its own dictionary
+  # packages, so `dockerhub` was present in its copy of @cspell/dict-software-
+  # tools and absent from the image's, and a word could pass every local hook
+  # and still fail CI. Two spellcheckers with different dictionaries are worse
+  # than one, and MegaLinter's is the one that decides the build.
+  #
+  # Without --flavor this pulls the default image, whose cspell is 9.7.0 against
+  # cupcake's 10.0.1, which is the same divergence one level down.
   - repo: https://github.com/oxsecurity/megalinter
     rev: v9.6.0
     hooks:
       - id: megalinter-incremental
         stages: [pre-commit]
         verbose: true
+        args: ["mega-linter-runner", "--flavor", "cupcake", "--release", "v9.6.0"]
       - id: megalinter-full
         stages: [pre-push]
         verbose: true
+        args: ["mega-linter-runner", "--flavor", "cupcake", "--release", "v9.6.0"]
 
   - repo: https://github.com/DavidAnson/markdownlint-cli2
     rev: v0.23.2

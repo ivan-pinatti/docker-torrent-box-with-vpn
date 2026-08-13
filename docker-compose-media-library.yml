@@ -72,7 +72,7 @@ secrets:
 services:
   jellyfin:
     <<: *limit-jellyfin
-    image: lscr.io/linuxserver/jellyfin:${JELLYFIN_VERSION}
+    image: docker.io/linuxserver/jellyfin:${JELLYFIN_VERSION}
     container_name: jellyfin
     profiles: ["${JELLYFIN_PROFILE}"]
     networks:
@@ -152,7 +152,7 @@ services:
 
   calibre:
     <<: *limit-calibre
-    image: lscr.io/linuxserver/calibre:${CALIBRE_VERSION}
+    image: docker.io/linuxserver/calibre:${CALIBRE_VERSION}
     container_name: calibre
     profiles: ["${CALIBRE_PROFILE}"]
     networks:
@@ -201,7 +201,7 @@ services:
 
   calibre-web:
     <<: *limit-calibreweb
-    image: lscr.io/linuxserver/calibre-web:${CALIBREWEB_VERSION}
+    image: docker.io/linuxserver/calibre-web:${CALIBREWEB_VERSION}
     container_name: calibre-web
     profiles: ["${CALIBREWEB_PROFILE}"]
     networks:

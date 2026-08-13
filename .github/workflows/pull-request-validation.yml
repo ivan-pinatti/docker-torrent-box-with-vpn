@@ -12,17 +12,16 @@ on:
     #
     # Naming any type replaces the default set, so the three defaults are
     # restated here rather than inherited.
-    types: [opened, synchronize, reopened, labeled]
+    types: [opened, synchronize, reopened, labeled, ready_for_review]
   # Lets .github/workflows/comment-dispatch.yml re-run this against a PR's
-  # current head from a `/run-check` or `/run-tests` comment, without
-  # needing a new push. Always dispatched off main (see that workflow), so
+  # current head from a `/run-check` comment, without needing a new push. Always dispatched off main (see that workflow), so
   # this definition is never taken from the PR's own, potentially-modified
   # copy; pr_number only controls which commit gets checked out below.
   # job_scope narrows which jobs actually run for that comment: `/run-check`
-  # wants pr_check (pre-commit) and the MegaLinter job that follows it.
-  # `/run-tests` no longer comes through here at all, it applies a label
-  # instead (see comment-dispatch.yml for why), so the `tests` scope is left
-  # for a manual run from the Actions tab only. A plain manual run (job_scope
+  # wants pr_check (pre-commit) and the MegaLinter job that follows it. There is
+  # no comment for the suite, which is started by the `run-tests` label instead
+  # (see comment-dispatch.yml for why a comment cannot), so the `tests` scope is
+  # left for a manual run from the Actions tab only. A plain manual run (job_scope
   # left as "all") behaves like a normal pull_request-triggered run, except
   # that it also runs the suite, which an unlabelled pull_request does not.
   #checkov:skip=CKV_GHA_7:workflow_dispatch itself requires write access to
@@ -193,7 +192,12 @@ jobs:
           fetch-depth: 0
 
       - name: MegaLinter
-        uses: oxsecurity/megalinter@v9
+        # The cupcake flavor, not the default image: 2.64 GB against 4.77 GB,
+        # and it carries every linter enabled in .mega-linter.yml. Checked by
+        # listing the binaries inside the image rather than trusting the
+        # descriptors, which claim a linter with no declared flavors belongs to
+        # every flavor and are wrong about it.
+        uses: oxsecurity/megalinter/flavors/cupcake@v9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # betterleaks' own git invocation runs in a context that doesn't
@@ -212,6 +216,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
+      code: ${{ steps.filter.outputs.code }}
       renovate: ${{ steps.filter.outputs.renovate }}
     steps:
       - name: Checkout
@@ -227,8 +232,24 @@ jobs:
           # them. The default is `some`, under which `**` alone matches
           # everything and the negations below never get a say, so `code` came
           # out true for a docs-only PR and the filter was decorative.
+          # Every predicate has to hold for a path to count, not just one of
+          # them. The default is `some`, under which `**` alone matches
+          # everything and the negations below never get a say, so `code` came
+          # out true for a docs-only PR and the filter was decorative.
           predicate-quantifier: every
+          # Anything that can change how the stack behaves at runtime. Read by
+          # the integration_required gate, which waives the suite when nothing
+          # here changed: a pull request touching only prose cannot break an
+          # integration test, and an eleven minute stack run to prove that costs
+          # more than the check is worth. Deliberately broad, so it lists what is
+          # safe to skip on rather than what to run on.
           filters: |
+            code:
+              - '**'
+              - '!**/*.md'
+              - '!docs/**'
+              - '!**/.gitkeep'
+              - '!CITATION.cff'
             renovate:
               - '.github/renovate.json5'
 
@@ -270,7 +291,7 @@ jobs:
         run: npx --yes --package renovate@42.99.0 renovate-config-validator --strict
 
   integration:
-    name: Integration Suite
+    name: Integration Tests
     runs-on: ubuntu-latest
     # make test_ci (the last step below), not the full make test: see its
     # own comment on that step for why. The two tiers it does run took
@@ -287,10 +308,10 @@ jobs:
     # timing out at 25 minutes before reaching a single test. Nothing in those
     # runs could have been affected by the change.
     #
-    # A code owner applies the label by commenting `/run-tests`, which
-    # comment-dispatch.yml restricts to OWNER, MEMBER and COLLABORATOR: that
-    # restriction is the gate, and labelling is restricted to collaborators by
-    # GitHub anyway. Once labelled, a further push does re-run this, which is
+    # A code owner applies the `run-tests` label directly, which GitHub already
+    # restricts to collaborators, so the permission model needs no check of our
+    # own. A comment cannot do it: a label applied by a workflow's GITHUB_TOKEN
+    # triggers nothing, by design (see comment-dispatch.yml). Once labelled, a further push does re-run this, which is
     # deliberate. A required status check is evaluated against the head commit,
     # so a result from before the last push would not count for the merge even
     # if it were kept.
@@ -300,7 +321,7 @@ jobs:
     #
     # !cancelled() rather than always(): a need being skipped must not skip this
     # too (pr_check and megalinter are both skipped for job_scope: tests, which
-    # is the scope `/run-tests` dispatches), but a cancelled run must not go on
+    # is the scope a manual tests-only dispatch uses), but a cancelled run must
     # to spend twenty minutes standing the stack up. Only an actual failure of
     # one of the lint layers blocks it.
     if: >-
@@ -313,6 +334,12 @@ jobs:
       && (needs.prerequisites.result == 'success' || needs.prerequisites.result == 'skipped') }}
     env:
       PROTONVPN_PRIVATE_KEY: ${{ secrets.PROTONVPN_PRIVATE_KEY }}
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+    permissions:
+      contents: read
+      # To take the label back off again, see the last step.
+      pull-requests: write
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -408,6 +435,26 @@ jobs:
         timeout-minutes: 3
         run: make generate_certificate
 
+      - name: Log in to Docker Hub
+        # 26 of this stack's images come from Docker Hub, and anonymous pulls
+        # are rate limited per source address while GitHub runners share
+        # addresses across every project on the pool. Three runs on this pull
+        # request stalled mid-pull long enough to hit a timeout, each in a
+        # different step, which is the shape throttling makes.
+        #
+        # podman login rather than docker/login-action: podman is the runtime
+        # here and only falls back to ~/.docker/config.json, so this writes the
+        # auth file it actually uses.
+        #
+        # Skipped when the secret is absent, which is every pull request from a
+        # fork, since GitHub does not expose secrets to those. They keep pulling
+        # anonymously and this must not fail them.
+        if: env.DOCKERHUB_USERNAME != ''
+        timeout-minutes: 2
+        run: |
+          printf '%s' "$DOCKERHUB_TOKEN" \
+            | podman login docker.io --username "$DOCKERHUB_USERNAME" --password-stdin
+
       - name: Pull container images
         # Split out of `make start` so the pull is visible and bounded on its
         # own. Three runs on this pull request stalled in `Start stack` for
@@ -488,6 +535,24 @@ jobs:
         timeout-minutes: 5
         run: make stop_all
 
+      - name: Take the label back off
+        # The label means "run the suite once, now", so it is consumed rather
+        # than left on. Otherwise it lingers on the pull request and starts a
+        # twelve minute run again the moment anything fires this workflow:
+        # reopening a closed pull request would do it, since the label lives on
+        # the pull request rather than the branch and `reopened` is a trigger.
+        #
+        # Removing it fires `unlabeled`, which is deliberately not a trigger, so
+        # this cannot loop. always(), so a failed or cancelled run does not leave
+        # the label stuck and unable to be re-applied.
+        if: always() && github.event_name == 'pull_request'
+        timeout-minutes: 2
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr edit "${{ github.event.pull_request.number }}" \
+            --repo "${{ github.repository }}" --remove-label run-tests || true
+
   # The required status check, and the only job here named "Integration Tests".
   # The suite itself is "Integration Suite" above.
   #
@@ -499,10 +564,10 @@ jobs:
   # is interpreted. It is red until the suite has actually passed on this
   # commit, and it costs a couple of seconds.
   integration_required:
-    name: Integration Tests
+    name: Tests Verified
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [integration]
+    needs: [integration, changes]
     # Not always(): a cancelled run is superseded by a newer one, and failing
     # here would just report a stale contradiction of it.
     if: ${{ !cancelled() }}
@@ -510,14 +575,50 @@ jobs:
       - name: Require the suite to have passed on this commit
         env:
           RESULT: ${{ needs.integration.result }}
+          # A draft cannot be merged, so a passing gate on one grants nothing,
+          # and a red check for "you have not asked for tests yet" reads as a
+          # failure when nothing is broken. Enforcement starts when the pull
+          # request is marked ready, which is why ready_for_review is a trigger:
+          # without it, marking ready fires no event and a draft's green gate
+          # would stand.
+          DRAFT: ${{ github.event.pull_request.draft }}
+          # Empty unless the changes job both ran and answered, so a skipped or
+          # failed filter reads as "not proven docs-only" and the suite is still
+          # required. The waiver has to fail closed: it is the one thing here
+          # that can let a change merge untested.
+          CODE_CHANGED: ${{ needs.changes.outputs.code }}
+          EVENT: ${{ github.event_name }}
         run: |
           if [ "$RESULT" = "success" ]; then
             echo "Integration suite passed on this commit."
             exit 0
           fi
+
           if [ "$RESULT" = "skipped" ]; then
+            # Prose cannot break an integration test, and standing the whole
+            # stack up for eleven minutes to prove that costs more than the
+            # check is worth.
+            #
+            # Nested under skipped on purpose. Checked before it, the waiver
+            # also swallowed a suite that ran and *failed* on a docs-only pull
+            # request, which is a real failure whatever the diff touched. Found
+            # by testing the combinations rather than the happy path.
+            #
+            # Restricted to pull_request because the filter compares against the
+            # pull request's base; on any other event there is nothing to
+            # compare and the answer would be meaningless.
+            if [ "$EVENT" = "pull_request" ] && [ "$CODE_CHANGED" = "false" ]; then
+              echo "No runtime files changed, so the integration suite is not required."
+              echo "Touching anything outside docs and markdown will require it again."
+              exit 0
+            fi
+            if [ "$DRAFT" = "true" ]; then
+              echo "::notice::Still a draft, so the integration suite is not required yet."
+              echo "Apply the run-tests label before marking this ready for review."
+              exit 0
+            fi
             echo "The integration suite has not run on this commit."
-            echo "Comment /run-tests on the pull request to label it and run them."
+            echo "Apply the run-tests label to the pull request to run them."
             exit 1
           fi
           echo "The integration suite did not pass on this commit (result: $RESULT)."
