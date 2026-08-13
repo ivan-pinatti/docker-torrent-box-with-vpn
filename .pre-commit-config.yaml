@@ -142,6 +142,17 @@ repos:
         pass_filenames: false
         always_run: true
 
+  # Moved out of MegaLinter with the switch to its cupcake flavor, which is the
+  # one linter that flavor does not carry. Same scope and skip list it had
+  # there: tests/ only, and B101 (assert) because pytest is built on it.
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.9.4
+    hooks:
+      - id: bandit
+        files: ^tests/
+        exclude: ^tests/\.venv/
+        args: ["--skip", "B101,B105,B314,B404,B405,B501,B603,B607"]
+
   - repo: https://github.com/oxsecurity/megalinter
     rev: v9.6.0
     hooks:

@@ -1,4 +1,14 @@
 ---
+# The cupcake flavor carries all of these. It is a 2.64 GB download against the
+# default image's 4.77 GB, and pulling that image was 2m45s of MegaLinter's ~4m
+# job on every run.
+#
+# bandit is the one linter cupcake lacks, so it moved to pre-commit, where it
+# now runs at commit time rather than minutes later in CI. Nothing else changed
+# hands: the smaller security flavor would have saved another 1.28 GB but needed
+# nine linters relocated, and translating one of their filters by hand already
+# dropped two paths silently, which is not a trade worth making for a linter
+# suite whose job is to notice things.
 ENABLE_LINTERS:
   - ACTION_ACTIONLINT
   - BASH_EXEC
@@ -8,7 +18,6 @@ ENABLE_LINTERS:
   - ENV_DOTENV_LINTER
   - JSON_JSONLINT
   - MARKDOWN_MARKDOWNLINT
-  - PYTHON_BANDIT
   - PYTHON_RUFF
   - SPELL_CSPELL
   - SPELL_LYCHEE
@@ -130,6 +139,3 @@ BASH_SHELLCHECK_FILTER_REGEX_EXCLUDE: (^patches/|^configs/.*/custom-(cont-init|s
 BASH_SHELLCHECK_ARGUMENTS: "--severity=error"
 REPOSITORY_CHECKOV_ARGUMENTS: --skip-framework secrets --skip-path configs
 PYTHON_RUFF_FILTER_REGEX_INCLUDE: (^tests/)
-PYTHON_BANDIT_FILTER_REGEX_INCLUDE: (^tests/)
-PYTHON_BANDIT_FILTER_REGEX_EXCLUDE: (tests/\.venv/)
-PYTHON_BANDIT_ARGUMENTS: "--skip B101,B105,B314,B404,B405,B501,B603,B607"

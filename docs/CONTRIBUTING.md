@@ -52,7 +52,10 @@ review has settled.
    still reporting success, so nothing tells you they were missing until CI
    fails on something the hooks catch locally.
 4. MegaLinter runs incrementally at `pre-commit` and as a broader gate at
-   `pre-push`, while the focused hooks still run directly in `pre-commit`.
+   `pre-push`, while the focused hooks still run directly in `pre-commit`. CI
+   uses its `cupcake` flavor, a 2.64 GB download rather than the default
+   image's 4.77 GB, which carries every linter this repository enables. The one
+   it does not carry, bandit, is a pre-commit hook instead.
    `pre-push` also sweeps the fast hooks across every file, which is the scope
    CI uses. Without that sweep a violation in a file your branch never touched
    passes locally and fails in CI, which is what a linter version bump

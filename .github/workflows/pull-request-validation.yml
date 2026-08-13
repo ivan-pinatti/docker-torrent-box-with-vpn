@@ -193,7 +193,12 @@ jobs:
           fetch-depth: 0
 
       - name: MegaLinter
-        uses: oxsecurity/megalinter@v9
+        # The cupcake flavor, not the default image: 2.64 GB against 4.77 GB,
+        # and it carries every linter enabled in .mega-linter.yml. Checked by
+        # listing the binaries inside the image rather than trusting the
+        # descriptors, which claim a linter with no declared flavors belongs to
+        # every flavor and are wrong about it.
+        uses: oxsecurity/megalinter/flavors/cupcake@v9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # betterleaks' own git invocation runs in a context that doesn't
