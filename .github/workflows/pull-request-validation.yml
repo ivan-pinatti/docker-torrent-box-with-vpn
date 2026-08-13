@@ -115,6 +115,23 @@ jobs:
           # this job drops it and is left checking what only pre-commit checks.
           SKIP: megalinter-incremental
 
+      - name: Lint .env.example
+        # dotenv-linter publishes no pre-commit hook at any released tag
+        # (checked v3.3.0 and v4.0.0), so it runs as its own action now that
+        # MegaLinter's security flavor no longer carries it.
+        uses: dotenv-linter/action-dotenv-linter@v2
+        with:
+          dotenv_linter_flags: .env.example
+
+      - name: Check documentation links
+        # lychee's pre-commit hook is language: system and expects the binary
+        # already on PATH, so it cannot install itself the way the other hooks
+        # do. Its own action can.
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --no-progress --config lychee.toml README.md LICENSE.md NOTICE.md docs/
+          fail: true
+
   prerequisites:
     name: Prerequisite Checks
     runs-on: ubuntu-latest
@@ -193,7 +210,12 @@ jobs:
           fetch-depth: 0
 
       - name: MegaLinter
-        uses: oxsecurity/megalinter@v9
+        # The security flavor, not the default image: 1.36 GB against 4.77 GB,
+        # and it carries exactly the project-mode scanners that pre-commit
+        # cannot replace. Checked by listing the binaries inside both images
+        # rather than trusting the descriptors, which claim a linter with no
+        # declared flavors is in every flavor and are wrong about it.
+        uses: oxsecurity/megalinter/flavors/security@v9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # betterleaks' own git invocation runs in a context that doesn't

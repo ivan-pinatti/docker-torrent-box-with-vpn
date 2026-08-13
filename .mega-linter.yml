@@ -1,17 +1,19 @@
 ---
+# Only what the security flavor ships and pre-commit cannot do. Everything
+# file-shaped moved out: the full image is a 4.77 GB download and the security
+# flavor is 1.36 GB, which is 2m45s of pull turned into well under a minute on
+# every run. What is left is the project-mode scanning that needs the whole
+# working tree, plus the two linters the flavor happens to carry.
+#
+# The rest did not disappear. cspell, editorconfig-checker, markdownlint, ruff,
+# shfmt and check-json already run as pre-commit hooks, so CI still enforces
+# them through Code Check's --all-files sweep; actionlint joins them; lychee and
+# dotenv-linter run as their publishers' own actions, being the two with no
+# usable pre-commit hook.
 ENABLE_LINTERS:
-  - ACTION_ACTIONLINT
   - BASH_EXEC
   - BASH_SHELLCHECK
-  - BASH_SHFMT
-  - EDITORCONFIG_EDITORCONFIG_CHECKER
-  - ENV_DOTENV_LINTER
-  - JSON_JSONLINT
-  - MARKDOWN_MARKDOWNLINT
   - PYTHON_BANDIT
-  - PYTHON_RUFF
-  - SPELL_CSPELL
-  - SPELL_LYCHEE
   - REPOSITORY_BETTERLEAKS
   - REPOSITORY_CHECKOV
   - REPOSITORY_TRIVY
@@ -71,9 +73,6 @@ EXCLUDED_DIRECTORIES:
   - logs
   - storage
 
-SPELL_LYCHEE_FILTER_REGEX_INCLUDE: (^README\.md$|^LICENSE\.md$|^NOTICE\.md$|^docs/.*\.md$|^\.github/(ISSUE_TEMPLATE/.*\.md|PULL_REQUEST_TEMPLATE\.md)$)
-ENV_DOTENV_LINTER_FILTER_REGEX_INCLUDE: (^\.env\.example$)
-JSON_JSONLINT_FILTER_REGEX_INCLUDE: (^\.cspell\.json$|^\.devcontainer/.*\.json$)
 
 # betterleaks is the secret scanner that covers this repo's credential shapes.
 #
@@ -112,14 +111,11 @@ REPOSITORY_TRIVY_ARGUMENTS: "--ignorefile .trivyignore.yaml"
 # patches/ holds vendored upstream source bind-mounted into containers to
 # apply local fixes; it is not code we author, so it should not be linted,
 # reformatted, or spellchecked.
-EDITORCONFIG_EDITORCONFIG_CHECKER_FILTER_REGEX_EXCLUDE: (^patches/)
-BASH_SHFMT_FILTER_REGEX_EXCLUDE: (^patches/)
 
 # configs/*/config/ holds files the applications generate: Qt window state,
 # base64 blobs, provider names. Spellchecking those yields nothing but noise
 # (186 unknown "words" in one run, almost all base64). .gitleaksignore is
 # machine-generated commit fingerprints for the same reason.
-SPELL_CSPELL_FILTER_REGEX_EXCLUDE: (^patches/|^configs/.*/config/|^configs/.*/custom-(cont-init|services)\.d/|^\.gitleaksignore$)
 
 # custom-cont-init.d and custom-services.d hold third-party arr-scripts
 # bootstrap scripts, vendored the same way as patches/ and not ours to fix.
@@ -129,7 +125,6 @@ BASH_SHELLCHECK_FILTER_REGEX_EXCLUDE: (^patches/|^configs/.*/custom-(cont-init|s
 # style notes that the commit-time hook deliberately ignores.
 BASH_SHELLCHECK_ARGUMENTS: "--severity=error"
 REPOSITORY_CHECKOV_ARGUMENTS: --skip-framework secrets --skip-path configs
-PYTHON_RUFF_FILTER_REGEX_INCLUDE: (^tests/)
 PYTHON_BANDIT_FILTER_REGEX_INCLUDE: (^tests/)
 PYTHON_BANDIT_FILTER_REGEX_EXCLUDE: (tests/\.venv/)
 PYTHON_BANDIT_ARGUMENTS: "--skip B101,B105,B314,B404,B405,B501,B603,B607"

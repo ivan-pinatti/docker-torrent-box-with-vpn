@@ -142,6 +142,14 @@ repos:
         pass_filenames: false
         always_run: true
 
+  # Moved out of MegaLinter with the switch to its security flavor, which does
+  # not carry actionlint. Unlike lychee and dotenv-linter it has a real
+  # pre-commit hook, so it runs at commit time here rather than only in CI.
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.7
+    hooks:
+      - id: actionlint
+
   - repo: https://github.com/oxsecurity/megalinter
     rev: v9.6.0
     hooks:
