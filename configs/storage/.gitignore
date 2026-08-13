@@ -1,0 +1,6 @@
+# .smbcredentials holds the SMB username and password for the external storage
+# mount (see STORAGE_CREDENTIALS_FILE in .env and docs/STORAGE.md). Never
+# commit it. Only the example template and this file are tracked.
+*
+!.smbcredentials.example
+!.gitignore

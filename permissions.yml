@@ -543,6 +543,44 @@ paths:
     mode: "0750"
     chown_files: true
 
+# Artwork and scheduled backups live on DATA_FOLDER, not in configs/, so they
+# follow the data tree onto external storage and stay out of the config backup.
+# The compose files bind them at /mediacover and /appbackups rather than
+# somewhere under /config, because LinuxServer images run `lsiown -R abc:abc
+# /config` on every start and that walk cannot converge across a CIFS mount
+# (see docs/STORAGE.md). The apps still expect the directories where they have
+# always been, so each one is a symlink to its bind mount.
+#
+# `find` without -L does not descend into a symlinked directory, so lsiown
+# touches the link instead of the tree behind it, which is the whole point.
+#
+# Created by `permissions.py repair`, which `make start` depends on, so a fresh
+# clone gets them without a manual step. Without them the apps silently write
+# real directories into configs/, which the backup targets exclude.
+symlinks:
+  - path: configs/lidarr/config/MediaCover
+    target: /mediacover
+  - path: configs/radarr/config/MediaCover
+    target: /mediacover
+  - path: configs/readarr/config/MediaCover
+    target: /mediacover
+  - path: configs/sonarr/config/MediaCover
+    target: /mediacover
+  - path: configs/whisparr/config/MediaCover
+    target: /mediacover
+  - path: configs/lidarr/config/Backups
+    target: /appbackups
+  - path: configs/prowlarr/config/Backups
+    target: /appbackups
+  - path: configs/radarr/config/Backups
+    target: /appbackups
+  - path: configs/readarr/config/Backups
+    target: /appbackups
+  - path: configs/sonarr/config/Backups
+    target: /appbackups
+  - path: configs/whisparr/config/Backups
+    target: /appbackups
+
 smoke_tests:
   hardlinks:
     - name: torrent_tv_to_media_tv

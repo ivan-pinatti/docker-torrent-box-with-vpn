@@ -127,6 +127,97 @@ the full ownership model.
 Without that detection `make start` would fail before starting anything, since
 it depends on `permissions_repair`.
 
+### Never Mount External Storage Directly Under /config
+
+LinuxServer images run `lsiown -R abc:abc /config` on **every** container start.
+Mount a share at a path inside `/config` and that walk crosses the network, once
+per start, forever. It cannot even converge: the CIFS mount forces a single
+`uid=`, so those files always report an owner that is not `abc`, and the filter
+`! -user abc` matches the whole set again on the next start.
+
+Confirmed live: Lidarr with its artwork bind mounted at `/config/MediaCover`
+never finished starting. The chown sat in uninterruptible sleep against
+thousands of files over SMB, and the container went unhealthy.
+
+Mount outside `/config` and put a symlink where the app expects the directory:
+
+```yaml
+- ${MEDIA_COVERS_FOLDER}/lidarr:/mediacover${DATA_VOLUME_FLAGS}
+- ${APP_BACKUPS_FOLDER}/lidarr:/appbackups${DATA_VOLUME_FLAGS}
+```
+
+with `configs/lidarr/config/MediaCover -> /mediacover` and
+`configs/lidarr/config/Backups -> /appbackups`.
+
+Those links are declared in `permissions.yml` under `symlinks:` and created by
+`scripts/permissions.py repair`, which `make start` already depends on, so a
+fresh clone gets them without a manual step. `permissions.py check` reports any
+that are missing or pointing somewhere else.
+
+Repair never deletes a directory that has anything in it. On an install that
+ran before the move, `configs/<app>/config/MediaCover` is a real directory
+holding the existing artwork, and it stops with that path named. Move the
+contents onto the mounted tree and remove the empty directory, then re-run:
+
+```shell
+mv configs/sonarr/config/MediaCover/* data/media/covers/sonarr/
+rmdir configs/sonarr/config/MediaCover
+make permissions_repair
+```
+
+Without the link the app silently creates that directory itself and writes
+there, which is on local disk rather than the data tree, and `make backup`
+excludes those paths so nothing flags it. `lsiown`'s `find` runs without
+`-L`, so it does not descend into a symlinked directory: it touches one link
+instead of the tree behind it. Measured on a test tree, the same walk visited 2
+entries via a symlink against 9 for a real directory, and the real case is
+thousands. The apps follow the symlink and neither knows the difference.
+
+### Cold Reads and Proxy Timeouts
+
+The first listing of a large library has to stat every item across the network,
+and that can outrun nginx's 60s `proxy_read_timeout` while the app itself is
+healthy. Lidarr's `/api/v1/artist` took over a minute cold and 2s once the
+attribute cache had filled, surfacing in the browser as a 504 and the app's own
+"Failed to load" page.
+
+Two settings blunt this: `proxy_read_timeout 180s` on the app locations in
+`configs/nginx/templates/default.conf.template`, and a longer `actimeo` in
+`STORAGE_CIFS_EXTRA_OPTIONS` so cached metadata survives between visits. The
+tradeoff on `actimeo` is that changes made directly on the server take that
+long to become visible to the stack, which for a media library is not a
+concern.
+
+## Surviving a Reboot
+
+`make storage_install_boot` appends one `/etc/fstab` entry, after printing the
+exact line and requiring you to type `yes`. It backs the file up first and
+verifies the result parses.
+
+The options are `_netdev,nofail` plus everything from the `### EXTERNAL
+STORAGE` block. `_netdev` orders the mount after the network. `nofail` means
+the unit is only *wanted* by `remote-fs.target` and is not ordered before it,
+so a NAS that is down cannot hold up boot.
+
+**Not `x-systemd.automount`.** It sounds like the right tool and is the wrong
+one here. It leaves an autofs mount at the path until something accesses it,
+and autofs reports its source as `systemd-1` rather than the share:
+
+```shell
+findmnt -t autofs -o TARGET,SOURCE,FSTYPE
+```
+
+Every check in `storage-mount.sh` matches on `--source`, and `findmnt` reads
+`/proc/self/mountinfo` without ever touching the path, so it cannot trigger the
+automount it is asking about. The result is that `make storage_status` reports
+`NOT MOUNTED` and `make start` refuses, on a healthy share, after every reboot
+until something happens to touch `data/`. `nofail` already gives the
+non-blocking boot that automount was wanted for.
+
+Because the mount is not ordered before boot completes, the stack can still
+reach `make start` before the share is up. That is what `storage_guard`
+catches, and why it fails closed.
+
 ## NFS as an Alternative
 
 NFS preserves real uid/gid and supports ACLs, so `permissions.yml` applies

@@ -38,6 +38,11 @@ server {
   ssl_protocols         TLSv1.2 TLSv1.3;
   ssl_ciphers           HIGH:!aNULL:!MD5;
 
+  # A cold library listing has to stat every item, and on external storage
+  # that first call can outrun nginx's 60s default and return 504 while the
+  # app itself is fine. Confirmed live: Lidarr's /api/v1/artist took over a
+  # minute cold and 2s once cached. Set here so every location inherits it.
+  proxy_read_timeout     180s;
   proxy_cache            proxy_cache;
   proxy_cache_methods    GET HEAD;
   proxy_cache_revalidate on;

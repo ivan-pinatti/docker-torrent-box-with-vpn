@@ -157,6 +157,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       code: ${{ steps.filter.outputs.code }}
+      renovate: ${{ steps.filter.outputs.renovate }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -184,6 +185,45 @@ jobs:
               - '!docs/**'
               - '!**/.gitkeep'
               - '!CITATION.cff'
+            renovate:
+              - '.github/renovate.json5'
+
+  renovate_config:
+    name: Renovate Config
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [changes]
+    # Narrower than the workflow default, which also grants pull-requests:
+    # read for dorny/paths-filter in the changes job. This job runs Renovate
+    # through npx and has no reason to hold a token that can read PRs.
+    permissions:
+      contents: read
+    # Only when that one file changes. The validator downloads Renovate to run,
+    # which is not worth paying for on PRs that cannot have affected it.
+    if: >-
+      ${{ !cancelled()
+      && (needs.changes.outputs.renovate == 'true' || github.event_name == 'workflow_dispatch') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/pull/{0}/head', inputs.pr_number) || github.ref }}
+          # This job downloads and runs Renovate through npx. checkout leaves
+          # the token in .git/config by default, where anything it executes
+          # could read it. Nothing here talks to git, so drop it.
+          persist-credentials: false
+
+      - name: Validate renovate.json5
+        shell: bash
+        # No file argument on purpose: passing the path explicitly validates it
+        # as *global* config, a weaker check that misses repo-only problems.
+        # Run bare, the validator finds .github/renovate.json5 itself.
+        #
+        # --strict is what gives this teeth. A config needing migration is only
+        # a WARN by default and the command still exits 0, so without it this
+        # job would pass on exactly the drift it exists to catch. Confirmed
+        # against the pre-migration file: exit 1 with --strict, 0 without.
+        run: npx --yes --package renovate@42.99.0 renovate-config-validator --strict
 
   integration:
     name: Integration Tests

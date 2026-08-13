@@ -112,8 +112,8 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/lidarr/config:/config:z
-      - ${APP_BACKUPS_FOLDER}/lidarr:/config/Backups${DATA_VOLUME_FLAGS}
-      - ${MEDIA_COVERS_FOLDER}/lidarr:/config/MediaCover${DATA_VOLUME_FLAGS}
+      - ${APP_BACKUPS_FOLDER}/lidarr:/appbackups${DATA_VOLUME_FLAGS}
+      - ${MEDIA_COVERS_FOLDER}/lidarr:/mediacover${DATA_VOLUME_FLAGS}
       - ${CONFIG_FOLDER}/lidarr/custom-cont-init.d:/custom-cont-init.d:z
       - ${CONFIG_FOLDER}/lidarr/custom-services.d:/custom-services.d:z
       - ${DATA_FOLDER}:/data${DATA_VOLUME_FLAGS}
@@ -142,7 +142,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/prowlarr/config:/config:z
-      - ${APP_BACKUPS_FOLDER}/prowlarr:/config/Backups${DATA_VOLUME_FLAGS}
+      - ${APP_BACKUPS_FOLDER}/prowlarr:/appbackups${DATA_VOLUME_FLAGS}
     healthcheck:
       <<: *healthcheck-defaults
       test: >
@@ -168,8 +168,8 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/radarr/config:/config:z
-      - ${APP_BACKUPS_FOLDER}/radarr:/config/Backups${DATA_VOLUME_FLAGS}
-      - ${MEDIA_COVERS_FOLDER}/radarr:/config/MediaCover${DATA_VOLUME_FLAGS}
+      - ${APP_BACKUPS_FOLDER}/radarr:/appbackups${DATA_VOLUME_FLAGS}
+      - ${MEDIA_COVERS_FOLDER}/radarr:/mediacover${DATA_VOLUME_FLAGS}
       - ${DATA_FOLDER}:/data${DATA_VOLUME_FLAGS}
     healthcheck:
       <<: *healthcheck-defaults
@@ -196,8 +196,8 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/readarr/config:/config:z
-      - ${APP_BACKUPS_FOLDER}/readarr:/config/Backups${DATA_VOLUME_FLAGS}
-      - ${MEDIA_COVERS_FOLDER}/readarr:/config/MediaCover${DATA_VOLUME_FLAGS}
+      - ${APP_BACKUPS_FOLDER}/readarr:/appbackups${DATA_VOLUME_FLAGS}
+      - ${MEDIA_COVERS_FOLDER}/readarr:/mediacover${DATA_VOLUME_FLAGS}
       - ${DATA_FOLDER}:/data${DATA_VOLUME_FLAGS}
     healthcheck:
       <<: *healthcheck-defaults
@@ -247,8 +247,8 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/sonarr/config:/config:z
-      - ${APP_BACKUPS_FOLDER}/sonarr:/config/Backups${DATA_VOLUME_FLAGS}
-      - ${MEDIA_COVERS_FOLDER}/sonarr:/config/MediaCover${DATA_VOLUME_FLAGS}
+      - ${APP_BACKUPS_FOLDER}/sonarr:/appbackups${DATA_VOLUME_FLAGS}
+      - ${MEDIA_COVERS_FOLDER}/sonarr:/mediacover${DATA_VOLUME_FLAGS}
       - ${DATA_FOLDER}:/data${DATA_VOLUME_FLAGS}
     healthcheck:
       <<: *healthcheck-defaults
@@ -307,8 +307,8 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/whisparr/config:/config:z
-      - ${APP_BACKUPS_FOLDER}/whisparr:/config/Backups${DATA_VOLUME_FLAGS}
-      - ${MEDIA_COVERS_FOLDER}/whisparr:/config/MediaCover${DATA_VOLUME_FLAGS}
+      - ${APP_BACKUPS_FOLDER}/whisparr:/appbackups${DATA_VOLUME_FLAGS}
+      - ${MEDIA_COVERS_FOLDER}/whisparr:/mediacover${DATA_VOLUME_FLAGS}
       - ${DATA_FOLDER}:/data${DATA_VOLUME_FLAGS}
     healthcheck:
       <<: *healthcheck-defaults

@@ -64,14 +64,16 @@
     // Remaining linuxserver images (downloaders, library tools).
     {
       matchDatasources: ["docker"],
-      matchPackagePatterns: ["^linuxserver/"],
-      excludePackageNames: [
-        "linuxserver/bazarr",
-        "linuxserver/lidarr",
-        "linuxserver/prowlarr",
-        "linuxserver/radarr",
-        "linuxserver/readarr",
-        "linuxserver/sonarr",
+      // Slashes mark a regex; the trailing one is part of the pattern. The
+      // negated entries are what excludePackageNames used to express.
+      matchPackageNames: [
+        "/^linuxserver//",
+        "!linuxserver/bazarr",
+        "!linuxserver/lidarr",
+        "!linuxserver/prowlarr",
+        "!linuxserver/radarr",
+        "!linuxserver/readarr",
+        "!linuxserver/sonarr",
       ],
       groupName: "linuxserver images",
       groupSlug: "linuxserver",
@@ -85,12 +87,13 @@
     },
   ],
 
-  regexManagers: [
+  customManagers: [
     {
+      customType: "regex",
       // Matches the pattern:
       //   # renovate: depName=<image> [versioning=<scheme>]
       //   VAR_VERSION=<currentValue>
-      fileMatch: ["^\\.env\\.example$"],
+      managerFilePatterns: ["/^\\.env\\.example$/"],
       matchStrings: [
         "# renovate: depName=(?<depName>[^\\s\\n]+)(?:\\s+versioning=(?<versioning>[^\\s\\n]+))?\\n[A-Z0-9_]+=(?<currentValue>[^\\n]+)",
       ],

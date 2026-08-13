@@ -129,6 +129,24 @@ def safe_path(rel_path: str) -> Path:
     return path
 
 
+def safe_link_path(rel_path: str) -> Path:
+    """Containment check for a path that is itself a symlink.
+
+    safe_path resolves the whole path, which for these follows the link to its
+    target. The targets are container paths like /mediacover and are outside
+    the repository on purpose, so that check refuses them. What has to stay
+    inside the repository is where the link lives, so resolve the parent and
+    leave the final component alone.
+    """
+    path = REPO_ROOT / rel_path
+    parent = path.parent.resolve()
+    try:
+        parent.relative_to(REPO_ROOT)
+    except ValueError as exc:
+        raise SystemExit(f"refusing path outside repository: {rel_path}") from exc
+    return parent / path.name
+
+
 def run(cmd: list[str], *, dry_run: bool = False) -> subprocess.CompletedProcess[str]:
     printable = " ".join(shlex.quote(part) for part in cmd)
     if dry_run:
@@ -147,6 +165,48 @@ def ensure_dir(path: Path, *, runtime: str, dry_run: bool) -> None:
     result = run([*runtime_prefix(runtime), "mkdir", "-p", str(path)], dry_run=dry_run)
     if result.returncode != 0:
         raise SystemExit(result.stderr.strip() or f"failed to create: {path}")
+
+
+def ensure_symlinks(manifest: dict[str, Any], *, dry_run: bool) -> None:
+    """Points each app's artwork and backup directory at its bind mount.
+
+    The compose files mount these outside /config and the apps still look for
+    them inside it, so without the link the app quietly creates a real
+    directory in configs/ instead. That is on local disk rather than the data
+    tree, and the backup targets exclude those paths, so it goes unnoticed.
+
+    Never replaces a directory that has anything in it. A populated MediaCover
+    is the pre-migration copy of the artwork, and deleting it to make room for
+    a link would throw away the only copy.
+    """
+    for entry in manifest.get("symlinks", []):
+        path = safe_link_path(entry["path"])
+        target = entry["target"]
+        if path.is_symlink():
+            if os.readlink(path) == target:
+                continue
+            if dry_run:
+                print(f"ln -sfn {target} {path}")
+                continue
+            path.unlink()
+        elif path.exists():
+            if not path.is_dir():
+                raise SystemExit(f"{path} exists and is not a directory; move it aside")
+            if any(path.iterdir()):
+                raise SystemExit(
+                    f"{path} is a non-empty directory where a symlink to {target} "
+                    f"belongs. Move its contents onto the mounted tree first, then "
+                    f"remove the directory; refusing to delete it here."
+                )
+            if dry_run:
+                print(f"rmdir {path} && ln -s {target} {path}")
+                continue
+            path.rmdir()
+        elif dry_run:
+            print(f"ln -s {target} {path}")
+            continue
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.symlink_to(target)
 
 
 def chmod_chown(
@@ -370,6 +430,18 @@ def check(manifest: dict[str, Any], *, runtime: str) -> int:
                         failures.append(
                             f"{rel}: missing host default ACL {expected_acl}"
                         )
+    for entry in manifest.get("symlinks", []):
+        path = safe_link_path(entry["path"])
+        rel = entry["path"]
+        if not path.is_symlink():
+            what = "a directory" if path.is_dir() else "missing"
+            failures.append(
+                f"{rel}: expected a symlink to {entry['target']}, found {what}"
+            )
+        elif os.readlink(path) != entry["target"]:
+            failures.append(
+                f"{rel}: points at {os.readlink(path)}, expected {entry['target']}"
+            )
     report_unmanaged(skipped)
     if failures:
         print("\n".join(failures))
@@ -401,6 +473,9 @@ def repair(
             manifest, entry, runtime=runtime, recursive=recursive, dry_run=dry_run
         )
         set_acl(manifest, entry, runtime=runtime, recursive=recursive, dry_run=dry_run)
+    # After the directories exist: a link is created inside configs/<app>/config,
+    # which the loop above is what guarantees is there.
+    ensure_symlinks(manifest, dry_run=dry_run)
     report_unmanaged(skipped)
 
 

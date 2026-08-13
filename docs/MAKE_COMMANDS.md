@@ -89,6 +89,11 @@ marker.
 | Target | What it does |
 | --- | --- |
 | `make disk_status` | Prints a disk usage report. |
+| `make storage_mount` | Mounts the external storage share at `DATA_FOLDER`. Refuses if the mountpoint is not empty, so a failed mount cannot leave the apps writing underneath it. |
+| `make storage_unmount` | Unmounts the share. Refuses while stack containers are running. |
+| `make storage_status` | Reports the share, mountpoint, live mount options, free space and whether the boot entry is installed. Exits non-zero when configured but not mounted. |
+| `make storage_install_boot` | Adds the `/etc/fstab` entry so the share returns after a reboot. Prints the exact line, requires typing `yes`, and backs up `/etc/fstab` first. |
+| `make storage_uninstall_boot` | Removes that entry, backing up `/etc/fstab` first. |
 | `make korsync_users ARGS="..."` | Manages KorSync users; see `scripts/korsync-users.sh` for accepted arguments. |
 | `make prune_cache` | Prunes the nginx reverse-proxy cache. |
 | `make rotate_nginx_logs` | Rotates nginx logs. |
