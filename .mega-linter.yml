@@ -28,6 +28,10 @@ PRE_COMMANDS:
 
 DISABLE_ERRORS: false
 FLAVOR_SUGGESTIONS: false
+# Silences the "MegaLinter <version> is out!" banner printed after every run.
+# The action is pinned by major (@v9) and so already tracks the latest 9.x, and
+# the banner has been announcing a version older than the one actually running.
+SECURITY_SUGGESTIONS: false
 SHOW_ELAPSED_TIME: true
 VALIDATE_ALL_CODEBASE: false
 

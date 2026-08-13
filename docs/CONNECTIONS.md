@@ -14,7 +14,7 @@ usable account at all until a human clicks through their own web UI once.
 
 | What | Make target | Script |
 | ---------------------------------- | ---------------------- | ------------------------------ |
-| Download clients + Prowlarr apps | `make wire_connections` | `scripts/wire-connections.sh` |
+| Download clients, Prowlarr apps, Jellyfin library updates | `make wire_connections` | `scripts/wire-connections.sh` |
 
 `make bootstrap` runs this automatically, after the stack's first
 `make start` and before it rotates every seeded credential
@@ -64,6 +64,46 @@ of anything the arr apps do with their own clients. The category is set to
 the bare string `prowlarr`, matching the same convention as the arr apps,
 though Prowlarr itself doesn't use it for anything (it isn't sorting content
 into genre folders the way Sonarr/Radarr/etc. are).
+
+### Jellyfin library updates (Sonarr, Radarr, Lidarr, Whisparr → Jellyfin)
+
+Each app gets a Connection of type `MediaBrowser`, which is the \*arr name for
+Emby/Jellyfin, created via `POST /api/vN/notification` and named
+`Emby / Jellyfin`. `updateLibrary` is on, so Jellyfin is told to rescan as soon
+as an import, upgrade or rename changes the library. Without it Jellyfin only
+notices on its own scheduled scan, and a finished download can sit there
+invisible for hours.
+
+**Readarr is not wired**, because it offers no `MediaBrowser` implementation at
+all: Jellyfin does not take a book library from it, and Readarr's equivalents
+there are Kavita and Subsonic. The script asks each app what it supports rather
+than carrying a hardcoded list, and skips the ones that do not, so this stays
+correct if upstream changes.
+
+The triggers come from the app's own schema for the same reason. The apps
+disagree on them: Sonarr and Radarr have `onDownload`, Lidarr has no such
+trigger and uses `onReleaseImport`, and newer versions add `onImportComplete`.
+Whichever of those an app advertises is enabled, along with `onUpgrade` and
+`onRename`.
+
+The address needs more care than the other connections here. Jellyfin is on the
+`media` network while the \*arr apps are on `apps`/`services`, so there is no
+container-to-container route and the connection has to reach the port Jellyfin
+publishes on the host. Which address gets there from inside a container depends
+on the host, so the script probes from the app's own container and uses the
+first that answers Jellyfin's `/System/Info/Public`:
+
+1. `LAN_IP` from `.env`, which is what a hand-configured install ends up using
+2. `host.containers.internal`, podman's own alias for the host, which is what
+   works when `LAN_IP` is still the `.env.example` placeholder
+3. `host.docker.internal`, for `RUNTIME=docker`
+
+If none of them answer, the app is skipped with a warning rather than left with
+a connection that cannot work.
+
+To check it by hand, open the app, go to Settings > Connect, click
+`Emby / Jellyfin` and press **Test**; it should report success. That is the
+same call `tests/test_wire_connections.py` makes.
 
 ### Readarr → Metadata Provider Source
 
