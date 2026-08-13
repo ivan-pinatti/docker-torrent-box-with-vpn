@@ -92,7 +92,22 @@ require_configured() {
   [ -f "$credentials_abs" ] || die "credentials file not found: $credentials_abs (copy .smbcredentials.example and fill it in)"
 }
 
-is_mounted() { findmnt --noheadings --target "$mountpoint_abs" --source "$STORAGE_REMOTE" >/dev/null 2>&1; }
+# Present in the mount table *and* actually usable. A CIFS session can die and
+# leave the mount entry behind: findmnt still reports it while every access
+# returns ENOENT, and the kernel logs "reconnect tcon failed". Seen live on
+# 2026-08-12, when the whole stack came up against an unreadable data/ because
+# this only asked findmnt. Reading the directory is what tells them apart.
+is_mounted() {
+  findmnt --noheadings --target "$mountpoint_abs" --source "$STORAGE_REMOTE" >/dev/null 2>&1 || return 1
+  ls -A "$mountpoint_abs" >/dev/null 2>&1
+}
+
+# Distinguishes the stale case for reporting: the table says yes, the
+# filesystem says no.
+is_stale_mount() {
+  findmnt --noheadings --target "$mountpoint_abs" --source "$STORAGE_REMOTE" >/dev/null 2>&1 &&
+    ! ls -A "$mountpoint_abs" >/dev/null 2>&1
+}
 
 # Builds the option string. context= is not optional: CIFS has no
 # security.selinux xattr, so Podman's :z relabel cannot work and the label has
@@ -197,6 +212,14 @@ cmd_status() {
     log "fstype:     $(findmnt --noheadings --output FSTYPE --target "$mountpoint_abs")"
     log "options:    $(findmnt --noheadings --output OPTIONS --target "$mountpoint_abs")"
     df -h "$mountpoint_abs" | tail -1 | awk '{printf "space:      %s used of %s (%s free)\n", $3, $2, $4}'
+  elif is_stale_mount; then
+    # Worth calling out rather than reporting a plain "not mounted": the mount
+    # table still lists it, so findmnt, /proc/mounts and df all disagree with
+    # every actual read, and that is a confusing hour if you have not seen it.
+    log "state:      STALE (mount entry present but unreadable)"
+    log "            the SMB session died and could not reconnect; the share"
+    log "            itself may be fine. Recover with:"
+    log "              make storage_unmount && make storage_mount"
   else
     log "state:      NOT MOUNTED"
   fi

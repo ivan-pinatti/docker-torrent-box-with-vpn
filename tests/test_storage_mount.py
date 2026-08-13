@@ -510,6 +510,85 @@ def test_install_boot_tolerates_an_unrelated_bad_entry(fake_repo, fstab):
     assert "//server/share" in fstab.read_text()
 
 
+def _stale_mount_path(fake_repo, tmp_path_factory):
+    """A PATH whose findmnt insists the share is mounted.
+
+    Combined with a mountpoint that cannot be read, this is exactly the state a
+    dead CIFS session leaves behind: the mount table still lists it while every
+    access returns ENOENT.
+    """
+    binstub = tmp_path_factory.mktemp("stale-bin")
+    findmnt = binstub / "findmnt"
+    # Answers the --source probe affirmatively, and gives plausible output for
+    # the FSTYPE/OPTIONS lookups so status does not fail for another reason.
+    findmnt.write_text(
+        "#!/bin/sh\n"
+        'case "$*" in\n'
+        "  *FSTYPE*) echo cifs ;;\n"
+        "  *OPTIONS*) echo rw,relatime ;;\n"
+        "  *) : ;;\n"
+        "esac\n"
+        "exit 0\n"
+    )
+    findmnt.chmod(0o755)
+    return f"{binstub}:{os.environ['PATH']}"
+
+
+def test_status_reports_a_stale_mount_rather_than_claiming_it_is_fine(
+    fake_repo, tmp_path_factory
+):
+    """findmnt reporting a mount is not the same as the mount working.
+
+    On 2026-08-12 a CIFS session died and left the entry in place. findmnt,
+    /proc/mounts and df all still described a healthy mount while every read
+    returned ENOENT, and the stack started against an unreadable data/ because
+    the guard only asked findmnt.
+    """
+    _write_env(fake_repo)
+    (fake_repo / "data").chmod(0o000)
+    try:
+        result = _run(
+            fake_repo,
+            "status",
+            env={"PATH": _stale_mount_path(fake_repo, tmp_path_factory)},
+        )
+    finally:
+        (fake_repo / "data").chmod(0o755)
+    assert result.returncode != 0, "a stale mount must not report success"
+    assert "STALE" in result.stdout
+    assert "make storage_unmount" in result.stdout
+
+
+def test_a_stale_mount_fails_the_start_guard(fake_repo, tmp_path_factory):
+    """What make start keys off. Exiting zero here would start the stack
+    against a share nothing can read."""
+    _write_env(fake_repo)
+    (fake_repo / "data").chmod(0o000)
+    try:
+        result = _run(
+            fake_repo,
+            "status",
+            env={"PATH": _stale_mount_path(fake_repo, tmp_path_factory)},
+        )
+    finally:
+        (fake_repo / "data").chmod(0o755)
+    assert result.returncode != 0
+
+
+def test_a_healthy_mount_is_still_reported_as_mounted(fake_repo, tmp_path_factory):
+    """The readability check must not turn a working, empty share into a
+    stale one: ls on an empty directory succeeds and says nothing."""
+    _write_env(fake_repo)
+    result = _run(
+        fake_repo,
+        "status",
+        env={"PATH": _stale_mount_path(fake_repo, tmp_path_factory)},
+    )
+    assert "STALE" not in result.stdout
+    assert "state:      mounted" in result.stdout
+    assert result.returncode == 0
+
+
 def test_hardlink_probe_uses_a_unique_directory():
     """The probe deletes the directory afterwards, so a fixed name is one the
     share might already have, and the probe would take its contents with it."""
