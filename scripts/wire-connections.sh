@@ -525,7 +525,7 @@ ensure_calibre_web_users() {
   local scratch
   scratch=$(mktemp -d)
   podman run --rm -v "${scratch}:/scratch:z" --entrypoint python3 \
-    "lscr.io/linuxserver/calibre-web:${CALIBREWEB_VERSION}" -c "
+    "docker.io/linuxserver/calibre-web:${CALIBREWEB_VERSION}" -c "
 import sys
 sys.path.insert(0, '/app/calibre-web')
 from cps import ub

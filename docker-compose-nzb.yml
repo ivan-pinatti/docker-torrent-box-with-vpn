@@ -42,7 +42,7 @@ secrets:
 services:
   sabnzbd:
     <<: *limit-downloaders
-    image: lscr.io/linuxserver/sabnzbd:${SABNZBD_VERSION}
+    image: docker.io/linuxserver/sabnzbd:${SABNZBD_VERSION}
     container_name: sabnzbd
     depends_on:
       ${VPN_PROVIDER}:
@@ -84,7 +84,7 @@ services:
   # Legacy Usenet client retained for existing setups. New installs use SABnzbd.
   nzbget:
     <<: *limit-downloaders
-    image: lscr.io/linuxserver/nzbget:${NZBGET_VERSION}
+    image: docker.io/linuxserver/nzbget:${NZBGET_VERSION}
     container_name: nzbget
     depends_on: ["${VPN_PROVIDER}"]
     profiles: ["${NZBGET_PROFILE}"]
@@ -114,7 +114,7 @@ services:
       - ${USENET_FOLDER}:/data/usenet${DATA_VOLUME_FLAGS}
   nzbhydra2:
     <<: *limit-nzbhydra2
-    image: lscr.io/linuxserver/nzbhydra2:${NZBHYDRA2_VERSION}
+    image: docker.io/linuxserver/nzbhydra2:${NZBHYDRA2_VERSION}
     container_name: nzbhydra2
     profiles: ["${NZBHYDRA2_PROFILE}"]
     networks:

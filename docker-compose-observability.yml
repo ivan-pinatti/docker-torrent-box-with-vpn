@@ -126,11 +126,6 @@ services:
       test: wget -q -O /dev/null http://127.0.0.1:9889/metrics || exit 1
   node_exporter:
     <<: *limit-telemetry
-    # Stays on Docker Hub, unlike prometheus above. quay.io publishes this image
-    # too, but at a different digest for the same tag: v1.11.1 is sha256:e9cff4fc
-    # on Docker Hub and sha256:0f422f62 on quay.io. They are not the same
-    # artifact, so swapping the registry would change what runs here rather than
-    # only where it is fetched from.
     image: docker.io/prom/node-exporter:${NODE_EXPORTER_VERSION}
     container_name: node_exporter
     profiles: ["${NODE_EXPORTER_PROFILE}"]
@@ -215,7 +210,7 @@ services:
       - ./scripts/rotate-nginx-logs.sh:/scripts/rotate-nginx-logs.sh:ro,z
   prometheus:
     <<: *limit-telemetry
-    image: quay.io/prometheus/prometheus:${PROMETHEUS_VERSION}
+    image: docker.io/prom/prometheus:${PROMETHEUS_VERSION}
     container_name: prometheus
     profiles: ["${PROMETHEUS_PROFILE}"]
     networks: ["observability"]

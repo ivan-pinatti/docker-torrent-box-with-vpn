@@ -334,6 +334,8 @@ jobs:
       && (needs.prerequisites.result == 'success' || needs.prerequisites.result == 'skipped') }}
     env:
       PROTONVPN_PRIVATE_KEY: ${{ secrets.PROTONVPN_PRIVATE_KEY }}
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
     permissions:
       contents: read
       # To take the label back off again, see the last step.
@@ -432,6 +434,26 @@ jobs:
       - name: Generate self-signed certificate
         timeout-minutes: 3
         run: make generate_certificate
+
+      - name: Log in to Docker Hub
+        # 26 of this stack's images come from Docker Hub, and anonymous pulls
+        # are rate limited per source address while GitHub runners share
+        # addresses across every project on the pool. Three runs on this pull
+        # request stalled mid-pull long enough to hit a timeout, each in a
+        # different step, which is the shape throttling makes.
+        #
+        # podman login rather than docker/login-action: podman is the runtime
+        # here and only falls back to ~/.docker/config.json, so this writes the
+        # auth file it actually uses.
+        #
+        # Skipped when the secret is absent, which is every pull request from a
+        # fork, since GitHub does not expose secrets to those. They keep pulling
+        # anonymously and this must not fail them.
+        if: env.DOCKERHUB_USERNAME != ''
+        timeout-minutes: 2
+        run: |
+          printf '%s' "$DOCKERHUB_TOKEN" \
+            | podman login docker.io --username "$DOCKERHUB_USERNAME" --password-stdin
 
       - name: Pull container images
         # Split out of `make start` so the pull is visible and bounded on its
