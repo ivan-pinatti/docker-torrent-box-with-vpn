@@ -58,6 +58,7 @@ env_value() {
   grep -m1 "^${key}=" .env | cut -d= -f2-
 }
 
+LAN_IP="$(env_value LAN_IP)"
 GLUETUN_SERVICES_IP="$(env_value GLUETUN_SERVICES_IP)"
 QBITTORRENT_HTTPS_PORT="$(env_value QBITTORRENT_HTTPS_PORT)"
 SABNZBD_HTTP_PORT="$(env_value SABNZBD_HTTP_PORT)"
@@ -74,7 +75,7 @@ JELLYFIN_BASE_URL="$(env_value JELLYFIN_BASE_URL)"
 AUDIOBOOKSHELF_HTTP_PORT="$(env_value AUDIOBOOKSHELF_HTTP_PORT)"
 CALIBREWEB_VERSION="$(env_value CALIBREWEB_VERSION)"
 FLARESOLVERR_HTTP_PORT="$(env_value FLARESOLVERR_HTTP_PORT)"
-readonly GLUETUN_SERVICES_IP QBITTORRENT_HTTPS_PORT SABNZBD_HTTP_PORT \
+readonly LAN_IP GLUETUN_SERVICES_IP QBITTORRENT_HTTPS_PORT SABNZBD_HTTP_PORT \
   SONARR_HTTP_PORT RADARR_HTTPS_PORT LIDARR_HTTPS_PORT READARR_HTTPS_PORT \
   WHISPARR_HTTPS_PORT PROWLARR_HTTPS_PORT LAZYLIBRARIAN_HTTP_PORT MYLAR_HTTPS_PORT \
   JELLYFIN_BASE_URL CALIBREWEB_VERSION \
@@ -868,6 +869,116 @@ ensure_sabnzbd_client() {
 # ---------------------------------------------------------------------------
 
 # Args: app_name container scheme port api_ver qbit_category sab_category
+# Finds an address the *arr container can actually reach Jellyfin on.
+#
+# There is no container-to-container route to try: Jellyfin is on the media
+# network and the *arr apps are on apps/services, so the connection has to go
+# out to the port Jellyfin publishes on the host. Which address reaches the
+# host from inside a container is not something to assume, so probe instead.
+#
+# LAN_IP first, because that is what a hand-configured install ends up using
+# and it keeps working if the host alias is unavailable. Then podman's own
+# alias for the host, which is what works when LAN_IP is still the
+# .env.example placeholder, CI being the case that matters. host.docker
+# .internal covers RUNTIME=docker.
+jellyfin_host_for() {
+  local container="$1" candidate
+  for candidate in "$LAN_IP" host.containers.internal host.docker.internal; do
+    [[ -n "$candidate" && "$candidate" != "192.168.1.x" ]] || continue
+    if container_curl "$container" -s --fail --max-time 5 \
+      "http://${candidate}:${JELLYFIN_HTTP_PORT}${JELLYFIN_BASE_URL}/System/Info/Public" \
+      >/dev/null 2>&1; then
+      printf '%s' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Tells Jellyfin to rescan when an import, upgrade or rename changes the
+# library. Without it Jellyfin only notices on its own scheduled scan, so a
+# finished download can sit there invisible for hours.
+ensure_jellyfin_connection() {
+  local app_name="$1" container="$2" scheme="$3" port="$4" api_ver="$5" api_key="$6"
+  local base_url="${scheme}://127.0.0.1:${port}/${app_name}/api/${api_ver}/notification"
+
+  if ! podman container exists jellyfin 2>/dev/null; then
+    echo "[$app_name] Jellyfin is not running, skipping its connection."
+    return 0
+  fi
+  if [[ ! -s "$JELLYFIN_API_KEY_FILE" ]]; then
+    echo "[$app_name] No Jellyfin API key yet, skipping its connection."
+    return 0
+  fi
+
+  local existing
+  existing=$(container_curl "$container" -sk --fail -H "X-Api-Key: ${api_key}" "$base_url" |
+    jq 'map(select(.implementation == "MediaBrowser")) | first')
+  if [[ -n "$existing" && "$existing" != "null" ]]; then
+    echo "[$app_name] Jellyfin connection already exists, skipping."
+    return 0
+  fi
+
+  local jellyfin_host
+  if ! jellyfin_host=$(jellyfin_host_for "$container"); then
+    echo "[$app_name] WARNING: Jellyfin is running but not reachable from this container; skipping its connection."
+    return 0
+  fi
+
+  local schema
+  schema=$(container_curl "$container" -sk --fail -H "X-Api-Key: ${api_key}" "${base_url}/schema" |
+    jq 'map(select(.implementation == "MediaBrowser")) | first')
+
+  # Not every app offers this. Readarr has no MediaBrowser implementation at
+  # all, since Jellyfin does not take a book library from it; its equivalents
+  # are Kavita and Subsonic. Asking rather than assuming keeps the list of
+  # apps here honest as upstream changes.
+  if [[ -z "$schema" || "$schema" == "null" ]]; then
+    echo "[$app_name] Does not support Jellyfin connections, skipping."
+    return 0
+  fi
+
+  echo "[$app_name] Creating Jellyfin connection..."
+
+  # Triggers come from the schema rather than a fixed list, because the apps
+  # do not agree on them: Sonarr has onDownload, Lidarr has no such thing and
+  # uses onReleaseImport, and newer versions add onImportComplete. Asking each
+  # app what it supports is the only version-proof way to enable the ones that
+  # mean "the library changed on disk".
+  local payload
+  payload=$(echo "$schema" | jq \
+    --arg host "$jellyfin_host" \
+    --arg port "$JELLYFIN_HTTP_PORT" \
+    --arg url_base "$JELLYFIN_BASE_URL" \
+    --arg key "$(cat "$JELLYFIN_API_KEY_FILE")" \
+    '.name = "Emby / Jellyfin" |
+    .fields |= map(
+      if .name == "host" then .value = $host
+      elif .name == "port" then .value = ($port | tonumber)
+      elif .name == "useSsl" then .value = false
+      elif .name == "urlBase" then .value = $url_base
+      elif .name == "apiKey" then .value = $key
+      elif .name == "updateLibrary" then .value = true
+      else . end) |
+    (if .supportsOnDownload then .onDownload = true else . end) |
+    (if .supportsOnImportComplete then .onImportComplete = true else . end) |
+    (if .supportsOnReleaseImport then .onReleaseImport = true else . end) |
+    (if .supportsOnUpgrade then .onUpgrade = true else . end) |
+    (if .supportsOnRename then .onRename = true else . end)')
+
+  # Same reasoning as ensure_qbittorrent_client: caught here rather than left
+  # to --fail under set -e, which stops applying inside a function the caller
+  # guarded with `|| warn`.
+  local response
+  if ! response=$(container_curl "$container" -sk --fail -X POST \
+    -H "X-Api-Key: ${api_key}" -H "Content-Type: application/json" \
+    -d "$payload" "$base_url" 2>&1); then
+    echo "[$app_name] WARNING: failed to create the Jellyfin connection: ${response:0:300}"
+    return 1
+  fi
+  echo "[$app_name] Created."
+}
+
 wire_arr_app() {
   local app_name="$1" container="$2" scheme="$3" port="$4" api_ver="$5"
   local qbit_category="$6" sab_category="$7"
@@ -889,6 +1000,7 @@ wire_arr_app() {
   ensure_arr_host_prereqs "$app_name" "$container" "$scheme" "$port" "$api_ver" "$key"
   ensure_qbittorrent_client "$app_name" "$container" "$scheme" "$port" "$api_ver" "$key" "$qbit_category"
   ensure_sabnzbd_client "$app_name" "$container" "$scheme" "$port" "$api_ver" "$key" "$sab_category"
+  ensure_jellyfin_connection "$app_name" "$container" "$scheme" "$port" "$api_ver" "$key" || true
 
   if [[ "$app_name" == "readarr" ]]; then
     ensure_readarr_metadata_source "$container" "$scheme" "$port" "$api_ver" "$key" || true
