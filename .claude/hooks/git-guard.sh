@@ -191,10 +191,13 @@ if matches_verbs "${AT_COMMAND}${WRAPPERS}${GIT}${GIT_OPTIONS}[[:space:]]+commit
   # git would use, because tracking that properly means tracking shell state
   # through the command. A wrong refusal costs one `pre-commit install`; a
   # wrong pass costs an unscanned commit in a public repository.
+  # Option tokens are skipped before taking the operand. `cd -P /repo` recorded
+  # `-P` as the directory, which is not a repository, so the real one went
+  # unchecked (CodeRabbit, PR #40). Covers -L, -P and --.
   candidates="$(
     printf '%s' "$flat" |
       tr ';&|()' '\n\n\n\n\n' |
-      sed -nE 's/^[[:space:]]*cd[[:space:]]+([^[:space:]]+).*/\1/p'
+      sed -nE 's/^[[:space:]]*cd([[:space:]]+-[^[:space:]]+)*[[:space:]]+([^[:space:]]+).*/\2/p'
   )"
   # The session directory drops out only when the command plainly leaves it
   # before committing. A `cd` inside parentheses does not: its effect ends with
@@ -228,6 +231,32 @@ $session_dir"
     printf '%s' "$cmd_flags" |
       sed -nE 's/.*core\.hooksPath=([^[:space:]]+).*/\1/Ip' | head -1
   )"
+
+  # Past this point the command is being read, not executed, and four rounds of
+  # review on this file have all found the same shape of bug: a construct the
+  # reader resolves to the wrong directory, which turns a refusal into a pass.
+  # So the two constructs that cannot be attributed to one commit are refused
+  # outright rather than guessed at. Both have an obvious rewrite, named in the
+  # refusal, and neither is a shape this repository's own commands use.
+  if printf '%s' "$cmd_verbs" | grep -qE "${AT_COMMAND}${WRAPPERS}${GIT}[[:space:]]+[^;&|]*-C[[:space:]]"; then
+    deny "git -C <dir> commit cannot be checked for installed hooks, because the directory it targets is not resolvable from the command text, and guessing wrong here means an unscanned commit rather than a refused one. Write it as 'cd <dir> && git commit ...' instead, which is checked."
+  fi
+
+  # `-c core.hooksPath=<dir>` applies to the one git command carrying it, so
+  # with more than one commit in the same line there is no way to tell which
+  # commit it belongs to, and applying it to all of them let a later commit
+  # inherit an override it never had.
+  # grep -o and count the matches, not grep -c: that counts matching *lines*,
+  # and a compound command carrying two commits is usually one line, so it
+  # always answered 1.
+  commit_count="$(
+    printf '%s' "$flat" |
+      grep -oE "${AT_COMMAND}${WRAPPERS}${GIT}${GIT_OPTIONS}[[:space:]]+commit([[:space:]]|\$)" |
+      grep -c .
+  )"
+  if [ -n "$hooks_override" ] && [ "${commit_count:-0}" -gt 1 ]; then
+    deny "This command carries a command-scoped core.hooksPath and more than one git commit, so there is no way to tell which commit the override belongs to. Run the commits as separate commands."
+  fi
 
   while IFS= read -r candidate; do
     [ -n "$candidate" ] || continue

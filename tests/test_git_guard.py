@@ -828,3 +828,69 @@ def test_the_hooks_path_value_keeps_its_case(tmp_path, stub_bin):
         cwd=repo,
     )
     assert decision == "allow", "the path was probably case-folded"
+
+
+@pytest.mark.parametrize("option", ["-L", "-P", "--"])
+def test_cd_options_do_not_hide_the_directory(option, tmp_path, stub_bin):
+    """`cd -P /repo` recorded `-P` as the directory, which is not a repository,
+    so the real one went unchecked (CodeRabbit, PR #40)."""
+    installed = _init_repo(tmp_path / f"opt-installed{option.strip('-') or 'dd'}")
+    fresh = _init_repo(
+        tmp_path / f"opt-fresh{option.strip('-') or 'dd'}", hook_installed=False
+    )
+    decision, _ = _decision(
+        f"cd {option} {fresh} && git commit -m x",
+        stub_bin(containers_running=False),
+        cwd=installed,
+    )
+    assert decision == "deny"
+
+
+def test_git_dash_c_targets_are_refused_rather_than_guessed(tmp_path, stub_bin):
+    """`git -C <dir> commit` names a directory the reader cannot attribute, and
+    guessing wrong means an unscanned commit rather than a refused one, so it is
+    refused with the rewrite named."""
+    installed = _init_repo(tmp_path / "dashC-installed")
+    fresh = _init_repo(tmp_path / "dashC-fresh", hook_installed=False)
+    decision, reason = _decision(
+        f"git -C {fresh} commit -m x",
+        stub_bin(containers_running=False),
+        cwd=installed,
+    )
+    assert decision == "deny"
+    assert "cd <dir> && git commit" in reason, "the refusal must name the rewrite"
+
+
+def test_a_scoped_hooks_path_with_two_commits_is_refused(tmp_path, stub_bin):
+    """The override belongs to one git command. With two commits on the line
+    there is no way to say which, and applying it to both let the second inherit
+    an override it never had (CodeRabbit, PR #40)."""
+    repo = _init_repo(tmp_path / "two-commit-override")
+    fresh = _init_repo(tmp_path / "two-commit-fresh", hook_installed=False)
+    elsewhere = tmp_path / "two-commit-hooks"
+    elsewhere.mkdir()
+    hook = elsewhere / "pre-commit"
+    hook.write_text("#!/bin/sh\n")
+    hook.chmod(0o755)
+    decision, _ = _decision(
+        f"git -c core.hooksPath={elsewhere} commit -m a; cd {fresh} && git commit -m b",
+        stub_bin(containers_running=False),
+        cwd=repo,
+    )
+    assert decision == "deny"
+
+
+def test_a_scoped_hooks_path_with_one_commit_is_still_honoured(tmp_path, stub_bin):
+    """The refusal above is about ambiguity, not about the option itself."""
+    repo = _init_repo(tmp_path / "one-commit-override", hook_installed=False)
+    elsewhere = tmp_path / "one-commit-hooks"
+    elsewhere.mkdir()
+    hook = elsewhere / "pre-commit"
+    hook.write_text("#!/bin/sh\n")
+    hook.chmod(0o755)
+    decision, _ = _decision(
+        f"git -c core.hooksPath={elsewhere} commit -m x",
+        stub_bin(containers_running=False),
+        cwd=repo,
+    )
+    assert decision == "allow"
