@@ -52,12 +52,21 @@ jobs:
             -f pr_number="${{ github.event.issue.number }}" \
             -f job_scope=checks
 
-      - name: Trigger PR Validation (tests)
+      # Labels rather than dispatches. A workflow_dispatch run is dispatched off
+      # main, so its check attaches to main's HEAD, while a required status
+      # check is evaluated against the pull request's head commit: the tests
+      # would run, pass, and leave the pull request blocked regardless. Applying
+      # the label fires a pull_request event against the right commit, so the
+      # result counts for the merge.
+      #
+      # Removed first, and the failure ignored, so that asking twice works: a
+      # label that is already present fires nothing when added again.
+      - name: Label for tests
         if: startsWith(github.event.comment.body, '/run-tests')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh workflow run pull-request-validation.yml \
-            --ref "${{ github.event.repository.default_branch }}" \
-            -f pr_number="${{ github.event.issue.number }}" \
-            -f job_scope=tests
+          gh pr edit "${{ github.event.issue.number }}" \
+            --repo "${{ github.repository }}" --remove-label run-tests || true
+          gh pr edit "${{ github.event.issue.number }}" \
+            --repo "${{ github.repository }}" --add-label run-tests

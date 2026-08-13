@@ -40,15 +40,24 @@ welcome your pull requests:
 6. Use `make sanity_fast` for the normal local check path and `make sanity_full`
    for the full repository check path.
 7. Checks run in order rather than all at once, so a cheap failure is not paid
-   for twice. `Code Check` (pre-commit) runs first, `MegaLinter` only once that
-   passes, and the integration tests do not run on a push at all: a code owner
-   asks for them by commenting `/run-tests` on the pull request. They stand the
-   whole stack up and take upward of twelve minutes, so they are worth spending
-   once the change has settled rather than on every push. `/run-check` re-runs
-   the two lint layers the same way. Open the pull request as a draft and mark
-   it ready for review once the lint checks are green: CodeRabbit skips drafts,
-   so it reviews once against an already-clean diff instead of re-reviewing
-   after each formatting fix.
+   for twice, and the review flow is:
+
+   1. **Open the pull request as a draft.** `Code Check` (pre-commit) runs
+      first and `MegaLinter` only once that passes. CodeRabbit skips drafts.
+   2. **Mark it ready for review once both are green.** That is what starts
+      CodeRabbit, so it reviews an already-clean diff once, rather than
+      re-reviewing after every formatting fix.
+   3. **Address the review, pushing fixes as needed.** Each push re-runs the
+      two lint layers, and CodeRabbit re-reviews.
+   4. **Comment `/run-tests` once the review is settled.** That applies the
+      `run-tests` label, which is what actually starts the integration tests;
+      they never run on an unlabelled push. They stand the whole stack up and
+      take upward of twelve minutes, so they are worth spending once, on the
+      version you intend to merge. Pushing again after labelling re-runs them,
+      because a required check only counts against the current head commit.
+
+   `/run-check` re-runs the two lint layers the same way. Both comments are
+   restricted to repository collaborators.
 8. Dependabot opens weekly pull requests for `.pre-commit-config.yaml` hook revs
    and GitHub Action version bumps. Eligible patch and minor updates are
    approved and marked for auto-merge once the required checks pass.

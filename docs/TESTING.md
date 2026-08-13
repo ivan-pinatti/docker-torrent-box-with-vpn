@@ -32,12 +32,21 @@ constrained resources, confirmed live. This is what `pull-request-validation.yml
 own integration job actually runs; it is not a substitute for `make test`
 or `make bootstrap_tests` and should not be reached for outside CI.
 
-That integration job does not run on a push. It stands the whole stack up and
-takes upward of twelve minutes, so a code owner asks for it by commenting
-`/run-tests` on the pull request, once the change has settled. Until then a
-pull request carries lint results only, and that is the trade being made here:
-one can sit green on `Code Check` and `MegaLinter` having never run a test at
-all. Ask for the run before merging anything that touches the stack.
+That integration job does not run on an unlabelled push. It stands the whole
+stack up and takes upward of twelve minutes, so a code owner asks for it by
+commenting `/run-tests` on the pull request once the change has settled, which
+applies the `run-tests` label and starts the job.
+
+The label, rather than a `workflow_dispatch`, is what makes the result count.
+A dispatched run is dispatched off `main`, so its check attaches to `main`'s
+head commit, while a required status check is evaluated against the pull
+request's own head: the tests would run, pass, and leave the pull request
+blocked regardless.
+
+Until the label goes on, a pull request carries lint results only, and that is
+the trade being made here: one can sit green on `Code Check` and `MegaLinter`
+having never run a test at all. Ask for the run before merging anything that
+touches the stack.
 
 `make test_extended` runs `make test` plus a fourth pass: `rinse_and_repeat`
 (stop/start and down/start lifecycle cycles), the single most expensive

@@ -3,6 +3,16 @@ on:
   pull_request:
     branches:
       - main
+    # `labeled` is what lets the integration job run as a real pull_request
+    # check. A workflow_dispatch run is dispatched off main, so its check
+    # attaches to main's HEAD rather than the pull request's, and a required
+    # status check is evaluated against the pull request's head commit: the
+    # tests would pass and the pull request would stay blocked anyway. Adding
+    # the `run-tests` label fires this event against the right commit.
+    #
+    # Naming any type replaces the default set, so the three defaults are
+    # restated here rather than inherited.
+    types: [opened, synchronize, reopened, labeled]
   # Lets .github/workflows/comment-dispatch.yml re-run this against a PR's
   # current head from a `/run-check` or `/run-tests` comment, without
   # needing a new push. Always dispatched off main (see that workflow), so
@@ -269,15 +279,23 @@ jobs:
     # (mostly concurrent per-app HTTP calls, with some retries up to 180s).
     timeout-minutes: 25
     needs: [pr_check, prerequisites, megalinter]
-    # Runs only from a code owner's `/run-tests` comment, never automatically on
-    # a push. It stands the whole stack up, and one pull request went through
-    # five pushes for a change to a shell hook and its unit tests, spending
-    # something like a hundred minutes of runner time on it, twice timing out at
-    # 25 minutes before reaching a single test. Nothing in those runs could have
-    # been affected by the change. comment-dispatch.yml restricts who can ask
-    # (OWNER, MEMBER, COLLABORATOR), which is the gate; this is the other half
-    # of it, and the cost is that a pull request carries no test result until
-    # someone asks for one.
+    # Runs only once the `run-tests` label is on the pull request, never on an
+    # unlabelled push. It stands the whole stack up, and one pull request went
+    # through five pushes for a change to a shell hook and its unit tests,
+    # spending something like a hundred minutes of runner time on it, twice
+    # timing out at 25 minutes before reaching a single test. Nothing in those
+    # runs could have been affected by the change.
+    #
+    # A code owner applies the label by commenting `/run-tests`, which
+    # comment-dispatch.yml restricts to OWNER, MEMBER and COLLABORATOR: that
+    # restriction is the gate, and labelling is restricted to collaborators by
+    # GitHub anyway. Once labelled, a further push does re-run this, which is
+    # deliberate. A required status check is evaluated against the head commit,
+    # so a result from before the last push would not count for the merge even
+    # if it were kept.
+    #
+    # The cost of all this is that a pull request carries no test result at all
+    # until someone asks for one.
     #
     # !cancelled() rather than always(): a need being skipped must not skip this
     # too (pr_check and megalinter are both skipped for job_scope: tests, which
@@ -286,8 +304,9 @@ jobs:
     # one of the lint layers blocks it.
     if: >-
       ${{ !cancelled()
-      && github.event_name == 'workflow_dispatch'
-      && inputs.job_scope != 'checks'
+      && ((github.event_name == 'pull_request'
+      && contains(github.event.pull_request.labels.*.name, 'run-tests'))
+      || (github.event_name == 'workflow_dispatch' && inputs.job_scope != 'checks'))
       && (needs.pr_check.result == 'success' || needs.pr_check.result == 'skipped')
       && (needs.megalinter.result == 'success' || needs.megalinter.result == 'skipped')
       && (needs.prerequisites.result == 'success' || needs.prerequisites.result == 'skipped') }}
