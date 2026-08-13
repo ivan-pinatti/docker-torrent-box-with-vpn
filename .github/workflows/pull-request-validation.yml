@@ -212,6 +212,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
+      code: ${{ steps.filter.outputs.code }}
       renovate: ${{ steps.filter.outputs.renovate }}
     steps:
       - name: Checkout
@@ -227,8 +228,24 @@ jobs:
           # them. The default is `some`, under which `**` alone matches
           # everything and the negations below never get a say, so `code` came
           # out true for a docs-only PR and the filter was decorative.
+          # Every predicate has to hold for a path to count, not just one of
+          # them. The default is `some`, under which `**` alone matches
+          # everything and the negations below never get a say, so `code` came
+          # out true for a docs-only PR and the filter was decorative.
           predicate-quantifier: every
+          # Anything that can change how the stack behaves at runtime. Read by
+          # the integration_required gate, which waives the suite when nothing
+          # here changed: a pull request touching only prose cannot break an
+          # integration test, and an eleven minute stack run to prove that costs
+          # more than the check is worth. Deliberately broad, so it lists what is
+          # safe to skip on rather than what to run on.
           filters: |
+            code:
+              - '**'
+              - '!**/*.md'
+              - '!docs/**'
+              - '!**/.gitkeep'
+              - '!CITATION.cff'
             renovate:
               - '.github/renovate.json5'
 
@@ -502,7 +519,7 @@ jobs:
     name: Integration Tests
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [integration]
+    needs: [integration, changes]
     # Not always(): a cancelled run is superseded by a newer one, and failing
     # here would just report a stale contradiction of it.
     if: ${{ !cancelled() }}
@@ -510,12 +527,36 @@ jobs:
       - name: Require the suite to have passed on this commit
         env:
           RESULT: ${{ needs.integration.result }}
+          # Empty unless the changes job both ran and answered, so a skipped or
+          # failed filter reads as "not proven docs-only" and the suite is still
+          # required. The waiver has to fail closed: it is the one thing here
+          # that can let a change merge untested.
+          CODE_CHANGED: ${{ needs.changes.outputs.code }}
+          EVENT: ${{ github.event_name }}
         run: |
           if [ "$RESULT" = "success" ]; then
             echo "Integration suite passed on this commit."
             exit 0
           fi
+
           if [ "$RESULT" = "skipped" ]; then
+            # Prose cannot break an integration test, and standing the whole
+            # stack up for eleven minutes to prove that costs more than the
+            # check is worth.
+            #
+            # Nested under skipped on purpose. Checked before it, the waiver
+            # also swallowed a suite that ran and *failed* on a docs-only pull
+            # request, which is a real failure whatever the diff touched. Found
+            # by testing the combinations rather than the happy path.
+            #
+            # Restricted to pull_request because the filter compares against the
+            # pull request's base; on any other event there is nothing to
+            # compare and the answer would be meaningless.
+            if [ "$EVENT" = "pull_request" ] && [ "$CODE_CHANGED" = "false" ]; then
+              echo "No runtime files changed, so the integration suite is not required."
+              echo "Touching anything outside docs and markdown will require it again."
+              exit 0
+            fi
             echo "The integration suite has not run on this commit."
             echo "Comment /run-tests on the pull request to label it and run them."
             exit 1

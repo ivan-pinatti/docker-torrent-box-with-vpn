@@ -105,10 +105,11 @@ review has settled.
    marker/tier breakdown and how to add a test, and
    [docs/MAKE_COMMANDS.md](MAKE_COMMANDS.md) for the full list of test
    targets. Pull requests do not run the suite on their own: a maintainer asks
-   for it by commenting `/run-tests`, which dispatches the `integration` job in
-   `pull-request-validation.yml`. `/run-check` re-runs the lint layers the same
-   way (see `.github/workflows/comment-dispatch.yml`). Still test manually for
-   anything the suite doesn't cover.
+   for it by commenting `/run-tests`, which applies the `run-tests` label and
+   starts the `Integration Suite` job in `pull-request-validation.yml`.
+   `/run-check` re-runs the lint layers the same way (see
+   `.github/workflows/comment-dispatch.yml`). Still test manually for anything
+   the suite doesn't cover.
 11. Update the documentation accordingly
 12. Issue the pull request!
 
