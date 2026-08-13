@@ -31,6 +31,31 @@ FLAVOR_SUGGESTIONS: false
 SHOW_ELAPSED_TIME: true
 VALIDATE_ALL_CODEBASE: false
 
+# Runtime state, none of it code, and none of it tracked. The file-based
+# linters already skip it by only looking at changed files, but project-mode
+# linters (trivy, checkov, betterleaks) walk the workspace directly rather
+# than going through git, so being gitignored does not keep them out.
+#
+# data/ is the reason this is here. It holds the media and download trees, and
+# once STORAGE_REMOTE is set it is a mount of a multi-terabyte SMB share, so
+# walking it means walking the NAS. trivy timed out at its full 300s doing
+# exactly that during a push, having already failed once mid-walk when the
+# CIFS session dropped. The rest are listed for the same reason at smaller
+# scale: storage/ carries Prometheus and Loki data, logs/ grows unbounded
+# between rotations.
+#
+# MegaLinter's own defaults are restated because setting this key replaces
+# them rather than adding to them.
+EXCLUDED_DIRECTORIES:
+  - .git
+  - .pytest_cache
+  - megalinter-reports
+  - node_modules
+  - data
+  - cache
+  - logs
+  - storage
+
 SPELL_LYCHEE_FILTER_REGEX_INCLUDE: (^README\.md$|^LICENSE\.md$|^NOTICE\.md$|^docs/.*\.md$|^\.github/(ISSUE_TEMPLATE/.*\.md|PULL_REQUEST_TEMPLATE\.md)$)
 ENV_DOTENV_LINTER_FILTER_REGEX_INCLUDE: (^\.env\.example$)
 JSON_JSONLINT_FILTER_REGEX_INCLUDE: (^\.cspell\.json$|^\.devcontainer/.*\.json$)
