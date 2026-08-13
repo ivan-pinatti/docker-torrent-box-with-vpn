@@ -38,6 +38,11 @@ stack up and takes upward of twelve minutes, so a code owner applies the
 no comment shortcut: a label applied by a workflow's own GITHUB_TOKEN triggers
 nothing, because GitHub suppresses runs from events its own token creates.
 
+The label is consumed by the run that it starts. Left in place it would sit on
+the pull request and start another twelve minute run on anything that fires the
+workflow again, reopening a closed pull request included, since the label
+belongs to the pull request rather than the branch.
+
 The label, rather than a `workflow_dispatch`, is what makes the result count.
 A dispatched run is dispatched off `main`, so its check attaches to `main`'s
 head commit, while a required status check is evaluated against the pull

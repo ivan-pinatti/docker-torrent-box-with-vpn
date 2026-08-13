@@ -78,8 +78,12 @@ in the pull request and a maintainer will apply it once the review has settled.
       starts the integration tests;
       they never run on an unlabelled push. They stand the whole stack up and
       take upward of twelve minutes, so they are worth spending once, on the
-      version you intend to merge. Pushing again after labelling re-runs them,
-      because a required check only counts against the current head commit.
+      version you intend to merge.
+
+      The label is single-use: the suite takes it back off when it finishes, so
+      it always means "run once, now". Push again and the required check goes
+      red, because it only counts against the current head commit; apply the
+      label again when you are ready to spend another run.
 
    The required `Tests Verified` check stays red until the suite has passed
    on the current head commit, so a pull request cannot be merged without it.

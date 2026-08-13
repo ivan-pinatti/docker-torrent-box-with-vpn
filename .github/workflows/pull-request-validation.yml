@@ -334,6 +334,10 @@ jobs:
       && (needs.prerequisites.result == 'success' || needs.prerequisites.result == 'skipped') }}
     env:
       PROTONVPN_PRIVATE_KEY: ${{ secrets.PROTONVPN_PRIVATE_KEY }}
+    permissions:
+      contents: read
+      # To take the label back off again, see the last step.
+      pull-requests: write
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -508,6 +512,24 @@ jobs:
         if: always()
         timeout-minutes: 5
         run: make stop_all
+
+      - name: Take the label back off
+        # The label means "run the suite once, now", so it is consumed rather
+        # than left on. Otherwise it lingers on the pull request and starts a
+        # twelve minute run again the moment anything fires this workflow:
+        # reopening a closed pull request would do it, since the label lives on
+        # the pull request rather than the branch and `reopened` is a trigger.
+        #
+        # Removing it fires `unlabeled`, which is deliberately not a trigger, so
+        # this cannot loop. always(), so a failed or cancelled run does not leave
+        # the label stuck and unable to be re-applied.
+        if: always() && github.event_name == 'pull_request'
+        timeout-minutes: 2
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr edit "${{ github.event.pull_request.number }}" \
+            --repo "${{ github.repository }}" --remove-label run-tests || true
 
   # The required status check, and the only job here named "Integration Tests".
   # The suite itself is "Integration Suite" above.
