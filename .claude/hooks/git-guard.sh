@@ -161,47 +161,83 @@ fi
 if matches_verbs "${AT_COMMAND}${WRAPPERS}${GIT}${GIT_OPTIONS}[[:space:]]+commit([[:space:]]|\$)"; then
   command -v git >/dev/null 2>&1 || exit 0
 
-  # Which repository the commit lands in. A command that works on another
-  # checkout says so with a leading `cd`, which is the only redirection
-  # resolved here: `git -C <dir> commit` is not, so it is checked against the
-  # session directory instead and can answer for the wrong repository. That is
-  # a known gap rather than an oversight, and it fails open, because a wrong
-  # refusal on a path nothing here uses is worse than the miss.
-  target_dir="$(printf '%s' "$payload" | jq -r '.cwd // empty' 2>/dev/null)"
-  [ -n "$target_dir" ] || target_dir="${CLAUDE_PROJECT_DIR:-$PWD}"
+  session_dir="$(printf '%s' "$payload" | jq -r '.cwd // empty' 2>/dev/null)"
+  [ -n "$session_dir" ] || session_dir="${CLAUDE_PROJECT_DIR:-$PWD}"
 
-  cd_arg="$(
-    printf '%s' "$cmd_verbs" |
-      sed -nE 's/(^|[;&|(]|&&|\|\|)[[:space:]]*cd[[:space:]]+([^[:space:];&|)]+).*/\2/p' |
-      head -1
+  # Only a `cd` that runs *before* the commit can decide where it lands. Taking
+  # the first one anywhere in the string let `git commit -m x && cd /hooked`
+  # answer for the wrong directory entirely, which is a refusal turned into a
+  # pass (CodeRabbit, PR #40). Newlines are flattened first because they
+  # separate commands exactly as `;` does, so a `cd` on a later line is still
+  # after the commit.
+  flat="$(printf '%s' "$cmd_verbs" | tr '\n' ';')"
+  # `#` delimits the expression, not `/`: GIT matches an optional path prefix
+  # and so contains a slash of its own, which silently broke `s/.../.../` into
+  # an expression sed could not parse, and left this empty.
+  before_commit="$(
+    printf '%s' "$flat" |
+      sed -E "s#${AT_COMMAND}${WRAPPERS}${GIT}${GIT_OPTIONS}[[:space:]]+commit([[:space:]].*)?\$##"
   )"
-  case "$cd_arg" in
-  "") ;;
-  /*) target_dir="$cd_arg" ;;
-  *) target_dir="$target_dir/$cd_arg" ;;
-  esac
 
-  # Not a repository at all: git itself will say so, and refusing here would
-  # only replace a clear error with a confusing one.
-  if git -C "$target_dir" rev-parse --git-dir >/dev/null 2>&1; then
-    toplevel="$(git -C "$target_dir" rev-parse --show-toplevel 2>/dev/null)"
+  # Every directory the commit might run in, not just the likeliest one, and a
+  # refusal if any of them is unhooked. Splitting on parentheses means a `cd`
+  # inside a subshell is collected too; its effect does not actually outlive the
+  # subshell, so the session directory is kept as a candidate alongside it
+  # rather than being replaced by it.
+  candidates="$(
+    printf '%s' "$before_commit" |
+      tr ';&|()' '\n\n\n\n\n' |
+      sed -nE 's/^[[:space:]]*cd[[:space:]]+([^[:space:]]+).*/\1/p'
+  )"
+  case "$before_commit" in
+  *"("*) candidates="$candidates
+$session_dir" ;;
+  esac
+  [ -n "$candidates" ] || candidates="$session_dir"
+
+  # `git -c core.hooksPath=<dir> commit` applies to that one command, so asking
+  # the repository where its hooks live answers about a different directory than
+  # the one git is about to use.
+  hooks_override="$(
+    printf '%s' "$cmd_flags" |
+      sed -nE 's/.*core\.hooksPath=([^[:space:]]+).*/\1/p' | head -1
+  )"
+
+  while IFS= read -r candidate; do
+    [ -n "$candidate" ] || continue
+    case "$candidate" in
+    /*) ;;
+    *) candidate="$session_dir/$candidate" ;;
+    esac
+
+    # Not a repository at all: git itself will say so, and refusing here would
+    # only replace a clear error with a confusing one.
+    git -C "$candidate" rev-parse --git-dir >/dev/null 2>&1 || continue
+    toplevel="$(git -C "$candidate" rev-parse --show-toplevel 2>/dev/null)"
     # Only repositories that actually configure pre-commit are held to this.
     # Without the check, every unrelated repository this agent ever commits in
     # would be refused for missing a hook it never wanted.
-    if [ -n "$toplevel" ] && [ -f "$toplevel/.pre-commit-config.yaml" ]; then
+    [ -n "$toplevel" ] && [ -f "$toplevel/.pre-commit-config.yaml" ] || continue
+
+    if [ -n "$hooks_override" ]; then
+      hooks_dir="$hooks_override"
+    else
       # --git-path rather than a hardcoded .git/hooks: it resolves core.hooksPath
       # when set, and points a worktree at the parent's hooks directory, which is
       # where a worktree's hooks genuinely live (verified, git 2.55.0).
-      hooks_dir="$(git -C "$target_dir" rev-parse --git-path hooks 2>/dev/null)"
-      case "$hooks_dir" in
-      /*) ;;
-      *) hooks_dir="$toplevel/$hooks_dir" ;;
-      esac
-      if [ ! -x "$hooks_dir/pre-commit" ]; then
-        deny "This repository configures pre-commit, but ${hooks_dir}/pre-commit does not exist, so this commit would run no hooks at all and still report success. That is how two commits left an unhooked clone on 2026-08-12 and failed CI on findings the hooks catch, and the same gap would let an unscanned secret through. Run 'pre-commit install' in ${toplevel} first, then repeat this command."
-      fi
+      hooks_dir="$(git -C "$candidate" rev-parse --git-path hooks 2>/dev/null)"
     fi
-  fi
+    case "$hooks_dir" in
+    /*) ;;
+    *) hooks_dir="$toplevel/$hooks_dir" ;;
+    esac
+
+    if [ ! -x "$hooks_dir/pre-commit" ]; then
+      deny "This repository configures pre-commit, but ${hooks_dir}/pre-commit does not exist, so this commit would run no hooks at all and still report success. That is how two commits left an unhooked clone on 2026-08-12 and failed CI on findings the hooks catch, and the same gap would let an unscanned secret through. Run 'pre-commit install' in ${toplevel} first, then repeat this command."
+    fi
+  done <<EOF
+$candidates
+EOF
 fi
 
 # 2. Working-tree operations against a running stack. podman is queried only

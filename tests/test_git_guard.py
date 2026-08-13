@@ -687,3 +687,90 @@ def test_a_commit_message_naming_the_rule_is_not_a_commit_elsewhere(tmp_path, st
         cwd=repo,
     )
     assert decision == "allow"
+
+
+def test_a_cd_after_the_commit_does_not_decide_anything(tmp_path, stub_bin):
+    """`git commit && cd /elsewhere` runs the commit where it already was.
+
+    Taking the first cd anywhere in the string read the trailing one as the
+    target and turned a refusal into a pass (CodeRabbit, PR #40).
+    """
+    installed = _init_repo(tmp_path / "after-installed")
+    fresh = _init_repo(tmp_path / "after-fresh", hook_installed=False)
+    decision, _ = _decision(
+        f"git commit -m x && cd {installed}",
+        stub_bin(containers_running=False),
+        cwd=fresh,
+    )
+    assert decision == "deny"
+
+
+def test_a_cd_on_a_later_line_does_not_decide_anything(tmp_path, stub_bin):
+    """Newlines separate commands exactly as `;` does, so a cd below the commit
+    is still after it."""
+    installed = _init_repo(tmp_path / "line-installed")
+    fresh = _init_repo(tmp_path / "line-fresh", hook_installed=False)
+    decision, _ = _decision(
+        f"git commit -m x\ncd {installed}",
+        stub_bin(containers_running=False),
+        cwd=fresh,
+    )
+    assert decision == "deny"
+
+
+def test_a_cd_inside_a_subshell_does_not_move_the_commit(tmp_path, stub_bin):
+    """Its effect ends with the subshell, so the session directory is still a
+    candidate and an unhooked one there is still refused."""
+    installed = _init_repo(tmp_path / "sub-installed")
+    fresh = _init_repo(tmp_path / "sub-fresh", hook_installed=False)
+    decision, _ = _decision(
+        f"(cd {installed} && ls); git commit -m x",
+        stub_bin(containers_running=False),
+        cwd=fresh,
+    )
+    assert decision == "deny"
+
+
+def test_the_last_cd_before_the_commit_wins(tmp_path, stub_bin):
+    """Every directory the commit might run in is checked, so an unhooked one
+    anywhere in the chain is refused."""
+    installed = _init_repo(tmp_path / "chain-installed")
+    fresh = _init_repo(tmp_path / "chain-fresh", hook_installed=False)
+    decision, _ = _decision(
+        f"cd {installed} && cd {fresh} && git commit -m x",
+        stub_bin(containers_running=False),
+        cwd=installed,
+    )
+    assert decision == "deny"
+
+
+def test_a_command_scoped_hooks_path_is_the_one_git_will_use(tmp_path, stub_bin):
+    """`git -c core.hooksPath=<dir> commit` applies to that one command, so
+    asking the repository where its hooks live answers about the wrong
+    directory (CodeRabbit, PR #40)."""
+    repo = _init_repo(tmp_path / "scoped")
+    empty = tmp_path / "no-hooks-here"
+    empty.mkdir()
+    decision, _ = _decision(
+        f"git -c core.hooksPath={empty} commit -m x",
+        stub_bin(containers_running=False),
+        cwd=repo,
+    )
+    assert decision == "deny", "the command-scoped hooks path was ignored"
+
+
+def test_a_command_scoped_hooks_path_that_is_installed_is_allowed(tmp_path, stub_bin):
+    """The override is honoured in both directions, not treated as suspicious
+    in itself."""
+    repo = _init_repo(tmp_path / "scoped-ok", hook_installed=False)
+    elsewhere = tmp_path / "real-hooks"
+    elsewhere.mkdir()
+    hook = elsewhere / "pre-commit"
+    hook.write_text("#!/bin/sh\n")
+    hook.chmod(0o755)
+    decision, _ = _decision(
+        f"git -c core.hooksPath={elsewhere} commit -m x",
+        stub_bin(containers_running=False),
+        cwd=repo,
+    )
+    assert decision == "allow"
