@@ -519,8 +519,12 @@ configure_jellyfin_network:
 # after jDownloader2's own first boot instead, against the file it just
 # generated itself. See docs/JDOWNLOADER2.md.
 configure_jdownloader2_api:
-	@echo "Configuring jDownloader2's API access..."
-	@target="configs/jdownloader2/config/cfg/org.jdownloader.api.RemoteAPIConfig.json"; \
+	@if [ "$(JDOWNLOADER2_PROFILE)" != "enabled" ]; then \
+		echo "jDownloader2 is disabled in .env, skipping its API configuration."; \
+		exit 0; \
+	fi; \
+	echo "Configuring jDownloader2's API access..."; \
+	target="configs/jdownloader2/config/cfg/org.jdownloader.api.RemoteAPIConfig.json"; \
 	elapsed=0; \
 	while [ ! -f "$$target" ] && [ "$$elapsed" -lt 60 ]; do \
 		sleep 2; elapsed=$$((elapsed + 2)); \

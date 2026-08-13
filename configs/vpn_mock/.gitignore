@@ -1,0 +1,8 @@
+# Everything here is generated at runtime by scripts/seed-vpn-mock.sh, and
+# config/server/privatekey-server, config/peer1/privatekey-peer1 and
+# config/peer1/presharedkey-peer1 are real WireGuard keys. They only ever
+# reach a throwaway local endpoint, but a private key should not be
+# committable regardless, and without this a `git add -A` after running the
+# mock stages all three.
+*
+!.gitignore
