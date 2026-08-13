@@ -34,7 +34,7 @@ Checks run in this order on purpose, so a cheap failure is never paid for
 twice and the expensive one is spent only on the version being merged. The
 integration suite stands the whole stack up and takes upward of twelve
 minutes; it never runs on an unlabelled push. Only repository collaborators
-can ask for it, and the required `Integration Tests` check stays red until it
+can ask for it, and the required `Tests Verified` check stays red until it
 has passed on the current head commit, so nothing merges untested.
 
 If you are contributing from a fork, you cannot apply the label yourself. Say
@@ -78,9 +78,9 @@ review has settled.
       version you intend to merge. Pushing again after labelling re-runs them,
       because a required check only counts against the current head commit.
 
-   The required `Integration Tests` check stays red until the suite has passed
+   The required `Tests Verified` check stays red until the suite has passed
    on the current head commit, so a pull request cannot be merged without it.
-   It is a separate few-second job from the suite (`Integration Suite`), which
+   It is a separate few-second job from the suite (`Integration Tests`), which
    is what makes that true: a job skipped by its own condition is reported to
    branch protection as successful, so gating the suite alone would have made
    an unlabelled pull request mergeable with no tests at all.
@@ -106,7 +106,7 @@ review has settled.
    [docs/MAKE_COMMANDS.md](MAKE_COMMANDS.md) for the full list of test
    targets. Pull requests do not run the suite on their own: a maintainer asks
    for it by commenting `/run-tests`, which applies the `run-tests` label and
-   starts the `Integration Suite` job in `pull-request-validation.yml`.
+   starts the `Integration Tests` job in `pull-request-validation.yml`.
    `/run-check` re-runs the lint layers the same way (see
    `.github/workflows/comment-dispatch.yml`). Still test manually for anything
    the suite doesn't cover.

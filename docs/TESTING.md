@@ -43,14 +43,14 @@ head commit, while a required status check is evaluated against the pull
 request's own head: the tests would run, pass, and leave the pull request
 blocked regardless.
 
-Until the label goes on, the required `Integration Tests` check is **red**, and
+Until the label goes on, the required `Tests Verified` check is **red**, and
 the pull request cannot be merged. The one exception is a pull request that
 changes nothing but prose: if the `code` paths filter reports no runtime files
 touched, the gate waives the suite, since prose cannot break an integration
 test and an eleven minute stack run to prove it costs more than the check is
 worth. The waiver applies only when the suite never ran. A suite that ran and
 failed is a failure whatever the diff touched. That check is a separate few-second job from
-the suite itself (`Integration Suite`), and it exists for one reason: a job
+the suite itself (`Integration Tests`), and it exists for one reason: a job
 skipped by its own `if` is reported to branch protection as successful, so
 gating the suite on a label would otherwise have made an unlabelled pull
 request *more* mergeable, not less. The gate is never skipped, so the answer

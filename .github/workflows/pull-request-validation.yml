@@ -12,7 +12,7 @@ on:
     #
     # Naming any type replaces the default set, so the three defaults are
     # restated here rather than inherited.
-    types: [opened, synchronize, reopened, labeled]
+    types: [opened, synchronize, reopened, labeled, ready_for_review]
   # Lets .github/workflows/comment-dispatch.yml re-run this against a PR's
   # current head from a `/run-check` or `/run-tests` comment, without
   # needing a new push. Always dispatched off main (see that workflow), so
@@ -287,7 +287,7 @@ jobs:
         run: npx --yes --package renovate@42.99.0 renovate-config-validator --strict
 
   integration:
-    name: Integration Suite
+    name: Integration Tests
     runs-on: ubuntu-latest
     # make test_ci (the last step below), not the full make test: see its
     # own comment on that step for why. The two tiers it does run took
@@ -516,7 +516,7 @@ jobs:
   # is interpreted. It is red until the suite has actually passed on this
   # commit, and it costs a couple of seconds.
   integration_required:
-    name: Integration Tests
+    name: Tests Verified
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs: [integration, changes]
@@ -527,6 +527,13 @@ jobs:
       - name: Require the suite to have passed on this commit
         env:
           RESULT: ${{ needs.integration.result }}
+          # A draft cannot be merged, so a passing gate on one grants nothing,
+          # and a red check for "you have not asked for tests yet" reads as a
+          # failure when nothing is broken. Enforcement starts when the pull
+          # request is marked ready, which is why ready_for_review is a trigger:
+          # without it, marking ready fires no event and a draft's green gate
+          # would stand.
+          DRAFT: ${{ github.event.pull_request.draft }}
           # Empty unless the changes job both ran and answered, so a skipped or
           # failed filter reads as "not proven docs-only" and the suite is still
           # required. The waiver has to fail closed: it is the one thing here
@@ -555,6 +562,11 @@ jobs:
             if [ "$EVENT" = "pull_request" ] && [ "$CODE_CHANGED" = "false" ]; then
               echo "No runtime files changed, so the integration suite is not required."
               echo "Touching anything outside docs and markdown will require it again."
+              exit 0
+            fi
+            if [ "$DRAFT" = "true" ]; then
+              echo "::notice::Still a draft, so the integration suite is not required yet."
+              echo "Comment /run-tests before marking this ready for review."
               exit 0
             fi
             echo "The integration suite has not run on this commit."
