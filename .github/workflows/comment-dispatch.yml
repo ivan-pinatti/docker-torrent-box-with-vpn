@@ -6,17 +6,11 @@ name: Comment-Triggered Checks
 #   /run-check  -> pre-commit and MegaLinter (PR Validation's pr_check job and
 #                  the megalinter job that follows it, via job_scope: checks)
 #
-# There is deliberately no /run-tests here. The integration suite is started by
-# the `run-tests` label, and a label applied by this workflow's GITHUB_TOKEN
-# does not trigger anything: GitHub suppresses workflow runs from events its own
-# token creates, to stop workflows looping. Confirmed live on PR #41, where the
-# label was applied, the labeled event was swallowed, and nothing ran until the
-# same label was applied by a person.
+# /run-tests is handled by integration-tests.yml, which runs the suite in the
+# workflow the comment triggers rather than dispatching anything. See that file
+# for why: nothing a workflow's own GITHUB_TOKEN does can trigger another
+# workflow, and a dispatched run reports its check against the wrong commit.
 #
-# workflow_dispatch is the documented exception to that rule, which is why
-# /run-check still works while /run-tests could not. Apply the label instead,
-# from the sidebar or `gh pr edit <n> --add-label run-tests`; only collaborators
-# can, so the permission model is the same and there is no token to hold.
 # This job never checks out the PR's own code or workflow definitions: it
 # only reads PR metadata via the API and dispatches the target workflows
 # (always their trusted main-branch copies, workflow_dispatch requires
