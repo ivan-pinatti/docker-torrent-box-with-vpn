@@ -60,6 +60,10 @@ jobs:
     timeout-minutes: 2
     permissions:
       pull-requests: read
+      # For the reaction below, which goes on the comment through the issues
+      # endpoint, not the pull request one. Without this the call 403s, and its
+      # `|| true` swallows that silently.
+      issues: write
       # The whole mechanism: this is what lets the run publish its own result
       # against the pull request's head commit. Held by this job and by
       # `publish`, neither of which ever checks the pull request's code out.
