@@ -367,21 +367,12 @@ jobs:
         # on Podman, not Docker.
         shell: bash
         run: |
-          # EXPERIMENT, not a fix, and not to be merged as is. The suite began
-          # hanging in `up --detach` when the ubuntu-latest image went from
-          # podman 4.9.3 to 5.8.4, and podman-compose has been ruled out (1.5.0
-          # and 1.6.0 hang identically). This puts the runner back on the noble
-          # archive's own 4.x to test whether the podman major version is what
-          # changed the answer. If it is, the fix belongs here, pinned
-          # deliberately; if the suite still hangs, podman is ruled out too.
-          target=$(apt-cache madison podman | awk '{print $3}' | grep -m1 '^4\.' || true)
-          if [ -z "$target" ]; then
-            echo "::error::No podman 4.x in the archive; the experiment cannot run."
-            exit 1
-          fi
-          echo "Downgrading podman to $target (from $(podman --version))"
-          sudo apt-get update
-          sudo apt-get install -y --allow-downgrades "podman=$target"
+          # Reported, because the runner image's podman version is now known to
+          # change the suite's answer on its own: 4.9.3 passed, 5.8.4 hangs. It
+          # lives in /usr/local/bin, not /usr/bin, which is worth knowing before
+          # anyone tries to pin it with apt: that installs to /usr/bin and is
+          # silently shadowed, reporting success while changing nothing.
+          command -v podman
           podman --version
           sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 "$(whoami)"
           podman system migrate
@@ -501,12 +492,12 @@ jobs:
         # to more than 25 deliberately: the job cap stays the outer bound, and
         # these exist to name the culprit, not to replace it.
         timeout-minutes: 10
-        # EXPERIMENT, alongside the podman downgrade above. The step timing out
-        # on its own tells us only that something hung: the log's last line is
-        # a container name and nothing follows it. Interrupting the process
-        # ourselves, a little before that cap, gets podman-compose's own
-        # traceback out of it, which names the call it is blocked in, and lets
-        # us dump what the containers were actually doing at the time.
+        # The step timing out on its own says only that something hung: the log
+        # ends on a container name with nothing after it, which is what four
+        # runs in a row reported. Interrupting a little before the cap and
+        # dumping state instead is what established that the stack does come
+        # up (every container `Up`, healthchecks still pending) and that it is
+        # `podman-compose up --detach` that never returns.
         shell: bash
         run: |
           rc=0
