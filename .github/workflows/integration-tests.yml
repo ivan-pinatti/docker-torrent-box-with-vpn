@@ -42,20 +42,8 @@ on:
 permissions:
   contents: read
 
-# One suite per pull request. A second `/run-tests` supersedes the first rather
-# than standing a competing stack up on the same runner pool.
-concurrency:
-  # Keyed on the pull request only for the comments that actually start a suite.
-  # Every other comment fires this workflow too, and those runs skip every job,
-  # but they still joined the group and cancelled whatever was in flight:
-  # confirmed live, CodeRabbit's review summary landed fourteen seconds after a
-  # `/run-tests` and cancelled the run that comment had just started. Runs that
-  # will not do anything get their own group, so they cancel nothing.
-  group: >-
-    ${{ github.workflow }}-${{
-    startsWith(github.event.comment.body, '/run-tests')
-    && github.event.issue.number || github.run_id }}
-  cancel-in-progress: true
+# The concurrency group lives on the `suite` job rather than here, because at
+# this level it cannot tell who is asking. See that job for the reasoning.
 
 env:
   # The context name branch protection requires. Changing it means changing the
@@ -165,6 +153,27 @@ jobs:
     if: needs.gate.outputs.authorized == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    # One suite per pull request: a second `/run-tests` supersedes the first
+    # rather than standing a competing stack up on the same runner pool.
+    #
+    # On the job and not the workflow, which is what makes it safe. A
+    # workflow-level group is joined before any job runs, so it cannot depend on
+    # who commented, and every comment on a pull request fires this workflow.
+    # That cost a suite already: CodeRabbit's review summary landed fourteen
+    # seconds after a `/run-tests` and cancelled the run that comment had just
+    # started. Keying the group on the comment body alone would have fixed that
+    # one case and left a worse one, since anybody at all can type `/run-tests`
+    # and would then have been able to cancel a maintainer's run, the gate
+    # rejecting them afterwards being no help to the twelve minutes already
+    # thrown away.
+    #
+    # Here the group is only ever joined by a job that has already passed the
+    # gate, so an unauthorized comment skips this job and cancels nothing, and
+    # the allowlist stays in one place instead of being restated in an
+    # expression that cannot read it.
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.event.issue.number }}
+      cancel-in-progress: true
     # This job runs the pull request's own code, so it gets a token that can do
     # nothing but read this public repository, and no `statuses: write`. Steps
     # below reference a secret only where the head branch is in this repository.
