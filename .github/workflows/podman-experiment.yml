@@ -177,7 +177,29 @@ jobs:
               return
             fi
             echo "::group::py-spy dump at $label (pid $pid)"
-            sudo env "PATH=$PATH" py-spy dump --pid "$pid" || echo "py-spy could not attach"
+            sudo env "PATH=$PATH" py-spy dump --pid "$pid" --locals \
+              || sudo env "PATH=$PATH" py-spy dump --pid "$pid" \
+              || echo "py-spy could not attach"
+            echo "::endgroup::"
+            # The stack says it is idle in select. That names the call but not
+            # what it is waiting for, and the detached path opens no pipes of
+            # its own (run_container passes no log_formatter, so podman-compose
+            # takes the branch with no stdout/stderr PIPE), which rules out the
+            # obvious answer of a reader waiting on an EOF that never comes. So
+            # go a level down: which descriptors this process holds, who else
+            # holds them, and what the kernel says it is blocked in.
+            echo "::group::descriptors and syscall at $label"
+            echo "-- /proc/$pid/syscall (select args)"
+            sudo cat "/proc/$pid/syscall" 2>/dev/null || echo "unavailable"
+            echo "-- /proc/$pid/fd"
+            sudo ls -l "/proc/$pid/fd" 2>/dev/null || echo "unavailable"
+            echo "-- threads"
+            sudo ls "/proc/$pid/task" 2>/dev/null | tr '\n' ' ' || true
+            echo
+            echo "-- child processes still around"
+            pgrep -a -P "$pid" 2>/dev/null || echo "none"
+            echo "-- long lived podman helpers"
+            pgrep -a -f 'conmon|aardvark|netavark|rootless' 2>/dev/null | head -20 || echo "none"
             echo "::endgroup::"
           }
 

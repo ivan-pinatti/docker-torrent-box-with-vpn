@@ -648,6 +648,7 @@
     "superblocks",
     "SVCD",
     "syno",
+    "syscall",
     "sysctls",
     "sysfs",
     "systray",
