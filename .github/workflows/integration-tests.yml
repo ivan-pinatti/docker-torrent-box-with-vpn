@@ -56,11 +56,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions:
-      pull-requests: read
-      # For the reaction below, which goes on the comment through the issues
-      # endpoint, not the pull request one. Without this the call 403s, and its
-      # `|| true` swallows that silently.
-      issues: write
+      # write, for the reaction below. The endpoint is spelled
+      # /issues/comments/{id}/reactions, and `issues: write` is the obvious
+      # reading of that, which is what this asked for first. It 403s: a comment
+      # on a pull request is a pull request resource whatever the URL says, and
+      # the token is scoped by the resource. comment-dispatch.yml makes the same
+      # call successfully with exactly this permission and no `issues:` scope at
+      # all. Read is enough for everything else here.
+      pull-requests: write
       # The whole mechanism: this is what lets the run publish its own result
       # against the pull request's head commit. Held by this job and by
       # `publish`, neither of which ever checks the pull request's code out.
@@ -114,8 +117,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Warn rather than swallow. A missing reaction must not fail a run
+          # over cosmetics, but a bare `|| true` hid a 403 here through two
+          # rounds of getting the permission wrong, each time reporting a green
+          # step and no reaction.
           gh api "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" \
-            -f content='+1' --silent || true
+            -f content='+1' --silent \
+            || echo "::warning::Could not react to the comment. The run is unaffected."
 
       - name: Resolve the pull request head
         # The comment event carries no SHA of its own, and the status has to
