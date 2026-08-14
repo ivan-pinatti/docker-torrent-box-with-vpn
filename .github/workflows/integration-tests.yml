@@ -247,6 +247,12 @@ jobs:
           # without anything in this repository changing. Reproducibility, not a
           # fix: 1.5.0 and 1.6.0 both hang against podman 5.8.4, so the version
           # installed here is ruled out as the cause and podman is not.
+          #
+          # The annotation is what keeps the pin from rotting. Neither tool sees
+          # an inline `pip install` on its own: Dependabot's pip ecosystem reads
+          # tests/requirements.txt and nothing else, and Renovate needs telling.
+          # See the customManager in .github/renovate.json5.
+          # renovate: datasource=pypi depName=podman-compose
           pip install podman-compose==1.5.0
           # tests/conftest.py's docker_client fixture talks to podman over
           # this exact socket path, not the CLI; nothing starts it by

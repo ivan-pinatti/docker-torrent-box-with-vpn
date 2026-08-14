@@ -138,7 +138,10 @@ jobs:
           podman info
           # Pinned to match integration-tests.yml, where the reasoning is: a
           # release of podman-compose should not be able to change what CI tests
-          # without a change in this repository.
+          # without a change in this repository. Renovate keeps both in step
+          # through the annotation below; see the customManager in
+          # .github/renovate.json5.
+          # renovate: datasource=pypi depName=podman-compose
           pip install podman-compose==1.5.0
 
       - name: Create .env file
