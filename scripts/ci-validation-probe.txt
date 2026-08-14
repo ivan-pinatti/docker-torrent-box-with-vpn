@@ -1,0 +1,5 @@
+Temporary file for validating the comment triggered integration suite.
+
+It exists only so this pull request counts as a code change rather than a prose
+one, which is what stops the docs only waiver from publishing a passing status
+before the suite has run. Delete along with the branch.
