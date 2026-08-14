@@ -45,7 +45,16 @@ permissions:
 # One suite per pull request. A second `/run-tests` supersedes the first rather
 # than standing a competing stack up on the same runner pool.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.issue.number }}
+  # Keyed on the pull request only for the comments that actually start a suite.
+  # Every other comment fires this workflow too, and those runs skip every job,
+  # but they still joined the group and cancelled whatever was in flight:
+  # confirmed live, CodeRabbit's review summary landed fourteen seconds after a
+  # `/run-tests` and cancelled the run that comment had just started. Runs that
+  # will not do anything get their own group, so they cancel nothing.
+  group: >-
+    ${{ github.workflow }}-${{
+    startsWith(github.event.comment.body, '/run-tests')
+    && github.event.issue.number || github.run_id }}
   cancel-in-progress: true
 
 env:
