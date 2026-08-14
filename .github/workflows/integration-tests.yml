@@ -209,17 +209,7 @@ jobs:
           sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 "$(whoami)"
           podman system migrate
           podman info
-          # Pinned, and the pin is load bearing. This was an unpinned install
-          # until the ubuntu-latest image went from podman 4.9.3 (image
-          # 20260707.563) to 5.8.4 (20260729.566), at which point
-          # podman-compose 1.6.0 started hanging in `up --detach`: it creates
-          # and names every container, then never returns, and the step dies on
-          # its own timeout with nothing else in the log. Reproduced twice in a
-          # row on the same commit, having passed on the older image the night
-          # before with the same 1.6.0. 1.5.0 is what every local bench runs
-          # against podman 5.8.4, so it is the combination this project is
-          # actually developed on.
-          pip install podman-compose==1.5.0
+          pip install podman-compose
           # tests/conftest.py's docker_client fixture talks to podman over
           # this exact socket path, not the CLI; nothing starts it by
           # default on ubuntu-latest, confirmed live (every container/auth
