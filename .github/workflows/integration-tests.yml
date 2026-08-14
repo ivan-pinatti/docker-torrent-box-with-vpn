@@ -440,11 +440,20 @@ jobs:
   publish:
     name: Publish the result
     needs: [gate, suite]
-    # always(), so a failed or cancelled suite reports a red status rather than
-    # leaving the pull request waiting on a context that never arrives. Skipped
-    # when the suite never ran, because there is then no result to report and
-    # the pending status was never written either.
-    if: always() && needs.suite.result != 'skipped'
+    # always(), so a failed suite reports a red status rather than leaving the
+    # pull request waiting on a context that never arrives.
+    #
+    # Not on a skip, because the suite never ran and no pending status was
+    # written either. Not on a cancellation, because there are only two ways to
+    # get one and neither wants a status from here. A second `/run-tests`
+    # supersedes the first, and the superseded run publishing `failure` would
+    # overwrite the pending status the newer one has already written, or worse,
+    # land after that run's own result and bury it. A person cancelling by hand
+    # leaves the pending status standing, which reads as waiting and blocks the
+    # merge, which is the honest answer: nothing was proven about this commit.
+    if: >-
+      always() && needs.suite.result != 'skipped'
+      && needs.suite.result != 'cancelled'
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions:
@@ -455,9 +464,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SUITE_RESULT: ${{ needs.suite.result }}
         run: |
+          # No cancelled branch: the job condition above excludes it, so a
+          # superseded run never writes over a newer one's status.
           case "$SUITE_RESULT" in
             success) state=success; desc="Integration suite passed on this commit" ;;
-            cancelled) state=failure; desc="Integration suite was cancelled" ;;
             *) state=failure; desc="Integration suite failed" ;;
           esac
           gh api --method POST \
