@@ -166,6 +166,9 @@ jobs:
     name: MegaLinter
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      ML_FLAVOR: cupcake
+      ML_RELEASE: v9.6.0
     # Was its own workflow, which meant it ran alongside pre-commit rather than
     # after it: a change that fails a pre-commit hook still spent ~4 minutes of
     # runner time being told the same thing twice, in a different format. As a
@@ -190,6 +193,38 @@ jobs:
           # resolves <target>^..<source>. The default shallow clone (depth 1)
           # has neither ref, so the secret scan would silently cover nothing.
           fetch-depth: 0
+
+      # EXPERIMENT: is restoring the image from the Actions cache faster than
+      # pulling it from ghcr? Measured baseline is 93-134s for the pull against
+      # ~45s of actual linting, so the ceiling here is about 90s per push. The
+      # cache has to beat that after downloading ~3GB and running docker load on
+      # ~8GB, which is why this is being measured rather than assumed.
+      - name: Restore the MegaLinter image
+        id: ml_cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/megalinter-image.tar
+          # Built from env rather than written inline: gitleaks reads a literal
+          # after `key:` as a generic-api-key, and actions/cache has no other
+          # name for this field.
+          key: megalinter-image-${{ env.ML_FLAVOR }}-${{ env.ML_RELEASE }}
+
+      - name: Load the cached image
+        if: steps.ml_cache.outputs.cache-hit == 'true'
+        run: |
+          start=$(date +%s)
+          docker load -i /tmp/megalinter-image.tar
+          echo "TIMING docker load: $(( $(date +%s) - start ))s"
+
+      - name: Populate the cache on a miss
+        if: steps.ml_cache.outputs.cache-hit != 'true'
+        run: |
+          start=$(date +%s)
+          docker pull "ghcr.io/oxsecurity/megalinter-${ML_FLAVOR}:${ML_RELEASE}"
+          echo "TIMING docker pull: $(( $(date +%s) - start ))s"
+          start=$(date +%s)
+          docker save "ghcr.io/oxsecurity/megalinter-${ML_FLAVOR}:${ML_RELEASE}" -o /tmp/megalinter-image.tar
+          echo "TIMING docker save: $(( $(date +%s) - start ))s, tar $(du -h /tmp/megalinter-image.tar | cut -f1)"
 
       - name: MegaLinter
         # The cupcake flavor, not the default image: 2.64 GB against 4.77 GB,
