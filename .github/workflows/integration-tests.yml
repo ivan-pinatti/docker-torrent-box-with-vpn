@@ -53,13 +53,10 @@ jobs:
       github.event.issue.pull_request != null &&
       startsWith(github.event.comment.body, '/run-tests') &&
       contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
-    env:
-      PROTONVPN_PRIVATE_KEY: ${{ secrets.PROTONVPN_PRIVATE_KEY }}
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Acknowledge the comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh api "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" \
             -f content='+1' --silent || true
@@ -68,11 +65,36 @@ jobs:
         # The comment event carries no SHA of its own, and the status has to
         # land on the commit branch protection is judging, not on main.
         id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh api "repos/${{ github.repository }}/pulls/${{ github.event.issue.number }}" \
-            --jq '"head_sha=" + .head.sha' >> "$GITHUB_OUTPUT"
+            --jq '"head_sha=" + .head.sha, "head_repo=" + .head.repo.full_name' >> "$GITHUB_OUTPUT"
+
+      - name: Refuse to run code from a fork
+        # This workflow is triggered by a comment, so unlike a pull_request run
+        # it holds the full secret set and a write token. Checking out a fork's
+        # merge ref here would run that fork's code with PROTONVPN_PRIVATE_KEY,
+        # the Docker Hub credentials and a token that can publish a passing
+        # `Tests Verified` status. That is the pwn-request shape, and the
+        # pull_request trigger this replaced was immune to it only because
+        # GitHub withholds secrets there.
+        #
+        # Runs before the checkout and before any step that touches a secret. A
+        # maintainer who wants the suite on a fork's change pushes that branch
+        # into this repository and opens a pull request from it.
+        if: ${{ steps.pr.outputs.head_repo != github.repository }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "::error::Refusing to run: ${{ steps.pr.outputs.head_repo }} is not ${{ github.repository }}."
+          gh pr comment "${{ github.event.issue.number }}" --repo "${{ github.repository }}" --body \
+            'The integration suite does not run on pull requests from forks. This workflow holds repository secrets, so running a fork'"'"'s code here would expose them. A maintainer can push this branch into the repository and open a pull request from it.' || true
+          exit 1
 
       - name: Report the suite as pending
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh api --method POST \
             "repos/${{ github.repository }}/statuses/${{ steps.pr.outputs.head_sha }}" \
@@ -86,6 +108,9 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: refs/pull/${{ github.event.issue.number }}/merge
+          # Nothing after this point should be able to reach the API with the
+          # workflow's token, least of all the code being tested.
+          persist-credentials: false
 
       - name: Install xmlstarlet
         shell: bash
@@ -121,6 +146,8 @@ jobs:
           sed -i 's/^LAN_IP=192.168.1.x/LAN_IP=192.168.1.100/' .env
 
       - name: Set up VPN (real key if available, otherwise the local mock)
+        env:
+          PROTONVPN_PRIVATE_KEY: ${{ secrets.PROTONVPN_PRIVATE_KEY }}
         shell: bash
         run: |
           if [ -n "${{ env.PROTONVPN_PRIVATE_KEY }}" ]; then
@@ -190,9 +217,18 @@ jobs:
         # Skipped when the secret is absent, which is every pull request from a
         # fork, since GitHub does not expose secrets to those. They keep pulling
         # anonymously and this must not fail them.
-        if: env.DOCKERHUB_USERNAME != ''
         timeout-minutes: 2
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
+          # Tested in the script rather than in `if:`, because the secrets
+          # context is not available to a step condition. Absent means a fork
+          # or an unconfigured repository, which pulls anonymously instead.
+          if [ -z "$DOCKERHUB_USERNAME" ]; then
+            echo "No Docker Hub credentials configured; pulling anonymously."
+            exit 0
+          fi
           printf '%s' "$DOCKERHUB_TOKEN" \
             | podman login docker.io --username "$DOCKERHUB_USERNAME" --password-stdin
 
@@ -279,7 +315,11 @@ jobs:
       - name: Publish the result
         # always(), so a failed or cancelled suite reports a red status rather
         # than leaving the pull request waiting on a context that never arrives.
-        if: always()
+        # Skipped when the fork guard stopped the run: nothing was tested, so
+        # there is no result to publish.
+        if: always() && steps.pr.outputs.head_repo == github.repository
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           case "${{ job.status }}" in
             success) state=success; desc="Integration suite passed on this commit" ;;

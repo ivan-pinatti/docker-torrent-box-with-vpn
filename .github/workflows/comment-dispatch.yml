@@ -8,8 +8,12 @@ name: Comment-Triggered Checks
 #
 # /run-tests is handled by integration-tests.yml, which runs the suite in the
 # workflow the comment triggers rather than dispatching anything. See that file
-# for why: nothing a workflow's own GITHUB_TOKEN does can trigger another
-# workflow, and a dispatched run reports its check against the wrong commit.
+# for why. In short: a dispatched run reports its check against main's head
+# rather than the pull request's, and the label approach that replaced it did
+# nothing, because GitHub suppresses runs from events a workflow's own
+# GITHUB_TOKEN creates. workflow_dispatch and repository_dispatch are the
+# documented exceptions to that suppression, which is exactly why `/run-check`
+# below still works while a labelling shortcut could not.
 #
 # This job never checks out the PR's own code or workflow definitions: it
 # only reads PR metadata via the API and dispatches the target workflows
