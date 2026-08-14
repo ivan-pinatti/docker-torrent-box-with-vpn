@@ -22,13 +22,18 @@ on:
 permissions:
   contents: read
 
+env:
+  # Flip to 'true' to re-run the control: the archive's podman 4.9.3, which
+  # starts the stack where the image's 5.8.4 hangs.
+  PODMAN_4_CONTROL: 'false'
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   start_only:
-    name: Start the stack on podman 4.x
+    name: Diagnose the start hang
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -42,6 +47,11 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y xmlstarlet
 
       - name: Put the runner on the archive's podman 4.x
+        # Off by default: 4.9.3 is proven to start the stack where 5.8.4
+        # hangs, so the version question is answered and the runs stay on the
+        # image's own podman 5 to diagnose what actually blocks under it. The
+        # step remains as the control, one env value away.
+        if: env.PODMAN_4_CONTROL == 'true'
         # The variable under test. A previous attempt installed the archive's
         # podman and changed nothing, because apt writes /usr/bin/podman while
         # the image ships /usr/local/bin/podman, which wins on PATH. Displacing
@@ -141,23 +151,61 @@ jobs:
         timeout-minutes: 12
         run: make pull_docker_images
 
-      - name: Start stack
-        # The whole experiment. On 5.8.4 this never returns and the interrupt
-        # below is what ends it.
-        timeout-minutes: 10
+      - name: Start stack, and get a stack trace out of the hang
+        # podman-compose is Python, so py-spy can dump exactly where it is
+        # blocked without stopping it. Everything so far has only established
+        # that it never returns; this is meant to say what call it is sitting
+        # in, which is the difference between pinning the runtime and fixing
+        # the cause.
+        #
+        # `make start` runs in the background so the dumps can happen while it
+        # is still stuck, rather than after a timeout has killed the process
+        # group and taken the evidence with it.
+        timeout-minutes: 14
         shell: bash
         run: |
+          pip install py-spy
           rc=0
-          timeout --signal=INT 420 make start || rc=$?
-          echo "make start exited $rc"
+          timeout --signal=INT 600 make start >/tmp/start.log 2>&1 &
+          start_pid=$!
+
+          dump() {
+            local label="$1" pid
+            pid=$(pgrep -f 'podman-compose' | head -1 || true)
+            if [ -z "$pid" ]; then
+              echo "no podman-compose process at $label"
+              return
+            fi
+            echo "::group::py-spy dump at $label (pid $pid)"
+            sudo env "PATH=$PATH" py-spy dump --pid "$pid" || echo "py-spy could not attach"
+            echo "::endgroup::"
+          }
+
+          # The stack takes roughly 70 seconds to create every container, and
+          # the hang starts straight after. Sampling either side of that shows
+          # whether it is stuck in one call or looping.
+          waited=0
+          while [ "$waited" -lt 480 ]; do
+            sleep 30
+            waited=$((waited + 30))
+            if ! kill -0 "$start_pid" 2>/dev/null; then
+              echo "make start finished after ${waited}s"
+              break
+            fi
+            case "$waited" in
+              180|300|420) dump "${waited}s" ;;
+            esac
+          done
+
+          wait "$start_pid" || rc=$?
+          echo "make start exited $rc on $(podman --version)"
+          echo "::group::tail of make start output"
+          tail -30 /tmp/start.log || true
+          echo "::endgroup::"
           echo "::group::podman ps -a"
           podman ps -a --format '{{.Names}}\t{{.Status}}' || true
           echo "::endgroup::"
-          if [ "$rc" -ne 0 ]; then
-            echo "::error::Still hanging on $(podman --version), so podman's version is not the cause."
-            exit "$rc"
-          fi
-          echo "::notice::make start completed on $(podman --version)."
+          exit "$rc"
 
       - name: Tear down
         if: always()
