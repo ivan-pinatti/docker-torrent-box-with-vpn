@@ -3,25 +3,18 @@ on:
   pull_request:
     branches:
       - main
-    # `labeled` is what lets the integration job run as a real pull_request
-    # check. A workflow_dispatch run is dispatched off main, so its check
-    # attaches to main's HEAD rather than the pull request's, and a required
-    # status check is evaluated against the pull request's head commit: the
-    # tests would pass and the pull request would stay blocked anyway. Adding
-    # the `run-tests` label fires this event against the right commit.
-    #
-    # Naming any type replaces the default set, so the three defaults are
-    # restated here rather than inherited.
-    types: [opened, synchronize, reopened, labeled, ready_for_review]
+    # The defaults. `labeled` and `ready_for_review` were here for the label
+    # mechanism that started the integration suite; that now lives in
+    # integration-tests.yml and is triggered by a comment instead.
+    types: [opened, synchronize, reopened]
   # Lets .github/workflows/comment-dispatch.yml re-run this against a PR's
   # current head from a `/run-check` comment, without needing a new push. Always dispatched off main (see that workflow), so
   # this definition is never taken from the PR's own, potentially-modified
   # copy; pr_number only controls which commit gets checked out below.
   # job_scope narrows which jobs actually run for that comment: `/run-check`
   # wants pr_check (pre-commit) and the MegaLinter job that follows it. There is
-  # no comment for the suite, which is started by the `run-tests` label instead
-  # (see comment-dispatch.yml for why a comment cannot), so the `tests` scope is
-  # left for a manual run from the Actions tab only. A plain manual run (job_scope
+  # no `tests` scope any more: the suite lives in integration-tests.yml and is
+  # triggered by a `/run-tests` comment. A plain manual run (job_scope
   # left as "all") behaves like a normal pull_request-triggered run, except
   # that it also runs the suite, which an unlabelled pull_request does not.
   #checkov:skip=CKV_GHA_7:workflow_dispatch itself requires write access to
@@ -49,9 +42,8 @@ permissions:
 
 # A push supersedes whatever is still running for the same PR, so a rapid
 # series of pushes does not leave several full validations racing each other
-# to an answer that no longer matters. The Integration Suite job is the reason
-# this matters: it spins the whole stack up, and a superseded copy of it will
-# happily run for twenty minutes describing a commit nobody is looking at.
+# to an answer that no longer matters. The integration suite has its own
+# concurrency group in integration-tests.yml for the same reason.
 # Keyed on the PR number where there is one, falling back to the ref so a
 # workflow_dispatch run gets its own group instead of cancelling a real one.
 concurrency:
@@ -238,8 +230,8 @@ jobs:
           # out true for a docs-only PR and the filter was decorative.
           predicate-quantifier: every
           # Anything that can change how the stack behaves at runtime. Read by
-          # the integration_required gate, which waives the suite when nothing
-          # here changed: a pull request touching only prose cannot break an
+          # the docs_only_waiver job, which publishes a passing status when
+          # nothing here changed: a pull request touching only prose cannot break an
           # integration test, and an eleven minute stack run to prove that costs
           # more than the check is worth. Deliberately broad, so it lists what is
           # safe to skip on rather than what to run on.
@@ -290,336 +282,37 @@ jobs:
         # against the pre-migration file: exit 1 with --strict, 0 without.
         run: npx --yes --package renovate@42.99.0 renovate-config-validator --strict
 
-  integration:
-    name: Integration Tests
+  docs_only_waiver:
+    name: Docs Only Waiver
     runs-on: ubuntu-latest
-    # make test_ci (the last step below), not the full make test: see its
-    # own comment on that step for why. The two tiers it does run took
-    # ~5s and ~5min respectively on this session's own local benches;
-    # doubled for image pulls, stack startup, and a slower shared runner.
-    # A few extra minutes on top of that cover the wire_connections step
-    # (mostly concurrent per-app HTTP calls, with some retries up to 180s).
-    timeout-minutes: 25
-    needs: [pr_check, prerequisites, megalinter]
-    # Runs only once the `run-tests` label is on the pull request, never on an
-    # unlabelled push. It stands the whole stack up, and one pull request went
-    # through five pushes for a change to a shell hook and its unit tests,
-    # spending something like a hundred minutes of runner time on it, twice
-    # timing out at 25 minutes before reaching a single test. Nothing in those
-    # runs could have been affected by the change.
+    timeout-minutes: 5
+    needs: [changes]
+    # Prose cannot break an integration test, and an eleven minute stack run to
+    # prove it costs more than the check is worth. Publishes the same status
+    # context the suite does, so a documentation-only pull request satisfies the
+    # required check without anyone asking for a run.
     #
-    # A code owner applies the `run-tests` label directly, which GitHub already
-    # restricts to collaborators, so the permission model needs no check of our
-    # own. A comment cannot do it: a label applied by a workflow's GITHUB_TOKEN
-    # triggers nothing, by design (see comment-dispatch.yml). Once labelled, a further push does re-run this, which is
-    # deliberate. A required status check is evaluated against the head commit,
-    # so a result from before the last push would not count for the merge even
-    # if it were kept.
-    #
-    # The cost of all this is that a pull request carries no test result at all
-    # until someone asks for one.
-    #
-    # !cancelled() rather than always(): a need being skipped must not skip this
-    # too (pr_check and megalinter are both skipped for job_scope: tests, which
-    # is the scope a manual tests-only dispatch uses), but a cancelled run must
-    # to spend twenty minutes standing the stack up. Only an actual failure of
-    # one of the lint layers blocks it.
+    # Only ever publishes success, and only when the filter positively reports
+    # no runtime files changed. Anything else, including the filter failing to
+    # answer, leaves the context absent, which reads as "expected, waiting" and
+    # blocks the merge until someone runs `/run-tests`. A real run overwrites
+    # whatever this wrote.
     if: >-
       ${{ !cancelled()
-      && ((github.event_name == 'pull_request'
-      && contains(github.event.pull_request.labels.*.name, 'run-tests'))
-      || (github.event_name == 'workflow_dispatch' && inputs.job_scope != 'checks'))
-      && (needs.pr_check.result == 'success' || needs.pr_check.result == 'skipped')
-      && (needs.megalinter.result == 'success' || needs.megalinter.result == 'skipped')
-      && (needs.prerequisites.result == 'success' || needs.prerequisites.result == 'skipped') }}
-    env:
-      PROTONVPN_PRIVATE_KEY: ${{ secrets.PROTONVPN_PRIVATE_KEY }}
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      && github.event_name == 'pull_request'
+      && needs.changes.result == 'success'
+      && needs.changes.outputs.code == 'false' }}
     permissions:
       contents: read
-      # To take the label back off again, see the last step.
-      pull-requests: write
+      statuses: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/pull/{0}/head', inputs.pr_number) || github.ref }}
-
-      - name: Install xmlstarlet
-        shell: bash
-        run: sudo apt-get update && sudo apt-get install -y xmlstarlet
-
-      - name: Set up rootless Podman
-        # See prerequisites job's own copy of this step for why it's
-        # needed. This is the runtime the project is actually built and
-        # documented for; every local bench validation this session ran
-        # on Podman, not Docker.
-        shell: bash
-        run: |
-          sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 "$(whoami)"
-          podman system migrate
-          podman info
-          pip install podman-compose
-          # tests/conftest.py's docker_client fixture talks to podman over
-          # this exact socket path, not the CLI; nothing starts it by
-          # default on ubuntu-latest, confirmed live (every container/auth
-          # test errored out at fixture setup with a plain
-          # FileNotFoundError on the socket path).
-          mkdir -p "/run/user/$(id -u)/podman"
-          nohup podman system service --time=0 "unix:///run/user/$(id -u)/podman/podman.sock" >/tmp/podman-service.log 2>&1 &
-          timeout 30 bash -c 'until [ -S "/run/user/'"$(id -u)"'/podman/podman.sock" ]; do sleep 1; done'
-
-      - name: Create .env file
-        shell: bash
-        run: |
-          cp .env.example .env
-          # make generate_certificate rejects .env.example's own LAN_IP placeholder
-          # (OpenSSL needs a real IP for the certificate's subjectAltName); any
-          # RFC 1918 address works here since nothing on the runner resolves it.
-          sed -i 's/^LAN_IP=192.168.1.x/LAN_IP=192.168.1.100/' .env
-
-      - name: Set up VPN (real key if available, otherwise the local mock)
-        shell: bash
-        run: |
-          if [ -n "${{ env.PROTONVPN_PRIVATE_KEY }}" ]; then
-            echo "${{ env.PROTONVPN_PRIVATE_KEY }}" > configs/gluetun/.secret
-          else
-            # gluetun can't actually be skipped the way GLUETUN_PROFILE=disabled
-            # tries to: it's foundational, not optional the way other apps'
-            # profiles are, since every VPN-routed container's network_mode
-            # depends on it existing. Confirmed live: disabling its profile just
-            # makes make start's own explicit `up gluetun` call fail outright
-            # ("missing services [gluetun]") under podman-compose, which (unlike
-            # Docker Compose) doesn't let an explicitly named service override
-            # profile filtering. Point it at this repo's own credential-free
-            # mock WireGuard endpoint instead, the same mechanism make
-            # bootstrap_tests already uses; see docs/VPN_MOCK.md.
-            sed -i 's/^VPN_MOCK_PROFILE=disabled/VPN_MOCK_PROFILE=enabled/' .env
-            ./scripts/seed-vpn-mock.sh
-          fi
-
-      - name: Read PYTHON_VERSION from .env
-        shell: bash
-        run: grep -m1 '^PYTHON_VERSION=' .env >> "$GITHUB_ENV"
-
-      - name: Python Setup
-        uses: actions/setup-python@v7
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install scripts/permissions.py's dependency
-        # seed_all's own permissions_repair step runs this script directly
-        # with the system Python, not tests/.venv (that only gets created
-        # later, by make test's own dependency on it).
-        shell: bash
-        run: pip install pyyaml
-
-      - name: Seed every app's config and secrets
-        # make start alone, unlike make bootstrap, never seeds any of this:
-        # every app whose compose service references a secrets.yml or
-        # .env.secrets file normally seeded here fails outright the moment
-        # that file doesn't exist yet, confirmed live (calibre's own
-        # .env.secrets specifically, but this affects every app in the
-        # list, not just that one).
-        # Bounded because it is not just file seeding: its own
-        # configs/flaresolverr/config/chromedriver prerequisite runs a
-        # container to extract chromedriver, so this step performs the job's
-        # first Docker Hub pull. A run stalled here for over four minutes,
-        # having previously stalled in Start stack, which is the same cause
-        # wearing a different step name.
-        timeout-minutes: 8
-        run: make seed_all
-
-      - name: Generate self-signed certificate
-        timeout-minutes: 3
-        run: make generate_certificate
-
-      - name: Log in to Docker Hub
-        # 26 of this stack's images come from Docker Hub, and anonymous pulls
-        # are rate limited per source address while GitHub runners share
-        # addresses across every project on the pool. Three runs on this pull
-        # request stalled mid-pull long enough to hit a timeout, each in a
-        # different step, which is the shape throttling makes.
-        #
-        # podman login rather than docker/login-action: podman is the runtime
-        # here and only falls back to ~/.docker/config.json, so this writes the
-        # auth file it actually uses.
-        #
-        # Skipped when the secret is absent, which is every pull request from a
-        # fork, since GitHub does not expose secrets to those. They keep pulling
-        # anonymously and this must not fail them.
-        if: env.DOCKERHUB_USERNAME != ''
-        timeout-minutes: 2
-        run: |
-          printf '%s' "$DOCKERHUB_TOKEN" \
-            | podman login docker.io --username "$DOCKERHUB_USERNAME" --password-stdin
-
-      - name: Pull container images
-        # Split out of `make start` so the pull is visible and bounded on its
-        # own. Three runs on this pull request stalled in `Start stack` for
-        # long enough to hit the job's 25 minute cap, and the only thing the
-        # log said was "The operation was canceled": with the pull folded into
-        # the same step there was no way to tell a slow registry from a
-        # container that never comes up.
-        timeout-minutes: 12
-        run: make pull_docker_images
-
-      - name: Start stack
-        # Every long step carries its own timeout. Without them the job-level
-        # 25 minutes was the only bound, so a single stuck step burned the
-        # whole budget and reported nothing about which one it was. These sum
-        # to more than 25 deliberately: the job cap stays the outer bound, and
-        # these exist to name the culprit, not to replace it.
-        timeout-minutes: 10
-        run: make start
-
-      - name: Wait for containers to be ready
-        timeout-minutes: 7
-        # Reads straight from `podman ps`, not through a compose wrapper:
-        # podman's own --format json is a single JSON array with health
-        # folded into the free-text Status field ("Up 3 minutes
-        # (healthy)"), not a docker compose-style newline-delimited object
-        # per container with its own top-level Health key.
-        #
-        # 300s, not 120s: confirmed live, calibre-web and lidarr both took
-        # longer than 120s to report healthy on a runner's shared, more
-        # constrained resources than any local bench this session ran on.
-        # calibre-web in particular is already known to be slow on first
-        # boot; see docs/ROTATION.md.
-        shell: bash
-        run: |
-          timeout 300 bash -c '
-            until podman ps --format json 2>/dev/null | \
-              python3 -c "
-          import sys, json
-          containers = json.load(sys.stdin)
-          starting = [c[\"Names\"] for c in containers if \"starting\" in c.get(\"Status\", \"\")]
-          print(starting); sys.exit(0 if not starting else 1)
-          "; do sleep 5; done
-          '
-
-      - name: Wire app-to-app connections
-        # Homepage's widgets read each app's API key from configs/<app>/secrets/
-        # api_key.txt, but Jellyfin and Audiobookshelf issue that key live
-        # through their own first-run API (see wire-connections.sh), and never
-        # from a seeded default the way the arr apps do. Skipping this step
-        # left both widgets, and Calibre-Web's own library path setup, on
-        # nothing but a seeded placeholder, confirmed live as the cause of
-        # this job's own Homepage widget failures. make bootstrap always runs
-        # this straight after make start for the same reason.
-        timeout-minutes: 10
-        run: make wire_connections
-
-      - name: Run integration tests
-        # make test_ci, not make test: the serial rotation/wiring/
-        # killswitch tier needs a real app restart to complete and report
-        # healthy within its own wait budget, over and over, for dozens
-        # of apps in a row, and that isn't reliable on a GitHub-hosted
-        # runner's shared, more constrained resources, confirmed live
-        # (many failures, "container state improper" among them, despite
-        # the exact same suite passing 100% clean twice on a real bench's
-        # own hardware the same night). test_ci's own killswitch marker
-        # exclusion already covers not having a real VPN key here, same
-        # as the make test invocation this replaced did explicitly.
-        # make bootstrap_tests (a real bench, pre-release) still runs the
-        # full thing, including this tier.
-        # The wiring_readonly subset does run here: it reads back what the
-        # wire_connections step above just wired, and restarts nothing. See
-        # the Makefile's own comment on test_ci.
-        timeout-minutes: 12
-        run: make test_ci
-
-      - name: Tear down
-        if: always()
-        timeout-minutes: 5
-        run: make stop_all
-
-      - name: Take the label back off
-        # The label means "run the suite once, now", so it is consumed rather
-        # than left on. Otherwise it lingers on the pull request and starts a
-        # twelve minute run again the moment anything fires this workflow:
-        # reopening a closed pull request would do it, since the label lives on
-        # the pull request rather than the branch and `reopened` is a trigger.
-        #
-        # Removing it fires `unlabeled`, which is deliberately not a trigger, so
-        # this cannot loop. always(), so a failed or cancelled run does not leave
-        # the label stuck and unable to be re-applied.
-        if: always() && github.event_name == 'pull_request'
-        timeout-minutes: 2
+      - name: Waive the suite for a prose-only change
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh pr edit "${{ github.event.pull_request.number }}" \
-            --repo "${{ github.repository }}" --remove-label run-tests || true
-
-  # The required status check, and the only job here named "Integration Tests".
-  # The suite itself is "Integration Suite" above.
-  #
-  # It exists because a job skipped by its own `if` is reported to branch
-  # protection as successful. Gating the suite on a label therefore had the
-  # exact opposite effect to the one intended: an unlabelled pull request
-  # showed Integration Tests satisfied and could be merged having never run a
-  # test. This job is never skipped, so the answer never depends on how a skip
-  # is interpreted. It is red until the suite has actually passed on this
-  # commit, and it costs a couple of seconds.
-  integration_required:
-    name: Tests Verified
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    needs: [integration, changes]
-    # Not always(): a cancelled run is superseded by a newer one, and failing
-    # here would just report a stale contradiction of it.
-    if: ${{ !cancelled() }}
-    steps:
-      - name: Require the suite to have passed on this commit
-        env:
-          RESULT: ${{ needs.integration.result }}
-          # A draft cannot be merged, so a passing gate on one grants nothing,
-          # and a red check for "you have not asked for tests yet" reads as a
-          # failure when nothing is broken. Enforcement starts when the pull
-          # request is marked ready, which is why ready_for_review is a trigger:
-          # without it, marking ready fires no event and a draft's green gate
-          # would stand.
-          DRAFT: ${{ github.event.pull_request.draft }}
-          # Empty unless the changes job both ran and answered, so a skipped or
-          # failed filter reads as "not proven docs-only" and the suite is still
-          # required. The waiver has to fail closed: it is the one thing here
-          # that can let a change merge untested.
-          CODE_CHANGED: ${{ needs.changes.outputs.code }}
-          EVENT: ${{ github.event_name }}
-        run: |
-          if [ "$RESULT" = "success" ]; then
-            echo "Integration suite passed on this commit."
-            exit 0
-          fi
-
-          if [ "$RESULT" = "skipped" ]; then
-            # Prose cannot break an integration test, and standing the whole
-            # stack up for eleven minutes to prove that costs more than the
-            # check is worth.
-            #
-            # Nested under skipped on purpose. Checked before it, the waiver
-            # also swallowed a suite that ran and *failed* on a docs-only pull
-            # request, which is a real failure whatever the diff touched. Found
-            # by testing the combinations rather than the happy path.
-            #
-            # Restricted to pull_request because the filter compares against the
-            # pull request's base; on any other event there is nothing to
-            # compare and the answer would be meaningless.
-            if [ "$EVENT" = "pull_request" ] && [ "$CODE_CHANGED" = "false" ]; then
-              echo "No runtime files changed, so the integration suite is not required."
-              echo "Touching anything outside docs and markdown will require it again."
-              exit 0
-            fi
-            if [ "$DRAFT" = "true" ]; then
-              echo "::notice::Still a draft, so the integration suite is not required yet."
-              echo "Apply the run-tests label before marking this ready for review."
-              exit 0
-            fi
-            echo "The integration suite has not run on this commit."
-            echo "Apply the run-tests label to the pull request to run them."
-            exit 1
-          fi
-          echo "The integration suite did not pass on this commit (result: $RESULT)."
-          exit 1
+          gh api --method POST \
+            "repos/${{ github.repository }}/statuses/${{ github.event.pull_request.head.sha }}" \
+            -f state=success \
+            -f context="Tests Verified" \
+            -f description="No runtime files changed, so the suite is not required" \
+            --silent
