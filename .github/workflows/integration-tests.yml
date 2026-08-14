@@ -162,9 +162,34 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: refs/pull/${{ github.event.issue.number }}/merge
+          # For the parent check below. At the default depth of 1 the merge
+          # commit is a shallow boundary, and git reports a boundary commit as
+          # having no parents at all, so there would be nothing to compare.
+          fetch-depth: 2
           # Nothing after this point should be able to reach the API with the
           # workflow's token, least of all the code being tested.
           persist-credentials: false
+
+      - name: Prove this is the head the status will describe
+        # refs/pull/N/merge is recomputed on every push to the pull request, so
+        # a push landing between the gate resolving head.sha and this checkout
+        # would test one commit and publish a result for another. The merge
+        # commit's second parent is the pull request's head, so comparing the
+        # two proves the pair before anything is spent on it.
+        #
+        # A check rather than pinning the checkout to .merge_commit_sha, which
+        # GitHub computes asynchronously: a single API response can carry a
+        # current head.sha next to the merge of an older head, which is the
+        # same mismatch the other way round.
+        env:
+          HEAD_SHA: ${{ needs.gate.outputs.head_sha }}
+        shell: bash
+        run: |
+          tested=$(git rev-parse --verify --quiet 'HEAD^2' || true)
+          if [ "$tested" != "$HEAD_SHA" ]; then
+            echo "::error::The merge ref carries head ${tested:-none}, but the status is for $HEAD_SHA. The pull request moved; comment /run-tests again."
+            exit 1
+          fi
 
       - name: Install xmlstarlet
         shell: bash

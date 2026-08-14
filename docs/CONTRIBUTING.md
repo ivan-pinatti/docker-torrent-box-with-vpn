@@ -33,9 +33,10 @@ welcome your pull requests.
 Checks run in this order on purpose, so a cheap failure is never paid for
 twice and the expensive one is spent only on the version being merged. The
 integration suite stands the whole stack up and takes upward of twelve
-minutes; it never runs on a push. Only a maintainer can ask for it, and the
-required `Tests Verified` check stays red until it
-has passed on the current head commit, so nothing merges untested.
+minutes; it never runs on a push. Only a maintainer can ask for it. The
+required `Tests Verified` check is absent on a head no run has covered, which
+reads as waiting and blocks the merge, `pending` while a run is under way, and
+`success` or `failure` once it ends, so nothing merges untested.
 
 Pull requests from forks are tested exactly the same way. You cannot start the
 suite yourself, so say in the pull request when your change has settled and a
@@ -85,11 +86,16 @@ maintainer will comment for you.
       to spend another run.
 
    The required `Tests Verified` check is a commit status the suite publishes
-   against the head SHA it ran on, not a job. Until a run has passed on the
-   current head it is simply absent, which GitHub reports as waiting and which
-   blocks the merge. That is deliberate: a job gated on a condition would be
-   *skipped* instead, and branch protection counts a skipped job as
-   successful, which would let an untested pull request merge.
+   against the head SHA it ran on, not a job. Its full lifecycle: absent on a
+   head no run has covered, `pending` from the moment a run is authorized, then
+   `success` or `failure` when the suite ends. A pull request that changes
+   nothing but prose gets `success` published for it by the docs-only waiver
+   instead, without a run.
+
+   The absent state is the load-bearing one, and it is deliberate. GitHub
+   reports it as waiting, which blocks the merge, where a job gated on a
+   condition would be *skipped* instead, and branch protection counts a skipped
+   job as successful, which would let an untested pull request merge.
 
    `/run-check` re-runs the two lint layers the same way. `/run-tests` is
    restricted to the maintainer list in

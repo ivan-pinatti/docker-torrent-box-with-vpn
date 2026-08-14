@@ -45,11 +45,12 @@ required check is judged against the pull request's, and a label applied by a
 workflow does nothing at all, because GitHub suppresses runs from events its
 own token creates.
 
-The required `Tests Verified` check is therefore a status the suite writes, not
-a job. Until a run has passed on the current head it is absent, which reads as
-waiting and blocks the merge. A job gated on a condition would be *skipped*
-instead, and branch protection counts a skipped job as successful, which is the
-trap this shape avoids.
+The required `Tests Verified` check is therefore a status the workflow
+publishes, not a job. It is absent on a head no run has covered, which reads as
+waiting and blocks the merge; `pending` from the moment a run is authorized;
+and `success` or `failure` once the suite ends. A job gated on a condition
+would be *skipped* instead, and branch protection counts a skipped job as
+successful, which is the trap this shape avoids.
 
 The exception is a pull request that changes nothing but prose: when the `code`
 paths filter reports no runtime files touched, `docs_only_waiver` publishes a
