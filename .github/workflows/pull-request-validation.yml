@@ -144,17 +144,16 @@ jobs:
           sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 "$(whoami)"
           podman system migrate
           podman info
-          # Pinned, and the pin is load bearing. This was an unpinned install
-          # until the ubuntu-latest image went from podman 4.9.3 (image
-          # 20260707.563) to 5.8.4 (20260729.566), at which point
-          # podman-compose 1.6.0 started hanging in `up --detach`: it creates
-          # and names every container, then never returns, and the step dies on
-          # its own timeout with nothing else in the log. Reproduced twice in a
-          # row on the same commit, having passed on the older image the night
-          # before with the same 1.6.0, so the runtime was the variable and not
-          # the code under test. 1.5.0 is what every local bench runs against
-          # podman 5.8.4, so it is the combination this project is actually
-          # developed on.
+          # Pinned so a release of podman-compose cannot change what CI tests
+          # without anything in this repository changing. That is the whole
+          # claim: it is reproducibility, not a fix.
+          #
+          # It was written while chasing the `up --detach` hang that started
+          # when the ubuntu-latest image went from podman 4.9.3 (image
+          # 20260707.563) to 5.8.4 (20260729.566), on the theory that
+          # podman-compose 1.6.0 was the culprit. It is not: 1.5.0 hangs in
+          # exactly the same place, at the same point in the output, so the
+          # version installed here is ruled out and podman itself is not.
           pip install podman-compose==1.5.0
 
       - name: Create .env file
@@ -372,8 +371,8 @@ jobs:
           podman system migrate
           podman info
           # Pinned for the reason spelled out on the prerequisites job's copy:
-          # 1.6.0 hangs in `up --detach` against the podman 5.8.4 the runner
-          # image now carries.
+          # so a release cannot change what CI tests on its own. It does not
+          # fix the `up --detach` hang; 1.5.0 hangs the same way 1.6.0 does.
           pip install podman-compose==1.5.0
           # tests/conftest.py's docker_client fixture talks to podman over
           # this exact socket path, not the CLI; nothing starts it by
