@@ -55,13 +55,24 @@ jobs:
             exit 1
           fi
           echo "Installing podman $target over $(podman --version)"
-          sudo apt-get install -y --allow-downgrades "podman=$target"
-          # The displacement itself. Renamed rather than removed, so the
-          # original is still there to look at if something else breaks.
-          if [ -x /usr/local/bin/podman ]; then
-            sudo mv /usr/local/bin/podman /usr/local/bin/podman5.shadowed
-          fi
+          # conmon and crun explicitly, because the binary alone is not the
+          # environment. Displacing only /usr/local/bin/podman left 4.9.3
+          # driving the image's podman 5 helpers, and conmon died on the first
+          # container: "conmon failed: exit status 1". A version test means
+          # nothing if the helpers do not match the binary being tested.
+          sudo apt-get install -y --allow-downgrades "podman=$target" conmon crun
+          # The displacement. Renamed rather than removed, so the originals are
+          # still there to look at if something else breaks. The helper
+          # directory goes too, since that is where podman looks first for
+          # conmon, netavark and aardvark-dns.
+          for path in /usr/local/bin/podman /usr/local/bin/conmon /usr/local/bin/crun /usr/local/lib/podman; do
+            if [ -e "$path" ]; then
+              sudo mv "$path" "$path.shadowed"
+              echo "displaced $path"
+            fi
+          done
           hash -r
+          echo "conmon: $(command -v conmon || echo none)"
           command -v podman
           podman --version
           if ! podman --version | grep -q ' 4\.'; then
