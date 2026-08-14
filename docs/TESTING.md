@@ -28,40 +28,52 @@ them in three passes instead of one invocation:
 wiring/killswitch tier needs a real app restart to complete and report
 healthy within its own wait budget, over and over, for dozens of apps in a
 row, and that isn't reliable on a GitHub-hosted runner's shared, more
-constrained resources, confirmed live. This is what `pull-request-validation.yml`'s
-own integration job actually runs; it is not a substitute for `make test`
+constrained resources, confirmed live. This is what `integration-tests.yml`'s
+own suite job actually runs; it is not a substitute for `make test`
 or `make bootstrap_tests` and should not be reached for outside CI.
 
-That integration job does not run on an unlabelled push. It stands the whole
-stack up and takes upward of twelve minutes, so a code owner applies the
-`run-tests` label once the change has settled, which starts the job. There is
-no comment shortcut: a label applied by a workflow's own GITHUB_TOKEN triggers
-nothing, because GitHub suppresses runs from events its own token creates.
+That suite does not run on a push. It stands the whole stack up and takes
+upward of twelve minutes, so a code owner asks for it by commenting
+`/run-tests` on the pull request once the change has settled.
 
-The label is consumed by the run that it starts. Left in place it would sit on
-the pull request and start another twelve minute run on anything that fires the
-workflow again, reopening a closed pull request included, since the label
-belongs to the pull request rather than the branch.
+The run happens in the workflow that comment triggers
+(`.github/workflows/integration-tests.yml`), rather than starting another one,
+and publishes its result as a commit status on the pull request's head SHA.
+Two earlier designs failed on exactly that point: a `workflow_dispatch` run is
+dispatched off `main`, so its check lands on `main`'s head commit while a
+required check is judged against the pull request's, and a label applied by a
+workflow does nothing at all, because GitHub suppresses runs from events its
+own token creates.
 
-The label, rather than a `workflow_dispatch`, is what makes the result count.
-A dispatched run is dispatched off `main`, so its check attaches to `main`'s
-head commit, while a required status check is evaluated against the pull
-request's own head: the tests would run, pass, and leave the pull request
-blocked regardless.
+The required `Tests Verified` check is therefore a status the workflow
+publishes, not a job. It is absent on a head no run has covered, which reads as
+waiting and blocks the merge; `pending` from the moment a run is authorized;
+and `success` or `failure` once the suite ends. A job gated on a condition
+would be *skipped* instead, and branch protection counts a skipped job as
+successful, which is the trap this shape avoids.
 
-Until the label goes on, the required `Tests Verified` check is **red**, and
-the pull request cannot be merged. The one exception is a pull request that
-changes nothing but prose: if the `code` paths filter reports no runtime files
-touched, the gate waives the suite, since prose cannot break an integration
-test and an eleven minute stack run to prove it costs more than the check is
-worth. The waiver applies only when the suite never ran. A suite that ran and
-failed is a failure whatever the diff touched. That check is a separate few-second job from
-the suite itself (`Integration Tests`), and it exists for one reason: a job
-skipped by its own `if` is reported to branch protection as successful, so
-gating the suite on a label would otherwise have made an unlabelled pull
-request *more* mergeable, not less. The gate is never skipped, so the answer
-never depends on how a skip is interpreted. It passes only when the suite has
-actually passed on the current head commit.
+The exception is a pull request that changes nothing but prose: when the `code`
+paths filter reports no runtime files touched, `docs_only_waiver` publishes a
+passing status for the same context, since prose cannot break an integration
+test. It only ever publishes success, and only on a positive answer from the
+filter, so anything unclear leaves the check waiting.
+
+An `issue_comment` workflow always runs the default branch's copy of itself, so
+a pull request cannot alter the checks that gate it. The code under test is
+checked out explicitly from the merge ref.
+
+That matters more here than under the `pull_request` trigger this replaced,
+because a comment triggered workflow holds the full secret set and a write
+token where a fork's `pull_request` run holds neither. So the workflow is three
+jobs, and the split is the boundary: `gate` decides who may ask and writes the
+pending status, `suite` checks the pull request's code out and runs it with a
+read-only token, and `publish` writes the result. Only `gate` and `publish` can
+write a status, and neither ever sees the code. A secret reaches `suite` only
+when the head branch lives in this repository, which takes write access to push
+to; a fork's run uses the credential-free VPN mock (see
+[docs/VPN_MOCK.md](VPN_MOCK.md)) and pulls images anonymously with a retry.
+Nothing in `make test_ci` asserts on a real VPN credential, since the
+`killswitch` tier is excluded, so a fork's run covers the same ground.
 
 `make test_extended` runs `make test` plus a fourth pass: `rinse_and_repeat`
 (stop/start and down/start lifecycle cycles), the single most expensive

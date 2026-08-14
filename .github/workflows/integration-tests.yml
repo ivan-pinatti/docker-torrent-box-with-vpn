@@ -1,0 +1,487 @@
+---
+name: Integration Tests
+
+# The integration suite, asked for by commenting `/run-tests` on a pull request.
+#
+# It runs here, in the workflow the comment triggers, rather than starting
+# another one. Two earlier designs failed on that:
+#
+#   - a workflow_dispatch run is dispatched off main, so its check attaches to
+#     main's head commit while a required status check is evaluated against the
+#     pull request's head. The tests passed and the pull request stayed blocked.
+#   - applying a label from a workflow does nothing at all, because GitHub
+#     suppresses runs triggered by events its own GITHUB_TOKEN creates.
+#
+# So the result is published directly, as a commit status on the pull request's
+# head SHA, which is what branch protection reads. Nothing has to trigger
+# anything. This is the shape cloudposse uses for the same problem.
+#
+# An issue_comment workflow always runs the default branch's copy of this file,
+# so a pull request cannot alter the checks that gate it. The code under test is
+# checked out explicitly from the merge ref below.
+#
+# Three jobs, and the split is the security boundary, not decoration. A comment
+# triggered workflow holds the full secret set and a write token, unlike the
+# pull_request trigger this replaced, where GitHub withholds both from a fork.
+# Running a fork's code in the same job as those would be a pwn request. So:
+#
+#   gate     decides, resolves the head, writes the pending status. Privileged,
+#            and never checks out a line of the pull request's code.
+#   suite    checks the code out and runs it. Read-only token, and no secret
+#            unless the head branch lives in this repository (which takes write
+#            access to push to, so that code is already trusted).
+#   publish  writes the result. Privileged again, and no checkout either.
+#
+# A fork's code therefore never shares a job with anything that could be stolen
+# or with a token that could mark its own pull request green.
+on:
+  issue_comment:
+    types: [created]
+
+# The floor. Each job below narrows or widens this for itself.
+permissions:
+  contents: read
+
+# The concurrency group lives on the `suite` job rather than here, because at
+# this level it cannot tell who is asking. See that job for the reasoning.
+
+env:
+  # The context name branch protection requires. Changing it means changing the
+  # required check too, so it lives in one place.
+  STATUS_CONTEXT: Tests Verified
+
+jobs:
+  gate:
+    name: Authorize
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      # write, for the reaction below. The endpoint is spelled
+      # /issues/comments/{id}/reactions, and `issues: write` is the obvious
+      # reading of that, which is what this asked for first. It 403s: a comment
+      # on a pull request is a pull request resource whatever the URL says, and
+      # the token is scoped by the resource. comment-dispatch.yml makes the same
+      # call successfully with exactly this permission and no `issues:` scope at
+      # all. Read is enough for everything else here.
+      pull-requests: write
+      # The whole mechanism: this is what lets the run publish its own result
+      # against the pull request's head commit. Held by this job and by
+      # `publish`, neither of which ever checks the pull request's code out.
+      statuses: write
+    if: >-
+      github.event.issue.pull_request != null &&
+      github.event.issue.state == 'open' &&
+      startsWith(github.event.comment.body, '/run-tests')
+    outputs:
+      authorized: ${{ steps.auth.outputs.authorized }}
+      head_sha: ${{ steps.pr.outputs.head_sha }}
+      is_fork: ${{ steps.pr.outputs.is_fork }}
+    steps:
+      - name: Authorize the commenter
+        # Only these logins may spend a twelve minute stack run. A comment is
+        # open to anyone, so this is the gate and has to be right.
+        #
+        # An explicit list rather than `author_association`, which the earlier
+        # version of this file used: its COLLABORATOR value covers anyone with
+        # any collaborator role at all, read-only and triage included, which is
+        # wider than intended. An API permission lookup would be self
+        # maintaining, but GET /collaborators/{user}/permission wants push
+        # access to answer, so it would mean carrying a personal access token
+        # here, which is more to maintain and rotate than a line of YAML.
+        #
+        # This list lives on the default branch, which an issue_comment
+        # workflow always runs from, so a pull request cannot add itself to it.
+        # Logins are case insensitive, hence the lowercasing.
+        id: auth
+        env:
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+        run: |
+          allowed=(ivan-pinatti)
+          actor="${COMMENT_AUTHOR,,}"
+          for name in "${allowed[@]}"; do
+            if [ "$actor" = "$name" ]; then
+              echo "authorized=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          # A notice, not an error: anyone can type `/run-tests`, and a red run
+          # in the Actions tab for every one of them says nothing useful. The
+          # missing reaction below is the signal that nothing was started.
+          echo "::notice::$actor is not on the list allowed to start the suite."
+          echo "authorized=false" >> "$GITHUB_OUTPUT"
+
+      - name: Acknowledge the comment
+        # Only once authorized, so the reaction means "accepted and starting"
+        # rather than "seen".
+        if: steps.auth.outputs.authorized == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Warn rather than swallow. A missing reaction must not fail a run
+          # over cosmetics, but a bare `|| true` hid a 403 here through two
+          # rounds of getting the permission wrong, each time reporting a green
+          # step and no reaction.
+          gh api "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" \
+            -f content='+1' --silent \
+            || echo "::warning::Could not react to the comment. The run is unaffected."
+
+      - name: Resolve the pull request head
+        # The comment event carries no SHA of its own, and the status has to
+        # land on the commit branch protection is judging, not on main.
+        #
+        # head.repo is null when the fork it came from has since been deleted,
+        # which would otherwise fail the jq here; the fallback makes that read
+        # as a fork, which is the safe way round.
+        id: pr
+        if: steps.auth.outputs.authorized == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api "repos/${{ github.repository }}/pulls/${{ github.event.issue.number }}" \
+            --jq '"head_sha=" + .head.sha,
+                  "is_fork=" + (((.head.repo.full_name // "") != "${{ github.repository }}") | tostring)' \
+            >> "$GITHUB_OUTPUT"
+
+      - name: Report the suite as pending
+        if: steps.auth.outputs.authorized == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api --method POST \
+            "repos/${{ github.repository }}/statuses/${{ steps.pr.outputs.head_sha }}" \
+            -f state=pending \
+            -f context="$STATUS_CONTEXT" \
+            -f description="Integration suite running" \
+            -f target_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --silent
+
+  suite:
+    name: Integration Tests
+    needs: gate
+    if: needs.gate.outputs.authorized == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    # One suite per pull request: a second `/run-tests` supersedes the first
+    # rather than standing a competing stack up on the same runner pool.
+    #
+    # On the job and not the workflow, which is what makes it safe. A
+    # workflow-level group is joined before any job runs, so it cannot depend on
+    # who commented, and every comment on a pull request fires this workflow.
+    # That cost a suite already: CodeRabbit's review summary landed fourteen
+    # seconds after a `/run-tests` and cancelled the run that comment had just
+    # started. Keying the group on the comment body alone would have fixed that
+    # one case and left a worse one, since anybody at all can type `/run-tests`
+    # and would then have been able to cancel a maintainer's run, the gate
+    # rejecting them afterwards being no help to the twelve minutes already
+    # thrown away.
+    #
+    # Here the group is only ever joined by a job that has already passed the
+    # gate, so an unauthorized comment skips this job and cancels nothing, and
+    # the allowlist stays in one place instead of being restated in an
+    # expression that cannot read it.
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.event.issue.number }}
+      cancel-in-progress: true
+    # This job runs the pull request's own code, so it gets a token that can do
+    # nothing but read this public repository, and no `statuses: write`. Steps
+    # below reference a secret only where the head branch is in this repository.
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: refs/pull/${{ github.event.issue.number }}/merge
+          # For the parent check below. At the default depth of 1 the merge
+          # commit is a shallow boundary, and git reports a boundary commit as
+          # having no parents at all, so there would be nothing to compare.
+          fetch-depth: 2
+          # Nothing after this point should be able to reach the API with the
+          # workflow's token, least of all the code being tested.
+          persist-credentials: false
+
+      - name: Prove this is the head the status will describe
+        # refs/pull/N/merge is recomputed on every push to the pull request, so
+        # a push landing between the gate resolving head.sha and this checkout
+        # would test one commit and publish a result for another. The merge
+        # commit's second parent is the pull request's head, so comparing the
+        # two proves the pair before anything is spent on it.
+        #
+        # A check rather than pinning the checkout to .merge_commit_sha, which
+        # GitHub computes asynchronously: a single API response can carry a
+        # current head.sha next to the merge of an older head, which is the
+        # same mismatch the other way round.
+        env:
+          HEAD_SHA: ${{ needs.gate.outputs.head_sha }}
+        shell: bash
+        run: |
+          tested=$(git rev-parse --verify --quiet 'HEAD^2' || true)
+          if [ "$tested" != "$HEAD_SHA" ]; then
+            echo "::error::The merge ref carries head ${tested:-none}, but the status is for $HEAD_SHA. The pull request moved; comment /run-tests again."
+            exit 1
+          fi
+
+      - name: Install xmlstarlet
+        shell: bash
+        run: sudo apt-get update && sudo apt-get install -y xmlstarlet
+
+      - name: Set up rootless Podman
+        # See prerequisites job's own copy of this step for why it's
+        # needed. This is the runtime the project is actually built and
+        # documented for; every local bench validation this session ran
+        # on Podman, not Docker.
+        shell: bash
+        run: |
+          sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 "$(whoami)"
+          podman system migrate
+          podman info
+          pip install podman-compose
+          # tests/conftest.py's docker_client fixture talks to podman over
+          # this exact socket path, not the CLI; nothing starts it by
+          # default on ubuntu-latest, confirmed live (every container/auth
+          # test errored out at fixture setup with a plain
+          # FileNotFoundError on the socket path).
+          mkdir -p "/run/user/$(id -u)/podman"
+          nohup podman system service --time=0 "unix:///run/user/$(id -u)/podman/podman.sock" >/tmp/podman-service.log 2>&1 &
+          timeout 30 bash -c 'until [ -S "/run/user/'"$(id -u)"'/podman/podman.sock" ]; do sleep 1; done'
+
+      - name: Create .env file
+        shell: bash
+        run: |
+          cp .env.example .env
+          # make generate_certificate rejects .env.example's own LAN_IP placeholder
+          # (OpenSSL needs a real IP for the certificate's subjectAltName); any
+          # RFC 1918 address works here since nothing on the runner resolves it.
+          sed -i 's/^LAN_IP=192.168.1.x/LAN_IP=192.168.1.100/' .env
+
+      - name: Set up VPN (real key for this repository's branches, otherwise the local mock)
+        # The key is withheld from a fork's head, because this step runs after
+        # a checkout of that fork's code. A branch pushed into this repository
+        # took write access to push, so its code is trusted the same way this
+        # file is. That is exactly the split the pull_request trigger gave for
+        # free, restated by hand because a comment trigger does not.
+        #
+        # A fork run is not degraded by this: `make test_ci` below excludes the
+        # killswitch tier, which is the only one that exercises a real VPN
+        # credential, so the mock covers everything CI actually asserts.
+        env:
+          PROTONVPN_PRIVATE_KEY: ${{ needs.gate.outputs.is_fork == 'false' && secrets.PROTONVPN_PRIVATE_KEY || '' }}
+        shell: bash
+        run: |
+          if [ -n "$PROTONVPN_PRIVATE_KEY" ]; then
+            printf '%s\n' "$PROTONVPN_PRIVATE_KEY" > configs/gluetun/.secret
+          else
+            # gluetun can't actually be skipped the way GLUETUN_PROFILE=disabled
+            # tries to: it's foundational, not optional the way other apps'
+            # profiles are, since every VPN-routed container's network_mode
+            # depends on it existing. Confirmed live: disabling its profile just
+            # makes make start's own explicit `up gluetun` call fail outright
+            # ("missing services [gluetun]") under podman-compose, which (unlike
+            # Docker Compose) doesn't let an explicitly named service override
+            # profile filtering. Point it at this repo's own credential-free
+            # mock WireGuard endpoint instead, the same mechanism make
+            # bootstrap_tests already uses; see docs/VPN_MOCK.md.
+            sed -i 's/^VPN_MOCK_PROFILE=disabled/VPN_MOCK_PROFILE=enabled/' .env
+            ./scripts/seed-vpn-mock.sh
+          fi
+
+      - name: Read PYTHON_VERSION from .env
+        shell: bash
+        run: grep -m1 '^PYTHON_VERSION=' .env >> "$GITHUB_ENV"
+
+      - name: Python Setup
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install scripts/permissions.py's dependency
+        # seed_all's own permissions_repair step runs this script directly
+        # with the system Python, not tests/.venv (that only gets created
+        # later, by make test's own dependency on it).
+        shell: bash
+        run: pip install pyyaml
+
+      - name: Seed every app's config and secrets
+        # make start alone, unlike make bootstrap, never seeds any of this:
+        # every app whose compose service references a secrets.yml or
+        # .env.secrets file normally seeded here fails outright the moment
+        # that file doesn't exist yet, confirmed live (calibre's own
+        # .env.secrets specifically, but this affects every app in the
+        # list, not just that one).
+        # Bounded because it is not just file seeding: its own
+        # configs/flaresolverr/config/chromedriver prerequisite runs a
+        # container to extract chromedriver, so this step performs the job's
+        # first Docker Hub pull. A run stalled here for over four minutes,
+        # having previously stalled in Start stack, which is the same cause
+        # wearing a different step name.
+        timeout-minutes: 8
+        run: make seed_all
+
+      - name: Generate self-signed certificate
+        timeout-minutes: 3
+        run: make generate_certificate
+
+      - name: Log in to Docker Hub
+        # 26 of this stack's images come from Docker Hub, and anonymous pulls
+        # are rate limited per source address while GitHub runners share
+        # addresses across every project on the pool. Three runs on this pull
+        # request stalled mid-pull long enough to hit a timeout, each in a
+        # different step, which is the shape throttling makes.
+        #
+        # podman login rather than docker/login-action: podman is the runtime
+        # here and only falls back to ~/.docker/config.json, so this writes the
+        # auth file it actually uses.
+        #
+        # Withheld from a fork's head for the same reason as the VPN key above.
+        # A fork pulls anonymously and leans on the retry below, so this must
+        # not fail it.
+        timeout-minutes: 2
+        env:
+          DOCKERHUB_USERNAME: ${{ needs.gate.outputs.is_fork == 'false' && secrets.DOCKERHUB_USERNAME || '' }}
+          DOCKERHUB_TOKEN: ${{ needs.gate.outputs.is_fork == 'false' && secrets.DOCKERHUB_TOKEN || '' }}
+        run: |
+          if [ -z "$DOCKERHUB_USERNAME" ]; then
+            echo "No Docker Hub credentials for this head; pulling anonymously."
+            exit 0
+          fi
+          printf '%s' "$DOCKERHUB_TOKEN" \
+            | podman login docker.io --username "$DOCKERHUB_USERNAME" --password-stdin
+
+      - name: Pull container images
+        # Split out of `make start` so the pull is visible and bounded on its
+        # own. Three runs on this pull request stalled in `Start stack` for
+        # long enough to hit the job's 25 minute cap, and the only thing the
+        # log said was "The operation was canceled": with the pull folded into
+        # the same step there was no way to tell a slow registry from a
+        # container that never comes up.
+        #
+        # Retried with a growing pause, because an anonymous pull (every fork
+        # run) is the one that meets Docker Hub's rate limit, and a limit that
+        # has just been hit is the kind of failure that clears on its own.
+        # `make pull_docker_images` is idempotent, so a retry resumes rather
+        # than starting over.
+        timeout-minutes: 12
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            if make pull_docker_images; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "::warning::Pull attempt $attempt failed, retrying in $((attempt * 30))s"
+              sleep $((attempt * 30))
+            fi
+          done
+          echo "::error::Could not pull the images after 3 attempts."
+          exit 1
+
+      - name: Start stack
+        # Every long step carries its own timeout. Without them the job-level
+        # 25 minutes was the only bound, so a single stuck step burned the
+        # whole budget and reported nothing about which one it was. These sum
+        # to more than 25 deliberately: the job cap stays the outer bound, and
+        # these exist to name the culprit, not to replace it.
+        timeout-minutes: 10
+        run: make start
+
+      - name: Wait for containers to be ready
+        timeout-minutes: 7
+        # Reads straight from `podman ps`, not through a compose wrapper:
+        # podman's own --format json is a single JSON array with health
+        # folded into the free-text Status field ("Up 3 minutes
+        # (healthy)"), not a docker compose-style newline-delimited object
+        # per container with its own top-level Health key.
+        #
+        # 300s, not 120s: confirmed live, calibre-web and lidarr both took
+        # longer than 120s to report healthy on a runner's shared, more
+        # constrained resources than any local bench this session ran on.
+        # calibre-web in particular is already known to be slow on first
+        # boot; see docs/ROTATION.md.
+        shell: bash
+        run: |
+          timeout 300 bash -c '
+            until podman ps --format json 2>/dev/null | \
+              python3 -c "
+          import sys, json
+          containers = json.load(sys.stdin)
+          starting = [c[\"Names\"] for c in containers if \"starting\" in c.get(\"Status\", \"\")]
+          print(starting); sys.exit(0 if not starting else 1)
+          "; do sleep 5; done
+          '
+
+      - name: Wire app-to-app connections
+        # Homepage's widgets read each app's API key from configs/<app>/secrets/
+        # api_key.txt, but Jellyfin and Audiobookshelf issue that key live
+        # through their own first-run API (see wire-connections.sh), and never
+        # from a seeded default the way the arr apps do. Skipping this step
+        # left both widgets, and Calibre-Web's own library path setup, on
+        # nothing but a seeded placeholder, confirmed live as the cause of
+        # this job's own Homepage widget failures. make bootstrap always runs
+        # this straight after make start for the same reason.
+        timeout-minutes: 10
+        run: make wire_connections
+
+      - name: Run integration tests
+        # make test_ci, not make test: the serial rotation/wiring/
+        # killswitch tier needs a real app restart to complete and report
+        # healthy within its own wait budget, over and over, for dozens
+        # of apps in a row, and that isn't reliable on a GitHub-hosted
+        # runner's shared, more constrained resources, confirmed live
+        # (many failures, "container state improper" among them, despite
+        # the exact same suite passing 100% clean twice on a real bench's
+        # own hardware the same night). test_ci's own killswitch marker
+        # exclusion already covers not having a real VPN key here, same
+        # as the make test invocation this replaced did explicitly.
+        # make bootstrap_tests (a real bench, pre-release) still runs the
+        # full thing, including this tier.
+        # The wiring_readonly subset does run here: it reads back what the
+        # wire_connections step above just wired, and restarts nothing. See
+        # the Makefile's own comment on test_ci.
+        timeout-minutes: 12
+        run: make test_ci
+
+      - name: Tear down
+        if: always()
+        timeout-minutes: 5
+        run: make stop_all
+
+  publish:
+    name: Publish the result
+    needs: [gate, suite]
+    # always(), so a failed suite reports a red status rather than leaving the
+    # pull request waiting on a context that never arrives.
+    #
+    # Not on a skip, because the suite never ran and no pending status was
+    # written either. Not on a cancellation, because there are only two ways to
+    # get one and neither wants a status from here. A second `/run-tests`
+    # supersedes the first, and the superseded run publishing `failure` would
+    # overwrite the pending status the newer one has already written, or worse,
+    # land after that run's own result and bury it. A person cancelling by hand
+    # leaves the pending status standing, which reads as waiting and blocks the
+    # merge, which is the honest answer: nothing was proven about this commit.
+    if: >-
+      always() && needs.suite.result != 'skipped'
+      && needs.suite.result != 'cancelled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      statuses: write
+    steps:
+      - name: Publish the result
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SUITE_RESULT: ${{ needs.suite.result }}
+        run: |
+          # No cancelled branch: the job condition above excludes it, so a
+          # superseded run never writes over a newer one's status.
+          case "$SUITE_RESULT" in
+            success) state=success; desc="Integration suite passed on this commit" ;;
+            *) state=failure; desc="Integration suite failed" ;;
+          esac
+          gh api --method POST \
+            "repos/${{ github.repository }}/statuses/${{ needs.gate.outputs.head_sha }}" \
+            -f state="$state" \
+            -f context="$STATUS_CONTEXT" \
+            -f description="$desc" \
+            -f target_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --silent
