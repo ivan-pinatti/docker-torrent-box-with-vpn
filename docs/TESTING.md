@@ -28,8 +28,8 @@ them in three passes instead of one invocation:
 wiring/killswitch tier needs a real app restart to complete and report
 healthy within its own wait budget, over and over, for dozens of apps in a
 row, and that isn't reliable on a GitHub-hosted runner's shared, more
-constrained resources, confirmed live. This is what `pull-request-validation.yml`'s
-own integration job actually runs; it is not a substitute for `make test`
+constrained resources, confirmed live. This is what `integration-tests.yml`'s
+own suite job actually runs; it is not a substitute for `make test`
 or `make bootstrap_tests` and should not be reached for outside CI.
 
 That suite does not run on a push. It stands the whole stack up and takes
@@ -60,6 +60,19 @@ filter, so anything unclear leaves the check waiting.
 An `issue_comment` workflow always runs the default branch's copy of itself, so
 a pull request cannot alter the checks that gate it. The code under test is
 checked out explicitly from the merge ref.
+
+That matters more here than under the `pull_request` trigger this replaced,
+because a comment triggered workflow holds the full secret set and a write
+token where a fork's `pull_request` run holds neither. So the workflow is three
+jobs, and the split is the boundary: `gate` decides who may ask and writes the
+pending status, `suite` checks the pull request's code out and runs it with a
+read-only token, and `publish` writes the result. Only `gate` and `publish` can
+write a status, and neither ever sees the code. A secret reaches `suite` only
+when the head branch lives in this repository, which takes write access to push
+to; a fork's run uses the credential-free VPN mock (see
+[docs/VPN_MOCK.md](VPN_MOCK.md)) and pulls images anonymously with a retry.
+Nothing in `make test_ci` asserts on a real VPN credential, since the
+`killswitch` tier is excluded, so a fork's run covers the same ground.
 
 `make test_extended` runs `make test` plus a fourth pass: `rinse_and_repeat`
 (stop/start and down/start lifecycle cycles), the single most expensive

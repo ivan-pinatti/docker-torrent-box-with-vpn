@@ -33,12 +33,13 @@ welcome your pull requests.
 Checks run in this order on purpose, so a cheap failure is never paid for
 twice and the expensive one is spent only on the version being merged. The
 integration suite stands the whole stack up and takes upward of twelve
-minutes; it never runs on a push. Only repository collaborators can ask for
-it, and the required `Tests Verified` check stays red until it
+minutes; it never runs on a push. Only a maintainer can ask for it, and the
+required `Tests Verified` check stays red until it
 has passed on the current head commit, so nothing merges untested.
 
-If you are contributing from a fork you cannot start the suite yourself. Say so
-in the pull request and a maintainer will run it once the review has settled.
+Pull requests from forks are tested exactly the same way. You cannot start the
+suite yourself, so say in the pull request when your change has settled and a
+maintainer will comment for you.
 
 ### The detail
 
@@ -90,8 +91,10 @@ in the pull request and a maintainer will run it once the review has settled.
    *skipped* instead, and branch protection counts a skipped job as
    successful, which would let an untested pull request merge.
 
-   `/run-check` re-runs the two lint layers the same way. Both comments are
-   restricted to repository collaborators.
+   `/run-check` re-runs the two lint layers the same way. `/run-tests` is
+   restricted to the maintainer list in
+   `.github/workflows/integration-tests.yml`, and `/run-check`, which costs a
+   couple of lint runs rather than a whole stack, to repository collaborators.
 8. Dependabot opens weekly pull requests for `.pre-commit-config.yaml` hook revs
    and GitHub Action version bumps. Eligible patch and minor updates are
    approved and marked for auto-merge once the required checks pass.

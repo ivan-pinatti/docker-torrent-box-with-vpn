@@ -19,16 +19,28 @@ name: Integration Tests
 # An issue_comment workflow always runs the default branch's copy of this file,
 # so a pull request cannot alter the checks that gate it. The code under test is
 # checked out explicitly from the merge ref below.
+#
+# Three jobs, and the split is the security boundary, not decoration. A comment
+# triggered workflow holds the full secret set and a write token, unlike the
+# pull_request trigger this replaced, where GitHub withholds both from a fork.
+# Running a fork's code in the same job as those would be a pwn request. So:
+#
+#   gate     decides, resolves the head, writes the pending status. Privileged,
+#            and never checks out a line of the pull request's code.
+#   suite    checks the code out and runs it. Read-only token, and no secret
+#            unless the head branch lives in this repository (which takes write
+#            access to push to, so that code is already trusted).
+#   publish  writes the result. Privileged again, and no checkout either.
+#
+# A fork's code therefore never shares a job with anything that could be stolen
+# or with a token that could mark its own pull request green.
 on:
   issue_comment:
     types: [created]
 
+# The floor. Each job below narrows or widens this for itself.
 permissions:
   contents: read
-  # The whole mechanism: this is what lets the job publish its own result
-  # against the pull request's head commit.
-  statuses: write
-  pull-requests: read
 
 # One suite per pull request. A second `/run-tests` supersedes the first rather
 # than standing a competing stack up on the same runner pool.
@@ -42,19 +54,62 @@ env:
   STATUS_CONTEXT: Tests Verified
 
 jobs:
-  integration:
-    name: Integration Tests
+  gate:
+    name: Authorize
     runs-on: ubuntu-latest
-    timeout-minutes: 25
-    # Only a collaborator may spend a twelve minute stack run. GitHub restricts
-    # labelling to collaborators for free, but a comment is open to anyone, so
-    # this check is the gate and has to be right.
+    timeout-minutes: 2
+    permissions:
+      pull-requests: read
+      # The whole mechanism: this is what lets the run publish its own result
+      # against the pull request's head commit. Held by this job and by
+      # `publish`, neither of which ever checks the pull request's code out.
+      statuses: write
     if: >-
       github.event.issue.pull_request != null &&
-      startsWith(github.event.comment.body, '/run-tests') &&
-      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
+      github.event.issue.state == 'open' &&
+      startsWith(github.event.comment.body, '/run-tests')
+    outputs:
+      authorized: ${{ steps.auth.outputs.authorized }}
+      head_sha: ${{ steps.pr.outputs.head_sha }}
+      is_fork: ${{ steps.pr.outputs.is_fork }}
     steps:
+      - name: Authorize the commenter
+        # Only these logins may spend a twelve minute stack run. A comment is
+        # open to anyone, so this is the gate and has to be right.
+        #
+        # An explicit list rather than `author_association`, which the earlier
+        # version of this file used: its COLLABORATOR value covers anyone with
+        # any collaborator role at all, read-only and triage included, which is
+        # wider than intended. An API permission lookup would be self
+        # maintaining, but GET /collaborators/{user}/permission wants push
+        # access to answer, so it would mean carrying a personal access token
+        # here, which is more to maintain and rotate than a line of YAML.
+        #
+        # This list lives on the default branch, which an issue_comment
+        # workflow always runs from, so a pull request cannot add itself to it.
+        # Logins are case insensitive, hence the lowercasing.
+        id: auth
+        env:
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+        run: |
+          allowed=(ivan-pinatti)
+          actor="${COMMENT_AUTHOR,,}"
+          for name in "${allowed[@]}"; do
+            if [ "$actor" = "$name" ]; then
+              echo "authorized=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          # A notice, not an error: anyone can type `/run-tests`, and a red run
+          # in the Actions tab for every one of them says nothing useful. The
+          # missing reaction below is the signal that nothing was started.
+          echo "::notice::$actor is not on the list allowed to start the suite."
+          echo "authorized=false" >> "$GITHUB_OUTPUT"
+
       - name: Acknowledge the comment
+        # Only once authorized, so the reaction means "accepted and starting"
+        # rather than "seen".
+        if: steps.auth.outputs.authorized == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -64,35 +119,22 @@ jobs:
       - name: Resolve the pull request head
         # The comment event carries no SHA of its own, and the status has to
         # land on the commit branch protection is judging, not on main.
+        #
+        # head.repo is null when the fork it came from has since been deleted,
+        # which would otherwise fail the jq here; the fallback makes that read
+        # as a fork, which is the safe way round.
         id: pr
+        if: steps.auth.outputs.authorized == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh api "repos/${{ github.repository }}/pulls/${{ github.event.issue.number }}" \
-            --jq '"head_sha=" + .head.sha, "head_repo=" + .head.repo.full_name' >> "$GITHUB_OUTPUT"
-
-      - name: Refuse to run code from a fork
-        # This workflow is triggered by a comment, so unlike a pull_request run
-        # it holds the full secret set and a write token. Checking out a fork's
-        # merge ref here would run that fork's code with PROTONVPN_PRIVATE_KEY,
-        # the Docker Hub credentials and a token that can publish a passing
-        # `Tests Verified` status. That is the pwn-request shape, and the
-        # pull_request trigger this replaced was immune to it only because
-        # GitHub withholds secrets there.
-        #
-        # Runs before the checkout and before any step that touches a secret. A
-        # maintainer who wants the suite on a fork's change pushes that branch
-        # into this repository and opens a pull request from it.
-        if: ${{ steps.pr.outputs.head_repo != github.repository }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "::error::Refusing to run: ${{ steps.pr.outputs.head_repo }} is not ${{ github.repository }}."
-          gh pr comment "${{ github.event.issue.number }}" --repo "${{ github.repository }}" --body \
-            'The integration suite does not run on pull requests from forks. This workflow holds repository secrets, so running a fork'"'"'s code here would expose them. A maintainer can push this branch into the repository and open a pull request from it.' || true
-          exit 1
+            --jq '"head_sha=" + .head.sha,
+                  "is_fork=" + (((.head.repo.full_name // "") != "${{ github.repository }}") | tostring)' \
+            >> "$GITHUB_OUTPUT"
 
       - name: Report the suite as pending
+        if: steps.auth.outputs.authorized == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -104,6 +146,18 @@ jobs:
             -f target_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             --silent
 
+  suite:
+    name: Integration Tests
+    needs: gate
+    if: needs.gate.outputs.authorized == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    # This job runs the pull request's own code, so it gets a token that can do
+    # nothing but read this public repository, and no `statuses: write`. Steps
+    # below reference a secret only where the head branch is in this repository.
+    permissions:
+      contents: read
+    steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
@@ -145,13 +199,22 @@ jobs:
           # RFC 1918 address works here since nothing on the runner resolves it.
           sed -i 's/^LAN_IP=192.168.1.x/LAN_IP=192.168.1.100/' .env
 
-      - name: Set up VPN (real key if available, otherwise the local mock)
+      - name: Set up VPN (real key for this repository's branches, otherwise the local mock)
+        # The key is withheld from a fork's head, because this step runs after
+        # a checkout of that fork's code. A branch pushed into this repository
+        # took write access to push, so its code is trusted the same way this
+        # file is. That is exactly the split the pull_request trigger gave for
+        # free, restated by hand because a comment trigger does not.
+        #
+        # A fork run is not degraded by this: `make test_ci` below excludes the
+        # killswitch tier, which is the only one that exercises a real VPN
+        # credential, so the mock covers everything CI actually asserts.
         env:
-          PROTONVPN_PRIVATE_KEY: ${{ secrets.PROTONVPN_PRIVATE_KEY }}
+          PROTONVPN_PRIVATE_KEY: ${{ needs.gate.outputs.is_fork == 'false' && secrets.PROTONVPN_PRIVATE_KEY || '' }}
         shell: bash
         run: |
-          if [ -n "${{ env.PROTONVPN_PRIVATE_KEY }}" ]; then
-            echo "${{ env.PROTONVPN_PRIVATE_KEY }}" > configs/gluetun/.secret
+          if [ -n "$PROTONVPN_PRIVATE_KEY" ]; then
+            printf '%s\n' "$PROTONVPN_PRIVATE_KEY" > configs/gluetun/.secret
           else
             # gluetun can't actually be skipped the way GLUETUN_PROFILE=disabled
             # tries to: it's foundational, not optional the way other apps'
@@ -214,19 +277,16 @@ jobs:
         # here and only falls back to ~/.docker/config.json, so this writes the
         # auth file it actually uses.
         #
-        # Skipped when the secret is absent, which is every pull request from a
-        # fork, since GitHub does not expose secrets to those. They keep pulling
-        # anonymously and this must not fail them.
+        # Withheld from a fork's head for the same reason as the VPN key above.
+        # A fork pulls anonymously and leans on the retry below, so this must
+        # not fail it.
         timeout-minutes: 2
         env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          DOCKERHUB_USERNAME: ${{ needs.gate.outputs.is_fork == 'false' && secrets.DOCKERHUB_USERNAME || '' }}
+          DOCKERHUB_TOKEN: ${{ needs.gate.outputs.is_fork == 'false' && secrets.DOCKERHUB_TOKEN || '' }}
         run: |
-          # Tested in the script rather than in `if:`, because the secrets
-          # context is not available to a step condition. Absent means a fork
-          # or an unconfigured repository, which pulls anonymously instead.
           if [ -z "$DOCKERHUB_USERNAME" ]; then
-            echo "No Docker Hub credentials configured; pulling anonymously."
+            echo "No Docker Hub credentials for this head; pulling anonymously."
             exit 0
           fi
           printf '%s' "$DOCKERHUB_TOKEN" \
@@ -239,8 +299,26 @@ jobs:
         # log said was "The operation was canceled": with the pull folded into
         # the same step there was no way to tell a slow registry from a
         # container that never comes up.
+        #
+        # Retried with a growing pause, because an anonymous pull (every fork
+        # run) is the one that meets Docker Hub's rate limit, and a limit that
+        # has just been hit is the kind of failure that clears on its own.
+        # `make pull_docker_images` is idempotent, so a retry resumes rather
+        # than starting over.
         timeout-minutes: 12
-        run: make pull_docker_images
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            if make pull_docker_images; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "::warning::Pull attempt $attempt failed, retrying in $((attempt * 30))s"
+              sleep $((attempt * 30))
+            fi
+          done
+          echo "::error::Could not pull the images after 3 attempts."
+          exit 1
 
       - name: Start stack
         # Every long step carries its own timeout. Without them the job-level
@@ -312,22 +390,31 @@ jobs:
         timeout-minutes: 5
         run: make stop_all
 
+  publish:
+    name: Publish the result
+    needs: [gate, suite]
+    # always(), so a failed or cancelled suite reports a red status rather than
+    # leaving the pull request waiting on a context that never arrives. Skipped
+    # when the suite never ran, because there is then no result to report and
+    # the pending status was never written either.
+    if: always() && needs.suite.result != 'skipped'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      statuses: write
+    steps:
       - name: Publish the result
-        # always(), so a failed or cancelled suite reports a red status rather
-        # than leaving the pull request waiting on a context that never arrives.
-        # Skipped when the fork guard stopped the run: nothing was tested, so
-        # there is no result to publish.
-        if: always() && steps.pr.outputs.head_repo == github.repository
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SUITE_RESULT: ${{ needs.suite.result }}
         run: |
-          case "${{ job.status }}" in
+          case "$SUITE_RESULT" in
             success) state=success; desc="Integration suite passed on this commit" ;;
             cancelled) state=failure; desc="Integration suite was cancelled" ;;
             *) state=failure; desc="Integration suite failed" ;;
           esac
           gh api --method POST \
-            "repos/${{ github.repository }}/statuses/${{ steps.pr.outputs.head_sha }}" \
+            "repos/${{ github.repository }}/statuses/${{ needs.gate.outputs.head_sha }}" \
             -f state="$state" \
             -f context="$STATUS_CONTEXT" \
             -f description="$desc" \
