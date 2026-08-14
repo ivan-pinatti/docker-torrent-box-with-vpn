@@ -136,7 +136,10 @@ jobs:
           sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 "$(whoami)"
           podman system migrate
           podman info
-          pip install podman-compose
+          # Pinned to match integration-tests.yml, where the reasoning is: a
+          # release of podman-compose should not be able to change what CI tests
+          # without a change in this repository.
+          pip install podman-compose==1.5.0
 
       - name: Create .env file
         shell: bash

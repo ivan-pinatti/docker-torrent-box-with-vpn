@@ -232,10 +232,22 @@ jobs:
         # on Podman, not Docker.
         shell: bash
         run: |
+          # Reported, because the runner image's podman version is known to
+          # change this job's answer on its own: 4.9.3 passed, 5.8.4 hangs the
+          # stack. It lives in /usr/local/bin, not /usr/bin, which is worth
+          # knowing before anyone tries to pin it with apt: that installs to
+          # /usr/bin and is silently shadowed, reporting success while changing
+          # nothing.
+          command -v podman
+          podman --version
           sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 "$(whoami)"
           podman system migrate
           podman info
-          pip install podman-compose
+          # Pinned so a release of podman-compose cannot change what CI tests
+          # without anything in this repository changing. Reproducibility, not a
+          # fix: 1.5.0 and 1.6.0 both hang against podman 5.8.4, so the version
+          # installed here is ruled out as the cause and podman is not.
+          pip install podman-compose==1.5.0
           # tests/conftest.py's docker_client fixture talks to podman over
           # this exact socket path, not the CLI; nothing starts it by
           # default on ubuntu-latest, confirmed live (every container/auth
@@ -254,36 +266,31 @@ jobs:
           # RFC 1918 address works here since nothing on the runner resolves it.
           sed -i 's/^LAN_IP=192.168.1.x/LAN_IP=192.168.1.100/' .env
 
-      - name: Set up VPN (real key for this repository's branches, otherwise the local mock)
-        # The key is withheld from a fork's head, because this step runs after
-        # a checkout of that fork's code. A branch pushed into this repository
-        # took write access to push, so its code is trusted the same way this
-        # file is. That is exactly the split the pull_request trigger gave for
-        # free, restated by hand because a comment trigger does not.
+      - name: Point the VPN at the local mock
+        # Always the mock, never a real credential. There is no
+        # PROTONVPN_PRIVATE_KEY secret in this repository and there is not going
+        # to be one: the mock is what validates the VPN, here and in
+        # make bootstrap_tests. This step used to branch on that secret and fall
+        # back, which meant a branch that never ran, dressed as the primary
+        # path, and a step name that claimed CI might be testing against a real
+        # provider. It never has.
         #
-        # A fork run is not degraded by this: `make test_ci` below excludes the
-        # killswitch tier, which is the only one that exercises a real VPN
-        # credential, so the mock covers everything CI actually asserts.
-        env:
-          PROTONVPN_PRIVATE_KEY: ${{ needs.gate.outputs.is_fork == 'false' && secrets.PROTONVPN_PRIVATE_KEY || '' }}
+        # Nothing is lost by it. `make test_ci` below excludes the killswitch
+        # tier, the only one that exercises a real VPN credential.
+        #
+        # gluetun can't be skipped the way GLUETUN_PROFILE=disabled tries to:
+        # it's foundational, not optional the way other apps' profiles are,
+        # since every VPN-routed container's network_mode depends on it
+        # existing. Confirmed live: disabling its profile just makes make
+        # start's own explicit `up gluetun` call fail outright ("missing
+        # services [gluetun]") under podman-compose, which (unlike Docker
+        # Compose) doesn't let an explicitly named service override profile
+        # filtering. So it points at this repo's own credential-free mock
+        # WireGuard endpoint instead; see docs/VPN_MOCK.md.
         shell: bash
         run: |
-          if [ -n "$PROTONVPN_PRIVATE_KEY" ]; then
-            printf '%s\n' "$PROTONVPN_PRIVATE_KEY" > configs/gluetun/.secret
-          else
-            # gluetun can't actually be skipped the way GLUETUN_PROFILE=disabled
-            # tries to: it's foundational, not optional the way other apps'
-            # profiles are, since every VPN-routed container's network_mode
-            # depends on it existing. Confirmed live: disabling its profile just
-            # makes make start's own explicit `up gluetun` call fail outright
-            # ("missing services [gluetun]") under podman-compose, which (unlike
-            # Docker Compose) doesn't let an explicitly named service override
-            # profile filtering. Point it at this repo's own credential-free
-            # mock WireGuard endpoint instead, the same mechanism make
-            # bootstrap_tests already uses; see docs/VPN_MOCK.md.
-            sed -i 's/^VPN_MOCK_PROFILE=disabled/VPN_MOCK_PROFILE=enabled/' .env
-            ./scripts/seed-vpn-mock.sh
-          fi
+          sed -i 's/^VPN_MOCK_PROFILE=disabled/VPN_MOCK_PROFILE=enabled/' .env
+          ./scripts/seed-vpn-mock.sh
 
       - name: Read PYTHON_VERSION from .env
         shell: bash
@@ -382,7 +389,26 @@ jobs:
         # to more than 25 deliberately: the job cap stays the outer bound, and
         # these exist to name the culprit, not to replace it.
         timeout-minutes: 10
-        run: make start
+        # The step timing out on its own says only that something hung: the log
+        # ends on a container name with nothing after it, which is what four
+        # runs in a row reported. Interrupting a little before the cap and
+        # dumping state instead is what established that the stack does come up,
+        # every container `Up` with healthchecks still pending, and that it is
+        # `podman-compose up --detach` that never returns.
+        shell: bash
+        run: |
+          rc=0
+          timeout --signal=INT 420 make start || rc=$?
+          if [ "$rc" -ne 0 ]; then
+            echo "::group::podman ps -a"
+            podman ps -a --format '{{.Names}}\t{{.Status}}\t{{.Image}}' || true
+            echo "::endgroup::"
+            echo "::group::podman processes"
+            pgrep -a -f 'podman|conmon|make' || true
+            echo "::endgroup::"
+            echo "::error::make start did not finish (exit $rc)."
+            exit "$rc"
+          fi
 
       - name: Wait for containers to be ready
         timeout-minutes: 7

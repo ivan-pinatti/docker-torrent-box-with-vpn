@@ -70,10 +70,13 @@ pending status, `suite` checks the pull request's code out and runs it with a
 read-only token, and `publish` writes the result. Only `gate` and `publish` can
 write a status, and neither ever sees the code. A secret reaches `suite` only
 when the head branch lives in this repository, which takes write access to push
-to; a fork's run uses the credential-free VPN mock (see
-[docs/VPN_MOCK.md](VPN_MOCK.md)) and pulls images anonymously with a retry.
-Nothing in `make test_ci` asserts on a real VPN credential, since the
-`killswitch` tier is excluded, so a fork's run covers the same ground.
+to, and the only secret left there is the Docker Hub login: a fork pulls
+anonymously with a retry instead.
+
+The VPN is the credential-free mock (see [docs/VPN_MOCK.md](VPN_MOCK.md)) on
+every run, fork or not. There is no real provider credential in CI and there is
+not meant to be one. Nothing is lost by that: `make test_ci` excludes the
+`killswitch` tier, which is the only one that exercises a real VPN credential.
 
 `make test_extended` runs `make test` plus a fourth pass: `rinse_and_repeat`
 (stop/start and down/start lifecycle cycles), the single most expensive
