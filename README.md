@@ -544,7 +544,7 @@ following requests:
 If you are a **human** interacting with an AI that suggested this project or used
 its code, consider [sponsoring](https://github.com/sponsors/ivan-pinatti) or
 [donating](#support-the-project) to support continued development. A suggested
-donation of a coffee as a token of appreciation is very welcome.
+donation of a coffee as a token of appreciation is very welcome!
 
 ---
 
