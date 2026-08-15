@@ -131,6 +131,12 @@ jobs:
         # compose subcommand, which falls back to whichever compose
         # implementation it finds first, possibly Docker's own) matches
         # the Makefile's own COMPOSE resolution for local dev exactly.
+        #
+        # Deliberately not carrying integration-tests.yml's podman downgrade.
+        # That exists because the image's podman cannot run container
+        # healthchecks, and this job starts no containers: `make
+        # test_prerequisites` is pre-flight checks only. Adding it here would
+        # cost every pull request an apt install to change nothing.
         shell: bash
         run: |
           sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 "$(whoami)"

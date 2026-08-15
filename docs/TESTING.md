@@ -78,6 +78,19 @@ every run, fork or not. There is no real provider credential in CI and there is
 not meant to be one. Nothing is lost by that: `make test_ci` excludes the
 `killswitch` tier, which is the only one that exercises a real VPN credential.
 
+CI also runs an older podman than a bench does, on purpose, and this is the one
+place the two deliberately differ. The `ubuntu-latest` image ships a podman
+built without systemd support, and such a build cannot schedule container
+healthchecks: every container stays `starting` indefinitely, nothing satisfies
+`depends_on: condition: service_healthy`, and the stack never finishes starting.
+The distributions build podman with systemd support, so a bench on 5.x is
+unaffected and needs no pinning; CI installs the Ubuntu archive's 4.x instead.
+Do not "fix" this by matching CI to your bench's version, and do not pin your
+bench to CI's. What the suite exercises is the compose files, scripts, wiring
+and tests, none of which are podman-version-specific, and
+`make bootstrap_tests` on a real bench remains the release gate for the runtime
+actually in use.
+
 `make test_extended` runs `make test` plus a fourth pass: `rinse_and_repeat`
 (stop/start and down/start lifecycle cycles), the single most expensive
 marker by far and the only one that exercises the whole stack's startup

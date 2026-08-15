@@ -232,14 +232,65 @@ jobs:
         # on Podman, not Docker.
         shell: bash
         run: |
-          # Reported, because the runner image's podman version is known to
-          # change this job's answer on its own: 4.9.3 passed, 5.8.4 hangs the
-          # stack. It lives in /usr/local/bin, not /usr/bin, which is worth
-          # knowing before anyone tries to pin it with apt: that installs to
-          # /usr/bin and is silently shadowed, reporting success while changing
-          # nothing.
+          # CI runs the archive's podman, not the one the runner image ships,
+          # and this is deliberate. It is also the one place where CI and a real
+          # bench differ on purpose, so it is worth being precise about why.
+          #
+          # The image's podman lives in /usr/local and is built without systemd
+          # support. Such a build cannot schedule healthcheck timers at all: it
+          # logs "New container has a health check" and then never creates one,
+          # so every container stays `starting` forever, nothing satisfies
+          # `depends_on: condition: service_healthy`, and `podman-compose up`
+          # waits on `podman wait --condition=healthy gluetun` until something
+          # kills it. Its bundled crun cannot even start a container under
+          # `--cgroup-manager=systemd` ("crun: systemd not supported"), and it
+          # reports `eventLogger: file` rather than journald, which is the tell
+          # for a build missing the systemd tag. No amount of environment fixes
+          # it: lingering, a user manager and a DBus address were all confirmed
+          # present and changed nothing.
+          #
+          # The distributions build podman with systemd support, which is why a
+          # Fedora bench runs 5.8.4 perfectly well and why the archive's 4.9.3
+          # passes the whole start path here unchanged. There is no podman 5
+          # package for this release, and adding a third party apt repository to
+          # reach one would put a new supplier inside CI's trust boundary to
+          # chase a version number, which is a worse trade than the gap it
+          # closes.
+          #
+          # So: CI on the archive's 4.9.3, benches on whatever their distribution
+          # ships (5.8.4 today, unchanged and not to be pinned down there), and
+          # `make bootstrap_tests` on a real bench stays the release gate for the
+          # runtime you actually run. What this job exercises is the compose
+          # files, the scripts, the wiring and the tests, none of which are
+          # podman-version-specific.
+          #
+          # conmon and crun come from the archive too: the binary alone is not
+          # the environment, and 4.9.3 driving the image's podman 5 helpers dies
+          # on the first container with "conmon failed: exit status 1".
+          target=$(apt-cache madison podman | awk '{print $3}' | grep -m1 '^4\.' || true)
+          if [ -z "$target" ]; then
+            echo "::error::No podman 4.x in the archive; see this step's comment."
+            exit 1
+          fi
+          sudo apt-get install -y --allow-downgrades "podman=$target" conmon crun
+          # apt writes /usr/bin, the image ships /usr/local/bin, and /usr/local
+          # wins on PATH. Without displacing it the install reports success and
+          # changes nothing, which cost one run before it was noticed. Renamed
+          # rather than deleted so the originals are still there to look at.
+          for path in /usr/local/bin/podman /usr/local/bin/conmon \
+                      /usr/local/bin/crun /usr/local/lib/podman; do
+            if [ -e "$path" ]; then
+              sudo mv "$path" "$path.shadowed"
+            fi
+          done
+          hash -r
           command -v podman
           podman --version
+          # Asserted, so a silent no-op can never again look like a working run.
+          if ! podman --version | grep -q ' 4\.'; then
+            echo "::error::Expected podman 4.x, got $(podman --version)."
+            exit 1
+          fi
           sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 "$(whoami)"
           podman system migrate
           podman info
