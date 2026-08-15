@@ -123,8 +123,28 @@ repos:
         files: ^tests/
       - id: debug-statements
         files: ^tests/
+      - id: check-builtin-literals
+        files: ^tests/
+      - id: check-docstring-first
+        files: ^tests/
+      # Scoped to .py explicitly rather than to ^tests/, which would hand it
+      # tests/requirements.txt and fail on a file that is not a test module.
+      - id: name-tests-test
+        args: ["--pytest-test-first"]
+        files: ^tests/.*\.py$
       - id: requirements-txt-fixer
         files: ^tests/requirements\.txt$
+      # Commit stage only, deliberately. Its job is to stop a commit landing on
+      # main, and every change here goes through a pull request. At the pre-push
+      # stage it would also fire in CI, where a workflow_dispatch run can legally
+      # be checked out on main, and fail the lint gate for the wrong reason.
+      #
+      # Not a replacement for .claude/hooks/git-guard.sh, which refuses history
+      # rewrites and --no-verify. This is the ordinary-commit case that guard
+      # deliberately leaves alone.
+      - id: no-commit-to-branch
+        args: ["--branch", "main"]
+        stages: [pre-commit]
 
   - repo: https://github.com/editorconfig-checker/editorconfig-checker.python
     rev: 3.8.0
