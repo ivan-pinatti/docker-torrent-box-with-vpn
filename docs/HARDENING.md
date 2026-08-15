@@ -168,14 +168,16 @@ incremental; the full sweep runs at push time and in CI, and at this repo's
 size it is not worth optimizing away.
 
 Both layers read `.gitleaks.toml`, so a rule added there applies to the fast
-staged-diff check and the CI check alike. Both also read commits rather than
-the working tree, which matters: a filesystem scan walks the disk, and this
-working tree holds live credentials by design in gitignored paths, so a local
-`gitleaks dir` run reports thousands of findings that are not in git and never
-will be.
+staged-diff check and the CI check alike. Neither reads the working tree: the
+commit-stage hook scans the staged diff, and the pre-push and CI scans read git
+history. That distinction matters, because a filesystem scan walks the disk and
+this working tree holds live credentials by design in gitignored paths, so a
+local `gitleaks dir` run reports thousands of findings that are not in git and
+never will be.
 
 The history scan is a Go binary that pre-commit builds, deliberately not a
-container. Run as `docker run -v $PWD:/src gitleaks git`, gitleaks' own git
+container. Run as `docker run -v $PWD:/src zricethezav/gitleaks:v8.30.1 git`,
+gitleaks' own git
 subprocess reports `detected dubious ownership in repository at '/src'`, logs
 it to stderr, scans zero commits and still exits 0: a secret scan that checks
 nothing and reports success. Confirmed against gitleaks v8.30.1.
@@ -235,7 +237,7 @@ prefix form instead. A trailing `$` outside a group behaves normally.
 To audit a branch by hand:
 
 ```shell
-gitleaks git . -c .gitleaks.toml --log-opts="main..HEAD"
+gitleaks git . --redact -c .gitleaks.toml --log-opts="main..HEAD"
 ```
 
 ### Live application state

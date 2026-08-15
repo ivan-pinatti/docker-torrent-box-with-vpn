@@ -200,10 +200,27 @@ repos:
   #
   # Both current findings are suppressed inline in the Dockerfile itself, with
   # reasons, which is the same convention the checkov skips there already use.
-  - repo: https://github.com/hadolint/hadolint
-    rev: v2.14.0
+  #
+  # A local hook rather than upstream's hadolint-docker, which is a
+  # `language: docker_image` hook and so calls `docker` by name. This project
+  # documents Podman as its runtime, and the trivy and dotenv-linter hooks below
+  # already accept either, so requiring docker for this one alone would leave a
+  # contributor running Podman with two hooks they cannot execute.
+  - repo: local
     hooks:
-      - id: hadolint-docker
+      - id: hadolint
+        name: Lint Dockerfiles
+        # renovate: datasource=docker depName=hadolint/hadolint
+        # The repository is mounted and the paths passed through, rather than
+        # feeding each file in on stdin: read from stdin hadolint has no name
+        # for what it is reading and reports every finding against `-`.
+        entry: >-
+          bash -c 'runtime=$(command -v docker || command -v podman) || {
+          echo "hadolint hook needs docker or podman on PATH" >&2; exit 1; };
+          exec "$runtime" run --rm -v "$PWD:/src:ro" -w /src
+          hadolint/hadolint:v2.14.0 hadolint --no-color "$0" "$@"'
+        language: system
+        types: [dockerfile]
 
   # Pinned to cspell 10.0.1, the exact version the cupcake image carried. That
   # pin is the point: the standalone cspell hook was previously removed from
@@ -273,10 +290,21 @@ repos:
   # The files pattern is SPELL_LYCHEE_FILTER_REGEX_INCLUDE translated, and
   # selects the same 41 files. lychee finds lychee.toml and .lycheeignore on its
   # own from the repository root, so neither is passed explicitly.
-  - repo: https://github.com/lycheeverse/lychee
-    rev: lychee-v0.24.2
+  #
+  # Local rather than upstream's lychee-docker, for the same reason as hadolint
+  # above: that hook is `language: docker_image` and calls `docker` by name,
+  # which a contributor running Podman does not have.
+  - repo: local
     hooks:
-      - id: lychee-docker
+      - id: lychee
+        name: Check documentation links
+        # renovate: datasource=docker depName=lycheeverse/lychee
+        entry: >-
+          bash -c 'runtime=$(command -v docker || command -v podman) || {
+          echo "lychee hook needs docker or podman on PATH" >&2; exit 1; };
+          exec "$runtime" run --rm -v "$PWD:/src:ro" -w /src
+          lycheeverse/lychee:0.24.2 --no-progress "$0" "$@"'
+        language: system
         stages: [pre-push]
         files: '^(README|LICENSE|NOTICE)\.md$|^docs/.*\.md$|^\.github/(ISSUE_TEMPLATE/.*\.md|PULL_REQUEST_TEMPLATE\.md)$'
 

@@ -70,7 +70,8 @@ maintainer will comment for you.
    for twice, and the review flow is:
 
    1. **Open the pull request as a draft.** `Code Check` runs the hooks over
-      every file, at both stages. CodeRabbit skips drafts.
+      every file in one `--hook-stage pre-push` sweep, which selects the
+      pre-push hooks and the ordinary ones together. CodeRabbit skips drafts.
    2. **Mark it ready for review once it is green.** That is what starts
       CodeRabbit, so it reviews an already-clean diff once, rather than
       re-reviewing after every formatting fix.
@@ -150,7 +151,8 @@ app developer whom I greatly respect.
 ## Use a Consistent Coding Style
 
 The repository is already using some tools to help with that. Make sure you are
-running the pre-commit hooks, at both stages, before sending changes upstream.
+running the pre-commit hooks, including the pre-push stage, before sending
+changes upstream.
 
 - 2 spaces for indentation rather than tabs
 - Use `make sanity_fast` for the normal local validation path

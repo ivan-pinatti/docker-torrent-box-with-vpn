@@ -157,19 +157,23 @@
       // Versions pinned inside `repo: local` hooks in .pre-commit-config.yaml.
       //
       // Dependabot's pre-commit ecosystem updates the `rev:` of a hook
-      // repository and nothing else, so these four pins are invisible to it:
-      // two `additional_dependencies` entries (gitleaks, checkov) and two
-      // container image tags inside a hook's `entry:` (trivy, dotenv-linter).
-      // Before the MegaLinter removal all four were carried by that single
-      // pinned image, and Dependabot did keep it current. Without this manager
-      // they would silently rot, which for a secret scanner and two security
-      // scanners is the worst place to have a stale pin.
+      // repository and nothing else, so these pins are invisible to it: the
+      // `additional_dependencies` entries (gitleaks, checkov) and the container
+      // image tags inside a hook's `entry:` (trivy, dotenv-linter, hadolint,
+      // lychee). Before the MegaLinter removal they were all carried by that
+      // single pinned image, and Dependabot did keep it current. Without this
+      // manager they would silently rot, which for a secret scanner and two
+      // security scanners is the worst place to have a stale pin.
       //
-      // The second pattern tolerates lines between the annotation and the tag
+      // The image patterns tolerate lines between the annotation and the tag,
       // because `entry:` is a folded block scalar and a comment cannot live
-      // inside one. It is bounded rather than open-ended, and currentValue must
-      // start with a digit, so it cannot run on into a later hook or match the
-      // `trivy-cache:/root/...` volume argument on the same line.
+      // inside one. Each one names its image literally on both sides rather
+      // than capturing whatever image reference turns up first: a bounded
+      // wildcard still selects a later, unrelated image when the annotated
+      // command happens to carry no version of its own, and the result is a
+      // pull request that bumps the wrong pin. Renovate's regex engine has no
+      // backreferences, so the name has to be written twice to tie them
+      // together. One line per image is the cost of that.
       // The workflow file is here too, not only .pre-commit-config.yaml. The
       // Security Reports job pins the same scanners a second time, because it
       // runs them in SARIF mode rather than through pre-commit, and the two
@@ -181,7 +185,11 @@
       ],
       matchStrings: [
         "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s*\\n\\s*additional_dependencies: \\[\"[^\"]+?(?:==|@)(?<currentValue>v?[0-9][^\"]*)\"\\]",
-        "# renovate: datasource=docker depName=(?<depName>[^\\s]+)[\\s\\S]{0,900}?(?:[a-z0-9][a-z0-9._-]*/)+[a-z0-9._-]+:(?<currentValue>v?\\d[\\w.\\-]*)",
+        "# renovate: datasource=docker depName=(?<depName>aquasec/trivy)[\\s\\S]{0,900}?aquasec/trivy:(?<currentValue>v?\\d[\\w.\\-]*)",
+        "# renovate: datasource=docker depName=(?<depName>dotenvlinter/dotenv-linter)[\\s\\S]{0,900}?dotenvlinter/dotenv-linter:(?<currentValue>v?\\d[\\w.\\-]*)",
+        "# renovate: datasource=docker depName=(?<depName>zricethezav/gitleaks)[\\s\\S]{0,900}?zricethezav/gitleaks:(?<currentValue>v?\\d[\\w.\\-]*)",
+        "# renovate: datasource=docker depName=(?<depName>hadolint/hadolint)[\\s\\S]{0,900}?hadolint/hadolint:(?<currentValue>v?\\d[\\w.\\-]*)",
+        "# renovate: datasource=docker depName=(?<depName>lycheeverse/lychee)[\\s\\S]{0,900}?lycheeverse/lychee:(?<currentValue>v?\\d[\\w.\\-]*)",
       ],
       datasourceTemplate: "docker",
     },

@@ -206,9 +206,14 @@ jobs:
     # cannot work there and would fail the job for an outside contributor who
     # can do nothing about it. Their findings still block the merge through
     # Code Check; only the Security tab entry is skipped.
-    if: >-
-      ${{ (github.event_name != 'workflow_dispatch' || inputs.job_scope != 'tests')
-      && github.event.pull_request.head.repo.fork != true }}
+    #
+    # pull_request only, deliberately. On a workflow_dispatch there is no
+    # github.event.pull_request to read, so the fork test above silently passes
+    # while the checkout resolves refs/pull/<n>/head, which can be a fork's
+    # head. This is the one job holding security-events: write, and it is
+    # reporting rather than a gate, so it does not need to answer a manual
+    # dispatch at all.
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork != true }}
     permissions:
       contents: read
       # The only job in this workflow that writes anything. Required by
@@ -259,8 +264,7 @@ jobs:
 
       # Runs in a container, which needs safe.directory set: gitleaks' own git
       # subprocess otherwise reports dubious ownership on the bind mount, scans
-      # zero commits and still exits 0. The commit count is asserted below for
-      # exactly that reason, so this can never go back to silently passing.
+      # zero commits and still exits 0.
       - name: Gitleaks
         continue-on-error: true
         # renovate: datasource=docker depName=zricethezav/gitleaks
@@ -272,10 +276,19 @@ jobs:
             git --redact --config .gitleaks.toml \
             --report-format sarif --report-path /src/sarif/gitleaks.sarif . \
             2>&1 | tee gitleaks.log || true
-          if grep -q '0 commits scanned' gitleaks.log; then
+
+      # A separate step, and the only one here without continue-on-error, which
+      # applies to a whole step and would have reduced the exit below to a
+      # warning. That is the entire point of the assertion: a scan of zero
+      # commits is the failure this job exists to make impossible to miss, so it
+      # has to be able to fail the job.
+      - name: Assert the secret scan covered the history
+        run: |
+          if [ ! -s gitleaks.log ] || grep -q '0 commits scanned' gitleaks.log; then
             echo "::error::gitleaks scanned 0 commits, the report is meaningless"
             exit 1
           fi
+          grep -o '[0-9]* commits scanned' gitleaks.log | tail -1
 
       - name: Hadolint
         continue-on-error: true
@@ -294,6 +307,24 @@ jobs:
           pip install zizmor==1.17.0
           zizmor --no-progress --format sarif .github/workflows/ \
             > sarif/zizmor.sarif || true
+
+      # Every report above is written through shell redirection, which creates
+      # the file before the command runs. A failed image pull or an early abort
+      # therefore leaves a zero byte .sarif behind, and upload-sarif rejects a
+      # file that is not valid SARIF. Since the upload below hands it the whole
+      # directory, one empty file would discard the reports from all five
+      # scanners rather than just its own. Drop anything unusable first.
+      - name: Discard unusable reports
+        if: always()
+        run: |
+          for f in sarif/*.sarif; do
+            [ -e "$f" ] || continue
+            if [ ! -s "$f" ] || ! python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$f" 2>/dev/null; then
+              echo "::warning::$f is empty or not valid JSON, not uploading it"
+              rm -f "$f"
+            fi
+          done
+          ls -l sarif/ || true
 
       # The whole directory in one upload. Code scanning keys an analysis on the
       # tool name inside the SARIF together with the category, and these are
