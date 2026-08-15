@@ -170,10 +170,18 @@
       // inside one. It is bounded rather than open-ended, and currentValue must
       // start with a digit, so it cannot run on into a later hook or match the
       // `trivy-cache:/root/...` volume argument on the same line.
-      managerFilePatterns: ["/^\\.pre-commit-config\\.yaml$/"],
+      // The workflow file is here too, not only .pre-commit-config.yaml. The
+      // Security Reports job pins the same scanners a second time, because it
+      // runs them in SARIF mode rather than through pre-commit, and the two
+      // copies have to move together or the reports stop describing what the
+      // gate actually enforces.
+      managerFilePatterns: [
+        "/^\\.pre-commit-config\\.yaml$/",
+        "/^\\.github/workflows/pull-request-validation\\.yml$/",
+      ],
       matchStrings: [
-        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s*\\n\\s*additional_dependencies: \\[\"[^\"]+?(?:==|@v?)(?<currentValue>[0-9][^\"]*)\"\\]",
-        "# renovate: datasource=docker depName=(?<depName>[^\\s]+)[\\s\\S]{0,900}?(?:[a-z0-9][a-z0-9._-]*/)+[a-z0-9._-]+:(?<currentValue>\\d[\\w.\\-]*)",
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s*\\n\\s*additional_dependencies: \\[\"[^\"]+?(?:==|@)(?<currentValue>v?[0-9][^\"]*)\"\\]",
+        "# renovate: datasource=docker depName=(?<depName>[^\\s]+)[\\s\\S]{0,900}?(?:[a-z0-9][a-z0-9._-]*/)+[a-z0-9._-]+:(?<currentValue>v?\\d[\\w.\\-]*)",
       ],
       datasourceTemplate: "docker",
     },

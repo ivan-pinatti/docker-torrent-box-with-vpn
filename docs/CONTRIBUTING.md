@@ -53,9 +53,11 @@ maintainer will comment for you.
    still reporting success, so nothing tells you they were missing until CI
    fails on something the hooks catch locally.
 4. The hooks are split across two stages. `pre-commit` runs the fast,
-   file-scoped ones against what you changed. `pre-push` adds the four that
-   walk the whole repository rather than a list of files: the full-history
-   secret scan, checkov, trivy, and the documentation link check.
+   file-scoped ones against what you changed, including shellcheck, shfmt,
+   ruff, yamllint, markdownlint, actionlint, hadolint and cspell. `pre-push`
+   adds the four that walk the whole repository rather than a list of files:
+   the full-history secret scan, checkov, trivy, and the documentation link
+   check.
    `pre-push` also sweeps the fast hooks across every file, which is the scope
    CI uses. Without that sweep a violation in a file your branch never touched
    passes locally and fails in CI, which is what a linter version bump
@@ -156,6 +158,9 @@ running the pre-commit hooks, at both stages, before sending changes upstream.
   the staged diff, while the pre-push pass scans the full git history. See
   docs/HARDENING.md
 - Use `make sanity_full` when you need the full repository security/IaC pass
+- Security scanner findings are also published to the repository's Security tab
+  by the `Security Reports` job, which reports rather than gates. See
+  docs/HARDENING.md
 - Dependabot handles weekly hook and workflow version bump PRs; major updates
   are left for manual review
 

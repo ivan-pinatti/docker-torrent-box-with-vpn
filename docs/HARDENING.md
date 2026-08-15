@@ -180,6 +180,34 @@ subprocess reports `detected dubious ownership in repository at '/src'`, logs
 it to stderr, scans zero commits and still exits 0: a secret scan that checks
 nothing and reports success. Confirmed against gitleaks v8.30.1.
 
+The `Security Reports` job in PR Validation does run it in a container, because
+it needs SARIF output rather than a pass or fail. It sets `safe.directory`
+through `GIT_CONFIG_*` to avoid the above, and then asserts the commit count is
+not zero, so that failure mode cannot come back silently.
+
+### Findings in the Security tab
+
+`Security Reports` publishes trivy, checkov, gitleaks, hadolint and zizmor
+output to GitHub code scanning as SARIF. That is reporting, not a gate: the
+`Code Check` job already fails the pull request on anything the first four
+report, so the job is not a required check and nothing depends on it.
+
+What it adds is history. Code scanning deduplicates a finding across runs,
+tracks when it appeared and when it went away, and lets one be dismissed with a
+reason that sticks, none of which a job log does. Checks skipped inline with
+`#checkov:skip=` arrive carrying SARIF `suppressions` and show as dismissed
+rather than open.
+
+zizmor runs only there and gates nothing. It audits the workflows themselves
+for template injection, credential persistence and overly broad permissions.
+Its current findings are hardening opportunities rather than defects, and some
+need a policy decision (pinning actions to a hash rather than a tag), so they
+are reported without blocking a merge.
+
+Pull requests from forks skip the job. A fork's token cannot write
+`security-events`, and their findings still block the merge through `Code
+Check`.
+
 ### Why the custom rules exist
 
 The default gitleaks ruleset targets provider-issued tokens (AWS keys, GitHub

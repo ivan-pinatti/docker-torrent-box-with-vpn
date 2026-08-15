@@ -178,6 +178,138 @@ jobs:
       - name: Create test venv and run prerequisite tests
         run: make test_prerequisites
 
+  # Findings from the security scanners, published to GitHub code scanning so
+  # they land in the Security tab with the deduplication, history and dismissal
+  # tracking that a job log does not have. This is reporting, not a gate: the
+  # `Code Check` job above already fails the pull request on anything trivy,
+  # checkov, gitleaks or hadolint reports, so nothing here is load bearing and
+  # this job is deliberately not a required check.
+  #
+  # It re-runs the scanners rather than reusing Code Check's run, because those
+  # hooks print to the console and stop at the first failure. Running them
+  # separately in SARIF mode means a report is produced for every scanner even
+  # when one of them fails, which is the case where the Security tab is most
+  # useful. The versions are pinned to match the hooks exactly; Renovate keeps
+  # the two copies in step through the annotations below.
+  #
+  # zizmor is the exception: it runs only here and gates nothing. It audits
+  # workflow security (template injection, credential persistence, overly broad
+  # permissions) and its current findings are hardening opportunities rather
+  # than defects, several of which need a policy decision (pinning actions to a
+  # hash rather than a tag). Reporting them without blocking a merge is the
+  # honest way to carry that.
+  security_reports:
+    name: Security Reports
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # A pull request from a fork gets a read-only token, so the upload below
+    # cannot work there and would fail the job for an outside contributor who
+    # can do nothing about it. Their findings still block the merge through
+    # Code Check; only the Security tab entry is skipped.
+    if: >-
+      ${{ (github.event_name != 'workflow_dispatch' || inputs.job_scope != 'tests')
+      && github.event.pull_request.head.repo.fork != true }}
+    permissions:
+      contents: read
+      # The only job in this workflow that writes anything. Required by
+      # upload-sarif, and scoped to this job rather than the workflow.
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/pull/{0}/head', inputs.pr_number) || github.ref }}
+          # The secret scan reads commits, not the working tree.
+          fetch-depth: 0
+
+      - name: Create reports directory
+        run: mkdir -p sarif
+
+      # continue-on-error on every scan step, and `if: always()` on the uploads.
+      # A scanner that finds something exits non-zero, and that must not stop
+      # the other scanners running or their reports being published.
+      - name: Trivy
+        continue-on-error: true
+        # renovate: datasource=docker depName=aquasec/trivy
+        run: |
+          docker run --rm -v "$PWD:/src:ro" -v "$PWD/sarif:/out" -w /src \
+            aquasec/trivy:0.71.2 \
+            fs --scanners vuln,misconfig --skip-version-check \
+            --ignorefile .trivyignore.yaml \
+            --skip-dirs ./data --skip-dirs ./storage --skip-dirs ./cache \
+            --skip-dirs ./logs --skip-dirs ./node_modules \
+            --skip-dirs ./.pytest_cache --skip-dirs ./tests/.venv \
+            --format sarif --output /out/trivy.sarif .
+
+      - name: Checkov
+        continue-on-error: true
+        run: |
+          # renovate: datasource=pypi depName=checkov
+          pip install checkov==3.3.2
+          checkov --quiet --compact --skip-check CKV_DOCKER_2 \
+            --skip-framework secrets \
+            --skip-path configs --skip-path data --skip-path storage \
+            --skip-path cache --skip-path logs --skip-path node_modules \
+            --skip-path 'tests/\.venv' --directory . \
+            --output sarif --output-file-path sarif || true
+          # checkov names its own file; give it the name the upload expects.
+          if [ -f sarif/results_sarif.sarif ]; then
+            mv sarif/results_sarif.sarif sarif/checkov.sarif
+          fi
+
+      # Runs in a container, which needs safe.directory set: gitleaks' own git
+      # subprocess otherwise reports dubious ownership on the bind mount, scans
+      # zero commits and still exits 0. The commit count is asserted below for
+      # exactly that reason, so this can never go back to silently passing.
+      - name: Gitleaks
+        continue-on-error: true
+        # renovate: datasource=docker depName=zricethezav/gitleaks
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src \
+            -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory \
+            -e GIT_CONFIG_VALUE_0='*' \
+            zricethezav/gitleaks:v8.30.1 \
+            git --redact --config .gitleaks.toml \
+            --report-format sarif --report-path /src/sarif/gitleaks.sarif . \
+            2>&1 | tee gitleaks.log || true
+          if grep -q '0 commits scanned' gitleaks.log; then
+            echo "::error::gitleaks scanned 0 commits, the report is meaningless"
+            exit 1
+          fi
+
+      - name: Hadolint
+        continue-on-error: true
+        # renovate: datasource=docker depName=hadolint/hadolint
+        run: |
+          docker run --rm -v "$PWD:/src:ro" -w /src \
+            hadolint/hadolint:v2.14.0 \
+            hadolint --no-color --format sarif \
+            build/lazylibrarian/Dockerfile build/mylar/Dockerfile \
+            > sarif/hadolint.sarif || true
+
+      - name: Zizmor
+        continue-on-error: true
+        run: |
+          # renovate: datasource=pypi depName=zizmor
+          pip install zizmor==1.17.0
+          zizmor --no-progress --format sarif .github/workflows/ \
+            > sarif/zizmor.sarif || true
+
+      # The whole directory in one upload. Code scanning keys an analysis on the
+      # tool name inside the SARIF together with the category, and these are
+      # five different tools, so one category is enough to keep their findings
+      # apart. A second category would only be needed to run the same tool twice
+      # over different scopes.
+      #
+      # if: always() so the reports still publish when a scanner exited
+      # non-zero, which is exactly when there is something to publish.
+      - name: Upload results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: sarif
+          category: security-scanners
+
   changes:
     name: Detect Changed Paths
     runs-on: ubuntu-latest

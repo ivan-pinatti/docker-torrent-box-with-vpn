@@ -269,6 +269,7 @@
     "grabbag",
     "grafrana",
     "gsub",
+    "hadolint",
     "hardlink",
     "hardlinked",
     "hardlinking",
@@ -582,6 +583,7 @@
     "Sabnzbd",
     "sabnzbdlogs",
     "SAMEORIGIN",
+    "sarif",
     "saveconfig",
     "scgi",
     "schedlines",
@@ -741,6 +743,7 @@
     "yadif",
     "yamllint",
     "yourpassword",
+    "zizmor",
     "zoneinfo",
     "zricethezav"
   ]

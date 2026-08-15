@@ -82,6 +82,12 @@ repos:
         exclude: *app_managed
       - id: check-merge-conflict
       - id: check-symlinks
+      # The TOML member of the same family as check-json/check-xml/check-yaml
+      # above, which was simply missing: .gitleaks.toml, lychee.toml and
+      # pyproject.toml all decide how a linter or the test suite behaves, and
+      # a syntax error in one of them was previously only discovered by
+      # whichever tool read it.
+      - id: check-toml
       - id: check-xml
         exclude: *app_managed
       - id: check-yaml
@@ -164,6 +170,20 @@ repos:
     rev: v1.7.12
     hooks:
       - id: actionlint
+
+  # Dockerfile linting, which nothing here covered before. trivy and checkov
+  # both read the two Dockerfiles already, but for security misconfiguration:
+  # a missing USER, a missing HEALTHCHECK. hadolint is the only thing in this
+  # file that runs shellcheck over `RUN` lines, and shell inside a Dockerfile
+  # is shell that the shellcheck hook above never sees, because that hook
+  # selects .sh and .bash files.
+  #
+  # Both current findings are suppressed inline in the Dockerfile itself, with
+  # reasons, which is the same convention the checkov skips there already use.
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.14.0
+    hooks:
+      - id: hadolint-docker
 
   # Pinned to cspell 10.0.1, the exact version the cupcake image carried. That
   # pin is the point: the standalone cspell hook was previously removed from
