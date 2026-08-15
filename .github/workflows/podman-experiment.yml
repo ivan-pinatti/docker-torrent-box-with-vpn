@@ -32,8 +32,83 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  health_probe:
+    name: Can podman run a healthcheck at all
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Give the runner a systemd user session
+        shell: bash
+        run: |
+          user=$(id -un)
+          uid=$(id -u)
+          sudo loginctl enable-linger "$user"
+          for _ in $(seq 1 30); do
+            [ -S "/run/user/$uid/bus" ] && break
+            sleep 1
+          done
+          {
+            echo "XDG_RUNTIME_DIR=/run/user/$uid"
+            echo "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$uid/bus"
+          } >> "$GITHUB_ENV"
+
+      - name: Set up rootless podman
+        shell: bash
+        run: |
+          sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 "$(id -un)"
+          podman system migrate
+
+      - name: One container, one healthcheck, full debug
+        # The whole question in two minutes rather than ten: give podman a
+        # container with a trivial check that cannot fail, and watch what it
+        # does about the timer. A user session alone was not enough, and
+        # `podman info` reports cgroupManager: cgroupfs with no delegated
+        # controllers, so this compares the two managers directly rather than
+        # changing one and re-running the entire stack to find out.
+        shell: bash
+        run: |
+          probe() {
+            local manager="$1" name="probe-$1"
+            echo "::group::cgroup manager: $manager"
+            podman --log-level=debug --cgroup-manager="$manager" run -d \
+              --name "$name" \
+              --health-cmd 'true' \
+              --health-interval 5s \
+              --health-start-period 1s \
+              --health-retries 1 \
+              docker.io/library/alpine:3 sleep 120 2>&1 \
+              | grep -iE "timer|systemd|dbus|health|transient" | head -20 || true
+
+            echo "-- waiting 20s for the check to run at least twice"
+            sleep 20
+            echo "-- health status"
+            podman inspect "$name" --format '{{.State.Health.Status}}' 2>&1 || true
+            echo "-- log of check runs"
+            podman inspect "$name" --format '{{json .State.Health.Log}}' 2>&1 | head -5 || true
+            echo "-- user timers naming this container"
+            systemctl --user list-timers --all --no-pager 2>&1 | grep -iE "$(podman inspect "$name" --format '{{.Id}}' | cut -c1-12)|healthcheck" || echo "(none)"
+            podman rm -f "$name" >/dev/null 2>&1 || true
+            echo "::endgroup::"
+          }
+
+          echo "cgroupManager reported by podman: $(podman info --format '{{.Host.CgroupManager}}')"
+          uid=$(id -u)
+          delegated="/sys/fs/cgroup/user.slice/user-$uid.slice/user@$uid.service/cgroup.controllers"
+          echo "delegated controllers: $(cat "$delegated" 2>/dev/null || echo none)"
+          probe cgroupfs
+          probe systemd
+
+          echo "::group::all user timers"
+          systemctl --user list-timers --all --no-pager 2>&1 | head -20 || true
+          echo "::endgroup::"
+
   start_only:
     name: Diagnose the start hang
+    # Off unless the repository variable RUN_FULL_START is set to 'true'. A
+    # job-level `if` cannot read `env`, and the full stack start costs ten
+    # minutes and 26 image pulls, which is not worth spending while the probe
+    # above answers the same question in two.
+    if: vars.RUN_FULL_START == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
