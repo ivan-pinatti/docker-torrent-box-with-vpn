@@ -1,8 +1,8 @@
-# gitleaks / betterleaks configuration.
+# gitleaks configuration.
 #
 # Read by three places, so keep it tool-agnostic:
 #   - the gitleaks pre-commit hook (staged diff only, fast feedback)
-#   - MegaLinter's REPOSITORY_BETTERLEAKS (full git history, pre-push and CI)
+#   - the gitleaks-history pre-commit hook (full git history, pre-push and CI)
 #   - any manual `gitleaks dir .` run
 #
 # The custom rules below exist because the default ruleset is oriented at
@@ -84,10 +84,10 @@ paths = [
 
 # Note there is deliberately no entry for configs/*/config/. That tree is where
 # a real credential lands if one is ever committed, and excluding it is the
-# blind spot this configuration exists to close. MegaLinter is configured to
-# run betterleaks in `git` mode instead of its default filesystem `dir` mode,
-# so the live gitignored state in that tree is never scanned in the first
-# place and needs no allowlist entry.
+# blind spot this configuration exists to close. Both hooks read commits rather
+# than the working tree (the staged diff at commit time, `gitleaks git` over the
+# full history at push time), so the live gitignored state in that tree is never
+# scanned in the first place and needs no allowlist entry.
 
 regexes = [
   # Repeating-digit placeholders, as used by the committed .example configs

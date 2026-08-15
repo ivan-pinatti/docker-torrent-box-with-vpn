@@ -81,7 +81,7 @@ Jellyfin's metadata library. Caches are **not** among them: `--exclude=cache`
 is unanchored and applies to both modes, so any directory named `cache` is
 dropped wherever it appears. That is deliberate, since the largest of them
 hold regenerable transcodes. It also does not include repository metadata,
-tests, MegaLinter reports, media/download libraries, observability storage, or
+tests, linter reports, media/download libraries, observability storage, or
 dependencies.
 
 ## Scheduling

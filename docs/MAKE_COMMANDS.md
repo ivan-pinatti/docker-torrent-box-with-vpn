@@ -106,6 +106,6 @@ marker.
 | --- | --- |
 | `make pre_commit` | Runs all pre-commit hooks against the whole repo. |
 | `make sanity_fast` | The normal local validation path: same as `pre_commit`. |
-| `make sanity_full` | `sanity_fast` plus the full MegaLinter pre-push pass. |
+| `make sanity_full` | `sanity_fast` plus the pre-push pass: full-history secret scan, checkov, trivy, link check. |
 | `make update_pre_commit` | Runs `pre-commit autoupdate`. |
 | `make detect_secrets_create_baseline` | Regenerates `.secrets.baseline` for the detect-secrets hook. |
