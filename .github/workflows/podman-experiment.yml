@@ -90,6 +90,43 @@ jobs:
             exit 1
           fi
 
+      - name: Give the runner a systemd user session
+        # The actual fix. Podman schedules container healthchecks as systemd
+        # user timers, and a GitHub runner has no user session, so under podman
+        # 5 the timers are never created and every container stays `starting`
+        # forever. Nothing then satisfies a `depends_on: service_healthy`, which
+        # is what `podman-compose up --detach` was waiting on for nine minutes.
+        #
+        # podman 4.9.3 did not depend on this, which is the whole difference
+        # between the runner image that passed and the one that does not.
+        #
+        # XDG_RUNTIME_DIR and the DBus address go into GITHUB_ENV rather than
+        # being exported here, because podman needs them in every later step,
+        # and each step is its own shell.
+        shell: bash
+        run: |
+          user=$(id -un)
+          uid=$(id -u)
+          sudo loginctl enable-linger "$user"
+          # logind creates the runtime directory and starts the user manager
+          # asynchronously; the bus socket appearing is the signal that it is up.
+          for _ in $(seq 1 30); do
+            [ -S "/run/user/$uid/bus" ] && break
+            sleep 1
+          done
+          {
+            echo "XDG_RUNTIME_DIR=/run/user/$uid"
+            echo "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$uid/bus"
+          } >> "$GITHUB_ENV"
+          export XDG_RUNTIME_DIR="/run/user/$uid"
+          export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus"
+          echo "-- linger and session state"
+          loginctl show-user "$user" --property=Linger --property=State || true
+          echo "-- user manager"
+          if ! systemctl --user is-system-running 2>&1; then
+            echo "::warning::No systemd user manager; healthchecks will not run."
+          fi
+
       - name: Set up rootless Podman
         shell: bash
         run: |
@@ -221,6 +258,15 @@ jobs:
 
           wait "$start_pid" || rc=$?
           echo "make start exited $rc on $(podman --version)"
+          # The point of the whole exercise: whether health is being evaluated
+          # at all. A timer per container with a healthcheck means the fix took;
+          # an empty list means it did not, whatever make start reported.
+          echo "::group::systemd user timers"
+          systemctl --user list-timers --all --no-pager 2>&1 | head -30 || true
+          echo "::endgroup::"
+          echo "::group::health status per container"
+          podman ps --all --format '{{.Names}}\t{{.Status}}' || true
+          echo "::endgroup::"
           echo "::group::tail of make start output"
           tail -30 /tmp/start.log || true
           echo "::endgroup::"
