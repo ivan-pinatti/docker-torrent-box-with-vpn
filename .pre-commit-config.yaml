@@ -49,8 +49,9 @@ repos:
   # subprocess hits "detected dubious ownership in repository at '/src'",
   # logs it to stderr, scans 0 commits and still exits 0: a secret scan that
   # silently checks nothing and reports success. Confirmed live against
-  # v8.30.1, and it is the same failure .mega-linter.yml documented for
-  # betterleaks. Built by pre-commit's own Go toolchain, the repository is
+  # v8.30.1, and it is the same failure the MegaLinter config documented for
+  # betterleaks before it was removed. Built by pre-commit's own Go toolchain,
+  # the repository is
   # owned by the user running the scan and the problem does not arise.
   #
   # Reads .gitleaks.toml (same custom rules as the staged hook) and
@@ -248,7 +249,7 @@ repos:
   # runtime state is invisible to it. These three walk directories directly,
   # which is how trivy previously timed out at its full 300s walking data/,
   # a mount of a multi-terabyte SMB share once STORAGE_REMOTE is set. The lists
-  # below restate .mega-linter.yml's EXCLUDED_DIRECTORIES for that reason.
+  # below are what MegaLinter's EXCLUDED_DIRECTORIES covered, for that reason.
   - repo: local
     hooks:
       # checkov's own pre-commit hook is `files: \.tf$`, so it would never fire
@@ -274,9 +275,10 @@ repos:
         always_run: true
         require_serial: true
 
-      # Kept for defense in depth, exactly as .mega-linter.yml describes: it is
-      # not the thing catching app credentials, but it does detect AWS keys,
-      # GitHub PATs and PEM private keys.
+      # Kept for defense in depth: it is not the thing catching app
+      # credentials, but it does detect AWS keys, GitHub PATs and PEM private
+      # keys. Measured against the nine credential shapes in this repo's own
+      # config files, it caught none; see docs/HARDENING.md.
       #
       # Run through the container rather than a Go build because trivy is a
       # large Go project and building it would dominate a cold pre-commit cache.
@@ -305,8 +307,8 @@ repos:
         always_run: true
         require_serial: true
 
-      # ENV_DOTENV_LINTER was listed in .mega-linter.yml's ENABLE_LINTERS and
-      # never ran: it produced no entry at all in a full-codebase run, not even
+      # MegaLinter listed this linter as enabled and never ran it: it produced
+      # no entry at all in a full-codebase run, not even
       # an inactive one, so .env.example has in practice never been style
       # checked. It is enabled here because it was meant to be on.
       #
