@@ -3,7 +3,7 @@
 
   // Dependabot handles pre-commit hooks, GitHub Actions, and the Python
   // packages in tests/requirements.txt — see dependabot.yml.
-  // Renovate handles Docker image versions pinned in .env, and the Python
+  // Renovate handles Docker image versions pinned in .env.example, and the Python
   // packages pinned inline in workflow `run:` steps, both via # renovate:
   // annotations. Those inline pins are the seam between the two tools:
   // Dependabot's pip ecosystem reads requirements files and would never see a
