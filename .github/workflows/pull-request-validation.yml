@@ -277,19 +277,6 @@ jobs:
             --report-format sarif --report-path /src/sarif/gitleaks.sarif . \
             2>&1 | tee gitleaks.log || true
 
-      # A separate step, and the only one here without continue-on-error, which
-      # applies to a whole step and would have reduced the exit below to a
-      # warning. That is the entire point of the assertion: a scan of zero
-      # commits is the failure this job exists to make impossible to miss, so it
-      # has to be able to fail the job.
-      - name: Assert the secret scan covered the history
-        run: |
-          if [ ! -s gitleaks.log ] || grep -q '0 commits scanned' gitleaks.log; then
-            echo "::error::gitleaks scanned 0 commits, the report is meaningless"
-            exit 1
-          fi
-          grep -o '[0-9]* commits scanned' gitleaks.log | tail -1
-
       - name: Hadolint
         continue-on-error: true
         # renovate: datasource=docker depName=hadolint/hadolint
@@ -352,6 +339,36 @@ jobs:
         with:
           sarif_file: sarif
           category: security-scanners
+
+      # Last, and the only step here without continue-on-error, so it is the one
+      # thing that can fail this job. A scan of zero commits is the failure the
+      # secret scanning exists to make impossible to miss, and continue-on-error
+      # applies to a whole step, so anywhere else it would be a warning.
+      #
+      # It runs after the uploads rather than straight after the scan. Sitting
+      # between the scanners, a failure here skipped Hadolint and Zizmor and
+      # their reports never reached the Security tab, which is the opposite of
+      # what a reporting job should do when something looks wrong.
+      #
+      # The count is compared as a number. `grep -q '0 commits scanned'` looks
+      # like it tests for zero and does not: it is a substring match, so it also
+      # fires on "400 commits scanned" and on any total ending in a zero. That
+      # is exactly what happened on PR #52, where a healthy 400 commit scan
+      # failed this job, while 469 and 459 on the two runs before it passed.
+      - name: Assert the secret scan covered the history
+        if: always()
+        run: |
+          count="$(grep -oE '[0-9]+ commits scanned' gitleaks.log 2>/dev/null \
+            | tail -1 | grep -oE '^[0-9]+')"
+          if [ -z "$count" ]; then
+            echo "::error::gitleaks reported no commit count, the scan did not run"
+            exit 1
+          fi
+          if [ "$count" -eq 0 ]; then
+            echo "::error::gitleaks scanned 0 commits, the report is meaningless"
+            exit 1
+          fi
+          echo "gitleaks scanned $count commits"
 
   changes:
     name: Detect Changed Paths
