@@ -27,6 +27,19 @@ CLAUDE.md
 *.swo
 *~
 node_modules/
+# Nothing writes this any more: MegaLinter was replaced by pre-commit hooks in
+# PR #50 and its config is gone. The entry stays deliberately, because a clone
+# that predates that change still has the directory on disk, and it is the kind
+# of generated output that gets swept into a `git add -A` without anyone
+# noticing. One line here is cheaper than a commit that has to be undone.
+#
+# Two places guard against that stale directory, and only two, because they are
+# the two that look at the filesystem rather than at what git tracks: this file,
+# and trivy's --skip-dirs in .pre-commit-config.yaml, which scans from the
+# repository root. The backup needs no such entry, and had one until PR #51:
+# every tar archives `.env certs configs` by name, so a top-level directory is
+# never a candidate and excluding it did nothing. Remove both once no working
+# copy is old enough to still have the directory.
 megalinter-reports/
 
 # dotenv ###

@@ -61,7 +61,6 @@ def _fixture(root: Path) -> None:
 
     _write(root / ".git/config", "[core]\n")
     _write(root / "tests/test_placeholder.py", "def test_placeholder(): pass\n")
-    _write(root / "megalinter-reports/report.txt", "report\n")
     _write(root / "data/torrents/file", "download\n")
 
 
@@ -142,7 +141,6 @@ def test_backup_full_keeps_app_artwork_but_not_repo_or_media_state(tmp_path):
     assert "configs/jellyfin/config/.aspnet/DataProtection-Keys/key.xml" not in names
     assert ".git/config" not in names
     assert "tests/test_placeholder.py" not in names
-    assert "megalinter-reports/report.txt" not in names
     assert "data/torrents/file" not in names
 
 

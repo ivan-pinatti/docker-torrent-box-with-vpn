@@ -96,6 +96,14 @@ RESTORE_SAFETY_ARCHIVE := $(BACKUP_DIR)/pre-restore-$(BACKUP_TIMESTAMP).tar.gz
 # from every backup this repo has ever taken, which was discovered the worst
 # possible way, when a restore could not put them back. `cache` and `logs`
 # below are unanchored on purpose: dropping those at any depth is intended.
+#
+# Comments have to live here rather than beside the flag they describe: the
+# list below is one backslash-continued logical line, so a `#` among the flags
+# would comment out every exclude after it and silently shrink this list.
+#
+# By the same token, a name here only earns its place if it can appear *under*
+# `.env`, `certs` or `configs`. An exclude for a top-level directory does
+# nothing, because a top-level directory is never handed to tar to begin with.
 COMMON_BACKUP_EXCLUDES := \
 	--exclude=.git \
 	--exclude=.codex \
@@ -106,7 +114,6 @@ COMMON_BACKUP_EXCLUDES := \
 	--exclude='*.pid' \
 	--exclude=cache \
 	--exclude=logs \
-	--exclude=megalinter-reports \
 	--exclude=node_modules \
 	--exclude=storage \
 	--exclude=tests \
