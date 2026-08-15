@@ -317,10 +317,22 @@ jobs:
       - name: Discard unusable reports
         if: always()
         run: |
+          # Shape, not just well-formed JSON. A scanner that fails part way can
+          # emit a perfectly valid JSON error object, which would pass a bare
+          # json.load and still be rejected by upload-sarif, taking the rest of
+          # the directory with it. Checking for a version and a runs list is
+          # what separates a report from any other JSON document, without
+          # pulling in a schema validator to do it.
           for f in sarif/*.sarif; do
             [ -e "$f" ] || continue
-            if [ ! -s "$f" ] || ! python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$f" 2>/dev/null; then
-              echo "::warning::$f is empty or not valid JSON, not uploading it"
+            if [ ! -s "$f" ] || ! python3 -c '
+          import json, sys
+          d = json.load(open(sys.argv[1]))
+          assert isinstance(d, dict), "not an object"
+          assert str(d.get("version", "")).startswith("2.1"), "not SARIF 2.1.0"
+          assert isinstance(d.get("runs"), list), "no runs array"
+          ' "$f" 2>/dev/null; then
+              echo "::warning::$f is empty or not a SARIF 2.1.0 report, not uploading it"
               rm -f "$f"
             fi
           done
