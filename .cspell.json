@@ -1,4 +1,5 @@
 {
+  "description": "ignorePaths covers generated trees for a standalone `cspell .` run. The pre-commit hook never needs them, because pre-commit only ever hands it files git tracks, and all three are gitignored. megalinter-reports is no longer written at all since PR #50; it stays for a clone old enough to still have the directory on disk. See .pre-commit-config.yaml.",
   "dictionaries": [
     "clear",
     "code",

@@ -249,6 +249,18 @@ repos:
           - "--config"
           - ".cspell.json"
           - "--files"
+        # This `exclude` is the one that decides what the hook checks. The
+        # `ignorePaths` list inside .cspell.json does nothing here and is kept
+        # anyway: all three entries (.git, node_modules, megalinter-reports) are
+        # gitignored, and pre-commit only ever hands a hook files that git
+        # tracks, so cspell never sees them to begin with. They earn their place
+        # for a standalone `cspell .`, which walks the working tree and would
+        # otherwise spend its time in a node_modules tree or a pack file.
+        # megalinter-reports is the same case one step further on: nothing has
+        # written it since PR #50, and it stays only for a clone old enough to
+        # still have the directory. Documented in .cspell.json's own
+        # `description` field, since JSON cannot carry a comment and check-json
+        # validates that file.
         exclude: '^patches/|^configs/.*/config/|^configs/.*/custom-(cont-init|services)\.d/|^\.gitleaksignore$'
 
   # CI runs `pre-commit run --all-files`, while the commit-stage hooks only ever
