@@ -143,7 +143,9 @@ Neither backup mode includes media/download libraries or repository-only state:
 
 - `.git/`
 - `tests/`
-- `megalinter-reports/`
+- `megalinter-reports/` (nothing writes this since MegaLinter was replaced by
+  pre-commit hooks; the exclusion is kept because `tar` walks the filesystem,
+  so a stale copy in an older clone would otherwise be archived)
 - `data/` (includes `data/media/`, the actual media library)
 - `storage/`
 - `cache/`

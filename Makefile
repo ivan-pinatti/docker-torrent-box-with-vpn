@@ -96,6 +96,18 @@ RESTORE_SAFETY_ARCHIVE := $(BACKUP_DIR)/pre-restore-$(BACKUP_TIMESTAMP).tar.gz
 # from every backup this repo has ever taken, which was discovered the worst
 # possible way, when a restore could not put them back. `cache` and `logs`
 # below are unanchored on purpose: dropping those at any depth is intended.
+#
+# `megalinter-reports` is kept although nothing writes it since MegaLinter was
+# replaced by pre-commit hooks in PR #50. tar walks the filesystem rather than
+# asking git, which is why `cache`, `logs` and `node_modules` are all listed
+# despite being gitignored, and a stale megalinter-reports/ left behind in an
+# older clone would land in the backup for exactly the same reason. The
+# .gitignore entry survives on the same grounds, and tests/test_backup.py
+# asserts this one, so the three move together or not at all.
+#
+# Note the comments have to live here rather than beside the flag they describe:
+# every line below is one backslash-continued logical line, so a `#` among them
+# would comment out every remaining exclude and silently shrink this list.
 COMMON_BACKUP_EXCLUDES := \
 	--exclude=.git \
 	--exclude=.codex \
