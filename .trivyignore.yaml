@@ -5,9 +5,9 @@
 # checks, so an inline comment is silently ignored and the suppression has to
 # live here. Verified against trivy 0.71.2.
 #
-# Read by MegaLinter via REPOSITORY_TRIVY_ARGUMENTS in .mega-linter.yml, which
-# passes --ignorefile explicitly: trivy auto-detects a plain `.trivyignore`
-# but not the YAML form, and only the YAML form supports per-path scoping.
+# Passed explicitly by the trivy pre-commit hook via --ignorefile: trivy
+# auto-detects a plain `.trivyignore` but not the YAML form, and only the YAML
+# form supports per-path scoping.
 #
 # The equivalent checkov skips (CKV_DOCKER_3, CKV_DOCKER_2) are inline in the
 # Dockerfiles themselves, because checkov's comment form does work for these.

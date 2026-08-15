@@ -145,7 +145,7 @@ if matches_flags "${AT_COMMAND}${WRAPPERS}${GIT}${GIT_OPTIONS}[[:space:]]+commit
 fi
 
 if matches_flags "${AT_COMMAND}${WRAPPERS}${GIT}${GIT_OPTIONS}[[:space:]]+push[[:space:]]${ARGUMENTS_BEFORE}--no-verify([[:space:]]|\$)"; then
-  deny "git push --no-verify is not allowed in this repository. It skips the pre-push hooks, which run the full MegaLinter pass including the secret scanners."
+  deny "git push --no-verify is not allowed in this repository. It skips the pre-push hooks, which are where the full-history secret scan and the project scanners run."
 fi
 
 # 3. Committing where the hooks were never installed. On 2026-08-12 two commits
@@ -154,10 +154,10 @@ fi
 #    `git clone` just does not install them, and the result is indistinguishable
 #    from a clean run.
 #
-#    Scoped to commit. push is left alone deliberately: pre-push runs the full
-#    MegaLinter pass, which is slow enough that blocking on its absence would
-#    cost more than it catches, and rule 1 still refuses an explicit
-#    --no-verify there.
+#    Scoped to commit. push is left alone deliberately: pre-push runs the
+#    project scanners over the whole repository, which is slow enough that
+#    blocking on its absence would cost more than it catches, and rule 1 still
+#    refuses an explicit --no-verify there.
 if matches_verbs "${AT_COMMAND}${WRAPPERS}${GIT}${GIT_OPTIONS}[[:space:]]+commit([[:space:]]|\$)"; then
   command -v git >/dev/null 2>&1 || exit 0
 

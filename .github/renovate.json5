@@ -152,6 +152,31 @@
         "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s*\\n\\s*pip install [^\\s=]+==(?<currentValue>[^\\s]+)",
       ],
     },
+    {
+      customType: "regex",
+      // Versions pinned inside `repo: local` hooks in .pre-commit-config.yaml.
+      //
+      // Dependabot's pre-commit ecosystem updates the `rev:` of a hook
+      // repository and nothing else, so these four pins are invisible to it:
+      // two `additional_dependencies` entries (gitleaks, checkov) and two
+      // container image tags inside a hook's `entry:` (trivy, dotenv-linter).
+      // Before the MegaLinter removal all four were carried by that single
+      // pinned image, and Dependabot did keep it current. Without this manager
+      // they would silently rot, which for a secret scanner and two security
+      // scanners is the worst place to have a stale pin.
+      //
+      // The second pattern tolerates lines between the annotation and the tag
+      // because `entry:` is a folded block scalar and a comment cannot live
+      // inside one. It is bounded rather than open-ended, and currentValue must
+      // start with a digit, so it cannot run on into a later hook or match the
+      // `trivy-cache:/root/...` volume argument on the same line.
+      managerFilePatterns: ["/^\\.pre-commit-config\\.yaml$/"],
+      matchStrings: [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s*\\n\\s*additional_dependencies: \\[\"[^\"]+?(?:==|@v?)(?<currentValue>[0-9][^\"]*)\"\\]",
+        "# renovate: datasource=docker depName=(?<depName>[^\\s]+)[\\s\\S]{0,900}?(?:[a-z0-9][a-z0-9._-]*/)+[a-z0-9._-]+:(?<currentValue>\\d[\\w.\\-]*)",
+      ],
+      datasourceTemplate: "docker",
+    },
   ],
 
   // Keep the digests current alongside the tags. Every image that names a

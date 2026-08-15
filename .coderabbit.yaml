@@ -8,9 +8,9 @@ language: en-US
 reviews:
   auto_review:
     # CodeRabbit is a GitHub App posting a check, not a workflow job, so it
-    # cannot be ordered after the linters with `needs:` the way the MegaLinter
-    # job now is. Skipping drafts is the only lever, and it is the one that
-    # matters: open a pull request as a draft, let pre-commit and MegaLinter
+    # cannot be ordered after the linters with `needs:` the way a workflow job
+    # can. Skipping drafts is the only lever, and it is the one that matters:
+    # open a pull request as a draft, let the lint gate
     # finish, then mark it ready for review. CodeRabbit then reviews once,
     # against a diff the mechanical linters have already cleaned, instead of
     # re-reviewing after every formatting fix.
@@ -22,16 +22,16 @@ reviews:
   path_filters:
     # Vendored upstream source, bind-mounted to apply local patches. Not code
     # we author, so it shouldn't be reviewed as if it were (matches the
-    # EDITORCONFIG_EDITORCONFIG_CHECKER/BASH_SHFMT exclusion in .mega-linter.yml).
+    # editorconfig-checker/shfmt exclusions in .pre-commit-config.yaml).
     - "!patches/**"
     # Third-party arr-scripts bootstrap scripts, vendored the same way as
-    # patches/ (matches the BASH_SHELLCHECK exclusion in .mega-linter.yml).
+    # patches/ (matches the shellcheck exclusion in .pre-commit-config.yaml).
     - "!configs/*/custom-cont-init.d/**"
     - "!configs/*/custom-services.d/**"
   tools:
     dotenvLint:
-      # This repo runs dotenv-linter itself, via ENV_DOTENV_LINTER in
-      # .mega-linter.yml, so nothing is lost by not running it twice.
+      # This repo runs dotenv-linter itself, as a pre-commit hook, so nothing
+      # is lost by not running it twice.
       #
       # Its UnorderedKey rule is the reason for turning it off here. .env.example
       # is grouped by function with explanatory comments rather than sorted

@@ -3,8 +3,8 @@ name: Comment-Triggered Checks
 
 # Lets a maintainer comment on a PR to re-run checks against its current
 # head without needing a new push:
-#   /run-check  -> pre-commit and MegaLinter (PR Validation's pr_check job and
-#                  the megalinter job that follows it, via job_scope: checks)
+#   /run-check  -> the lint gate (PR Validation's pr_check job, via
+#                  job_scope: checks)
 #
 # /run-tests is handled by integration-tests.yml, which runs the suite in the
 # workflow the comment triggers rather than dispatching anything. See that file

@@ -161,19 +161,24 @@ Several layers, because no single one covers the whole problem.
 | --- | --- | --- |
 | `configs/*/.gitignore` | always | Each starts with a blanket `*` and re-includes only the files that belong in git |
 | gitleaks (pre-commit) | every commit | The staged diff only |
-| betterleaks (MegaLinter, CI) | every pull request | Only the PR's commits, via `REPOSITORY_BETTERLEAKS_PR_COMMITS_SCAN` |
-| betterleaks (MegaLinter, outside a PR) | `make sanity_full` | Full git history, about 250ms for this repo |
+| gitleaks (pre-push and CI) | every push, every pull request | Full git history, well under a second for this repo |
 
-Nothing rescans the whole history on every commit. The per-commit and per-PR
-layers are both incremental; the full sweep only happens outside a pull
-request, and at this repo's size it is not worth optimizing away.
+Nothing rescans the whole history on every commit. The per-commit layer is
+incremental; the full sweep runs at push time and in CI, and at this repo's
+size it is not worth optimizing away.
 
 Both layers read `.gitleaks.toml`, so a rule added there applies to the fast
-staged-diff check and the CI check alike. MegaLinter is configured to run
-betterleaks in `git` mode rather than its default filesystem `dir` mode,
-because `dir` walks the disk: this working tree holds live credentials by
-design in gitignored paths, and a local `dir` run reports thousands of findings
-that are not in git and never will be.
+staged-diff check and the CI check alike. Both also read commits rather than
+the working tree, which matters: a filesystem scan walks the disk, and this
+working tree holds live credentials by design in gitignored paths, so a local
+`gitleaks dir` run reports thousands of findings that are not in git and never
+will be.
+
+The history scan is a Go binary that pre-commit builds, deliberately not a
+container. Run as `docker run -v $PWD:/src gitleaks git`, gitleaks' own git
+subprocess reports `detected dubious ownership in repository at '/src'`, logs
+it to stderr, scans zero commits and still exits 0: a secret scan that checks
+nothing and reports success. Confirmed against gitleaks v8.30.1.
 
 ### Why the custom rules exist
 
@@ -202,7 +207,7 @@ prefix form instead. A trailing `$` outside a group behaves normally.
 To audit a branch by hand:
 
 ```shell
-betterleaks git . -c .gitleaks.toml --log-opts="main..HEAD"
+gitleaks git . -c .gitleaks.toml --log-opts="main..HEAD"
 ```
 
 ### Live application state

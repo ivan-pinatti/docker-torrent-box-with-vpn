@@ -25,7 +25,7 @@ welcome your pull requests.
 
 | Stage | What runs | What you do |
 | --- | --- | --- |
-| Open as a **draft** | `Code Check` (pre-commit), then `MegaLinter` if it passes | Fix whatever they report |
+| Open as a **draft** | `Code Check` (the pre-commit hooks) | Fix whatever it reports |
 | **Mark ready for review** | CodeRabbit reviews (it skips drafts) | Address its comments, pushing fixes |
 | Comment **`/run-tests`** | The integration suite, against your PR | Wait for it to go green |
 | Merge | | |
@@ -52,11 +52,10 @@ maintainer will comment for you.
    the hooks over, and a commit made without them runs no checks at all while
    still reporting success, so nothing tells you they were missing until CI
    fails on something the hooks catch locally.
-4. MegaLinter runs incrementally at `pre-commit` and as a broader gate at
-   `pre-push`, while the focused hooks still run directly in `pre-commit`. CI
-   uses its `cupcake` flavor, a 2.64 GB download rather than the default
-   image's 4.77 GB, which carries every linter this repository enables. The one
-   it does not carry, bandit, is a pre-commit hook instead.
+4. The hooks are split across two stages. `pre-commit` runs the fast,
+   file-scoped ones against what you changed. `pre-push` adds the four that
+   walk the whole repository rather than a list of files: the full-history
+   secret scan, checkov, trivy, and the documentation link check.
    `pre-push` also sweeps the fast hooks across every file, which is the scope
    CI uses. Without that sweep a violation in a file your branch never touched
    passes locally and fails in CI, which is what a linter version bump
@@ -68,13 +67,13 @@ maintainer will comment for you.
 7. Checks run in order rather than all at once, so a cheap failure is not paid
    for twice, and the review flow is:
 
-   1. **Open the pull request as a draft.** `Code Check` (pre-commit) runs
-      first and `MegaLinter` only once that passes. CodeRabbit skips drafts.
-   2. **Mark it ready for review once both are green.** That is what starts
+   1. **Open the pull request as a draft.** `Code Check` runs the hooks over
+      every file, at both stages. CodeRabbit skips drafts.
+   2. **Mark it ready for review once it is green.** That is what starts
       CodeRabbit, so it reviews an already-clean diff once, rather than
       re-reviewing after every formatting fix.
    3. **Address the review, pushing fixes as needed.** Each push re-runs the
-      two lint layers, and CodeRabbit re-reviews.
+      lint gate, and CodeRabbit re-reviews.
    4. **Comment `/run-tests` once the review is settled.** The suite never runs
       on a push. It stands the whole stack up and takes upward of twelve
       minutes, so it is worth spending once, on the version you intend to
@@ -149,14 +148,13 @@ app developer whom I greatly respect.
 ## Use a Consistent Coding Style
 
 The repository is already using some tools to help with that. Make sure you are
-running the pre-commit hooks and allowing MegaLinter to run both locally and in
-pull requests before sending changes upstream.
+running the pre-commit hooks, at both stages, before sending changes upstream.
 
 - 2 spaces for indentation rather than tabs
 - Use `make sanity_fast` for the normal local validation path
 - Use `make sanity_full` before pushing. The pre-commit gitleaks hook only sees
-  the staged diff; MegaLinter's betterleaks pass scans commits, narrowed to the
-  pull request's own commits when running on a PR. See docs/HARDENING.md
+  the staged diff, while the pre-push pass scans the full git history. See
+  docs/HARDENING.md
 - Use `make sanity_full` when you need the full repository security/IaC pass
 - Dependabot handles weekly hook and workflow version bump PRs; major updates
   are left for manual review

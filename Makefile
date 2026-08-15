@@ -636,8 +636,8 @@ sanity_fast:
 	@pre-commit run --all-files
 
 sanity_full: sanity_fast
-	@echo "Running full MegaLinter push checks..."
-	@pre-commit run megalinter-full --hook-stage pre-push --all-files
+	@echo "Running full push checks (history secret scan, checkov, trivy, links)..."
+	@SKIP=all-files-sweep pre-commit run --all-files --hook-stage pre-push
 
 build_images:
 	@echo "Building custom container images..."

@@ -66,6 +66,7 @@
     "appbackups",
     "applyuidgid",
     "apsw",
+    "aquasec",
     "arcdir",
     "argjson",
     "arr",
@@ -193,6 +194,7 @@
     "dorama",
     "dorny",
     "dotenv",
+    "dotenvlinter",
     "Downloaders",
     "downloaders",
     "downloadfailed",
@@ -394,6 +396,7 @@
     "Millis",
     "minseeds",
     "minsize",
+    "misconfig",
     "misroute",
     "mktemp",
     "MOBI",
@@ -738,6 +741,7 @@
     "yadif",
     "yamllint",
     "yourpassword",
-    "zoneinfo"
+    "zoneinfo",
+    "zricethezav"
   ]
 }

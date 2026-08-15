@@ -38,6 +38,37 @@ repos:
       - id: gitleaks
         exclude: *placeholder_credentials
 
+  # The commit-stage gitleaks hook above scans the staged diff only, which is
+  # the fast answer and the wrong one for history: a credential committed on an
+  # earlier commit of the same branch is not in any later staged diff. This is
+  # the full-history scan that MegaLinter's betterleaks used to provide, moved
+  # to pre-push so it runs once per push rather than once per commit.
+  #
+  # Deliberately a host binary rather than a container. Run as
+  # `docker run -v $PWD:/src zricethezav/gitleaks git`, gitleaks' own git
+  # subprocess hits "detected dubious ownership in repository at '/src'",
+  # logs it to stderr, scans 0 commits and still exits 0: a secret scan that
+  # silently checks nothing and reports success. Confirmed live against
+  # v8.30.1, and it is the same failure .mega-linter.yml documented for
+  # betterleaks. Built by pre-commit's own Go toolchain, the repository is
+  # owned by the user running the scan and the problem does not arise.
+  #
+  # Reads .gitleaks.toml (same custom rules as the staged hook) and
+  # .gitleaksignore (fingerprints for findings that only exist in already
+  # published history). See docs/HARDENING.md.
+  - repo: local
+    hooks:
+      - id: gitleaks-history
+        name: Scan the full git history for secrets
+        entry: gitleaks git --redact --config .gitleaks.toml .
+        language: golang
+        # renovate: datasource=go depName=github.com/zricethezav/gitleaks/v8
+        additional_dependencies: ["github.com/zricethezav/gitleaks/v8@v8.30.1"]
+        stages: [pre-push]
+        pass_filenames: false
+        always_run: true
+        require_serial: true
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
@@ -70,6 +101,17 @@ repos:
       - id: trailing-whitespace
         args: ["--markdown-linebreak-ext=md"]
         exclude: *app_managed_or_patches
+      # Replaces MegaLinter's BASH_EXEC, which checked that shell scripts carry
+      # the executable bit. Scoped to shell here for the same reason: run
+      # unscoped it also flags scripts/*.py, and those two are invoked as
+      # `python3 scripts/foo.py` or bind-mounted into a container, never as
+      # ./foo.py, so their shebang is documentation rather than an entry point.
+      # patches/ is excluded as it is everywhere else in this file: vendored
+      # upstream source, not ours to fix. That one file, patches/jdownloader2/
+      # 10-webauth.sh, is the only path BASH_EXEC covered that this does not.
+      - id: check-shebang-scripts-are-executable
+        types: [shell]
+        exclude: &vendored_patches '^patches/'
       - id: check-ast
         files: ^tests/
       - id: debug-statements
@@ -81,7 +123,7 @@ repos:
     rev: 3.8.0
     hooks:
       - id: editorconfig-checker
-        exclude: &vendored_patches '^patches/'
+        exclude: *vendored_patches
 
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: v0.11.0.1
@@ -113,6 +155,44 @@ repos:
       - id: ruff-format
         files: ^tests/
 
+  # Pinned to the actionlint MegaLinter ran (v1.7.12), so the switch cannot
+  # change which findings appear. The hook carries its own
+  # `files: ^\.github/workflows/`, which selects the same five workflows
+  # ACTION_ACTIONLINT did; verified by comparing against its file list.
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
+
+  # Pinned to cspell 10.0.1, the exact version the cupcake image carried. That
+  # pin is the point: the standalone cspell hook was previously removed from
+  # this file because it resolved its own dictionary packages, so `dockerhub`
+  # was present in its copy of @cspell/dict-software-tools and absent from the
+  # image's, and a word could pass locally and fail CI. With MegaLinter gone
+  # there is only one cspell, and this is it, so the two dictionaries cannot
+  # disagree any more.
+  #
+  # Same exclude list SPELL_CSPELL used. This selects more files than MegaLinter
+  # did (dotfiles and .gitkeep placeholders it skipped) and fewer of the wrong
+  # ones: MegaLinter walked the working tree, so a run here failed on a
+  # gitignored file under tests/.venv/bin/ whose name carries a non-ASCII
+  # character, and which does not exist in CI at all. pre-commit only ever sees
+  # files git knows about.
+  - repo: https://github.com/streetsidesoftware/cspell-cli
+    rev: v10.0.1
+    hooks:
+      - id: cspell
+        args:
+          - "--no-must-find-files"
+          - "--no-progress"
+          - "--no-summary"
+          - "--show-context"
+          - "--show-suggestions"
+          - "--config"
+          - ".cspell.json"
+          - "--files"
+        exclude: '^patches/|^configs/.*/config/|^configs/.*/custom-(cont-init|services)\.d/|^\.gitleaksignore$'
+
   # CI runs `pre-commit run --all-files`, while the commit-stage hooks only ever
   # see staged files and the push-stage ones only the range being pushed. A
   # violation in a file the branch never touched therefore passes locally and
@@ -120,23 +200,23 @@ repos:
   # same sweep CI does, before the push rather than after it.
   #
   # It cannot recurse: `pre-commit run --all-files` selects the pre-commit
-  # stage, and this hook is pre-push only. megalinter-incremental is skipped
-  # inside it because under --all-files that is the same work megalinter-full
-  # does immediately afterwards, and doing it twice costs about four minutes
-  # for one answer.
+  # stage, and this hook is pre-push only. That is also why the pre-push
+  # scanners above are not repeated by it, and why CI has to ask for the
+  # pre-push stage explicitly rather than getting it from --all-files.
   - repo: local
     hooks:
       - id: all-files-sweep
         name: Run the fast hooks over every file, as CI does
-        entry: env SKIP=megalinter-incremental pre-commit run --all-files
+        entry: pre-commit run --all-files
         language: system
         stages: [pre-push]
         pass_filenames: false
         always_run: true
 
-  # Moved out of MegaLinter with the switch to its cupcake flavor, which is the
-  # one linter that flavor does not carry. Same scope and skip list it had
-  # there: tests/ only, and B101 (assert) because pytest is built on it.
+  # Was moved out of MegaLinter when this repository switched to the cupcake
+  # flavor, the one linter that flavor did not carry, and stayed here when the
+  # rest followed. Scope and skip list are unchanged: tests/ only, and B101
+  # (assert) because pytest is built on it.
   - repo: https://github.com/PyCQA/bandit
     rev: 1.9.4
     hooks:
@@ -145,26 +225,115 @@ repos:
         exclude: ^tests/\.venv/
         args: ["--skip", "B101,B105,B314,B404,B405,B501,B603,B607"]
 
-  # Pinned to the same flavor and release CI runs. The standalone cspell hook
-  # used to live above this and was removed: it resolved its own dictionary
-  # packages, so `dockerhub` was present in its copy of @cspell/dict-software-
-  # tools and absent from the image's, and a word could pass every local hook
-  # and still fail CI. Two spellcheckers with different dictionaries are worse
-  # than one, and MegaLinter's is the one that decides the build.
+  # Link checking makes real network requests, so it is pre-push rather than
+  # pre-commit: a commit should not depend on whether every host in the docs is
+  # reachable right now. Pinned to lychee 0.24.2, the version MegaLinter ran.
   #
-  # Without --flavor this pulls the default image, whose cspell is 9.7.0 against
-  # cupcake's 10.0.1, which is the same divergence one level down.
-  - repo: https://github.com/oxsecurity/megalinter
-    rev: v9.6.0
+  # The files pattern is SPELL_LYCHEE_FILTER_REGEX_INCLUDE translated, and
+  # selects the same 41 files. lychee finds lychee.toml and .lycheeignore on its
+  # own from the repository root, so neither is passed explicitly.
+  - repo: https://github.com/lycheeverse/lychee
+    rev: lychee-v0.24.2
     hooks:
-      - id: megalinter-incremental
-        stages: [pre-commit]
-        verbose: true
-        args: ["mega-linter-runner", "--flavor", "cupcake", "--release", "v9.6.0"]
-      - id: megalinter-full
+      - id: lychee-docker
         stages: [pre-push]
-        verbose: true
-        args: ["mega-linter-runner", "--flavor", "cupcake", "--release", "v9.6.0"]
+        files: '^(README|LICENSE|NOTICE)\.md$|^docs/.*\.md$|^\.github/(ISSUE_TEMPLATE/.*\.md|PULL_REQUEST_TEMPLATE\.md)$'
+
+  # The three project-mode scanners, all pre-push. They walk the workspace
+  # rather than a list of changed files, so there is nothing for them to do
+  # incrementally and running them per commit only costs time.
+  #
+  # The skip lists matter more here than anywhere else in this file. Every
+  # other hook is handed a list of files git already knows about, so gitignored
+  # runtime state is invisible to it. These three walk directories directly,
+  # which is how trivy previously timed out at its full 300s walking data/,
+  # a mount of a multi-terabyte SMB share once STORAGE_REMOTE is set. The lists
+  # below restate .mega-linter.yml's EXCLUDED_DIRECTORIES for that reason.
+  - repo: local
+    hooks:
+      # checkov's own pre-commit hook is `files: \.tf$`, so it would never fire
+      # in a repository with no Terraform. This runs it the way MegaLinter did,
+      # over the whole directory, and restates the two settings that came from
+      # MegaLinter's bundled .checkov.yml (quiet, and CKV_DOCKER_2 skipped)
+      # since that file goes away with it.
+      - id: checkov
+        name: Scan the repository for infrastructure misconfiguration
+        entry: >-
+          checkov --quiet --compact
+          --skip-check CKV_DOCKER_2
+          --skip-framework secrets
+          --skip-path configs --skip-path data --skip-path storage
+          --skip-path cache --skip-path logs --skip-path node_modules
+          --skip-path 'tests/\.venv'
+          --directory .
+        language: python
+        # renovate: datasource=pypi depName=checkov
+        additional_dependencies: ["checkov==3.3.2"]
+        stages: [pre-push]
+        pass_filenames: false
+        always_run: true
+        require_serial: true
+
+      # Kept for defense in depth, exactly as .mega-linter.yml describes: it is
+      # not the thing catching app credentials, but it does detect AWS keys,
+      # GitHub PATs and PEM private keys.
+      #
+      # Run through the container rather than a Go build because trivy is a
+      # large Go project and building it would dominate a cold pre-commit cache.
+      # The image tag is the trivy MegaLinter ran. `docker run` cannot be
+      # expressed as a docker_image hook here: that form gives no way to mount a
+      # writable cache, and trivy then dies with "mkdir /.cache: permission
+      # denied" the moment it tries to download its vulnerability database.
+      # Podman is accepted too, since it is the runtime this project documents.
+      - id: trivy
+        name: Scan the repository for vulnerabilities and misconfiguration
+        # renovate: datasource=docker depName=aquasec/trivy
+        entry: >-
+          bash -c 'runtime=$(command -v docker || command -v podman) || {
+          echo "trivy hook needs docker or podman on PATH" >&2; exit 1; };
+          exec "$runtime" run --rm -v "$PWD:/src:ro"
+          -v trivy-cache:/root/.cache/trivy -w /src aquasec/trivy:0.71.2
+          fs --scanners vuln,misconfig --exit-code 1 --skip-version-check
+          --ignorefile .trivyignore.yaml
+          --skip-dirs ./data --skip-dirs ./storage --skip-dirs ./cache
+          --skip-dirs ./logs --skip-dirs ./node_modules
+          --skip-dirs ./megalinter-reports --skip-dirs ./.pytest_cache
+          --skip-dirs ./tests/.venv .'
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+        always_run: true
+        require_serial: true
+
+      # ENV_DOTENV_LINTER was listed in .mega-linter.yml's ENABLE_LINTERS and
+      # never ran: it produced no entry at all in a full-codebase run, not even
+      # an inactive one, so .env.example has in practice never been style
+      # checked. It is enabled here because it was meant to be on.
+      #
+      # UnorderedKey is off because this file is deliberately grouped by concern
+      # (the UID/GID pair per service, then subnets, folders, versions, ports)
+      # and sorting it alphabetically would cost far more in readability than
+      # the check returns; it alone accounted for 154 of 155 findings. ValueWithoutQuotes
+      # is off for LOG_ROTATION_CRON, whose value is a cron expression: compose
+      # reads the unquoted form correctly today and changing it is a runtime
+      # change, not a lint fix.
+      #
+      # Upstream's own hook is `language: docker`, which builds a multi-arch
+      # Dockerfile that fails on the legacy docker builder with "invalid
+      # reference format". This uses the published image instead.
+      - id: dotenv-linter
+        name: Check .env.example style
+        # renovate: datasource=docker depName=dotenvlinter/dotenv-linter
+        entry: >-
+          bash -c 'runtime=$(command -v docker || command -v podman) || {
+          echo "dotenv-linter hook needs docker or podman on PATH" >&2; exit 1; };
+          exec "$runtime" run --rm -v "$PWD:/src:ro" -w /src
+          dotenvlinter/dotenv-linter:4.0.0 check --skip-updates
+          --ignore-checks UnorderedKey --ignore-checks ValueWithoutQuotes
+          .env.example'
+        language: system
+        files: '^\.env\.example$'
+        pass_filenames: false
 
   - repo: https://github.com/DavidAnson/markdownlint-cli2
     rev: v0.23.2

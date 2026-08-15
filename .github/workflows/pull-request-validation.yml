@@ -12,7 +12,7 @@ on:
   # this definition is never taken from the PR's own, potentially-modified
   # copy; pr_number only controls which commit gets checked out below.
   # job_scope narrows which jobs actually run for that comment: `/run-check`
-  # wants pr_check (pre-commit) and the MegaLinter job that follows it. There is
+  # wants pr_check, which is the whole lint gate on its own now. There is
   # no `tests` scope any more: the suite lives in integration-tests.yml and is
   # triggered by a `/run-tests` comment. A plain manual run (job_scope
   # left as "all") behaves like a normal pull_request-triggered run, except
@@ -66,6 +66,11 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/pull/{0}/head', inputs.pr_number) || github.ref }}
+          # The gitleaks-history hook scans commits, not the working tree. The
+          # default shallow clone (depth 1) has exactly one, so the secret scan
+          # would report success having looked at almost nothing. This was on
+          # the MegaLinter job before, for betterleaks, for the same reason.
+          fetch-depth: 0
 
       - name: Install shfmt
         # The jumanjihouse/pre-commit-hooks shfmt wrapper expects shfmt
@@ -92,19 +97,26 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      # --hook-stage pre-push, not the default. A hook with no `stages` key runs
+      # at every stage, so this selects all of them: the fast file-scoped hooks
+      # and, on top, the four that are pre-push only (gitleaks over the full
+      # history, checkov, trivy, and the link check). Plain
+      # `pre-commit run --all-files` selects the pre-commit stage alone, and
+      # those four would then be configured, green, and checking nothing.
+      #
+      # One invocation rather than one per stage, because running both would
+      # put every fast hook through the same work twice for one answer, which
+      # is what having a separate MegaLinter job used to cost.
+      #
+      # all-files-sweep is skipped because it *is* `pre-commit run --all-files`.
+      # It exists to give a local push the whole-repository view CI gets for
+      # free here, and running it would recurse into the work already in flight.
       - name: Pre-commit Run
         uses: pre-commit/action@v3.0.1
         with:
-          extra_args: --all-files
+          extra_args: --all-files --hook-stage pre-push
         env:
-          # .pre-commit-config.yaml runs megalinter-incremental at the
-          # pre-commit stage, which under --all-files is the same sweep the
-          # MegaLinter workflow already performs on the same commit. Both took
-          # very nearly four minutes, doing identical work and reporting the
-          # same failures twice. The standalone workflow keeps it, since that
-          # is the one with the reporter output and the uploaded artifacts;
-          # this job drops it and is left checking what only pre-commit checks.
-          SKIP: megalinter-incremental
+          SKIP: all-files-sweep
 
   prerequisites:
     name: Prerequisite Checks
@@ -165,55 +177,6 @@ jobs:
 
       - name: Create test venv and run prerequisite tests
         run: make test_prerequisites
-
-  megalinter:
-    name: MegaLinter
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    # Was its own workflow, which meant it ran alongside pre-commit rather than
-    # after it: a change that fails a pre-commit hook still spent ~4 minutes of
-    # runner time being told the same thing twice, in a different format. As a
-    # job it can wait for that answer. It is the slower and broader of the two
-    # lint layers, so it only makes sense to spend it once the fast one agrees.
-    needs: [pr_check]
-    if: >-
-      ${{ (github.event_name != 'workflow_dispatch' || inputs.job_scope != 'tests')
-      && needs.pr_check.result == 'success' }}
-    permissions:
-      contents: read
-      # write, not just read: MegaLinter's own GitHub Comment Reporter posts its
-      # findings as a PR comment, confirmed live to 403 without this. The
-      # workflow's own default is pull-requests: read, for the paths filter.
-      pull-requests: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/pull/{0}/head', inputs.pr_number) || github.ref }}
-          # betterleaks scans commits, and REPOSITORY_BETTERLEAKS_PR_COMMITS_SCAN
-          # resolves <target>^..<source>. The default shallow clone (depth 1)
-          # has neither ref, so the secret scan would silently cover nothing.
-          fetch-depth: 0
-
-      - name: MegaLinter
-        # The cupcake flavor, not the default image: 2.64 GB against 4.77 GB,
-        # and it carries every linter enabled in .mega-linter.yml. Checked by
-        # listing the binaries inside the image rather than trusting the
-        # descriptors, which claim a linter with no declared flavors belongs to
-        # every flavor and are wrong about it.
-        uses: oxsecurity/megalinter/flavors/cupcake@v9
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # betterleaks' own git invocation runs in a context that doesn't
-          # pick up a `git config --global` write, confirmed live: neither
-          # MegaLinter's own automatic safe.directory setup nor this
-          # workflow's own PRE_COMMANDS one prevented "detected dubious
-          # ownership" from betterleaks specifically. GIT_CONFIG_* env vars
-          # apply to any git subprocess that reads the environment,
-          # regardless of which $HOME/gitconfig file it would otherwise use.
-          GIT_CONFIG_COUNT: 1
-          GIT_CONFIG_KEY_0: safe.directory
-          GIT_CONFIG_VALUE_0: "*"
 
   changes:
     name: Detect Changed Paths

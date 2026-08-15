@@ -1,4 +1,4 @@
-# betterleaks / gitleaks fingerprint allowlist.
+# gitleaks fingerprint allowlist.
 #
 # Every entry is a credential that exists only in already-published history on
 # `main`, in an app config file this branch has since replaced with a sanitized
@@ -10,7 +10,7 @@
 #
 # A fingerprint is commit:path:rule:line, so this file holds no secret values.
 # Regenerate with:
-#   betterleaks git . --report-format json --report-path out.json
+#   gitleaks git . --report-format json --report-path out.json
 #   jq -r '.[].Fingerprint' out.json
 
 
