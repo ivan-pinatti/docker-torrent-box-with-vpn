@@ -81,8 +81,7 @@ Jellyfin's metadata library. Caches are **not** among them: `--exclude=cache`
 is unanchored and applies to both modes, so any directory named `cache` is
 dropped wherever it appears. That is deliberate, since the largest of them
 hold regenerable transcodes. It also does not include repository metadata,
-tests, linter reports, media/download libraries, observability storage, or
-dependencies.
+tests, media/download libraries, observability storage, or dependencies.
 
 ## Scheduling
 
@@ -143,9 +142,6 @@ Neither backup mode includes media/download libraries or repository-only state:
 
 - `.git/`
 - `tests/`
-- `megalinter-reports/` (nothing writes this since MegaLinter was replaced by
-  pre-commit hooks; the exclusion is kept because `tar` walks the filesystem,
-  so a stale copy in an older clone would otherwise be archived)
 - `data/` (includes `data/media/`, the actual media library)
 - `storage/`
 - `cache/`
