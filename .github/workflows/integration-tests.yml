@@ -232,10 +232,79 @@ jobs:
         # on Podman, not Docker.
         shell: bash
         run: |
+          # CI runs the archive's podman, not the one the runner image ships,
+          # and this is deliberate. It is also the one place where CI and a real
+          # bench differ on purpose, so it is worth being precise about why.
+          #
+          # The image's podman lives in /usr/local and is built without systemd
+          # support. Such a build cannot schedule healthcheck timers at all: it
+          # logs "New container has a health check" and then never creates one,
+          # so every container stays `starting` forever, nothing satisfies
+          # `depends_on: condition: service_healthy`, and `podman-compose up`
+          # waits on `podman wait --condition=healthy gluetun` until something
+          # kills it. Its bundled crun cannot even start a container under
+          # `--cgroup-manager=systemd` ("crun: systemd not supported"), and it
+          # reports `eventLogger: file` rather than journald, which is the tell
+          # for a build missing the systemd tag. No amount of environment fixes
+          # it: lingering, a user manager and a DBus address were all confirmed
+          # present and changed nothing.
+          #
+          # The distributions build podman with systemd support, which is why a
+          # Fedora bench runs 5.8.4 perfectly well and why the archive's 4.9.3
+          # passes the whole start path here unchanged. There is no podman 5
+          # package for this release, and adding a third party apt repository to
+          # reach one would put a new supplier inside CI's trust boundary to
+          # chase a version number, which is a worse trade than the gap it
+          # closes.
+          #
+          # So: CI on the archive's 4.9.3, benches on whatever their distribution
+          # ships (5.8.4 today, unchanged and not to be pinned down there), and
+          # `make bootstrap_tests` on a real bench stays the release gate for the
+          # runtime you actually run. What this job exercises is the compose
+          # files, the scripts, the wiring and the tests, none of which are
+          # podman-version-specific.
+          #
+          # conmon and crun come from the archive too: the binary alone is not
+          # the environment, and 4.9.3 driving the image's podman 5 helpers dies
+          # on the first container with "conmon failed: exit status 1".
+          target=$(apt-cache madison podman | awk '{print $3}' | grep -m1 '^4\.' || true)
+          if [ -z "$target" ]; then
+            echo "::error::No podman 4.x in the archive; see this step's comment."
+            exit 1
+          fi
+          sudo apt-get install -y --allow-downgrades "podman=$target" conmon crun
+          # apt writes /usr/bin, the image ships /usr/local/bin, and /usr/local
+          # wins on PATH. Without displacing it the install reports success and
+          # changes nothing, which cost one run before it was noticed. Renamed
+          # rather than deleted so the originals are still there to look at.
+          for path in /usr/local/bin/podman /usr/local/bin/conmon \
+                      /usr/local/bin/crun /usr/local/lib/podman; do
+            if [ -e "$path" ]; then
+              sudo mv "$path" "$path.shadowed"
+            fi
+          done
+          hash -r
+          command -v podman
+          podman --version
+          # Asserted, so a silent no-op can never again look like a working run.
+          if ! podman --version | grep -q ' 4\.'; then
+            echo "::error::Expected podman 4.x, got $(podman --version)."
+            exit 1
+          fi
           sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 "$(whoami)"
           podman system migrate
           podman info
-          pip install podman-compose
+          # Pinned so a release of podman-compose cannot change what CI tests
+          # without anything in this repository changing. Reproducibility, not a
+          # fix: 1.5.0 and 1.6.0 both hang against podman 5.8.4, so the version
+          # installed here is ruled out as the cause and podman is not.
+          #
+          # The annotation is what keeps the pin from rotting. Neither tool sees
+          # an inline `pip install` on its own: Dependabot's pip ecosystem reads
+          # tests/requirements.txt and nothing else, and Renovate needs telling.
+          # See the customManager in .github/renovate.json5.
+          # renovate: datasource=pypi depName=podman-compose
+          pip install podman-compose==1.5.0
           # tests/conftest.py's docker_client fixture talks to podman over
           # this exact socket path, not the CLI; nothing starts it by
           # default on ubuntu-latest, confirmed live (every container/auth
@@ -254,36 +323,31 @@ jobs:
           # RFC 1918 address works here since nothing on the runner resolves it.
           sed -i 's/^LAN_IP=192.168.1.x/LAN_IP=192.168.1.100/' .env
 
-      - name: Set up VPN (real key for this repository's branches, otherwise the local mock)
-        # The key is withheld from a fork's head, because this step runs after
-        # a checkout of that fork's code. A branch pushed into this repository
-        # took write access to push, so its code is trusted the same way this
-        # file is. That is exactly the split the pull_request trigger gave for
-        # free, restated by hand because a comment trigger does not.
+      - name: Point the VPN at the local mock
+        # Always the mock, never a real credential. There is no
+        # PROTONVPN_PRIVATE_KEY secret in this repository and there is not going
+        # to be one: the mock is what validates the VPN, here and in
+        # make bootstrap_tests. This step used to branch on that secret and fall
+        # back, which meant a branch that never ran, dressed as the primary
+        # path, and a step name that claimed CI might be testing against a real
+        # provider. It never has.
         #
-        # A fork run is not degraded by this: `make test_ci` below excludes the
-        # killswitch tier, which is the only one that exercises a real VPN
-        # credential, so the mock covers everything CI actually asserts.
-        env:
-          PROTONVPN_PRIVATE_KEY: ${{ needs.gate.outputs.is_fork == 'false' && secrets.PROTONVPN_PRIVATE_KEY || '' }}
+        # Nothing is lost by it. `make test_ci` below excludes the killswitch
+        # tier, the only one that exercises a real VPN credential.
+        #
+        # gluetun can't be skipped the way GLUETUN_PROFILE=disabled tries to:
+        # it's foundational, not optional the way other apps' profiles are,
+        # since every VPN-routed container's network_mode depends on it
+        # existing. Confirmed live: disabling its profile just makes make
+        # start's own explicit `up gluetun` call fail outright ("missing
+        # services [gluetun]") under podman-compose, which (unlike Docker
+        # Compose) doesn't let an explicitly named service override profile
+        # filtering. So it points at this repo's own credential-free mock
+        # WireGuard endpoint instead; see docs/VPN_MOCK.md.
         shell: bash
         run: |
-          if [ -n "$PROTONVPN_PRIVATE_KEY" ]; then
-            printf '%s\n' "$PROTONVPN_PRIVATE_KEY" > configs/gluetun/.secret
-          else
-            # gluetun can't actually be skipped the way GLUETUN_PROFILE=disabled
-            # tries to: it's foundational, not optional the way other apps'
-            # profiles are, since every VPN-routed container's network_mode
-            # depends on it existing. Confirmed live: disabling its profile just
-            # makes make start's own explicit `up gluetun` call fail outright
-            # ("missing services [gluetun]") under podman-compose, which (unlike
-            # Docker Compose) doesn't let an explicitly named service override
-            # profile filtering. Point it at this repo's own credential-free
-            # mock WireGuard endpoint instead, the same mechanism make
-            # bootstrap_tests already uses; see docs/VPN_MOCK.md.
-            sed -i 's/^VPN_MOCK_PROFILE=disabled/VPN_MOCK_PROFILE=enabled/' .env
-            ./scripts/seed-vpn-mock.sh
-          fi
+          sed -i 's/^VPN_MOCK_PROFILE=disabled/VPN_MOCK_PROFILE=enabled/' .env
+          ./scripts/seed-vpn-mock.sh
 
       - name: Read PYTHON_VERSION from .env
         shell: bash
@@ -382,7 +446,26 @@ jobs:
         # to more than 25 deliberately: the job cap stays the outer bound, and
         # these exist to name the culprit, not to replace it.
         timeout-minutes: 10
-        run: make start
+        # The step timing out on its own says only that something hung: the log
+        # ends on a container name with nothing after it, which is what four
+        # runs in a row reported. Interrupting a little before the cap and
+        # dumping state instead is what established that the stack does come up,
+        # every container `Up` with healthchecks still pending, and that it is
+        # `podman-compose up --detach` that never returns.
+        shell: bash
+        run: |
+          rc=0
+          timeout --signal=INT 420 make start || rc=$?
+          if [ "$rc" -ne 0 ]; then
+            echo "::group::podman ps -a"
+            podman ps -a --format '{{.Names}}\t{{.Status}}\t{{.Image}}' || true
+            echo "::endgroup::"
+            echo "::group::podman processes"
+            pgrep -a -f 'podman|conmon|make' || true
+            echo "::endgroup::"
+            echo "::error::make start did not finish (exit $rc)."
+            exit "$rc"
+          fi
 
       - name: Wait for containers to be ready
         timeout-minutes: 7

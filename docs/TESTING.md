@@ -70,10 +70,26 @@ pending status, `suite` checks the pull request's code out and runs it with a
 read-only token, and `publish` writes the result. Only `gate` and `publish` can
 write a status, and neither ever sees the code. A secret reaches `suite` only
 when the head branch lives in this repository, which takes write access to push
-to; a fork's run uses the credential-free VPN mock (see
-[docs/VPN_MOCK.md](VPN_MOCK.md)) and pulls images anonymously with a retry.
-Nothing in `make test_ci` asserts on a real VPN credential, since the
-`killswitch` tier is excluded, so a fork's run covers the same ground.
+to, and the only secret left there is the Docker Hub login: a fork pulls
+anonymously with a retry instead.
+
+The VPN is the credential-free mock (see [docs/VPN_MOCK.md](VPN_MOCK.md)) on
+every run, fork or not. There is no real provider credential in CI and there is
+not meant to be one. Nothing is lost by that: `make test_ci` excludes the
+`killswitch` tier, which is the only one that exercises a real VPN credential.
+
+CI also runs an older podman than a bench does, on purpose, and this is the one
+place the two deliberately differ. The `ubuntu-latest` image ships a podman
+built without systemd support, and such a build cannot schedule container
+healthchecks: every container stays `starting` indefinitely, nothing satisfies
+`depends_on: condition: service_healthy`, and the stack never finishes starting.
+The distributions build podman with systemd support, so a bench on 5.x is
+unaffected and needs no pinning; CI installs the Ubuntu archive's 4.x instead.
+Do not "fix" this by matching CI to your bench's version, and do not pin your
+bench to CI's. What the suite exercises is the compose files, scripts, wiring
+and tests, none of which are podman-version-specific, and
+`make bootstrap_tests` on a real bench remains the release gate for the runtime
+actually in use.
 
 `make test_extended` runs `make test` plus a fourth pass: `rinse_and_repeat`
 (stop/start and down/start lifecycle cycles), the single most expensive

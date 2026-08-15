@@ -131,12 +131,24 @@ jobs:
         # compose subcommand, which falls back to whichever compose
         # implementation it finds first, possibly Docker's own) matches
         # the Makefile's own COMPOSE resolution for local dev exactly.
+        #
+        # Deliberately not carrying integration-tests.yml's podman downgrade.
+        # That exists because the image's podman cannot run container
+        # healthchecks, and this job starts no containers: `make
+        # test_prerequisites` is pre-flight checks only. Adding it here would
+        # cost every pull request an apt install to change nothing.
         shell: bash
         run: |
           sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 "$(whoami)"
           podman system migrate
           podman info
-          pip install podman-compose
+          # Pinned to match integration-tests.yml, where the reasoning is: a
+          # release of podman-compose should not be able to change what CI tests
+          # without a change in this repository. Renovate keeps both in step
+          # through the annotation below; see the customManager in
+          # .github/renovate.json5.
+          # renovate: datasource=pypi depName=podman-compose
+          pip install podman-compose==1.5.0
 
       - name: Create .env file
         shell: bash

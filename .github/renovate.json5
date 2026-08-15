@@ -1,8 +1,15 @@
 {
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
 
-  // Dependabot handles pre-commit hooks and GitHub Actions — see dependabot.yml.
-  // Renovate handles Docker image versions pinned in .env via # renovate: annotations.
+  // Dependabot handles pre-commit hooks, GitHub Actions, and the Python
+  // packages in tests/requirements.txt — see dependabot.yml.
+  // Renovate handles Docker image versions pinned in .env.example, and the Python
+  // packages pinned inline in workflow `run:` steps, both via # renovate:
+  // annotations. Those inline pins are the seam between the two tools:
+  // Dependabot's pip ecosystem reads requirements files and would never see a
+  // `pip install foo==1.2.3` in a workflow, so a pin left unwatched there rots
+  // silently, which is how CI ended up installing whatever version of
+  // podman-compose happened to be current.
   extends: ["config:recommended"],
 
   // config:recommended enables a standing "Dependency Dashboard" issue that
@@ -85,6 +92,24 @@
       groupName: "media library servers",
       groupSlug: "media-library",
     },
+    // The container runtime tooling CI installs, pinned inline in the
+    // workflows. Grouped so the two copies of the pin always move in one pull
+    // request: they are the same pin, and letting them drift apart would mean
+    // the prerequisite job and the suite testing different tools.
+    //
+    // Left out of any automerge, and deliberately: podman-compose is what
+    // talks to podman, and a bump has to be proven by an actual suite run,
+    // which
+    // only starts when someone comments `/run-tests`. The `ci-runtime` label is
+    // there to make that obvious on the pull request.
+    {
+      matchDatasources: ["pypi"],
+      matchPackageNames: ["podman-compose"],
+      groupName: "container runtime tooling",
+      groupSlug: "ci-runtime",
+      addLabels: ["ci-runtime"],
+      automerge: false,
+    },
   ],
 
   customManagers: [
@@ -110,6 +135,22 @@
         "# renovate: depName=(?<depName>[^\\s\\n]+)(?:\\s+versioning=(?<versioning>[^\\s\\n]+))?\\n[A-Z0-9_]+=(?<currentValue>[^@\\n]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?",
       ],
       datasourceTemplate: "docker",
+    },
+    {
+      customType: "regex",
+      // Matches the pattern, in any workflow:
+      //   # renovate: datasource=<ds> depName=<package>
+      //   pip install <package>==<currentValue>
+      //
+      // datasource and depName come from the annotation rather than being
+      // hardcoded here, so a second inline pin needs an annotation and nothing
+      // else. The package name in the command itself is matched loosely on
+      // purpose: Renovate's regex engine has no backreferences, so it cannot be
+      // tied back to depName, and the annotation is the authority anyway.
+      managerFilePatterns: ["/^\\.github/workflows/.+\\.yml$/"],
+      matchStrings: [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s*\\n\\s*pip install [^\\s=]+==(?<currentValue>[^\\s]+)",
+      ],
     },
   ],
 
