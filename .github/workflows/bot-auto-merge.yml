@@ -32,8 +32,15 @@ on:
   # Flagged by default, and the reasoning above is why it stays. The checkout
   # below is pinned to the base branch, and the only thing read from the pull
   # request is its diff, as data, on stdin.
+  # `labeled` is here because the approval below is gated on the `automerge`
+  # label, and Renovate applies that label as part of the same update that
+  # pushes the branch. The push event therefore carries a payload with no label
+  # on it yet, the decide step reads it as "Renovate is not asking for this to
+  # merge", and the pull request sits approved by nobody. Observed on #55:
+  # `HAS_AUTOMERGE_LABEL: false` on the synchronize event, label present on the
+  # pull request seconds later. The label arriving is now its own trigger.
   pull_request_target:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, labeled]
     branches:
       - main
 

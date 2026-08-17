@@ -6,30 +6,32 @@
 language: en-US
 
 reviews:
-  # Approve once CodeRabbit's own comments are resolved and no pre-merge check
-  # is failing, and request changes until then.
+  # `request_changes_workflow` stays off, and the reason is a security one
+  # rather than a preference.
   #
-  # This is here for the dependency bots. Their pull requests merge without a
-  # person looking at them, so CodeRabbit is the reviewer that does, and a
-  # changes-requested review blocks the merge under branch protection exactly
-  # like an unresolved conversation does. Nothing else in the pipeline reads a
-  # bump for intent: the mechanical linters check form, the suite checks that
-  # the stack still works, and neither would object to a plausible looking line
-  # that does something else as well.
+  # CodeRabbit is the reviewer that reads a dependency bump for intent, because
+  # nothing else does: the mechanical linters check form, the suite checks the
+  # stack still works, and neither objects to a plausible looking line that does
+  # something else as well. Its comments have to be able to stop a merge, and
+  # they do. An unresolved conversation blocks one under branch protection, and
+  # neither Renovate nor Dependabot ever resolves a thread, so a bump CodeRabbit
+  # objects to waits for a person. That block does not need this setting.
   #
-  # Its reach is narrower than it looks, and worth being honest about. A version
-  # or digest bump has no reviewable content, so on most of these pull requests
-  # CodeRabbit has nothing to say and cannot possibly detect a backdoored
-  # upstream image. What it does cover is the case the diff assertion in
-  # bot-auto-merge.yml is also aimed at, a bump that carries a change to
-  # workflow or hook logic alongside it. Two independent readers of the same
-  # risk, one mechanical and one not.
+  # What the setting adds is an automatic approval once its comments are
+  # resolved, and that is the problem. GitHub lets the author of a pull request
+  # resolve conversations on it whether or not they have write access, so a
+  # contributor could resolve CodeRabbit's threads without changing a line, take
+  # the approval that follows, and satisfy the one approving review `main`
+  # requires. Since code owner review came off, an app's approval counts, which
+  # is exactly the gap this would open. Off, CodeRabbit reviews as COMMENTED and
+  # only the maintainer can approve.
   #
-  # The cost, accepted deliberately: the setting is global, so human pull
-  # requests are gated on CodeRabbit's satisfaction too. Dismissing its review
-  # is a click when it is wrong, and a bot bump it dislikes waits for the
-  # maintainer rather than merging, which is the direction to fail in.
-  request_changes_workflow: true
+  # Worth being honest about its reach either way: a version or digest bump has
+  # no reviewable content, so on most of these pull requests CodeRabbit has
+  # nothing to say and cannot detect a compromised upstream image. What it
+  # covers is the case scripts/assert-pin-only-diff.py is also aimed at, a bump
+  # carrying a change to workflow or hook logic alongside it.
+  request_changes_workflow: false
   auto_review:
     # CodeRabbit is a GitHub App posting a check, not a workflow job, so it
     # cannot be ordered after the linters with `needs:` the way a workflow job
