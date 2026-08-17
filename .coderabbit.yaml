@@ -23,8 +23,11 @@ reviews:
   # contributor could resolve CodeRabbit's threads without changing a line, take
   # the approval that follows, and satisfy the one approving review `main`
   # requires. Since code owner review came off, an app's approval counts, which
-  # is exactly the gap this would open. Off, CodeRabbit reviews as COMMENTED and
-  # only the maintainer can approve.
+  # is exactly the gap this would open. Off, CodeRabbit reviews as COMMENTED,
+  # and the only approvals left are the maintainer's and the one
+  # bot-auto-merge.yml issues, which is gated on the author being a dependency
+  # bot and on the diff being a pin change. Neither is reachable by resolving a
+  # thread.
   #
   # Worth being honest about its reach either way: a version or digest bump has
   # no reviewable content, so on most of these pull requests CodeRabbit has
