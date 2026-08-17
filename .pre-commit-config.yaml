@@ -147,7 +147,7 @@ repos:
         stages: [pre-commit]
 
   - repo: https://github.com/editorconfig-checker/editorconfig-checker.python
-    rev: 3.8.0
+    rev: 3.11.1
     hooks:
       - id: editorconfig-checker
         exclude: *vendored_patches
@@ -174,7 +174,7 @@ repos:
         exclude: *app_managed
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.16.1
+    rev: v0.16.3
     hooks:
       - id: ruff
         args: ["--fix"]
