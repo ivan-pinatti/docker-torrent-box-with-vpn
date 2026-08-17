@@ -26,9 +26,77 @@
   // Keep PR volume manageable so CI is not overwhelmed.
   prConcurrentLimit: 5,
   prHourlyLimit: 2,
+
+  // The default, overridden per update type in packageRules below. Kept as the
+  // default rather than inverted, so a datasource or update type nobody thought
+  // about arrives needing a person.
   automerge: false,
 
+  // GitHub's own auto-merge, armed by Renovate when it opens the pull request
+  // and completed by GitHub once branch protection is satisfied. The default,
+  // stated because it is load-bearing: the alternative is Renovate merging
+  // through the API on its own judgement of whether the checks passed, and
+  // Renovate cannot see a required status context that is *absent*, which is
+  // exactly the state a pull request is in until the integration suite
+  // publishes `Tests Verified`. Handing the decision to GitHub means the check
+  // it cannot see is the one thing it cannot skip.
+  platformAutomerge: true,
+  automergeStrategy: "squash",
+
+  // A cooling window before an update is offered at all. This is the main
+  // defense against a compromised upstream release, and it is a defense the
+  // scanners do not provide: Trivy runs `fs` against the working tree and never
+  // inspects the images a bump points at, and every scanner matches published
+  // advisories, which a fresh supply chain attack has none of. Most compromised
+  // releases are spotted and pulled within hours to days, so waiting is what
+  // turns "we merged it first" into "it was already yanked". See
+  // docs/HARDENING.md.
+  minimumReleaseAge: "7 days",
+
+  // Hold the pull request until the window is satisfied rather than opening one
+  // that is not allowed to merge yet. Without this the window would still be
+  // honoured, but a week of pull requests would sit there looking blocked for
+  // no visible reason.
+  internalChecksFilter: "strict",
+
+  // The exception, and the reason the window can be as long as a week: a fix
+  // for a known vulnerability is not made safer by aging, and this stack faces
+  // the internet. null clears the inherited window for these updates only.
+  vulnerabilityAlerts: {
+    minimumReleaseAge: null,
+  },
+
+  // Required status checks are strict on `main`, so a pull request that falls
+  // behind cannot merge until it is updated. Renovate doing the rebase keeps
+  // the push attributed to renovate[bot]: the approval on these pull requests
+  // is github-actions[bot]'s, and `requireLastPushApproval` needs the approver
+  // and the pusher to be different accounts, which would stop being true if
+  // GitHub's auto-merge did the update instead.
+  rebaseWhen: "behind-base-branch",
+
   packageRules: [
+    // What may merge without anyone looking, and the label that says so.
+    //
+    // First in the list on purpose. Later rules win on any key they share, and
+    // the group rules below deliberately share none of these: they set names
+    // and labels, not policy. A rule that means to keep something manual has to
+    // come after this one.
+    //
+    // The label is not decoration. bot-auto-merge.yml approves a Renovate pull
+    // request only when it carries this label, so the decision about which
+    // bumps are eligible lives here, once, instead of being restated in a
+    // workflow expression free to drift from it. A major bump matches nothing
+    // here, arrives unlabelled, and waits for review.
+    //
+    // digest and pin are in the list because a digest bump is how a rebuilt tag
+    // reaches this repository at all: leaving them out would mean the pins that
+    // pinDigests maintains could only be refreshed by hand, which is how they
+    // rot.
+    {
+      matchUpdateTypes: ["patch", "minor", "digest", "pin", "pinDigest"],
+      automerge: true,
+      addLabels: ["automerge"],
+    },
     // *arr suite — group together as they share config and often release together.
     {
       matchDatasources: ["docker"],
@@ -97,18 +165,23 @@
     // request: they are the same pin, and letting them drift apart would mean
     // the prerequisite job and the suite testing different tools.
     //
-    // Left out of any automerge, and deliberately: podman-compose is what
-    // talks to podman, and a bump has to be proven by an actual suite run,
-    // which
-    // only starts when someone comments `/run-tests`. The `ci-runtime` label is
-    // there to make that obvious on the pull request.
+    // This used to be held out of automerge, on the grounds that podman-compose
+    // is what talks to podman and a bump had to be proven by an actual suite
+    // run, which only started when someone commented `/run-tests`. The suite now
+    // starts itself for these pull requests, so the condition that kept this
+    // manual is met by the thing it was waiting for. A podman-compose that
+    // cannot stand the stack up fails the suite loudly, which is the whole
+    // proof that was being asked for.
+    //
+    // The `ci-runtime` label stays. It marks the one bump that changes the
+    // tooling the suite itself runs on, which is worth being able to find after
+    // the fact when something starts behaving oddly in CI.
     {
       matchDatasources: ["pypi"],
       matchPackageNames: ["podman-compose"],
       groupName: "container runtime tooling",
       groupSlug: "ci-runtime",
       addLabels: ["ci-runtime"],
-      automerge: false,
     },
   ],
 

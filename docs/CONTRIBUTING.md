@@ -103,9 +103,53 @@ maintainer will comment for you.
    restricted to the maintainer list in
    `.github/workflows/integration-tests.yml`, and `/run-check`, which costs a
    couple of lint runs rather than a whole stack, to repository collaborators.
-8. Dependabot opens weekly pull requests for `.pre-commit-config.yaml` hook revs
-   and GitHub Action version bumps. Eligible patch and minor updates are
-   approved and marked for auto-merge once the required checks pass.
+8. Dependency updates are the one exception to all of the above, and they merge
+   without anyone reviewing them. Dependabot opens weekly pull requests for
+   `.pre-commit-config.yaml` hook revs, GitHub Action versions and
+   `tests/requirements.txt`; Renovate opens them for the image versions pinned in
+   `.env.example` and the pins annotated inline in workflows and pre-commit hooks.
+   Patch, minor and digest updates then take this path, while a major bump gets
+   no approval and waits for the maintainer:
+
+   1. The suite starts itself. `integration-tests.yml` carries a
+      `pull_request_target` trigger that authorizes `renovate[bot]` and
+      `dependabot[bot]` on a branch in this repository, so `Tests Verified` is
+      published without anyone commenting `/run-tests`. Nothing else changes
+      about the suite: for every other pull request, forks included, it still
+      only runs when a maintainer asks.
+   2. `bot-auto-merge.yml` supplies the approving review branch protection
+      requires, but only after `scripts/assert-pin-only-diff.py` confirms the
+      diff changes nothing but a version or a digest, in one of four allowed
+      files. A bump that reaches anything else is refused and waits, which is
+      what should happen when a dependency bot steps outside its lane.
+   3. CodeRabbit reviews it as the reader nobody else provides, with
+      `request_changes_workflow` enabled in `.coderabbit.yaml`, so an objection
+      or an unresolved thread blocks the merge until the maintainer looks. It has
+      nothing to say about a pure digest bump, which is a real limit rather than
+      an oversight; see [docs/HARDENING.md](HARDENING.md) for what covers that
+      instead.
+   4. GitHub merges it once every required check is green. Renovate arms
+      auto-merge itself when it opens the pull request; the workflow does it on
+      the Dependabot path, which cannot.
+
+   Two coupled settings make this work, and both need writing down because
+   neither is visible in the repository:
+
+   - **`main` does not require a code owner review.** CODEOWNERS accepts only
+     users and teams, so no bot can ever satisfy such a rule, and a dependency
+     bump could not merge without a person or a stored credential belonging to
+     one. Turning it off cost nothing, because an approving review only counts
+     from an account with write access and this repository has exactly one, so
+     the rule was excluding the bot and nobody else. **If a second write
+     collaborator is ever added that stops being true**, and the choice is then
+     between giving new collaborators Triage rather than Write, or restoring the
+     rule and moving the review requirement into a ruleset with the bots in its
+     bypass list.
+   - **A required approval is still required.** It comes from
+     `github-actions[bot]`, which is why "Allow GitHub Actions to create and
+     approve pull requests" is enabled. For a contributor's pull request nothing
+     has changed: their own approvals do not count, so the maintainer's review is
+     still what unblocks it.
 9. Adhere to the commit message guidelines as this repository uses
    [semantic versioning](https://semver.org/). More info:
    <https://github.com/mathieudutour/github-tag-action#bumping>
@@ -163,8 +207,9 @@ changes upstream.
 - Security scanner findings are also published to the repository's Security tab
   by the `Security Reports` job, which reports rather than gates. See
   docs/HARDENING.md
-- Dependabot handles weekly hook and workflow version bump PRs; major updates
-  are left for manual review
+- Dependabot and Renovate handle weekly dependency bump PRs, and patch, minor and
+  digest updates merge unattended once the suite passes; major updates are left
+  for manual review. See step 8 above for the whole path and what gates it
 
 ## Scripts
 

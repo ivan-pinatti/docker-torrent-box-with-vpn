@@ -1,9 +1,16 @@
 ---
 name: Integration Tests
 
-# The integration suite, asked for by commenting `/run-tests` on a pull request.
+# The integration suite. Two ways in, and only two:
 #
-# It runs here, in the workflow the comment triggers, rather than starting
+#   - a maintainer comments `/run-tests` on a pull request.
+#   - a dependency bot opens or updates one, which starts the suite with nobody
+#     asking. That is what lets those pull requests merge unattended: the
+#     required `Tests Verified` context below is otherwise absent, and absent
+#     blocks the merge forever. Restricted to renovate[bot] and dependabot[bot]
+#     on a branch in this repository, decided in the gate job.
+#
+# It runs here, in the workflow the trigger fires, rather than starting
 # another one. Two earlier designs failed on that:
 #
 #   - a workflow_dispatch run is dispatched off main, so its check attaches to
@@ -16,14 +23,20 @@ name: Integration Tests
 # head SHA, which is what branch protection reads. Nothing has to trigger
 # anything. This is the shape cloudposse uses for the same problem.
 #
-# An issue_comment workflow always runs the default branch's copy of this file,
-# so a pull request cannot alter the checks that gate it. The code under test is
-# checked out explicitly from the merge ref below.
+# Neither trigger reads this file from the pull request. An issue_comment
+# workflow always runs the default branch's copy, and pull_request_target is
+# documented as running "in the context of the default branch of the base
+# repository, rather than in the context of the merge commit, as the
+# pull_request event does". So a pull request cannot alter the checks that gate
+# it, which plain `pull_request` would have allowed and which matters here
+# because Renovate edits workflow files: the pip pins in
+# pull-request-validation.yml are its to update. The code under test is checked
+# out explicitly from the merge ref below.
 #
-# Three jobs, and the split is the security boundary, not decoration. A comment
-# triggered workflow holds the full secret set and a write token, unlike the
-# pull_request trigger this replaced, where GitHub withholds both from a fork.
-# Running a fork's code in the same job as those would be a pwn request. So:
+# Three jobs, and the split is the security boundary, not decoration. Both
+# triggers hold the full secret set and a write token, unlike the plain
+# pull_request trigger, where GitHub withholds both from a fork. Running a
+# fork's code in the same job as those would be a pwn request. So:
 #
 #   gate     decides, resolves the head, writes the pending status. Privileged,
 #            and never checks out a line of the pull request's code.
@@ -37,6 +50,18 @@ name: Integration Tests
 on:
   issue_comment:
     types: [created]
+  # zizmor: ignore[dangerous-triggers]
+  #
+  # pull_request_target is flagged by default, and rightly: it hands a write
+  # token and every secret to a workflow that a fork can open. What makes it
+  # safe here is that the gate job below never checks out the pull request, and
+  # authorizes nothing but the two dependency bots on a branch in this
+  # repository. A fork reaching this trigger gets a skipped suite and no status,
+  # which is the same "absent, so blocked" state it had before. The alternative,
+  # plain `pull_request`, would run this file's own copy from the pull request,
+  # which is strictly worse.
+  pull_request_target:
+    types: [opened, synchronize, reopened]
 
 # The floor. Each job below narrows or widens this for itself.
 permissions:
@@ -68,34 +93,81 @@ jobs:
       # against the pull request's head commit. Held by this job and by
       # `publish`, neither of which ever checks the pull request's code out.
       statuses: write
+    # Cheap event-shape filtering only. Who is allowed is decided in the auth
+    # step below, in one place, for both triggers.
+    #
+    # `head.repo.fork == false` is here rather than in the step because a fork's
+    # pull request has no business waking this workflow at all. It still reaches
+    # the suite the same way anyone else's does, by a maintainer commenting.
     if: >-
-      github.event.issue.pull_request != null &&
-      github.event.issue.state == 'open' &&
-      startsWith(github.event.comment.body, '/run-tests')
+      (
+        github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request != null &&
+        github.event.issue.state == 'open' &&
+        startsWith(github.event.comment.body, '/run-tests')
+      ) || (
+        github.event_name == 'pull_request_target' &&
+        github.event.pull_request.head.repo.fork == false
+      )
     outputs:
       authorized: ${{ steps.auth.outputs.authorized }}
+      pr_number: ${{ steps.auth.outputs.pr_number }}
       head_sha: ${{ steps.pr.outputs.head_sha }}
       is_fork: ${{ steps.pr.outputs.is_fork }}
     steps:
-      - name: Authorize the commenter
-        # Only these logins may spend a twelve minute stack run. A comment is
-        # open to anyone, so this is the gate and has to be right.
+      - name: Authorize the request
+        # Two questions, one per trigger, and both answered here so the answer
+        # lives in a single place on the default branch, which neither trigger
+        # reads from the pull request.
         #
-        # An explicit list rather than `author_association`, which the earlier
-        # version of this file used: its COLLABORATOR value covers anyone with
-        # any collaborator role at all, read-only and triage included, which is
-        # wider than intended. An API permission lookup would be self
-        # maintaining, but GET /collaborators/{user}/permission wants push
-        # access to answer, so it would mean carrying a personal access token
-        # here, which is more to maintain and rotate than a line of YAML.
+        # On a comment: only these logins may spend a twelve minute stack run,
+        # because a comment is open to anyone. An explicit list rather than
+        # `author_association`, which the earlier version of this file used: its
+        # COLLABORATOR value covers anyone with any collaborator role at all,
+        # read-only and triage included, which is wider than intended. An API
+        # permission lookup would be self maintaining, but GET
+        # /collaborators/{user}/permission wants push access to answer, so it
+        # would mean carrying a personal access token here, which is more to
+        # maintain and rotate than a line of YAML.
         #
-        # This list lives on the default branch, which an issue_comment
-        # workflow always runs from, so a pull request cannot add itself to it.
+        # On a pull request: only the two dependency bots, matched exactly.
+        # `startsWith` or `contains` would be wrong here in a way that is easy
+        # to miss, because a user is free to register the login
+        # `renovate[bot]-something` and open a pull request from a fork. Exact
+        # equality plus the non-fork condition in the job's `if` means an
+        # attacker would need write access to this repository to reach the
+        # suite, which is already trust enough to push to main.
+        #
+        # user.login is set by GitHub from the authenticated author, so it
+        # cannot be spoofed by the pull request's contents.
+        #
         # Logins are case insensitive, hence the lowercasing.
         id: auth
         env:
+          EVENT_NAME: ${{ github.event_name }}
           COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          COMMENT_PR_NUMBER: ${{ github.event.issue.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
+          if [ "$EVENT_NAME" = "pull_request_target" ]; then
+            echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+            author="${PR_AUTHOR,,}"
+            for name in "renovate[bot]" "dependabot[bot]"; do
+              if [ "$author" = "$name" ]; then
+                echo "authorized=true" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+            done
+            # Not an error. Every pull request opened against this repository
+            # fires this trigger, and the ones that are not a dependency bump
+            # wait for `/run-tests` exactly as they did before.
+            echo "::notice::$author is not a dependency bot, so the suite waits for /run-tests."
+            echo "authorized=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "pr_number=$COMMENT_PR_NUMBER" >> "$GITHUB_OUTPUT"
           allowed=(ivan-pinatti)
           actor="${COMMENT_AUTHOR,,}"
           for name in "${allowed[@]}"; do
@@ -112,8 +184,10 @@ jobs:
 
       - name: Acknowledge the comment
         # Only once authorized, so the reaction means "accepted and starting"
-        # rather than "seen".
-        if: steps.auth.outputs.authorized == 'true'
+        # rather than "seen". There is nothing to react to on the bot path.
+        if: >-
+          steps.auth.outputs.authorized == 'true'
+          && github.event_name == 'issue_comment'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -129,6 +203,13 @@ jobs:
         # The comment event carries no SHA of its own, and the status has to
         # land on the commit branch protection is judging, not on main.
         #
+        # Asked of the API on both paths, rather than read from the
+        # pull_request_target payload on one of them. The payload would do, but
+        # then head_sha and is_fork would come from two different places
+        # depending on the trigger, and the value that matters most here is the
+        # one a person can reason about without first working out which trigger
+        # fired.
+        #
         # head.repo is null when the fork it came from has since been deleted,
         # which would otherwise fail the jq here; the fallback makes that read
         # as a fork, which is the safe way round.
@@ -136,8 +217,9 @@ jobs:
         if: steps.auth.outputs.authorized == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.auth.outputs.pr_number }}
         run: |
-          gh api "repos/${{ github.repository }}/pulls/${{ github.event.issue.number }}" \
+          gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER" \
             --jq '"head_sha=" + .head.sha,
                   "is_fork=" + (((.head.repo.full_name // "") != "${{ github.repository }}") | tostring)' \
             >> "$GITHUB_OUTPUT"
@@ -161,8 +243,11 @@ jobs:
     if: needs.gate.outputs.authorized == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    # One suite per pull request: a second `/run-tests` supersedes the first
-    # rather than standing a competing stack up on the same runner pool.
+    # One suite per pull request: a second `/run-tests`, or a push to a bot's
+    # branch, supersedes the first rather than standing a competing stack up on
+    # the same runner pool. That matters more on the bot path than the comment
+    # one, because Renovate rebases its own branches and each rebase would
+    # otherwise leave a run testing a commit nothing will merge.
     #
     # On the job and not the workflow, which is what makes it safe. A
     # workflow-level group is joined before any job runs, so it cannot depend on
@@ -179,8 +264,12 @@ jobs:
     # gate, so an unauthorized comment skips this job and cancels nothing, and
     # the allowlist stays in one place instead of being restated in an
     # expression that cannot read it.
+    # Not `needs.gate.outputs.pr_number`, even though that is the number this
+    # job goes on to use: the two triggers carry it under different keys, and a
+    # fallback expression is readable where a context lookup would send the
+    # reader to another job to find out what the group even is.
     concurrency:
-      group: ${{ github.workflow }}-${{ github.event.issue.number }}
+      group: ${{ github.workflow }}-${{ github.event.issue.number || github.event.pull_request.number }}
       cancel-in-progress: true
     # This job runs the pull request's own code, so it gets a token that can do
     # nothing but read this public repository, and no `statuses: write`. Steps
@@ -191,7 +280,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: refs/pull/${{ github.event.issue.number }}/merge
+          ref: refs/pull/${{ needs.gate.outputs.pr_number }}/merge
           # For the parent check below. At the default depth of 1 the merge
           # commit is a shallow boundary, and git reports a boundary commit as
           # having no parents at all, so there would be nothing to compare.
@@ -217,7 +306,7 @@ jobs:
         run: |
           tested=$(git rev-parse --verify --quiet 'HEAD^2' || true)
           if [ "$tested" != "$HEAD_SHA" ]; then
-            echo "::error::The merge ref carries head ${tested:-none}, but the status is for $HEAD_SHA. The pull request moved; comment /run-tests again."
+            echo "::error::The merge ref carries head ${tested:-none}, but the status is for $HEAD_SHA. The pull request moved; the push that moved it starts its own run on the bot path, otherwise comment /run-tests again."
             exit 1
           fi
 

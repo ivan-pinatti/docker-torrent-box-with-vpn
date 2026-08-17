@@ -249,6 +249,63 @@ an app config needs a committed seed, track a sanitized `<file>.example` and let
 `scripts/seed-configs.sh` copy it into place on `make bootstrap`; the same test
 file asserts every seeded path has a tracked `.example`.
 
+## Unattended dependency updates
+
+Patch, minor and digest bumps from Dependabot and Renovate merge with nobody
+reviewing them. [docs/CONTRIBUTING.md](CONTRIBUTING.md) step 8 has the
+mechanics; this is the risk that buys and what is placed against it.
+
+The exposure is a malicious upstream release reaching `main` on its own, and
+being run by the integration suite on a runner that has just authenticated to
+Docker Hub. It is not a new exposure, since the suite already ran that code the
+moment a maintainer typed `/run-tests`; what automation removes is the pause
+where a person might have noticed. The blast radius is bounded by there being
+exactly two secrets in this repository, `DOCKERHUB_USERNAME` and
+`DOCKERHUB_TOKEN`, and no deployment credentials of any kind.
+
+**The scanners do not cover this, and it is worth being exact about why.** The
+`Security Reports` job runs Trivy as `fs --scanners vuln,misconfig` against the
+working tree, so it reads the manifests that name an image and never pulls or
+inspects the image itself. checkov reads infrastructure configuration, gitleaks
+reads for credentials, hadolint reads two Dockerfiles. Only zizmor would see a
+malicious change here, and only if it were made to a workflow file. Beyond that,
+all of them match published advisories, and a supply chain attack on the day it
+lands has none: there is no CVE for a package that was backdoored an hour ago.
+Adding image scanning would raise the floor on known vulnerabilities without
+changing this.
+
+What is placed against it instead:
+
+- **A seven day cooling window** (`minimumReleaseAge` in
+  `.github/renovate.json5`). Compromised releases are typically found and pulled
+  within hours to days, so the window converts "merged it first" into "it was
+  yanked before we saw it". Seven rather than fourteen because this stack faces
+  the internet and being a fortnight behind on ordinary fixes is its own risk.
+  `vulnerabilityAlerts` clears the window, so a fix for a known vulnerability is
+  never held back by it.
+- **Digest pinning** (`pinDigests`). Every image that names a version is pinned
+  to its manifest-list digest, so a republished tag cannot change what runs
+  without a pull request saying so.
+- **A pin-only diff assertion** (`scripts/assert-pin-only-diff.py`, enforced by
+  `bot-auto-merge.yml`). The approval is withheld unless every changed line
+  differs in nothing but a version or a digest, across four allowed files. This
+  is aimed at the bot identity rather than the upstream: without it, approving on
+  the strength of the author means a compromised Renovate could rewrite a
+  workflow and be approved for it, and two of those four paths execute what they
+  contain.
+- **CodeRabbit as the reader** (`request_changes_workflow` in
+  `.coderabbit.yaml`). Its objection blocks the merge. Its reach is genuinely
+  narrow: a version bump has no reviewable content, so it cannot detect a
+  backdoored image, and it covers the same case as the assertion above, a change
+  to logic carried alongside a bump.
+- **The suite itself**, which has to pass on the exact commit that merges.
+
+What remains, and is accepted: the two bot identities are trusted to be
+themselves, and an upstream release that survives seven days, produces a
+pin-only diff, and passes the suite will merge. There is no configuration that
+removes that; only reviewing every dependency bump by hand would, at the cost of
+the bumps not happening.
+
 ## Verification
 
 ```bash
