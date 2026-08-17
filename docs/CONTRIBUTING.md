@@ -124,12 +124,12 @@ maintainer will comment for you.
       `PUID` or a timeout moving is refused just as an added line would be. A
       bump that reaches anything else waits, which is what should happen when a
       dependency bot steps outside its lane.
-   3. CodeRabbit reviews it as the reader nobody else provides, with
-      `request_changes_workflow` enabled in `.coderabbit.yaml`, so an objection
-      or an unresolved thread blocks the merge until the maintainer looks. It has
-      nothing to say about a pure digest bump, which is a real limit rather than
-      an oversight; see [docs/HARDENING.md](HARDENING.md) for what covers that
-      instead.
+   3. CodeRabbit reviews it as the reader nobody else provides. Its comments
+      land as unresolved conversations, which branch protection will not let
+      past, and neither bot ever resolves a thread, so anything it objects to
+      waits for the maintainer. It has nothing to say about a pure digest bump,
+      which is a real limit rather than an oversight; see
+      [docs/HARDENING.md](HARDENING.md) for what covers that instead.
    4. GitHub merges it once every required check is green. Renovate arms
       auto-merge itself when it opens the pull request; the workflow does it on
       the Dependabot path, which cannot.

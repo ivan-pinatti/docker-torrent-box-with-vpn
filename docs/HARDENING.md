@@ -296,11 +296,16 @@ What is placed against it instead:
   the strength of the author means a compromised Renovate could rewrite a
   workflow and be approved for it, and two of those four paths execute what they
   contain.
-- **CodeRabbit as the reader** (`request_changes_workflow` in
-  `.coderabbit.yaml`). Its objection blocks the merge. Its reach is genuinely
-  narrow: a version bump has no reviewable content, so it cannot detect a
-  backdoored image, and it covers the same case as the assertion above, a change
-  to logic carried alongside a bump.
+- **CodeRabbit as the reader.** Its comments arrive as unresolved
+  conversations, which branch protection blocks on, and neither bot resolves a
+  thread, so anything it objects to waits for a person. `request_changes_workflow`
+  is deliberately off: it would add an automatic approval once its comments were
+  resolved, and since a pull request's author may resolve conversations on their
+  own pull request without write access, that approval would let a contributor
+  clear the one review `main` requires without changing a line. Its reach is
+  genuinely narrow either way: a version bump has no reviewable content, so it
+  cannot detect a backdoored image, and it covers the same case as the assertion
+  above, a change to logic carried alongside a bump.
 - **The suite itself**, which has to pass on the exact commit that merges.
 
 What remains, and is accepted: the two bot identities are trusted to be
