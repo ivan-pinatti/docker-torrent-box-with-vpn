@@ -6,6 +6,30 @@
 language: en-US
 
 reviews:
+  # Approve once CodeRabbit's own comments are resolved and no pre-merge check
+  # is failing, and request changes until then.
+  #
+  # This is here for the dependency bots. Their pull requests merge without a
+  # person looking at them, so CodeRabbit is the reviewer that does, and a
+  # changes-requested review blocks the merge under branch protection exactly
+  # like an unresolved conversation does. Nothing else in the pipeline reads a
+  # bump for intent: the mechanical linters check form, the suite checks that
+  # the stack still works, and neither would object to a plausible looking line
+  # that does something else as well.
+  #
+  # Its reach is narrower than it looks, and worth being honest about. A version
+  # or digest bump has no reviewable content, so on most of these pull requests
+  # CodeRabbit has nothing to say and cannot possibly detect a backdoored
+  # upstream image. What it does cover is the case the diff assertion in
+  # bot-auto-merge.yml is also aimed at, a bump that carries a change to
+  # workflow or hook logic alongside it. Two independent readers of the same
+  # risk, one mechanical and one not.
+  #
+  # The cost, accepted deliberately: the setting is global, so human pull
+  # requests are gated on CodeRabbit's satisfaction too. Dismissing its review
+  # is a click when it is wrong, and a bot bump it dislikes waits for the
+  # maintainer rather than merging, which is the direction to fail in.
+  request_changes_workflow: true
   auto_review:
     # CodeRabbit is a GitHub App posting a check, not a workflow job, so it
     # cannot be ordered after the linters with `needs:` the way a workflow job

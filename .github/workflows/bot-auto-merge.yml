@@ -1,0 +1,177 @@
+---
+name: Bot Auto Merge
+
+# Supplies the approving review that lets a dependency bump merge unattended.
+# Nothing else: the tests are proven by `Tests Verified`, which
+# integration-tests.yml publishes on its own for these pull requests, and the
+# merge itself is GitHub's, armed either by Renovate (platformAutomerge) or by
+# the last step here on the Dependabot path, because Dependabot cannot arm it.
+#
+# Why an approval has to be supplied at all: branch protection requires one, and
+# `main` no longer requires it to come from a code owner, because CODEOWNERS
+# accepts only users and teams. No bot can ever satisfy a code owner rule, so
+# with that rule on, a dependency bump could not merge without a person or a
+# stored credential belonging to one. The rule was excluding nothing else, since
+# an approving review only counts from an account with write access and this
+# repository has exactly one. See docs/CONTRIBUTING.md for the consequence: if a
+# second write collaborator is ever added, that stops being true and this
+# arrangement has to be revisited.
+#
+# pull_request_target, not pull_request, and the difference is the whole
+# defense. Under `pull_request` this file would be read from the pull request's
+# own merge commit, so a bump that reached workflow files could delete the
+# assertion below and approve itself, and Renovate does maintain pins in
+# .github/workflows/. pull_request_target runs the default branch's copy
+# instead. It is normally the more dangerous of the two because it hands a write
+# token to a workflow a fork can trigger, which does not apply here: this job
+# never checks out the pull request, and the author condition it is gated on
+# comes from the immutable copy.
+on:
+  # zizmor: ignore[dangerous-triggers]
+  #
+  # Flagged by default, and the reasoning above is why it stays. The checkout
+  # below is pinned to the base branch, and the only thing read from the pull
+  # request is its diff, as data, on stdin.
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+
+# The floor. The job widens it for itself.
+permissions:
+  contents: read
+
+jobs:
+  approve:
+    name: Approve and enable auto-merge
+    # user.login is set by GitHub from the authenticated author, so a pull
+    # request cannot claim to be a bot. Exact equality, not startsWith or
+    # contains: `renovate[bot]-x` is a login somebody may register, and the
+    # non-fork condition is the second half of the same fence, since reaching
+    # this job any other way would take write access to this repository.
+    if: >-
+      github.event.pull_request.head.repo.fork == false && (
+        github.event.pull_request.user.login == 'renovate[bot]' ||
+        github.event.pull_request.user.login == 'dependabot[bot]'
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      # For `gh pr merge --auto` on the Dependabot path only. Arming auto-merge
+      # does not merge anything: every required check still has to pass, and
+      # `Tests Verified` is absent until the suite proves this commit.
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check out the default branch
+        uses: actions/checkout@v7
+        with:
+          # Explicitly the base branch, which is also what pull_request_target
+          # checks out by default. Stated anyway, because the assertion below is
+          # only worth running if it is this repository's copy of it and not the
+          # pull request's, and a default is a poor place to keep that.
+          ref: ${{ github.event.pull_request.base.ref }}
+          persist-credentials: false
+
+      - name: Refuse anything that is not a pin change
+        # The check that keeps "approve on the strength of the author" from
+        # meaning "the bot identity has write access to main". Two of the paths
+        # a bump is allowed to touch are executable, since the pip pins live in
+        # workflow run steps and the scanner images inside pre-commit hook
+        # entries, so the diff is compared line by line rather than only by
+        # path. See scripts/assert-pin-only-diff.py.
+        #
+        # The diff is fetched through the API rather than checked out, so
+        # nothing from the pull request is ever on disk here.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        # pipefail, and it is load-bearing rather than habit. The default shell
+        # is `bash -e {0}`, where a pipeline's status is the last command's, so
+        # a `gh pr diff` that fails partway would hand the checker a truncated
+        # diff, and a truncation that happens to drop the offending lines would
+        # exit 0 and approve. This step is the gate for an unattended merge, so
+        # it fails closed or it is not a gate.
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh pr diff "$PR_NUMBER" | python3 scripts/assert-pin-only-diff.py
+
+      - name: Fetch Dependabot metadata
+        id: metadata
+        if: github.event.pull_request.user.login == 'dependabot[bot]'
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Decide whether this bump may merge unattended
+        # One decision, one place. The steps below read its outputs rather than
+        # restating the condition, which is what went wrong before: the same
+        # expression was written out twice, both copies compared the ecosystem
+        # to a hyphenated name that fetch-metadata never emits (it reports
+        # "pre_commit", confirmed live), and all ten pull requests from the
+        # first run silently skipped both steps, none flagged as a failure
+        # since a skipped step is not an error.
+        #
+        # Renovate is asked by label, not by update type. It already decides
+        # which of its own pull requests may automerge, in
+        # .github/renovate.json5, and the rule that grants it also adds the
+        # `automerge` label. Restating the update types here would be a second
+        # copy of that policy, free to drift from the one Renovate acts on.
+        # A major bump therefore arrives with no label, gets no approval, and
+        # waits.
+        #
+        # Dependabot has no such config, so its update type is read from the
+        # metadata action. All three of its ecosystems are eligible, test
+        # requirements included: they only reach the test virtualenv, and the
+        # suite is what clears them either way.
+        id: decide
+        env:
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          HAS_AUTOMERGE_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'automerge') }}
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+        run: |
+          approve=false
+          arm=false
+
+          case "$PR_AUTHOR" in
+            "renovate[bot]")
+              if [ "$HAS_AUTOMERGE_LABEL" = "true" ]; then
+                approve=true
+              else
+                echo "::notice::No automerge label, so Renovate is not asking for this to merge on its own."
+              fi
+              ;;
+            "dependabot[bot]")
+              case "$UPDATE_TYPE" in
+                version-update:semver-patch | version-update:semver-minor)
+                  approve=true
+                  # Dependabot cannot arm auto-merge itself, unlike Renovate.
+                  arm=true
+                  ;;
+                *)
+                  echo "::notice::Update type ${UPDATE_TYPE:-unknown} is not a patch or minor bump, so it waits for review."
+                  ;;
+              esac
+              ;;
+          esac
+
+          echo "approve=$approve" >> "$GITHUB_OUTPUT"
+          echo "arm=$arm" >> "$GITHUB_OUTPUT"
+
+      - name: Approve
+        if: steps.decide.outputs.approve == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        # Re-approved on every push, which is required rather than wasteful:
+        # branch protection dismisses stale reviews, so a rebase drops the
+        # previous approval, and `synchronize` is above for that reason.
+        run: gh pr review --approve "$PR_URL"
+
+      - name: Enable auto-merge
+        if: steps.decide.outputs.arm == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge --auto --squash "$PR_URL"

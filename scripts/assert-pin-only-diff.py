@@ -1,0 +1,185 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2022 Ivan Pinatti
+"""Refuse a unified diff that changes anything but a dependency pin.
+
+Read a diff on stdin (`gh pr diff <n> | scripts/assert-pin-only-diff.py`) and
+exit non-zero unless every changed file is one of the pin files below and every
+changed line differs from its counterpart in nothing but a version or digest.
+
+This is the check that stands between "renovate[bot] opened a pull request" and
+an unattended merge. Without it, approving a bot's pull request on the strength
+of its author means the bot identity holds write access to main: a compromised
+Renovate, or a Renovate whose configuration has been edited to widen what it
+manages, could rewrite a workflow and be approved for it. Two of the four
+allowed paths are executable surfaces on their own, since the pip pins live in
+workflow `run:` steps and the scanner image tags live inside pre-commit hook
+`entry:` commands, so a path allowlist alone would not be much of a fence. The
+line comparison is what makes it one.
+
+The comparison normalizes both sides and requires them to match line for line
+per file, duplicates counted. A line whose structure changed has no counterpart
+and the diff is refused, which covers `uses: actions/checkout@v7` becoming
+`uses: evil/checkout@v7` as much as it covers an added `curl | sh`. Anything
+this refuses is not broken, it just waits for a person: the approval is skipped
+and the pull request sits there, which is the direction to fail in.
+
+Only a number in a pin position is treated as substitutable, which is narrower
+than "any number on the line" and deliberately so. `PUID=1000` becoming
+`PUID=0`, or a `timeout-minutes:` moving, are numeric edits with real effects
+that a looser rule would wave through, so they are refused like any other
+structural change. The residue is a number that sits in a pin position and is
+not a pin, which in these four files means an image tag's port-like suffix and
+little else.
+
+What it deliberately does not catch: a bump to a version that exists but is
+malicious. `checkov==3.3.2` becoming `checkov==3.3.11` is the change this file
+exists to permit, and no amount of diff reading can tell a good release from a
+backdoored one. That is what the cooling window in .github/renovate.json5, the
+integration suite, and the scanners are for. See docs/HARDENING.md.
+"""
+
+import re
+import sys
+from collections import Counter
+
+# The files a dependency bot is allowed to touch. Renovate needs the workflow
+# directory for the pip pins it maintains there, and .pre-commit-config.yaml for
+# hook revs, additional_dependencies and the scanner image tags. Dependabot
+# needs the same two plus the test requirements.
+ALLOWED_PATHS = (
+    ".env.example",
+    ".pre-commit-config.yaml",
+    ".github/workflows/",
+    "tests/requirements.txt",
+)
+
+# Removed outright rather than replaced with a placeholder: Renovate's
+# pinDigests adds a digest to a line that had none, so a placeholder would make
+# the before and after differ by its presence and refuse a legitimate first pin.
+DIGEST = re.compile(r"@(?:sha256:[0-9a-f]{7,}|[0-9a-f]{40})")
+
+# A version-shaped token that sits where a pin sits, and nowhere else. The
+# prefix is what makes this narrow: matching any number on the line would accept
+# `PUID=1000` becoming `PUID=0`, or a `fetch-depth` moving, since both sides
+# would normalize alike.
+#
+# The five prefixes are the five shapes a pin takes in the four allowed files:
+#
+#   ==1.2.3              pip, in a workflow run step or additional_dependencies
+#   @v1.2.3              an action ref, and what is left after a digest is cut
+#   FOO_VERSION=1.2.3    .env.example, where a bare `=` is not enough: PUID and
+#                        the port variables use one too
+#   rev: v1.2.3          a pre-commit hook revision
+#   image:1.2.3          a tag, the colon pressed against a non-space so that a
+#                        YAML `key: 25` cannot pass for one
+# The prefix is captured and put back, so that a pin changing shape rather than
+# value, `foo==1.2.3` becoming `foo@1.2.3`, still reads as a difference.
+VERSION = re.compile(
+    r"(?P<prefix>==|@|(?<=VERSION)=|\brev:[ \t]+|(?<=\S):)"
+    r"\bv?\d+(?:\.\d+)*(?:[-.+][0-9A-Za-z.+_-]+)?\b"
+)
+
+FILE_HEADER = re.compile(r"^diff --git a/(?P<old>.+) b/(?P<new>.+)$")
+
+
+def normalize(line: str) -> str:
+    """Reduce a line to everything about it that a version bump may not change."""
+    return VERSION.sub(r"\g<prefix><version>", DIGEST.sub("", line))
+
+
+def parse(diff: str) -> tuple[dict[str, tuple[Counter, Counter]], list[str]]:
+    """Group removed and added lines by file, and collect structural changes."""
+    changes: dict[str, tuple[Counter, Counter]] = {}
+    structural: list[str] = []
+    path = None
+    in_hunk = False
+
+    for line in diff.splitlines():
+        header = FILE_HEADER.match(line)
+        if header:
+            old, new = header.group("old"), header.group("new")
+            path = new
+            in_hunk = False
+            changes.setdefault(path, (Counter(), Counter()))
+            if old != new:
+                structural.append(f"{old} renamed to {new}")
+            continue
+
+        if line.startswith("@@"):
+            in_hunk = True
+            continue
+
+        # Everything between a file header and its first hunk is preamble: the
+        # index line, the ---/+++ pair, and any mode line. Recognizing those
+        # only here is what stops a content line impersonating one. Inside a
+        # hunk, `+++foo` is an added line reading `++foo`, and skipping it as a
+        # file header would drop it from the comparison, which fails open.
+        if not in_hunk:
+            if line.startswith(
+                ("new file ", "deleted file ", "old mode ", "new mode ")
+            ):
+                structural.append(f"{path}: {line.strip()}")
+            continue
+
+        if path is None:
+            continue
+
+        if line.startswith("-"):
+            changes[path][0][normalize(line[1:])] += 1
+        elif line.startswith("+"):
+            changes[path][1][normalize(line[1:])] += 1
+
+    return changes, structural
+
+
+def main() -> int:
+    diff = sys.stdin.read()
+    if not diff.strip():
+        print("REFUSED: the diff is empty, so there is nothing to approve.")
+        return 1
+
+    changes, problems = parse(diff)
+
+    # Output that parsed into nothing is not a clean bill of health. Truncated
+    # output, a binary diff, or anything that arrives without a `diff --git`
+    # header would otherwise leave the change set empty and read as "no problems
+    # found", approving a diff nobody managed to read.
+    if not changes:
+        print("REFUSED: no file headers in the diff, so nothing could be checked.")
+        return 1
+
+    for path in changes:
+        if not path.startswith(ALLOWED_PATHS):
+            problems.append(f"{path}: not a dependency pin file")
+
+    for path, (removed, added) in changes.items():
+        if not removed and not added:
+            problems.append(f"{path}: no readable changed lines, so nothing was checked")
+
+    for path, (removed, added) in changes.items():
+        # Counter subtraction drops non-positive counts, so each direction has
+        # to be asked separately to see both halves of a mismatch.
+        for line in removed - added:
+            problems.append(f"{path}: removed a line that was not re-added: -{line}")
+        for line in added - removed:
+            problems.append(f"{path}: added a line that was not a version bump: +{line}")
+
+    if problems:
+        print("REFUSED: this diff changes more than dependency pins.")
+        for problem in problems:
+            print(f"  {problem}")
+        print(
+            "\nNothing is broken. The automated approval is skipped and the pull "
+            "request waits for a person, which is what should happen when a "
+            "dependency bot reaches outside its lane."
+        )
+        return 1
+
+    files = ", ".join(sorted(changes)) or "nothing"
+    print(f"Pin-only diff confirmed: {files}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
