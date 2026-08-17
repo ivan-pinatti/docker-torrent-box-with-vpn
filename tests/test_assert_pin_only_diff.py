@@ -160,3 +160,73 @@ def test_refuses_an_empty_diff():
     result = _check("")
     assert result.returncode == 1
     assert "empty" in result.stdout
+
+
+# ---------------------------------------------------------------------------
+# Fails closed: the ways an unreadable diff could have passed for a clean one
+# ---------------------------------------------------------------------------
+
+
+def test_refuses_output_with_no_file_header():
+    # Truncated or binary output parses into no files at all. Reporting that as
+    # "nothing to object to" would approve a diff nobody managed to read.
+    result = _check("Binary files a/x.png and b/x.png differ\n")
+    assert result.returncode == 1
+    assert "no file headers" in result.stdout
+
+
+def test_refuses_a_file_whose_lines_could_not_be_read():
+    result = _check(
+        "diff --git a/.env.example b/.env.example\nindex 1111111..2222222 100644\n"
+    )
+    assert result.returncode == 1
+    assert "no readable changed lines" in result.stdout
+
+
+def test_counts_an_added_line_that_looks_like_a_file_header():
+    # `+++x` inside a hunk is an added line reading `++x`. Skipping it as a
+    # ---/+++ header would drop it from the comparison, so the smuggled line
+    # would never be seen.
+    result = _check(
+        _diff(
+            ".env.example",
+            "-PROMETHEUS_VERSION=v3.7.3\n"
+            "+PROMETHEUS_VERSION=v3.7.4\n"
+            "+++PATH=/tmp/evil\n",
+        )
+    )
+    assert result.returncode == 1
+    assert "was not a version bump" in result.stdout
+
+
+# ---------------------------------------------------------------------------
+# Only a number in a pin position counts as a version
+# ---------------------------------------------------------------------------
+
+
+def test_refuses_a_numeric_change_that_is_not_a_pin():
+    # PUID=0 would run every container as root, and it is a digit change on a
+    # line in an allowed file, so a rule that normalized any number would have
+    # accepted it.
+    result = _check(_diff(".env.example", "-PUID=1000\n+PUID=0\n"))
+    assert result.returncode == 1
+
+
+def test_refuses_a_changed_yaml_number():
+    result = _check(
+        _diff(
+            ".github/workflows/pull-request-validation.yml",
+            "-    timeout-minutes: 25\n+    timeout-minutes: 600\n",
+        )
+    )
+    assert result.returncode == 1
+
+
+def test_refuses_a_pin_that_changes_shape_rather_than_value():
+    result = _check(
+        _diff(
+            "tests/requirements.txt",
+            "-pytest==8.4.1\n+pytest>=8.4.1\n",
+        )
+    )
+    assert result.returncode == 1

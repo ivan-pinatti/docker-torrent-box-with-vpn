@@ -119,9 +119,11 @@ maintainer will comment for you.
       only runs when a maintainer asks.
    2. `bot-auto-merge.yml` supplies the approving review branch protection
       requires, but only after `scripts/assert-pin-only-diff.py` confirms the
-      diff changes nothing but a version or a digest, in one of four allowed
-      files. A bump that reaches anything else is refused and waits, which is
-      what should happen when a dependency bot steps outside its lane.
+      diff changes nothing but a version or a digest in a pin position, in one
+      of four allowed files. A number that is not a pin does not count, so a
+      `PUID` or a timeout moving is refused just as an added line would be. A
+      bump that reaches anything else waits, which is what should happen when a
+      dependency bot steps outside its lane.
    3. CodeRabbit reviews it as the reader nobody else provides, with
       `request_changes_workflow` enabled in `.coderabbit.yaml`, so an objection
       or an unresolved thread blocks the merge until the maintainer looks. It has

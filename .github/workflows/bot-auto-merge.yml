@@ -86,7 +86,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: gh pr diff "$PR_NUMBER" | python3 scripts/assert-pin-only-diff.py
+        # pipefail, and it is load-bearing rather than habit. The default shell
+        # is `bash -e {0}`, where a pipeline's status is the last command's, so
+        # a `gh pr diff` that fails partway would hand the checker a truncated
+        # diff, and a truncation that happens to drop the offending lines would
+        # exit 0 and approve. This step is the gate for an unattended merge, so
+        # it fails closed or it is not a gate.
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh pr diff "$PR_NUMBER" | python3 scripts/assert-pin-only-diff.py
 
       - name: Fetch Dependabot metadata
         id: metadata

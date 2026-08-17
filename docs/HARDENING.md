@@ -288,7 +288,10 @@ What is placed against it instead:
   without a pull request saying so.
 - **A pin-only diff assertion** (`scripts/assert-pin-only-diff.py`, enforced by
   `bot-auto-merge.yml`). The approval is withheld unless every changed line
-  differs in nothing but a version or a digest, across four allowed files. This
+  differs in nothing but a version or a digest *in a pin position*, across four
+  allowed files. The qualifier is the point: a number that is not a pin is not
+  substitutable, so `PUID=1000` becoming `PUID=0`, which would run every
+  container as root, is refused like any other structural change. This
   is aimed at the bot identity rather than the upstream: without it, approving on
   the strength of the author means a compromised Renovate could rewrite a
   workflow and be approved for it, and two of those four paths execute what they

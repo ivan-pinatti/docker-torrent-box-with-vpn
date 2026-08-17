@@ -24,6 +24,14 @@ and the diff is refused, which covers `uses: actions/checkout@v7` becoming
 this refuses is not broken, it just waits for a person: the approval is skipped
 and the pull request sits there, which is the direction to fail in.
 
+Only a number in a pin position is treated as substitutable, which is narrower
+than "any number on the line" and deliberately so. `PUID=1000` becoming
+`PUID=0`, or a `timeout-minutes:` moving, are numeric edits with real effects
+that a looser rule would wave through, so they are refused like any other
+structural change. The residue is a number that sits in a pin position and is
+not a pin, which in these four files means an image tag's port-like suffix and
+little else.
+
 What it deliberately does not catch: a bump to a version that exists but is
 malicious. `checkov==3.3.2` becoming `checkov==3.3.11` is the change this file
 exists to permit, and no amount of diff reading can tell a good release from a
@@ -51,17 +59,33 @@ ALLOWED_PATHS = (
 # the before and after differ by its presence and refuse a legitimate first pin.
 DIGEST = re.compile(r"@(?:sha256:[0-9a-f]{7,}|[0-9a-f]{40})")
 
-# A version-shaped token: 1.2.3, v8.30.1, 4.0.19-ls123, 2026.1.1. Leading \b
-# keeps it from matching the tail of an identifier such as CKV_DOCKER_2, where
-# the underscore is a word character and there is no boundary before the digit.
-VERSION = re.compile(r"\bv?\d+(?:\.\d+)*(?:[-.+][0-9A-Za-z.+_-]+)?\b")
+# A version-shaped token that sits where a pin sits, and nowhere else. The
+# prefix is what makes this narrow: matching any number on the line would accept
+# `PUID=1000` becoming `PUID=0`, or a `fetch-depth` moving, since both sides
+# would normalize alike.
+#
+# The five prefixes are the five shapes a pin takes in the four allowed files:
+#
+#   ==1.2.3              pip, in a workflow run step or additional_dependencies
+#   @v1.2.3              an action ref, and what is left after a digest is cut
+#   FOO_VERSION=1.2.3    .env.example, where a bare `=` is not enough: PUID and
+#                        the port variables use one too
+#   rev: v1.2.3          a pre-commit hook revision
+#   image:1.2.3          a tag, the colon pressed against a non-space so that a
+#                        YAML `key: 25` cannot pass for one
+# The prefix is captured and put back, so that a pin changing shape rather than
+# value, `foo==1.2.3` becoming `foo@1.2.3`, still reads as a difference.
+VERSION = re.compile(
+    r"(?P<prefix>==|@|(?<=VERSION)=|\brev:[ \t]+|(?<=\S):)"
+    r"\bv?\d+(?:\.\d+)*(?:[-.+][0-9A-Za-z.+_-]+)?\b"
+)
 
 FILE_HEADER = re.compile(r"^diff --git a/(?P<old>.+) b/(?P<new>.+)$")
 
 
 def normalize(line: str) -> str:
     """Reduce a line to everything about it that a version bump may not change."""
-    return VERSION.sub("<version>", DIGEST.sub("", line))
+    return VERSION.sub(r"\g<prefix><version>", DIGEST.sub("", line))
 
 
 def parse(diff: str) -> tuple[dict[str, tuple[Counter, Counter]], list[str]]:
@@ -69,24 +93,36 @@ def parse(diff: str) -> tuple[dict[str, tuple[Counter, Counter]], list[str]]:
     changes: dict[str, tuple[Counter, Counter]] = {}
     structural: list[str] = []
     path = None
+    in_hunk = False
 
     for line in diff.splitlines():
         header = FILE_HEADER.match(line)
         if header:
             old, new = header.group("old"), header.group("new")
             path = new
+            in_hunk = False
             changes.setdefault(path, (Counter(), Counter()))
             if old != new:
                 structural.append(f"{old} renamed to {new}")
             continue
 
-        # A mode change, a new file or a deletion is not a version bump. Checked
-        # before the +/- branch below, because "new file mode 100755" is neither.
-        if line.startswith(("new file ", "deleted file ", "old mode ", "new mode ")):
-            structural.append(f"{path}: {line.strip()}")
+        if line.startswith("@@"):
+            in_hunk = True
             continue
 
-        if path is None or line.startswith(("+++", "---", "@@", "diff ", "index ")):
+        # Everything between a file header and its first hunk is preamble: the
+        # index line, the ---/+++ pair, and any mode line. Recognizing those
+        # only here is what stops a content line impersonating one. Inside a
+        # hunk, `+++foo` is an added line reading `++foo`, and skipping it as a
+        # file header would drop it from the comparison, which fails open.
+        if not in_hunk:
+            if line.startswith(
+                ("new file ", "deleted file ", "old mode ", "new mode ")
+            ):
+                structural.append(f"{path}: {line.strip()}")
+            continue
+
+        if path is None:
             continue
 
         if line.startswith("-"):
@@ -105,9 +141,21 @@ def main() -> int:
 
     changes, problems = parse(diff)
 
+    # Output that parsed into nothing is not a clean bill of health. Truncated
+    # output, a binary diff, or anything that arrives without a `diff --git`
+    # header would otherwise leave the change set empty and read as "no problems
+    # found", approving a diff nobody managed to read.
+    if not changes:
+        print("REFUSED: no file headers in the diff, so nothing could be checked.")
+        return 1
+
     for path in changes:
         if not path.startswith(ALLOWED_PATHS):
             problems.append(f"{path}: not a dependency pin file")
+
+    for path, (removed, added) in changes.items():
+        if not removed and not added:
+            problems.append(f"{path}: no readable changed lines, so nothing was checked")
 
     for path, (removed, added) in changes.items():
         # Counter subtraction drops non-positive counts, so each direction has
