@@ -238,7 +238,7 @@ jobs:
         # renovate: datasource=docker depName=aquasec/trivy
         run: |
           docker run --rm -v "$PWD:/src:ro" -v "$PWD/sarif:/out" -w /src \
-            aquasec/trivy:0.71.2 \
+            aquasec/trivy:0.73.0 \
             fs --scanners vuln,misconfig --skip-version-check \
             --ignorefile .trivyignore.yaml \
             --skip-dirs ./data --skip-dirs ./storage --skip-dirs ./cache \
