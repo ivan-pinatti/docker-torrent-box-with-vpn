@@ -230,3 +230,57 @@ def test_refuses_a_pin_that_changes_shape_rather_than_value():
         )
     )
     assert result.returncode == 1
+
+
+def test_accepts_a_hash_style_tag():
+    # linuxserver publishes lazylibrarian as a commit hash with a build suffix,
+    # not as dotted numbers. Refusing that meant refusing a real bump, which is
+    # what happened to #62.
+    result = _check(
+        _diff(
+            ".env.example",
+            # pragma: allowlist secret - an image tag, and the hash in it is
+            # what detect-secrets reads as entropy. It is published on Docker
+            # Hub.
+            "-LAZYLIBRARIAN_VERSION=40a389ea-ls309\n"  # pragma: allowlist secret
+            "+LAZYLIBRARIAN_VERSION=40a389ea-ls310\n",  # pragma: allowlist secret
+        )
+    )
+    assert result.returncode == 0, result.stdout
+
+
+def test_still_refuses_a_non_pin_number_after_widening_the_token():
+    # The widened token must not start accepting numbers that are not pins.
+    result = _check(_diff(".env.example", "-PUID=1000\n+PUID=0\n"))
+    assert result.returncode == 1
+
+
+def test_accepts_a_sha_prefixed_tag():
+    # korsync is pinned to `sha-<hash>`, so the token cannot be required to
+    # start with a digit. Requiring one refused this form.
+    old = "sha-7bcefd34e9f6738ce34ccda338aedd316baa05c9"  # pragma: allowlist secret
+    new = "sha-8adf1129c7a0d51e0b2a7f4e93a1b0c5d6e7f809"  # pragma: allowlist secret
+    result = _check(
+        _diff(".env.example", f"-KORSYNC_VERSION={old}\n+KORSYNC_VERSION={new}\n")
+    )
+    assert result.returncode == 0, result.stdout
+
+
+def test_accepts_a_floating_tag_change():
+    result = _check(
+        _diff(".env.example", "-NGINX_VERSION=stable-alpine\n+NGINX_VERSION=stable\n")
+    )
+    assert result.returncode == 0, result.stdout
+
+
+def test_still_refuses_a_swapped_image_name_with_the_widest_token():
+    # The name sits left of the prefix and stays literal, which is what keeps
+    # the permissive token safe.
+    result = _check(
+        _diff(
+            ".pre-commit-config.yaml",
+            "-        entry: docker run aquasec/trivy:0.71.2\n"
+            "+        entry: docker run attacker/trivy:0.71.2\n",
+        )
+    )
+    assert result.returncode == 1
