@@ -402,7 +402,7 @@ jobs:
           # tests/requirements.txt and nothing else, and Renovate needs telling.
           # See the customManager in .github/renovate.json5.
           # renovate: datasource=pypi depName=podman-compose
-          pip install podman-compose==1.5.0
+          pip install podman-compose==1.6.0
           # tests/conftest.py's docker_client fixture talks to podman over
           # this exact socket path, not the CLI; nothing starts it by
           # default on ubuntu-latest, confirmed live (every container/auth
