@@ -160,7 +160,7 @@ jobs:
           # through the annotation below; see the customManager in
           # .github/renovate.json5.
           # renovate: datasource=pypi depName=podman-compose
-          pip install podman-compose==1.5.0
+          pip install podman-compose==1.6.0
 
       - name: Create .env file
         shell: bash
