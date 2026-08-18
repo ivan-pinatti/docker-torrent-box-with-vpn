@@ -346,6 +346,44 @@ def test_ipv6_sysctls_disabled(service_name, running_containers, docker_client):
         assert output.decode(errors="replace").strip() == "1"
 
 
+def test_vpn_namespace_has_no_global_ipv6_address(running_containers, docker_client):
+    """Nothing in gluetun's namespace may hold a routable IPv6 address.
+
+    This is the control docker-compose-vpn.yml names: IPv6 is deliberately left
+    enabled there, because gluetun's DNS server binds `[::]:53`, and leaks are
+    prevented by no interface holding an IPv6 address plus gluetun's ip6tables
+    rules. Until now nothing asserted the first half of that.
+
+    It is the property the SABnzbd bind address was standing in for, and a
+    better one to test. The bind address belongs to linuxserver's start script
+    rather than to us, so asserting it proved only what upstream felt like doing
+    that week, and a listener on `::` reaches nothing while this holds. Should a
+    provider ever hand out an IPv6 address inside the tunnel, this fails and the
+    bind address becomes worth arguing about again.
+    """
+    service_name = env("VPN_PROVIDER", "gluetun")
+    skip_if_disabled(service_name)
+    skip_if_not_running(service_name, running_containers)
+    container = fresh_container(docker_client, service_name)
+
+    # /proc/net/if_inet6 rather than `ip -6 addr`, which the image may not carry.
+    # Columns are address, index, prefix length, scope, flags, device. Scope 10
+    # is link-local and scope 20 is host, neither of which is routable; scope 00
+    # is global, which is the one that must not appear.
+    exit_code, output = container.exec_run(["cat", "/proc/net/if_inet6"])
+    assert exit_code == 0, output.decode(errors="replace")
+
+    global_addresses = [
+        line
+        for line in output.decode(errors="replace").splitlines()
+        if len(line.split()) >= 4 and line.split()[3] == "00"
+    ]
+    assert not global_addresses, (
+        "gluetun's namespace holds a routable IPv6 address, so the download "
+        f"clients sharing it are reachable over IPv6: {global_addresses}"
+    )
+
+
 def test_sabnzbd_config_disables_ipv6():
     """SABnzbd should not select Usenet servers over IPv6, nor open [::1]."""
     misc = _sabnzbd_misc()
