@@ -242,18 +242,24 @@ jobs:
     needs: gate
     if: needs.gate.outputs.authorized == 'true'
     runs-on: ubuntu-latest
-    # Measured from the steps of a passing run rather than from run timestamps,
-    # which was the earlier mistake: the run level figure read 11 or 12 minutes
-    # while the steps actually sum to 14.8. So 20 is about a third of headroom,
-    # not the two thirds it was first claimed to be, and it should not come down
-    # further without shortening the suite itself. It was 25 before that.
+    # 20, from the steps of passing runs summing to about 15 minutes. An earlier
+    # comment here claimed two thirds of headroom, taken from run level
+    # timestamps reading 11 or 12; the steps are the honest measure and this is
+    # nearer a third. It should not come down without shortening the suite.
     #
-    # This stays the binding limit, and the per-step limits below are not trying
-    # to replace it. They sum past an hour because each allows for its own worst
-    # case. What they buy is that a single stalled step dies in two or three
-    # minutes instead of spending the whole budget, which is exactly what
-    # `apt-get update` did twice on #68, hanging the full twenty while every
-    # later step was skipped. Nothing in the suite job is unbounded now.
+    # This stays the binding limit and the per-step limits below do not try to
+    # replace it. They sum past an hour because each has to allow for its own
+    # worst case, and that is the point: they exist to catch a step that has
+    # *hung*, not to police normal variance.
+    #
+    # Sized at four to six times the worst of seventeen samples, or whatever the
+    # value was before, whichever is higher. A first attempt sized them from a
+    # single run's medians and was far too tight: `Set up rootless Podman` was
+    # given six minutes against a 283 second worst case, and `Seed every app's
+    # config and secrets` four minutes, which then timed out and failed a pull
+    # request that had changed nothing but a comment. Normal variance on a busy
+    # runner is wide, so anything close to the observed maximum will fail honest
+    # runs more often than it catches real hangs.
     timeout-minutes: 20
     # One suite per pull request: a second `/run-tests`, or a push to a bot's
     # branch, supersedes the first rather than standing a competing stack up on
@@ -337,7 +343,7 @@ jobs:
         # and three attempts covers a mirror that is briefly unreachable rather
         # than down. The explicit timeouts on apt itself are what make a stall
         # fail fast enough for the retry to be worth having.
-        timeout-minutes: 3
+        timeout-minutes: 5
         shell: bash
         run: |
           set -euo pipefail
@@ -357,7 +363,7 @@ jobs:
         # Bounded for the same reason as the xmlstarlet step above: this one
         # also talks to the archive, so a stalled mirror here would spend the
         # job budget rather than this step's.
-        timeout-minutes: 6
+        timeout-minutes: 10
         # See prerequisites job's own copy of this step for why it's
         # needed. This is the runtime the project is actually built and
         # documented for; every local bench validation this session ran
@@ -457,7 +463,7 @@ jobs:
           sed -i 's/^LAN_IP=192.168.1.x/LAN_IP=192.168.1.100/' .env
 
       - name: Point the VPN at the local mock
-        timeout-minutes: 2
+        timeout-minutes: 3
         # Always the mock, never a real credential. There is no
         # PROTONVPN_PRIVATE_KEY secret in this repository and there is not going
         # to be one: the mock is what validates the VPN, here and in
@@ -515,11 +521,11 @@ jobs:
         # first Docker Hub pull. A run stalled here for over four minutes,
         # having previously stalled in Start stack, which is the same cause
         # wearing a different step name.
-        timeout-minutes: 4
+        timeout-minutes: 8
         run: make seed_all
 
       - name: Generate self-signed certificate
-        timeout-minutes: 2
+        timeout-minutes: 3
         run: make generate_certificate
 
       - name: Log in to Docker Hub
@@ -561,7 +567,7 @@ jobs:
         # has just been hit is the kind of failure that clears on its own.
         # `make pull_docker_images` is idempotent, so a retry resumes rather
         # than starting over.
-        timeout-minutes: 6
+        timeout-minutes: 12
         shell: bash
         run: |
           for attempt in 1 2 3; do
@@ -582,7 +588,7 @@ jobs:
         # whole budget and reported nothing about which one it was. These sum
         # to more than 25 deliberately: the job cap stays the outer bound, and
         # these exist to name the culprit, not to replace it.
-        timeout-minutes: 5
+        timeout-minutes: 10
         # The step timing out on its own says only that something hung: the log
         # ends on a container name with nothing after it, which is what four
         # runs in a row reported. Interrupting a little before the cap and
@@ -605,7 +611,7 @@ jobs:
           fi
 
       - name: Wait for containers to be ready
-        timeout-minutes: 5
+        timeout-minutes: 7
         # Reads straight from `podman ps`, not through a compose wrapper:
         # podman's own --format json is a single JSON array with health
         # folded into the free-text Status field ("Up 3 minutes
@@ -638,7 +644,7 @@ jobs:
         # nothing but a seeded placeholder, confirmed live as the cause of
         # this job's own Homepage widget failures. make bootstrap always runs
         # this straight after make start for the same reason.
-        timeout-minutes: 4
+        timeout-minutes: 10
         run: make wire_connections
 
       - name: Run integration tests
@@ -657,12 +663,12 @@ jobs:
         # The wiring_readonly subset does run here: it reads back what the
         # wire_connections step above just wired, and restarts nothing. See
         # the Makefile's own comment on test_ci.
-        timeout-minutes: 9
+        timeout-minutes: 12
         run: make test_ci
 
       - name: Tear down
         if: always()
-        timeout-minutes: 3
+        timeout-minutes: 5
         run: make stop_all
 
   publish:
