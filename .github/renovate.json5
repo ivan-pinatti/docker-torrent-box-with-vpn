@@ -19,29 +19,29 @@
 
   timezone: "America/Toronto",
 
-  // TEMPORARY. Restore `schedule: ["before 7am on Monday"]` when the CodeRabbit
-  // question below is settled.
+  // One window a week for creating branches, so the pull requests arrive
+  // together rather than trickling in.
   //
-  // Why it is off: on 2026-08-17 three dependency bot pull requests went more
-  // than ten hours without a CodeRabbit review, a comment, or even a
-  // `CodeRabbit` status, while every human pull request that day got one within
-  // minutes. Asked directly, CodeRabbit answered #56 in under three minutes, so
-  // the capability is there. GitHub also ran a critical incident that day,
-  // 13:40Z to 21:15Z, with Webhooks among the affected components, which would
-  // produce exactly that silence, so the observation is unusable and has to be
-  // repeated on a clean day.
+  // Only creating. updateNotScheduled defaults to true, so branches that
+  // already exist are still rebased outside the window, which matters here
+  // because required checks are strict: every merge puts the other open pull
+  // requests behind, and they would sit until the next Monday if Renovate could
+  // not touch them. This was misread once as a reason not to restore the window
+  // at all.
   //
-  // Repeating it needs a bot pull request, and the weekly window is what stops
-  // one existing: it only permits branch creation between midnight and 7am on a
-  // Monday, so the next natural opportunity is a week away. Nothing else about
-  // the policy moves. minimumReleaseAge still holds every update for seven
-  // days, and prConcurrentLimit and prHourlyLimit still bound how much arrives
-  // at once.
+  // Lifted briefly on 2026-08-18 to produce a bot pull request on demand, which
+  // is the only way to observe whether CodeRabbit auto-reviews one. It does not.
+  // Across 16 bot pull requests it posted a `CodeRabbit` status on exactly one,
+  // #56, which is the one asked by hand, while all 8 human pull requests in the
+  // same window got one automatically. GitHub's 2026-08-17 webhook incident is
+  // ruled out, since the retest ran hours after it resolved. Raised with their
+  // support.
   //
-  // Worth weighing before restoring it: the window costs up to seven days on
-  // top of the seven the cooling period already imposes, and it was there to
-  // give a person one sitting a week to work through the batch. Nothing is
+  // Worth weighing if this is ever reconsidered: the window costs up to seven
+  // days on top of the seven minimumReleaseAge already imposes, and it existed
+  // to give a person one sitting a week to work through the batch. Nothing is
   // worked through by hand any more.
+  schedule: ["before 7am on Monday"],
 
   labels: ["dependencies", "docker"],
   commitMessagePrefix: "chore:",
@@ -250,6 +250,36 @@
     },
     {
       customType: "regex",
+      // The `additional_dependencies` pins in .pre-commit-config.yaml: gitleaks
+      // (a Go module) and checkov (a pypi package). Neither is a container
+      // image, which is the whole reason this is its own manager.
+      //
+      // These used to sit alongside the image patterns below, under that
+      // manager's `datasourceTemplate: "docker"`. A template set on a manager
+      // applies to every one of its matchStrings and wins over a `datasource`
+      // captured by the pattern, so the annotations here were read and then
+      // overridden, and Renovate spent weeks reporting:
+      //
+      //   Failed to look up docker package github.com/zricethezav/gitleaks/v8
+      //   Failed to look up docker package checkov
+      //
+      // Silently, on the repository's Renovate dashboard rather than anywhere
+      // this repository would notice. Meanwhile the second copy of the checkov
+      // pin, in the workflow, updates through a different manager that has no
+      // template, so the two drifted: the gate was still on 3.3.2 while the
+      // SARIF report had reached 3.3.10. That is exactly the failure the
+      // manager below warns about.
+      //
+      // No datasourceTemplate here, deliberately. The annotation is the
+      // authority, and it is the only thing that can be, because the two
+      // dependencies do not share a datasource.
+      managerFilePatterns: ["/^\\.pre-commit-config\\.yaml$/"],
+      matchStrings: [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s*\\n\\s*additional_dependencies: \\[\"[^\"]+?(?:==|@)(?<currentValue>v?[0-9][^\"]*)\"\\]",
+      ],
+    },
+    {
+      customType: "regex",
       // Versions pinned inside `repo: local` hooks in .pre-commit-config.yaml.
       //
       // Dependabot's pre-commit ecosystem updates the `rev:` of a hook
@@ -280,7 +310,6 @@
         "/^\\.github/workflows/pull-request-validation\\.yml$/",
       ],
       matchStrings: [
-        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s*\\n\\s*additional_dependencies: \\[\"[^\"]+?(?:==|@)(?<currentValue>v?[0-9][^\"]*)\"\\]",
         "# renovate: datasource=docker depName=(?<depName>aquasec/trivy)[\\s\\S]{0,900}?aquasec/trivy:(?<currentValue>v?\\d[\\w.\\-]*)",
         "# renovate: datasource=docker depName=(?<depName>dotenvlinter/dotenv-linter)[\\s\\S]{0,900}?dotenvlinter/dotenv-linter:(?<currentValue>v?\\d[\\w.\\-]*)",
         "# renovate: datasource=docker depName=(?<depName>zricethezav/gitleaks)[\\s\\S]{0,900}?zricethezav/gitleaks:(?<currentValue>v?\\d[\\w.\\-]*)",
