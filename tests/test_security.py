@@ -347,9 +347,25 @@ def test_ipv6_sysctls_disabled(service_name, running_containers, docker_client):
 
 
 def test_sabnzbd_config_disables_ipv6():
-    """SABnzbd should not bind or select Usenet servers over IPv6."""
+    """SABnzbd should not select Usenet servers over IPv6, nor open [::1]."""
     misc = _sabnzbd_misc()
-    assert misc["host"] == "0.0.0.0"  # nosec B104 - asserting a config value, not binding a socket
+    # Either value is acceptable, because the bind address is the container's to
+    # choose and not ours. linuxserver's start script passes `--server ::`
+    # whenever /proc/net/if_inet6 exists, which it does here since gluetun keeps
+    # IPv6 sysctls enabled for its own DNS listener, and `--server` overrides the
+    # config file and is persisted back into it. So `host = 0.0.0.0` in the seeded
+    # ini cannot survive a start, which is what turned the 5.0.4 bump red.
+    #
+    # Reported upstream twice, linuxserver/docker-sabnzbd#116 and #240, and closed
+    # as intended behavior: forcing it stops a user binding 127.0.0.1 and locking
+    # themselves out of the web UI.
+    #
+    # Nothing is lost by accepting it. The listener sits in gluetun's network
+    # namespace, which has no IPv6 address and is firewalled, so `::` reaches
+    # nothing `0.0.0.0` would not. See docs/HARDENING.md.
+    assert misc["host"] in ("0.0.0.0", "::")  # nosec B104 - asserting a config value, not binding a socket
+    # These two are ours. `--server` does not touch them, and they are what
+    # actually governs IPv6 behavior rather than the bind address.
     assert misc["ipv6_hosting"] == "0"
     assert misc["ipv6_servers"] == "0"
 
