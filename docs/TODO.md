@@ -65,6 +65,27 @@ for what was fixed and when.
   `docker-compose-vpn.yml` actually relies on, so this patch is defense in depth
   and its removal is safe whenever upstream changes
 
+## Jellyfin wiring
+
+- [ ] Stop `ensure_jellyfin_connection` failing silently, and work out why it
+  fails for `lidarr`. `scripts/wire-connections.sh:1003` calls it with
+  `|| true`, so a failure leaves the app without the connection while `make wire_connections`
+  still reports success, and the first sign of it is
+  `test_jellyfin_connection_matches_what_the_app_supports[lidarr]` failing later
+  with `supports MediaBrowser=True but wired=False`. Seen on two runs on
+  2026-08-18 (`32176749677` on #72 and `32179005406` on #77), both shortly after
+  the Jellyfin 10.11.10 bump merged unattended in #76 at 19:17Z, and both passed
+  on a retry, so the bump appears to have widened a race rather than broken
+  anything outright. Two things to do, and the first stands on its own: the
+  Prowlarr path in the same file already collects failures in `PROWLARR_FAILED`
+  precisely "so the end of `wire_prowlarr_apps` can report them instead of
+  letting a partial result look identical to a complete one", and the Jellyfin
+  path should do the same rather than swallow. Then find the actual failure,
+  which the reporting will finally make visible. This matters more than a normal
+  flake now that dependency updates merge unattended: an intermittent test means
+  a bot pull request stalls at random and waits for a person, which is the one
+  outcome the automation exists to avoid
+
 ## LazyLibrarian
 
 - [ ] Drop `patches/lazylibrarian/lazylibrarian/auth.py` once it is no longer
