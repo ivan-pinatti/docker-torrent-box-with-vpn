@@ -11,7 +11,7 @@ This is the check that stands between "renovate[bot] opened a pull request" and
 an unattended merge. Without it, approving a bot's pull request on the strength
 of its author means the bot identity holds write access to main: a compromised
 Renovate, or a Renovate whose configuration has been edited to widen what it
-manages, could rewrite a workflow and be approved for it. Two of the four
+manages, could rewrite a workflow and be approved for it. Two of the five
 allowed paths are executable surfaces on their own, since the pip pins live in
 workflow `run:` steps and the scanner image tags live inside pre-commit hook
 `entry:` commands, so a path allowlist alone would not be much of a fence. The
@@ -29,7 +29,7 @@ than "any number on the line" and deliberately so. `PUID=1000` becoming
 `PUID=0`, or a `timeout-minutes:` moving, are numeric edits with real effects
 that a looser rule would wave through, so they are refused like any other
 structural change. The residue is a number that sits in a pin position and is
-not a pin, which in these four files means an image tag's port-like suffix and
+not a pin, which in these five files means an image tag's port-like suffix and
 little else.
 
 What it deliberately does not catch: a bump to a version that exists but is
@@ -52,7 +52,15 @@ ALLOWED_PATHS = (
     ".pre-commit-config.yaml",
     ".github/workflows/",
     "tests/requirements.txt",
+    ".tool-versions",
 )
+
+# `.tool-versions` writes `<tool> <version>`, one per line, with nothing to
+# anchor on but the space. That cannot go in the prefix set below, because a
+# lookbehind of variable width is not allowed and "the word after a space" would
+# match most of a workflow file. It is matched whole-line instead, and only for
+# that file, which is why normalize takes the path.
+TOOL_VERSION_LINE = re.compile(r"^(?P<prefix>[A-Za-z0-9_.-]+[ \t]+)\S+[ \t]*$")
 
 # Removed outright rather than replaced with a placeholder: Renovate's
 # pinDigests adds a digest to a line that had none, so a placeholder would make
@@ -64,7 +72,8 @@ DIGEST = re.compile(r"@(?:sha256:[0-9a-f]{7,}|[0-9a-f]{40})")
 # `PUID=1000` becoming `PUID=0`, or a `fetch-depth` moving, since both sides
 # would normalize alike.
 #
-# The five prefixes are the five shapes a pin takes in the four allowed files:
+# The five prefixes are the shapes a pin takes everywhere except .tool-versions,
+# which is handled whole-line above:
 #
 #   ==1.2.3              pip, in a workflow run step or additional_dependencies
 #   @v1.2.3              an action ref, and what is left after a digest is cut
@@ -96,9 +105,12 @@ VERSION = re.compile(
 FILE_HEADER = re.compile(r"^diff --git a/(?P<old>.+) b/(?P<new>.+)$")
 
 
-def normalize(line: str) -> str:
+def normalize(line: str, path: str = "") -> str:
     """Reduce a line to everything about it that a version bump may not change."""
-    return VERSION.sub(r"\g<prefix><version>", DIGEST.sub("", line))
+    stripped = DIGEST.sub("", line)
+    if path.endswith(".tool-versions"):
+        return TOOL_VERSION_LINE.sub(r"\g<prefix><version>", stripped)
+    return VERSION.sub(r"\g<prefix><version>", stripped)
 
 
 def parse(diff: str) -> tuple[dict[str, tuple[Counter, Counter]], list[str]]:
@@ -139,9 +151,9 @@ def parse(diff: str) -> tuple[dict[str, tuple[Counter, Counter]], list[str]]:
             continue
 
         if line.startswith("-"):
-            changes[path][0][normalize(line[1:])] += 1
+            changes[path][0][normalize(line[1:], path)] += 1
         elif line.startswith("+"):
-            changes[path][1][normalize(line[1:])] += 1
+            changes[path][1][normalize(line[1:], path)] += 1
 
     return changes, structural
 

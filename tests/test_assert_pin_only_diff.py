@@ -284,3 +284,24 @@ def test_still_refuses_a_swapped_image_name_with_the_widest_token():
         )
     )
     assert result.returncode == 1
+
+
+def test_accepts_a_tool_versions_bump():
+    # .tool-versions writes `<tool> <version>` with only a space between them,
+    # which none of the prefix rules can see. #67 was refused for it.
+    result = _check(_diff(".tool-versions", "-pre-commit 4.5.1\n+pre-commit 4.6.2\n"))
+    assert result.returncode == 0, result.stdout
+
+
+def test_refuses_a_swapped_tool_name_in_tool_versions():
+    result = _check(
+        _diff(".tool-versions", "-pre-commit 4.5.1\n+attacker-tool 4.5.1\n")
+    )
+    assert result.returncode == 1
+
+
+def test_refuses_an_extra_tool_added_to_tool_versions():
+    result = _check(
+        _diff(".tool-versions", "-pre-commit 4.5.1\n+pre-commit 4.6.2\n+evil 1.0.0\n")
+    )
+    assert result.returncode == 1
