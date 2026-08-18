@@ -43,7 +43,16 @@ for what was fixed and when.
   forcing the value stops anyone binding `127.0.0.1` and locking themselves out
   of the web UI. The patch keeps exactly that protection, imposing the family
   address when the configured host is missing or loopback, and respects a
-  reachable one. Before deleting, check whether the upstream `run` script has
+  reachable one. Filed as
+  [linuxserver/docker-sabnzbd#274](https://github.com/linuxserver/docker-sabnzbd/issues/274),
+  framed as a feature request rather than a bug because the bug framing is what
+  #240 was closed under, with the fix submitted as
+  [#275](https://github.com/linuxserver/docker-sabnzbd/pull/275). The patch is
+  deliberately identical to that pull request, so it becomes a no-op the moment
+  the change ships and can simply be deleted. Temper expectations: the same
+  behavior was reported in #2 (2016), #35 (2017), #42 (2018), #116 (2021) and
+  #240 (2024), and every one was closed. Before deleting, check whether the
+  upstream `run` script has
   gained any condition around `--server`, where `RAW` is
   `https://raw.githubusercontent.com/linuxserver/docker-sabnzbd/master`:
 
