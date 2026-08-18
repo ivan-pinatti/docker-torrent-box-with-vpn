@@ -385,7 +385,7 @@ jobs:
 
       - name: Filter
         id: filter
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@v4
         with:
           # Every predicate has to hold for a path to count, not just one of
           # them. The default is `some`, under which `**` alone matches
