@@ -71,6 +71,14 @@ services:
       - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/sabnzbd/config:/config:z
       - ${USENET_FOLDER}:/data/usenet${DATA_VOLUME_FLAGS}
+      # The image's own service script passes `--server ::` on every start,
+      # which overrides `host` in sabnzbd.ini and is persisted back into it, so
+      # `host = 0.0.0.0` cannot survive a restart. Reported upstream twice,
+      # linuxserver/docker-sabnzbd#116 and #240, and closed as intended to stop
+      # anyone binding 127.0.0.1 and locking themselves out of the web UI. This
+      # replacement keeps that protection for a missing or loopback value and
+      # respects a reachable one. See patches/README.md and docs/TODO.md.
+      - ./patches/sabnzbd/svc-sabnzbd/run:/etc/s6-overlay/s6-rc.d/svc-sabnzbd/run:ro,z
     healthcheck:
       <<: *healthcheck-defaults
       test: >

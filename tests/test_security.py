@@ -346,10 +346,64 @@ def test_ipv6_sysctls_disabled(service_name, running_containers, docker_client):
         assert output.decode(errors="replace").strip() == "1"
 
 
+def test_vpn_namespace_has_no_global_ipv6_address(running_containers, docker_client):
+    """Nothing in gluetun's namespace may hold a routable IPv6 address.
+
+    This is the control docker-compose-vpn.yml names: IPv6 is deliberately left
+    enabled there, because gluetun's DNS server binds `[::]:53`, and leaks are
+    prevented by no interface holding an IPv6 address plus gluetun's ip6tables
+    rules. Until now nothing asserted the first half of that.
+
+    It is the property the SABnzbd bind address was standing in for, and a
+    better one to test. The bind address belongs to linuxserver's start script
+    rather than to us, so asserting it proved only what upstream felt like doing
+    that week, and a listener on `::` reaches nothing while this holds. Should a
+    provider ever hand out an IPv6 address inside the tunnel, this fails and the
+    bind address becomes worth arguing about again.
+    """
+    service_name = env("VPN_PROVIDER", "gluetun")
+    skip_if_disabled(service_name)
+    skip_if_not_running(service_name, running_containers)
+    container = fresh_container(docker_client, service_name)
+
+    # /proc/net/if_inet6 rather than `ip -6 addr`, which the image may not carry.
+    # Columns are address, index, prefix length, scope, flags, device. Scope 10
+    # is link-local and scope 20 is host, neither of which is routable; scope 00
+    # is global, which is the one that must not appear.
+    exit_code, output = container.exec_run(["cat", "/proc/net/if_inet6"])
+    assert exit_code == 0, output.decode(errors="replace")
+
+    global_addresses = [
+        line
+        for line in output.decode(errors="replace").splitlines()
+        if len(line.split()) >= 4 and line.split()[3] == "00"
+    ]
+    assert not global_addresses, (
+        "gluetun's namespace holds a routable IPv6 address, so the download "
+        f"clients sharing it are reachable over IPv6: {global_addresses}"
+    )
+
+
 def test_sabnzbd_config_disables_ipv6():
-    """SABnzbd should not bind or select Usenet servers over IPv6."""
+    """SABnzbd should not select Usenet servers over IPv6, nor open [::1]."""
     misc = _sabnzbd_misc()
-    assert misc["host"] == "0.0.0.0"  # nosec B104 - asserting a config value, not binding a socket
+    # Either value is acceptable, because the bind address is the container's to
+    # choose and not ours. linuxserver's start script passes `--server ::`
+    # whenever /proc/net/if_inet6 exists, which it does here since gluetun keeps
+    # IPv6 sysctls enabled for its own DNS listener, and `--server` overrides the
+    # config file and is persisted back into it. So `host = 0.0.0.0` in the seeded
+    # ini cannot survive a start, which is what turned the 5.0.4 bump red.
+    #
+    # Reported upstream twice, linuxserver/docker-sabnzbd#116 and #240, and closed
+    # as intended behavior: forcing it stops a user binding 127.0.0.1 and locking
+    # themselves out of the web UI.
+    #
+    # Nothing is lost by accepting it. The listener sits in gluetun's network
+    # namespace, which has no IPv6 address and is firewalled, so `::` reaches
+    # nothing `0.0.0.0` would not. See docs/HARDENING.md.
+    assert misc["host"] in ("0.0.0.0", "::")  # nosec B104 - asserting a config value, not binding a socket
+    # These two are ours. `--server` does not touch them, and they are what
+    # actually governs IPv6 behavior rather than the bind address.
     assert misc["ipv6_hosting"] == "0"
     assert misc["ipv6_servers"] == "0"
 
