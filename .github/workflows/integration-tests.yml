@@ -681,6 +681,15 @@ jobs:
           owner=$(gh api "repos/$REPO/commits/$HEAD_SHA/status" \
             --jq "[.statuses[] | select(.context == \"$STATUS_CONTEXT\")] | first | .target_url // \"\"")
 
+          # The read and the write below are two requests, so a newer run can
+          # claim the status in between and have this one overwrite it. The
+          # window is left open deliberately. There is no conditional write on
+          # POST /statuses to close it properly, and the alternative, a separate
+          # writer job in its own serialized concurrency group, is a lot of
+          # machinery for an outcome that corrects itself: the newer run
+          # publishes its own result when it finishes, and until then the status
+          # is a red that blocks a merge rather than a green that permits one.
+          # Every way of losing this race fails toward blocked.
           if [ -n "$owner" ] && [ "$owner" != "$RUN_URL" ]; then
             echo "::notice::A newer run owns the status for $HEAD_SHA. Leaving it alone."
             exit 0
