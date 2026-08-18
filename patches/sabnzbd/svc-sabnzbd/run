@@ -1,0 +1,49 @@
+#!/usr/bin/with-contenv bash
+# shellcheck shell=bash
+
+FAMILY=::
+
+# Local patch, not upstream. The shipped script passes `--server "$FAMILY"`
+# unconditionally, and `--server` overrides `host` in the config file and is
+# then persisted back into it, so a deliberate `host = 0.0.0.0` cannot survive a
+# container start.
+#
+# This respects a configured host when it is reachable, and still imposes FAMILY
+# when the value is missing or loopback, which is the case upstream was
+# protecting: nobody can bind 127.0.0.1 and lock themselves out of the web UI.
+#
+# See patches/README.md for why this is vendored and docs/TODO.md for the
+# condition to check before deleting it.
+CONFIGURED_HOST=$(sed -n 's/^host[[:space:]]*=[[:space:]]*//p' /config/sabnzbd.ini 2>/dev/null | head -1)
+
+respect_configured_host() {
+    case "${CONFIGURED_HOST}" in
+        "" | localhost | 127.* | ::1) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
+if [[ -z ${LSIO_NON_ROOT_USER} ]]; then
+    if ! test -f /proc/net/if_inet6; then
+        FAMILY=0.0.0.0
+        sed '/ip6-/d' /etc/hosts > /etc/hosts.new
+        cat /etc/hosts.new > /etc/hosts
+        rm /etc/hosts.new
+    fi
+
+    SERVER_ARGS=(--server "${FAMILY}")
+    respect_configured_host && SERVER_ARGS=()
+
+    exec \
+        s6-notifyoncheck -d -n 300 -w 1000 \
+            s6-setuidgid abc python3 /app/sabnzbd/SABnzbd.py \
+            --config-file /config "${SERVER_ARGS[@]}"
+else
+    SERVER_ARGS=(--server "${FAMILY}")
+    respect_configured_host && SERVER_ARGS=()
+
+    exec \
+        s6-notifyoncheck -d -n 300 -w 1000 \
+            python3 /app/sabnzbd/SABnzbd.py \
+            --config-file /config "${SERVER_ARGS[@]}"
+fi
