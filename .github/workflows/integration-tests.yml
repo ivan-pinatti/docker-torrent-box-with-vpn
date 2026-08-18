@@ -320,10 +320,39 @@ jobs:
           fi
 
       - name: Install xmlstarlet
+        # Bounded and retried, because this innocuous line has cost two suite
+        # runs. On 2026-08-18 it hung for the whole twenty minute job budget on
+        # #68, twice, while every step after it was skipped: `apt-get update`
+        # stalls on an unreachable mirror and waits out its own long default
+        # timeouts. A step with no limit of its own inside a job whose limit is
+        # the only backstop turns a mirror hiccup into a failed suite, and the
+        # publish job can only report that the run did not finish.
+        #
+        # Two minutes is generous for two apt calls that normally take seconds,
+        # and three attempts covers a mirror that is briefly unreachable rather
+        # than down. The explicit timeouts on apt itself are what make a stall
+        # fail fast enough for the retry to be worth having.
+        timeout-minutes: 6
         shell: bash
-        run: sudo apt-get update && sudo apt-get install -y xmlstarlet
+        run: |
+          set -euo pipefail
+          apt_opts=(-o Acquire::Retries=3 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15)
+          for attempt in 1 2 3; do
+            if sudo apt-get "${apt_opts[@]}" update \
+              && sudo apt-get "${apt_opts[@]}" install -y xmlstarlet; then
+              exit 0
+            fi
+            echo "::warning::apt attempt $attempt failed, retrying."
+            sleep 5
+          done
+          echo "::error::Could not install xmlstarlet after three attempts."
+          exit 1
 
       - name: Set up rootless Podman
+        # Bounded for the same reason as the xmlstarlet step above: this one
+        # also talks to the archive, so a stalled mirror here would spend the
+        # job budget rather than this step's.
+        timeout-minutes: 8
         # See prerequisites job's own copy of this step for why it's
         # needed. This is the runtime the project is actually built and
         # documented for; every local bench validation this session ran
@@ -452,11 +481,13 @@ jobs:
         run: grep -m1 '^PYTHON_VERSION=' .env >> "$GITHUB_ENV"
 
       - name: Python Setup
+        timeout-minutes: 5
         uses: actions/setup-python@v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install scripts/permissions.py's dependency
+        timeout-minutes: 3
         # seed_all's own permissions_repair step runs this script directly
         # with the system Python, not tests/.venv (that only gets created
         # later, by make test's own dependency on it).
