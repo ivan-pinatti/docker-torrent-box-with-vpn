@@ -71,6 +71,14 @@ jobs:
       )
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # One at a time per pull request. The guard below reads the reviews and then
+    # writes one, so two runs racing between those two steps would both see no
+    # approval and both add one, which is the pile-up this is meant to end.
+    # Queued rather than cancelled: a superseded run here has nothing to redo,
+    # but a cancelled one might have been the only run that would have approved.
+    concurrency:
+      group: bot-auto-merge-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
     permissions:
       # For `gh pr merge --auto` on the Dependabot path only. Arming auto-merge
       # does not merge anything: every required check still has to pass, and
@@ -192,8 +200,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          existing=$(gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
-            --jq '[.[] | select(.user.login == "github-actions[bot]" and .state == "APPROVED")] | length')
+          # --paginate, because the REST reviews endpoint returns one page and
+          # #61 had already collected seven reviews before this guard existed.
+          # The jq runs per page under --paginate, so the slurp happens outside
+          # it: `gh api` refuses --slurp and --jq together.
+          existing=$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/reviews" \
+            | jq -s '[.[][] | select(.user.login == "github-actions[bot]" and .state == "APPROVED")] | length')
           if [ "$existing" -gt 0 ]; then
             echo "Already approved and not dismissed. Nothing to do."
             exit 0
