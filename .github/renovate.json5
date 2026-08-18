@@ -250,6 +250,36 @@
     },
     {
       customType: "regex",
+      // The `additional_dependencies` pins in .pre-commit-config.yaml: gitleaks
+      // (a Go module) and checkov (a pypi package). Neither is a container
+      // image, which is the whole reason this is its own manager.
+      //
+      // These used to sit alongside the image patterns below, under that
+      // manager's `datasourceTemplate: "docker"`. A template set on a manager
+      // applies to every one of its matchStrings and wins over a `datasource`
+      // captured by the pattern, so the annotations here were read and then
+      // overridden, and Renovate spent weeks reporting:
+      //
+      //   Failed to look up docker package github.com/zricethezav/gitleaks/v8
+      //   Failed to look up docker package checkov
+      //
+      // Silently, on the repository's Renovate dashboard rather than anywhere
+      // this repository would notice. Meanwhile the second copy of the checkov
+      // pin, in the workflow, updates through a different manager that has no
+      // template, so the two drifted: the gate was still on 3.3.2 while the
+      // SARIF report had reached 3.3.10. That is exactly the failure the
+      // manager below warns about.
+      //
+      // No datasourceTemplate here, deliberately. The annotation is the
+      // authority, and it is the only thing that can be, because the two
+      // dependencies do not share a datasource.
+      managerFilePatterns: ["/^\\.pre-commit-config\\.yaml$/"],
+      matchStrings: [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s*\\n\\s*additional_dependencies: \\[\"[^\"]+?(?:==|@)(?<currentValue>v?[0-9][^\"]*)\"\\]",
+      ],
+    },
+    {
+      customType: "regex",
       // Versions pinned inside `repo: local` hooks in .pre-commit-config.yaml.
       //
       // Dependabot's pre-commit ecosystem updates the `rev:` of a hook
@@ -280,7 +310,6 @@
         "/^\\.github/workflows/pull-request-validation\\.yml$/",
       ],
       matchStrings: [
-        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s*\\n\\s*additional_dependencies: \\[\"[^\"]+?(?:==|@)(?<currentValue>v?[0-9][^\"]*)\"\\]",
         "# renovate: datasource=docker depName=(?<depName>aquasec/trivy)[\\s\\S]{0,900}?aquasec/trivy:(?<currentValue>v?\\d[\\w.\\-]*)",
         "# renovate: datasource=docker depName=(?<depName>dotenvlinter/dotenv-linter)[\\s\\S]{0,900}?dotenvlinter/dotenv-linter:(?<currentValue>v?\\d[\\w.\\-]*)",
         "# renovate: datasource=docker depName=(?<depName>zricethezav/gitleaks)[\\s\\S]{0,900}?zricethezav/gitleaks:(?<currentValue>v?\\d[\\w.\\-]*)",
