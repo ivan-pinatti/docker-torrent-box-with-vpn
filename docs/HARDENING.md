@@ -76,8 +76,28 @@ namespace, so their container-level IPv6 settings are controlled by gluetun.
 Gluetun intentionally keeps IPv6 sysctls enabled because its DNS listener binds
 to `[::]:53`; leak protection comes from not assigning IPv6 addresses and from
 gluetun's firewall rules. SABnzbd is additionally configured with
-`host = 0.0.0.0`, `ipv6_hosting = 0`, and `ipv6_servers = 0` in
-`configs/sabnzbd/config/sabnzbd.ini`.
+`ipv6_hosting = 0` and `ipv6_servers = 0` in
+`configs/sabnzbd/config/sabnzbd.ini`, which is what stops it selecting Usenet
+servers over IPv6 or opening the `[::1]` listener.
+
+Its bind address is not ours to set, and expecting otherwise cost a red build on
+the 5.0.4 bump. linuxserver's start script passes `--server ::` whenever
+`/proc/net/if_inet6` exists, `--server` overrides the config file, and SABnzbd
+persists the override back into the ini, so `host = 0.0.0.0` cannot survive a
+start. The file exists here because gluetun keeps IPv6 sysctls enabled for its
+own DNS listener, per the paragraph above. Reported upstream twice,
+[#116](https://github.com/linuxserver/docker-sabnzbd/issues/116) and
+[#240](https://github.com/linuxserver/docker-sabnzbd/issues/240), and closed as
+intended behavior: forcing it is what stops a user binding `127.0.0.1` and
+locking themselves out of the web UI.
+
+Accepting `::` costs nothing here, which is why the test allows either value. The
+listener lives in gluetun's network namespace, which is assigned no IPv6 address
+and is firewalled, so binding `::` reaches nothing that `0.0.0.0` would not. The
+alternatives were both worse: disabling IPv6 in that namespace to make the
+container choose `0.0.0.0` would break gluetun's DNS listener, and overriding the
+start script would mean vendoring a permanent fork of upstream's launcher to
+control a value that protects nothing in this topology.
 
 ### VPN kill-switch
 

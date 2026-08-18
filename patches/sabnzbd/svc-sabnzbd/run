@@ -1,0 +1,53 @@
+#!/usr/bin/with-contenv bash
+# shellcheck shell=bash
+
+FAMILY=::
+
+# Local patch, not upstream, and deliberately identical to the change proposed
+# to linuxserver/docker-sabnzbd so that this file becomes a no-op if they take
+# it. See patches/README.md and docs/TODO.md.
+#
+# The shipped script passes `--server "$FAMILY"` unconditionally. That overrides
+# `host` in sabnzbd.ini and is persisted back into it, so a deliberate
+# `host = 0.0.0.0` cannot survive a container start. Below, a configured host is
+# passed back through the same flag, which makes it a no-op, unless the value is
+# unset or loopback, in which case FAMILY is imposed exactly as upstream does.
+# That keeps the protection upstream cares about: nobody can bind 127.0.0.1 and
+# lock themselves out of the web UI.
+#
+# Section tracking rather than a plain grep for `^host`, because the NNTP server
+# entries under [servers] carry their own unindented `host = ...` line. Matching
+# the wrong one would hand a news server's hostname to --server.
+CONFIGURED_HOST=$(awk '/^\[/{s=$0} s=="[misc]" && /^host[[:space:]]*=/{sub(/^host[[:space:]]*=[[:space:]]*/,""); print; exit}' /config/sabnzbd.ini 2>/dev/null)
+
+if [[ -z ${LSIO_NON_ROOT_USER} ]]; then
+    if ! test -f /proc/net/if_inet6; then
+        FAMILY=0.0.0.0
+        sed '/ip6-/d' /etc/hosts > /etc/hosts.new
+        cat /etc/hosts.new > /etc/hosts
+        rm /etc/hosts.new
+    fi
+
+    # After the fallback above, not before it: a single check ahead of the `if`
+    # would let that fallback clobber a configured host on a machine without
+    # IPv6, which is the bug this exists to fix.
+    case ${CONFIGURED_HOST} in
+        "" | 127.0.0.1 | ::1 | localhost) ;;
+        *) FAMILY=${CONFIGURED_HOST} ;;
+    esac
+
+    exec \
+        s6-notifyoncheck -d -n 300 -w 1000 \
+            s6-setuidgid abc python3 /app/sabnzbd/SABnzbd.py \
+            --config-file /config --server "$FAMILY"
+else
+    case ${CONFIGURED_HOST} in
+        "" | 127.0.0.1 | ::1 | localhost) ;;
+        *) FAMILY=${CONFIGURED_HOST} ;;
+    esac
+
+    exec \
+        s6-notifyoncheck -d -n 300 -w 1000 \
+            python3 /app/sabnzbd/SABnzbd.py \
+            --config-file /config --server "$FAMILY"
+fi
