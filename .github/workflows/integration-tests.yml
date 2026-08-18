@@ -242,7 +242,16 @@ jobs:
     needs: gate
     if: needs.gate.outputs.authorized == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # Measured, not guessed: eight consecutive passing runs took 11 or 12
+    # minutes each, so 20 is roughly seventy percent of headroom on the worst of
+    # them. It was 25, which is nearly an hour of runner time on two stuck runs
+    # before anyone notices.
+    #
+    # This is the binding limit, not the per-step ones below. Those sum to well
+    # over an hour, because each has to allow for its own worst case, so the job
+    # cap is always what a genuinely stuck run hits first. That is fine now that
+    # hitting it reports a failure rather than nothing; see the publish job.
+    timeout-minutes: 20
     # One suite per pull request: a second `/run-tests`, or a push to a bot's
     # branch, supersedes the first rather than standing a competing stack up on
     # the same runner pool. That matters more on the bot path than the comment
@@ -624,16 +633,24 @@ jobs:
     # pull request waiting on a context that never arrives.
     #
     # Not on a skip, because the suite never ran and no pending status was
-    # written either. Not on a cancellation, because there are only two ways to
-    # get one and neither wants a status from here. A second `/run-tests`
-    # supersedes the first, and the superseded run publishing `failure` would
-    # overwrite the pending status the newer one has already written, or worse,
-    # land after that run's own result and bury it. A person cancelling by hand
-    # leaves the pending status standing, which reads as waiting and blocks the
-    # merge, which is the honest answer: nothing was proven about this commit.
-    if: >-
-      always() && needs.suite.result != 'skipped'
-      && needs.suite.result != 'cancelled'
+    # written either. Cancellations do run this job now, and the step decides,
+    # because `cancelled` turns out to mean three different things:
+    #
+    #   superseded  a newer run took the concurrency group. Writing anything
+    #               here would overwrite the pending status that run has already
+    #               published, or land after its result and bury it.
+    #   timed out   the job hit its timeout-minutes. GitHub reports that as a
+    #               cancellation too, indistinguishable at this level, so
+    #               excluding cancellations wholesale left a stuck run silent:
+    #               the status stayed `pending` with no failure anywhere, and
+    #               the pull request read as "still running" forever. Observed
+    #               on run 32070723229.
+    #   cancelled by hand
+    #               same treatment as a timeout. Nothing was proven about this
+    #               commit and the run is over, so say so.
+    #
+    # The three are told apart by who owns the pending status, below.
+    if: always() && needs.suite.result != 'skipped'
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions:
@@ -643,17 +660,61 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SUITE_RESULT: ${{ needs.suite.result }}
+          HEAD_SHA: ${{ needs.gate.outputs.head_sha }}
+          REPO: ${{ github.repository }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash
         run: |
-          # No cancelled branch: the job condition above excludes it, so a
-          # superseded run never writes over a newer one's status.
+          set -euo pipefail
+
+          # Whoever wrote the pending status owns the outcome. The gate writes
+          # it with this run's URL when the run starts, so a newer run taking
+          # the concurrency group has already overwritten it with its own by the
+          # time the superseded run reaches this point. If the URL on the status
+          # is not ours, we were superseded, and the only correct thing to do is
+          # nothing.
+          #
+          # This is what separates a supersede from a timeout, which GitHub
+          # reports identically as `cancelled`. A timeout leaves the pending
+          # status still pointing at this run, because nothing came along to
+          # replace it.
+          owner=$(gh api "repos/$REPO/commits/$HEAD_SHA/status" \
+            --jq "[.statuses[] | select(.context == \"$STATUS_CONTEXT\")] | first | .target_url // \"\"")
+
+          # The read and the write below are two requests, so a newer run can
+          # claim the status in between and have this one overwrite it. The
+          # window is left open deliberately. There is no conditional write on
+          # POST /statuses to close it properly, and the alternative, a separate
+          # writer job in its own serialized concurrency group, is a lot of
+          # machinery for an outcome that corrects itself: the newer run
+          # publishes its own result when it finishes, and until then the status
+          # is a red that blocks a merge rather than a green that permits one.
+          # Every way of losing this race fails toward blocked.
+          if [ -n "$owner" ] && [ "$owner" != "$RUN_URL" ]; then
+            echo "::notice::A newer run owns the status for $HEAD_SHA. Leaving it alone."
+            exit 0
+          fi
+
           case "$SUITE_RESULT" in
-            success) state=success; desc="Integration suite passed on this commit" ;;
-            *) state=failure; desc="Integration suite failed" ;;
+            success)
+              state=success
+              desc="Integration suite passed on this commit"
+              ;;
+            cancelled)
+              # Not superseded, or the check above would have returned. So the
+              # run was stopped: its timeout, or a person.
+              state=failure
+              desc="Integration suite did not finish, timed out or was stopped"
+              ;;
+            *)
+              state=failure
+              desc="Integration suite failed"
+              ;;
           esac
           gh api --method POST \
-            "repos/${{ github.repository }}/statuses/${{ needs.gate.outputs.head_sha }}" \
+            "repos/$REPO/statuses/$HEAD_SHA" \
             -f state="$state" \
             -f context="$STATUS_CONTEXT" \
             -f description="$desc" \
-            -f target_url="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            -f target_url="$RUN_URL" \
             --silent
