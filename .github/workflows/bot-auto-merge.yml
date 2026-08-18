@@ -56,10 +56,18 @@ jobs:
     # contains: `renovate[bot]-x` is a login somebody may register, and the
     # non-fork condition is the second half of the same fence, since reaching
     # this job any other way would take write access to this repository.
+    #
+    # The label condition is about noise rather than correctness. `labeled`
+    # fires once per label, Renovate applies three, and with `opened` as well
+    # #61 collected seven identical approvals before anything had even run. Only
+    # the label this job actually reads is worth waking it for.
     if: >-
       github.event.pull_request.head.repo.fork == false && (
         github.event.pull_request.user.login == 'renovate[bot]' ||
         github.event.pull_request.user.login == 'dependabot[bot]'
+      ) && (
+        github.event.action != 'labeled' ||
+        github.event.label.name == 'automerge'
       )
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -171,10 +179,26 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
         # Re-approved on every push, which is required rather than wasteful:
         # branch protection dismisses stale reviews, so a rebase drops the
         # previous approval, and `synchronize` is above for that reason.
-        run: gh pr review --approve "$PR_URL"
+        #
+        # Skipped when a live approval is already there, which is what stops the
+        # remaining events piling identical reviews onto one pull request. A
+        # dismissed one does not count, so a rebase still earns a fresh
+        # approval, which is the whole point of re-running.
+        shell: bash
+        run: |
+          set -euo pipefail
+          existing=$(gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
+            --jq '[.[] | select(.user.login == "github-actions[bot]" and .state == "APPROVED")] | length')
+          if [ "$existing" -gt 0 ]; then
+            echo "Already approved and not dismissed. Nothing to do."
+            exit 0
+          fi
+          gh pr review --approve "$PR_URL"
 
       - name: Enable auto-merge
         if: steps.decide.outputs.arm == 'true'

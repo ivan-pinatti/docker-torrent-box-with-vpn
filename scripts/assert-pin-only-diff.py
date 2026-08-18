@@ -75,9 +75,15 @@ DIGEST = re.compile(r"@(?:sha256:[0-9a-f]{7,}|[0-9a-f]{40})")
 #                        YAML `key: 25` cannot pass for one
 # The prefix is captured and put back, so that a pin changing shape rather than
 # value, `foo==1.2.3` becoming `foo@1.2.3`, still reads as a difference.
+# The token itself starts with a digit and may then be any mix of letters and
+# digits, because a version is not always dotted numbers. linuxserver publishes
+# lazylibrarian as `40a389ea-ls310`, a commit hash with a build suffix, and an
+# earlier pattern of `\d+(\.\d+)*` matched only the leading `40` there, leaving
+# `a389ea-ls309` and `a389ea-ls310` to compare as literal text. The assertion
+# refused its own PR #62, correctly by its own rules and wrongly in fact.
 VERSION = re.compile(
     r"(?P<prefix>==|@|(?<=VERSION)=|\brev:[ \t]+|(?<=\S):)"
-    r"\bv?\d+(?:\.\d+)*(?:[-.+][0-9A-Za-z.+_-]+)?\b"
+    r"v?\d[0-9A-Za-z]*(?:[.\-+_][0-9A-Za-z]+)*"
 )
 
 FILE_HEADER = re.compile(r"^diff --git a/(?P<old>.+) b/(?P<new>.+)$")

@@ -230,3 +230,26 @@ def test_refuses_a_pin_that_changes_shape_rather_than_value():
         )
     )
     assert result.returncode == 1
+
+
+def test_accepts_a_hash_style_tag():
+    # linuxserver publishes lazylibrarian as a commit hash with a build suffix,
+    # not as dotted numbers. Refusing that meant refusing a real bump, which is
+    # what happened to #62.
+    result = _check(
+        _diff(
+            ".env.example",
+            # pragma: allowlist secret - an image tag, and the hash in it is
+            # what detect-secrets reads as entropy. It is published on Docker
+            # Hub.
+            "-LAZYLIBRARIAN_VERSION=40a389ea-ls309\n"  # pragma: allowlist secret
+            "+LAZYLIBRARIAN_VERSION=40a389ea-ls310\n",  # pragma: allowlist secret
+        )
+    )
+    assert result.returncode == 0, result.stdout
+
+
+def test_still_refuses_a_non_pin_number_after_widening_the_token():
+    # The widened token must not start accepting numbers that are not pins.
+    result = _check(_diff(".env.example", "-PUID=1000\n+PUID=0\n"))
+    assert result.returncode == 1
