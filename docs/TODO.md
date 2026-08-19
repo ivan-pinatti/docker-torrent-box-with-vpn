@@ -131,12 +131,44 @@ for what was fixed and when.
   `pre-commit-checklists#12` (seven commits), where reviews stopped after the
   fifth and twelve hours passed with no review and no warning
 - [ ] Nothing to configure for the other half of the problem: the
-  included-review quota (3/hour) **drops** a review rather than queueing it, so
-  a push during exhaustion is lost. The published schema
-  (`schema.v2.json`) has no retry, backoff or queue setting. Recovery is a
-  manual `@coderabbitai review`. Treat a green CodeRabbit check as "no review
-  blocked this", not as "a review happened": it is also green on a skipped
-  draft and on a rate-limited decline
+  included-review quota **drops** a review rather than queueing it, so a push
+  during exhaustion is lost. The published schema (`schema.v2.json`) has no
+  retry, backoff or queue setting. Recovery is a manual `@coderabbitai review`.
+  Treat a green CodeRabbit check as "no review blocked this", not as "a review
+  happened": it is also green on a skipped draft and on a rate-limited decline,
+  which is the item below
+- [ ] Stop a rate limited decline reporting green, which is how three pull
+  requests merged with no review on 2026-08-19. CodeRabbit reports through the
+  legacy commit status API rather than check runs, and that API offers only
+  `error`, `failure`, `pending` and `success`, with no `neutral`. An exhausted
+  quota resolves the status to `success` with the description
+  `Review rate limited`, which neither branch protection nor anything else
+  reading the status can tell apart from `success` with `Review completed`.
+  #86, #87 and #88 all ended there and all merged, and none of their status
+  histories carries a `Review completed` entry, while #82, #85 and #90 do. #87
+  is titled "Stagger dependency updates, and stop losing CodeRabbit reviews"
+  and was itself never read. The quota figure is also unclear: the review on
+  #90 reported "up to 10 included reviews per hour; 5 remain", not the 3 per
+  hour previously recorded here.
+
+  Raised as a follow-up on the existing support ticket, framed as one value
+  meaning two opposite things rather than as the wrong state being chosen. The
+  deadlock argument against holding `pending` forever is defensible, and a
+  status that cannot tell the two apart is not, so that framing is the one that
+  cannot be closed as intended behavior. `reviews.fail_commit_status` is the only related
+  setting and does not cover this: it acts on review errors, not on declines.
+
+  The fix that does not depend on them is a gate job asserting the description
+  equals `Review completed`, in the same shape as `Integration Tests` gating
+  `Integration Suite`. It has to special case bot pull requests, which get no
+  status at all, because a required context that is absent blocks a merge
+  indefinitely and would freeze every Renovate pull request. For the same
+  reason, do not simply mark the `CodeRabbit` context required: it would cause
+  that freeze while still passing every rate limited human pull request.
+  `required_conversation_resolution` is already enabled on `main`, so the
+  "every thread addressed" half is enforced today and only "a review happened"
+  is missing
+
 - [ ] `drafts: false` stays deliberate. CodeRabbit is a GitHub App posting a
   check, not a workflow job, so it cannot be ordered after pre-commit with a
   `needs:` dependency; skipping drafts is the lever that gets the mechanical
