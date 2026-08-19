@@ -65,6 +65,18 @@ for what was fixed and when.
   `docker-compose-vpn.yml` actually relies on, so this patch is defense in depth
   and its removal is safe whenever upstream changes
 
+- [ ] Report `linuxserver/github-workflows`' broken permission check, which is
+  why [#275](https://github.com/linuxserver/docker-sabnzbd/pull/275) shows red.
+  Their `init-svc-executable-permissions.yml@v1` runs `actions/checkout@v7.0.1`
+  with `ref: github.event.pull_request.head.sha` from a `pull_request_target`
+  caller, and 7.0.1 refuses a fork checkout in that context unless
+  `allow-unsafe-pr-checkout: true` is set. The job dies before reading a single
+  file, so this should be failing every fork pull request across their whole
+  organization, not only ours. Nothing in our branch can fix it, and the file
+  the pull request touches is already `100755`, so the check passes once it can
+  run. Diagnosis and three suggested fixes are already in a comment on #275; the
+  useful next step is raising it where the workflow lives
+
 ## Jellyfin wiring
 
 - [ ] Stop `ensure_jellyfin_connection` failing silently, and work out why it
@@ -123,6 +135,20 @@ for what was fixed and when.
   blast radius is worth shrinking even though the token only exists to lift pull
   rate limits
 
+- [ ] Decide whether `Security Reports` should gate rather than report. It is not
+  a required check, so a dependency bump that introduces a new Trivy, checkov or
+  gitleaks finding merges unattended with nobody seeing it. That was a reasonable
+  trade while a person reviewed every bump, and it is a different trade now.
+  docs/HARDENING.md explains why the job reports rather than gates today
+
+- [ ] Weigh strict required status checks against the churn they cause. Every
+  merge to `main` puts every other open pull request behind, so Renovate rebases
+  it and the whole suite runs again, roughly fifteen minutes per pull request.
+  On 2026-08-18 a single small change needed three suite runs for this reason.
+  A merge queue is the usual answer; dropping strict is the cheap one. Note that
+  merge queues are reported to interact badly with required approvals and
+  Renovate, so check that before choosing
+
 ## Renovate
 
 - [ ] Enable `dependencyDashboard` in `.github/renovate.json5`, and rewrite the
@@ -136,6 +162,30 @@ for what was fixed and when.
   is valid, it just does the wrong thing. An issue in this repository would have
   shown it. The dashboard issue Renovate opened before the setting was turned
   off is #24, now closed
+
+- [ ] Stop labelling every Renovate pull request `docker`. The root `labels`
+  setting applies it unconditionally, so pypi and go updates arrive tagged as
+  container images: #54, a checkov bump, carried it. Cosmetic, but the labels are
+  load-bearing now that `automerge` is one of them
+
+## qBittorrent
+
+- [ ] Decide what the 5.1.4 to 5.2.2 bump means for `tests/test_auth.py`, and
+  unblock #83. Both `test_qbittorrent_api_login` and
+  `test_qbittorrent_web_session_login` assert `status_code == 200` and a body of
+  `Ok.`, and 5.2.2 answers with `204 No Content`, so both assertions fail and
+  the pull request is correctly red. The suite caught it, which is the system
+  working, and the bump has not merged.
+
+  What is not yet known is whether authentication still succeeds. A 204 with no
+  body could be the same successful login reported differently, or it could be a
+  login that is no longer working, and the tests fail at the status assertion
+  before reaching anything that would tell them apart. Check whether the
+  response still carries the `SID` cookie: if it does, the tests should assert on
+  the cookie rather than on a status code and a body string that upstream is free
+  to change, which is the more durable check either way. If it does not, hold the
+  bump and find out what the new flow expects. Note both requests go through
+  nginx, so rule that out as the source of the 204 before blaming qBittorrent
 
 ## LazyLibrarian
 
