@@ -112,9 +112,35 @@ for what was fixed and when.
   suppresses a review. GitHub's 2026-08-17 webhook incident is ruled out because
   the retest ran hours after it resolved and reproduced. This matters because
   docs/HARDENING.md names CodeRabbit as the only thing that reads a dependency
-  bump for intent, and right now it is not reading them. Until it is fixed,
-  `@coderabbitai review` on a bot pull request works as a manual fallback
+  bump for intent, and right now it is not reading them.
+
+  Answered, and still open. Support confirmed that pull requests authored by
+  bots are hardcoded to be ignored on their side, so this is neither our
+  configuration nor the review quota. They are investigating and will come back.
+  Keep this item open rather than closing it as answered, because the outcome
+  wanted here is that behavior changed, not merely explained. Meanwhile
+  `.github/workflows/coderabbit-review-queue.yml` asks on their behalf, hourly,
+  one pull request per run, which is the only way a bot pull request gets read at
+  all while the ignore list stands. Delete that workflow once they lift it
   <!-- cspell:ignore coderabbitai -->
+- [ ] Confirm `auto_pause_after_reviewed_commits: 0` behaves as intended on
+  the next long-lived branch here. It was changed from the default of `5` in
+  `.coderabbit.yaml` because that default pauses automatic reviews after five
+  reviewed commits **silently**: the CodeRabbit check stays green, so a pull
+  request looks reviewed when nothing has read its head. Seen on
+  `pre-commit-checklists#12` (seven commits), where reviews stopped after the
+  fifth and twelve hours passed with no review and no warning
+- [ ] Nothing to configure for the other half of the problem: the
+  included-review quota (3/hour) **drops** a review rather than queueing it, so
+  a push during exhaustion is lost. The published schema
+  (`schema.v2.json`) has no retry, backoff or queue setting. Recovery is a
+  manual `@coderabbitai review`. Treat a green CodeRabbit check as "no review
+  blocked this", not as "a review happened": it is also green on a skipped
+  draft and on a rate-limited decline
+- [ ] `drafts: false` stays deliberate. CodeRabbit is a GitHub App posting a
+  check, not a workflow job, so it cannot be ordered after pre-commit with a
+  `needs:` dependency; skipping drafts is the lever that gets the mechanical
+  defects fixed before a review slot is spent
 
 ## Repository settings
 
@@ -167,6 +193,29 @@ for what was fixed and when.
   setting applies it unconditionally, so pypi and go updates arrive tagged as
   container images: #54, a checkov bump, carried it. Cosmetic, but the labels are
   load-bearing now that `automerge` is one of them
+
+- [ ] Annotate the twelve container image pins Renovate cannot see. Each carries
+  a digest but no `# renovate:` comment, so nothing watches it and the pin is
+  frozen: `CADVISOR`, `MYLAR`, `NGINX_EXPORTER`, `NODE_EXPORTER`, `NOTIFIARR`,
+  `PODMAN_LIMITS_EXPORTER`, `PODMAN_EXPORTER`, `ALLOY`, `LOG_ROTATOR`,
+  `QBITTORRENT_EXPORTER`, `SABNZBD_EXPORTER` and `JACKETT`. Some are more than a
+  year old. `NGINX_VERSION=stable-alpine`, `PLEX_VERSION=latest` and
+  `WHISPARR_VERSION=v3` are deliberately floating and want no annotation.
+  `LAZYLIBRARIAN_VERSION` is annotated but carries no digest, unlike every other
+  managed pin, so `pinDigests` should be allowed to add one. Left out of the
+  staggering change on purpose: annotating twelve images changes what arrives
+  every week and deserves its own pull request and its own suite runs. See
+  [docs/DEPENDENCY_UPDATES.md](DEPENDENCY_UPDATES.md) for how the managed set is
+  divided today
+
+- [ ] Add a test that fails when an image pin goes unwatched, so the gap above
+  cannot recur silently. Walk `.env.example`, and for every variable naming a
+  container image assert it carries a `# renovate:` annotation and a digest, with
+  an explicit allowlist for the tags that are deliberately floating. Same shape
+  as `tests/test_prerequisites.py` asserting runtime databases stay untracked,
+  where the point is that a reintroduced mistake fails the suite rather than
+  reaching a commit. It would have caught all twelve, and lazylibrarian's
+  missing digest
 
 ## qBittorrent
 

@@ -19,15 +19,18 @@
 
   timezone: "America/Toronto",
 
-  // One window a week for creating branches, so the pull requests arrive
-  // together rather than trickling in.
+  // The default day for anything not named in a group below. Each group in
+  // packageRules carries its own schedule, so this is only reached by images
+  // that stay ungrouped on purpose. See docs/DEPENDENCY_UPDATES.md for the
+  // full weekday layout and the reasoning behind spreading updates across the
+  // week instead of opening everything on one day.
   //
   // Only creating. updateNotScheduled defaults to true, so branches that
   // already exist are still rebased outside the window, which matters here
   // because required checks are strict: every merge puts the other open pull
-  // requests behind, and they would sit until the next Monday if Renovate could
-  // not touch them. This was misread once as a reason not to restore the window
-  // at all.
+  // requests behind, and they would sit until the next scheduled day if
+  // Renovate could not touch them. This was misread once as a reason not to
+  // restore the window at all.
   //
   // Lifted briefly on 2026-08-18 to produce a bot pull request on demand, which
   // is the only way to observe whether CodeRabbit auto-reviews one. It does not.
@@ -41,7 +44,7 @@
   // days on top of the seven minimumReleaseAge already imposes, and it existed
   // to give a person one sitting a week to work through the batch. Nothing is
   // worked through by hand any more.
-  schedule: ["before 7am on Monday"],
+  schedule: ["before 7am on saturday"],
 
   labels: ["dependencies", "docker"],
   commitMessagePrefix: "chore:",
@@ -120,68 +123,110 @@
       automerge: true,
       addLabels: ["automerge"],
     },
-    // *arr suite — group together as they share config and often release together.
+    // The arr suite. Grouped to cut the pull request volume these seven images
+    // would otherwise open one at a time, not because they share a release
+    // cadence. They do not: image creation dates measured with skopeo inspect
+    // on 2026-08-18 run from readarr on 2025-06-27 to prowlarr and sonarr in
+    // early August 2026, fifteen months apart across the full set, so grouping
+    // on "they release together" would be fiction. These are also the images
+    // that have not broken anything recently, unlike the download clients kept
+    // isolated further down, which is the actual reason they are grouped while
+    // those are not.
     {
       matchDatasources: ["docker"],
       matchPackageNames: [
-        "linuxserver/bazarr",
-        "linuxserver/lidarr",
-        "linuxserver/prowlarr",
-        "linuxserver/radarr",
-        "linuxserver/readarr",
-        "linuxserver/sonarr",
+        "docker.io/linuxserver/sonarr",
+        "docker.io/linuxserver/radarr",
+        "docker.io/linuxserver/lidarr",
+        "docker.io/linuxserver/readarr",
+        "docker.io/linuxserver/prowlarr",
+        "docker.io/linuxserver/bazarr",
         "ghcr.io/recyclarr/recyclarr",
       ],
       groupName: "arr suite",
       groupSlug: "arr-suite",
+      schedule: ["before 7am on thursday"],
     },
-    // VPN and bypass tools — kept separate because they affect the kill-switch test.
+    // The observability stack. Disabled by default, so a group blocked by one
+    // bad member costs little, and this is grouped mainly for tidiness rather
+    // than volume, since it is only three images.
+    //
+    // grafana/promtail, gcr.io/cadvisor/cadvisor and prom/node-exporter used to
+    // be listed here. promtail is gone from the repository entirely, the stack
+    // uses Alloy now, and the other two are pinned in .env.example with no
+    // `# renovate:` annotation, so Renovate cannot see either one regardless of
+    // what this group names. Matching bare package names without the registry
+    // also meant this rule matched 0 of its 5 listed members before this
+    // rewrite, which is a separate problem from the three that no longer
+    // belong here at all: see the depName note above the customManagers below.
     {
       matchDatasources: ["docker"],
       matchPackageNames: [
-        "ghcr.io/qdm12/gluetun",
-        "ghcr.io/tprasadtp/protonwire",
-        "docker.io/flaresolverr/flaresolverr",
-      ],
-      groupName: "vpn and network tools",
-      groupSlug: "vpn-network",
-    },
-    // Observability stack — disabled by default, group for tidiness.
-    {
-      matchDatasources: ["docker"],
-      matchPackageNames: [
-        "grafana/grafana-oss",
-        "prom/prometheus",
-        "grafana/promtail",
-        "gcr.io/cadvisor/cadvisor",
-        "prom/node-exporter",
+        "docker.io/grafana/grafana-oss",
+        "docker.io/prom/prometheus",
+        "docker.io/grafana/loki",
       ],
       groupName: "observability stack",
       groupSlug: "observability",
+      schedule: ["before 7am on friday"],
     },
-    // Remaining linuxserver images (downloaders, library tools).
+    // Library and reading tools. Grouped for the same reason as the arr suite
+    // above, to cut pull request volume, not because these five share a
+    // release cadence. None of them touch the VPN namespace or a download
+    // client, so none of the reasoning that keeps gluetun and the download
+    // clients isolated below applies here.
     {
       matchDatasources: ["docker"],
-      // Slashes mark a regex; the trailing one is part of the pattern. The
-      // negated entries are what excludePackageNames used to express.
       matchPackageNames: [
-        "/^linuxserver//",
-        "!linuxserver/bazarr",
-        "!linuxserver/lidarr",
-        "!linuxserver/prowlarr",
-        "!linuxserver/radarr",
-        "!linuxserver/readarr",
-        "!linuxserver/sonarr",
+        "docker.io/linuxserver/calibre",
+        "docker.io/linuxserver/calibre-web",
+        "docker.io/linuxserver/lazylibrarian",
+        "ghcr.io/advplyr/audiobookshelf",
+        "ghcr.io/nperez0111/koreader-sync",
       ],
-      groupName: "linuxserver images",
-      groupSlug: "linuxserver",
+      groupName: "library and reading tools",
+      groupSlug: "library-reading",
+      schedule: ["before 7am on friday"],
     },
-    // Media library servers.
+    // gluetun, flaresolverr, wireguard, every download client (qbittorrent,
+    // sabnzbd, nzbget, nzbhydra2, jdownloader-2), jellyfin and homepage are
+    // deliberately named in no group here, so each opens its own pull request
+    // on the root schedule instead of sharing one with anything else. A group
+    // is only as mergeable as its worst member, and the two bumps that broke
+    // something this week, SABnzbd 5.0.4 and qBittorrent 5.2.2 (see
+    // docs/TODO.md), were both download clients. Isolating them keeps one bad
+    // image from blocking every other pull request a shared group would have
+    // bundled it with. gluetun is what every download client's kill switch
+    // depends on, so the same argument isolates it too. This is where the
+    // former "vpn and network tools" and "media library servers" groups used
+    // to sit; the first also listed ghcr.io/tprasadtp/protonwire, a package
+    // with no corresponding pin anywhere in this repository, so it matched
+    // nothing and is not carried forward.
+    //
+    // Lint and scanner tooling. Backs the pre-commit hooks and the workflow's
+    // Security Reports SARIF job, both driven by the customManagers below,
+    // grouped to cut the volume eight separate pins would otherwise open.
+    // Spans three datasources (docker, pypi and go), so this rule matches on
+    // depName alone rather than a matchDatasources value that could only cover
+    // part of the list. Each depName here is the exact string the pin's own
+    // `# renovate:` annotation declares, since that annotation, not the image
+    // or package name written elsewhere in the same line, is what the two
+    // customManagers below treat as authoritative for both datasource and
+    // name.
     {
-      matchDatasources: ["docker"],
-      matchPackageNames: ["ghcr.io/advplyr/audiobookshelf"],
-      groupName: "media library servers",
-      groupSlug: "media-library",
+      matchPackageNames: [
+        "aquasec/trivy",
+        "zricethezav/gitleaks",
+        "dotenvlinter/dotenv-linter",
+        "hadolint/hadolint",
+        "lycheeverse/lychee",
+        "checkov",
+        "zizmor",
+        "github.com/zricethezav/gitleaks/v8",
+      ],
+      groupName: "lint and scanner tooling",
+      groupSlug: "lint-scanner-tooling",
+      schedule: ["before 7am on sunday"],
     },
     // The container runtime tooling CI installs, pinned inline in the
     // workflows. Grouped so the two copies of the pin always move in one pull
@@ -205,6 +250,7 @@
       groupName: "container runtime tooling",
       groupSlug: "ci-runtime",
       addLabels: ["ci-runtime"],
+      schedule: ["before 7am on sunday"],
     },
   ],
 

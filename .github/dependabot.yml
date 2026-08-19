@@ -1,4 +1,11 @@
 version: 2
+
+# The three ecosystems below are staggered onto separate days rather than all
+# opening Monday, so the suites they trigger do not queue behind one another
+# and so a person does not see every dependency pull request for the week
+# arrive as one batch. Security updates are not affected either way: they are
+# alert driven and open as soon as GitHub raises the alert, ignoring this
+# schedule entirely.
 updates:
   - package-ecosystem: "pre-commit"
     directory: "/"
@@ -23,7 +30,7 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
-      day: monday
+      day: tuesday
       time: "06:30"
       timezone: "America/Toronto"
     labels:
@@ -42,7 +49,7 @@ updates:
     directory: "/tests"
     schedule:
       interval: weekly
-      day: monday
+      day: wednesday
       time: "07:00"
       timezone: "America/Toronto"
     labels:

@@ -36,6 +36,21 @@ reviews:
   # carrying a change to workflow or hook logic alongside it.
   request_changes_workflow: false
   auto_review:
+    # Never stop reviewing a branch for being busy. The default is 5, which
+    # pauses automatic reviews once five commits on a branch have been
+    # reviewed, and the pause is silent: the CodeRabbit check still reports
+    # green, so the pull request looks reviewed when nothing has read its
+    # current head.
+    #
+    # Observed directly on pre-commit-checklists#12, a branch with seven
+    # commits: automatic reviews stopped after the fifth, and twelve hours
+    # passed with no review of the head commit and no indication that
+    # anything was waiting. Recovering needs a manual `@coderabbitai review`.
+    #
+    # The reviews this saves are on fixup commits, which is real, but a
+    # review that silently stops is worse than one that costs a slot.
+    auto_pause_after_reviewed_commits: 0
+
     # CodeRabbit is a GitHub App posting a check, not a workflow job, so it
     # cannot be ordered after the linters with `needs:` the way a workflow job
     # can. Skipping drafts is the only lever, and it is the one that matters:
