@@ -86,6 +86,57 @@ for what was fixed and when.
   a bot pull request stalls at random and waits for a person, which is the one
   outcome the automation exists to avoid
 
+## CodeRabbit
+
+- [ ] Chase the open support ticket: CodeRabbit does not auto-review pull
+  requests opened by `renovate[bot]` or `dependabot[bot]`. Across #53 to #76 it
+  posted a `CodeRabbit` status on 8 of 8 human pull requests and on 1 of 16 bot
+  ones, and that single exception is #56, where the review was asked for by hand
+  with `@coderabbitai review` and arrived in under three minutes. Rate limiting
+  is ruled out: four of the human statuses read "Review rate limited", so a
+  throttled review still reports a status, whereas the bot ones report nothing
+  at all. Configuration is ruled out too, since `reviews.auto_review.ignore_usernames`
+  is at its empty default and the published schema has no other setting that
+  suppresses a review. GitHub's 2026-08-17 webhook incident is ruled out because
+  the retest ran hours after it resolved and reproduced. This matters because
+  docs/HARDENING.md names CodeRabbit as the only thing that reads a dependency
+  bump for intent, and right now it is not reading them. Until it is fixed,
+  `@coderabbitai review` on a bot pull request works as a manual fallback
+  <!-- cspell:ignore coderabbitai -->
+
+## Repository settings
+
+- [ ] Change Actions' default workflow permissions from write to read
+  (Settings, Actions, General, Workflow permissions). Verified still `write` via
+  `gh api repos/ivan-pinatti/docker-torrent-box-with-vpn/actions/permissions/workflow`.
+  Every workflow in this repository already declares its own `permissions:`
+  block, so nothing needs the permissive default today. It matters more than it
+  used to: since code owner review came off `main`, a single approving review is
+  enough to merge, and any future workflow that forgets a `permissions:` block
+  would hold a token able to approve pull requests and push. Leave
+  `can_approve_pull_request_reviews` enabled, since bot-auto-merge.yml depends
+  on it
+
+- [ ] Narrow `DOCKERHUB_TOKEN` to public read only. The integration suite
+  authenticates to Docker Hub and then runs whatever image a dependency bump
+  just introduced, in the same job, and those merges are now unattended. The
+  blast radius is worth shrinking even though the token only exists to lift pull
+  rate limits
+
+## Renovate
+
+- [ ] Enable `dependencyDashboard` in `.github/renovate.json5`, and rewrite the
+  comment above it that argues for leaving it off. That comment weighed a
+  standing issue that never resolves against the noise, and missed the thing the
+  dashboard is actually for: warnings. Two lookup failures sat on Mend's hosted
+  dashboard for weeks, unseen because nothing in this repository surfaces it,
+  while the checkov pin in `.pre-commit-config.yaml` silently stopped updating
+  and drifted three patch versions behind the copy in the workflow. The
+  `Renovate Config` job cannot catch that class of problem, because the config
+  is valid, it just does the wrong thing. An issue in this repository would have
+  shown it. The dashboard issue Renovate opened before the setting was turned
+  off is #24, now closed
+
 ## LazyLibrarian
 
 - [ ] Drop `patches/lazylibrarian/lazylibrarian/auth.py` once it is no longer
