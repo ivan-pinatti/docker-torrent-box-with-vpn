@@ -1722,7 +1722,10 @@ qbittorrent_api_ok() {
   code=$(container_curl qbittorrent -sk -o /dev/null -w '%{http_code}' \
     "https://${GLUETUN_SERVICES_IP}:${QBITTORRENT_HTTPS_PORT}/api/v2/auth/login" \
     -d "username=qbittorrent&password=$1")
-  [[ "$code" == "200" ]]
+  # A successful login answers 200 on qBittorrent 5.1.4 and 204 on 5.2.2
+  # (confirmed directly against standalone containers of both), so this
+  # accepts any 2xx rather than the exact code either version happens to use.
+  [[ "$code" == 2* ]]
 }
 
 sabnzbd_key_ok() {

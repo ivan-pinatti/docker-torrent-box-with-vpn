@@ -31,6 +31,29 @@ def _qbittorrent_password():
     )
 
 
+def _assert_qbittorrent_login_succeeded(resp):
+    """A successful login only ever means a successful status plus a real
+    session cookie; the exact status and body are not something upstream
+    promised to keep. Confirmed directly against standalone containers of
+    both versions, bypassing nginx entirely: qBittorrent 5.1.4 answers a
+    successful login with 200 and the body 'Ok.', while 5.2.2 answers with
+    204 and an empty body instead, yet both set a working session cookie and
+    both let that cookie through to a later authenticated call. The cookie's
+    own name changed too, from a bare 'SID' on 5.1.4 to a port suffixed
+    'QBT_SID_<port>' on 5.2.2, so this checks for any cookie whose name
+    contains 'SID' rather than one literal name. Only the status and body
+    are dropped here; a cookie check alone would let an error response that
+    happened to set a cookie pass, so the status is still required too.
+    """
+    assert 200 <= resp.status_code < 300, (
+        f"qBittorrent login failed: {resp.status_code} {resp.text!r}"
+    )
+    sid_cookies = [value for name, value in resp.cookies.items() if "SID" in name]
+    assert any(sid_cookies), (
+        f"qBittorrent login set no session cookie: {dict(resp.cookies)!r}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # qBittorrent
 # ---------------------------------------------------------------------------
@@ -52,8 +75,7 @@ def test_qbittorrent_api_login(running_containers):
         verify=False,
         timeout=TIMEOUT,
     )
-    assert resp.status_code == 200
-    assert resp.text.strip() == "Ok.", f"qBittorrent login failed: {resp.text!r}"
+    _assert_qbittorrent_login_succeeded(resp)
 
 
 def test_qbittorrent_web_session_login(running_containers):
@@ -72,7 +94,7 @@ def test_qbittorrent_web_session_login(running_containers):
     resp = session.post(
         login_url, data={"username": username, "password": password}, timeout=TIMEOUT
     )
-    assert resp.status_code == 200 and resp.text.strip() == "Ok."
+    _assert_qbittorrent_login_succeeded(resp)
 
     # Verify the session cookie grants access to a protected endpoint
     version_resp = session.get(

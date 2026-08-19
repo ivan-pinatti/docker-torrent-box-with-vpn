@@ -228,27 +228,6 @@ for what was fixed and when.
   reaching a commit. It would have caught all twelve, and lazylibrarian's
   missing digest
 
-## qBittorrent
-
-- [ ] Decide what the 5.1.4 to 5.2.2 bump means for `tests/test_auth.py`, and
-  unblock #83. Both `test_qbittorrent_api_login` and
-  `test_qbittorrent_web_session_login` assert `status_code == 200` and a body of
-  `Ok.`, and 5.2.2 answers with `204 No Content`, so both assertions fail and
-  the pull request is correctly red. The suite caught it, which is the system
-  working, and the bump has not merged.
-
-  What is not yet known is whether authentication still succeeds. A 204 with no
-  body could be the same successful login reported differently, or it could be a
-  login that is no longer working, and the tests fail at the status assertion
-  before reaching anything that would tell them apart. Check whether the
-  response still carries the `SID` cookie. If it does, keep a status assertion and
-  add the cookie: accept any successful 2xx and require a non-empty `SID`,
-  dropping only the exact `200` and the `Ok.` body, which are the two parts
-  upstream is free to change. Do not swap the status check out for a cookie check
-  alone, or an error response that happens to set a cookie would pass. If the
-  cookie is absent, hold the bump and find out what the new flow expects. Note both requests go through
-  nginx, so rule that out as the source of the 204 before blaming qBittorrent
-
 ## LazyLibrarian
 
 - [ ] Drop `patches/lazylibrarian/lazylibrarian/auth.py` once it is no longer
