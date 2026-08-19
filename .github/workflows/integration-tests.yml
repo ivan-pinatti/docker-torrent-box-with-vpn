@@ -339,16 +339,26 @@ jobs:
         # the only backstop turns a mirror hiccup into a failed suite, and the
         # publish job can only report that the run did not finish.
         #
-        # Two minutes is generous for two apt calls that normally take seconds,
-        # and three attempts covers a mirror that is briefly unreachable rather
-        # than down. The explicit timeouts on apt itself are what make a stall
-        # fail fast enough for the retry to be worth having.
-        timeout-minutes: 5
+        # No custom Acquire timeouts, and that is the correction. A first
+        # attempt set them to 15 seconds so a stall would fail fast enough to
+        # retry, which instead made a slow mirror fail *deterministically*:
+        # azure.archive.ubuntu.com took longer than 15 seconds to answer, apt
+        # gave up on the source with `Ign:`, and installing then failed because
+        # the archive's package lists had never been fetched. Three attempts
+        # reproduced it three times. The proof it was self inflicted is that
+        # pull-request-validation.yml installs the same package with a bare
+        # apt-get and passed on the same runner pool in the same minute.
+        #
+        # So apt keeps its own timeouts, the retry stays for a genuinely
+        # transient failure, and the step bound below is what protects against a
+        # hang. That is the right division: a limit catches a stall, it should
+        # not manufacture one.
+        timeout-minutes: 8
         shell: bash
         run: |
           set -euo pipefail
-          apt_opts=(-o Acquire::Retries=3 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15)
-          for attempt in 1 2 3; do
+          apt_opts=(-o Acquire::Retries=3)
+          for attempt in 1 2; do
             if sudo apt-get "${apt_opts[@]}" update \
               && sudo apt-get "${apt_opts[@]}" install -y xmlstarlet; then
               exit 0
