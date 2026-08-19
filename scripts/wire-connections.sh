@@ -906,6 +906,19 @@ jellyfin_host_for() {
 # above.
 JELLYFIN_FAILED=()
 
+# Names of arr apps whose job failed somewhere other than the Jellyfin
+# connection, kept apart from JELLYFIN_FAILED so neither summary claims a
+# cause that is not its own. See wire_arr_app for why the two are
+# distinguishable at all.
+ARR_JOB_FAILED=()
+
+# Exit status wire_arr_app uses for "everything else worked, the Jellyfin
+# connection did not". Any other non-zero status from that job means it died
+# earlier, under `set -e`, before the Jellyfin call was reached. 90 is chosen
+# to sit clear of both the shell's own 1 and 2 and the 126 to 165 range it
+# reserves for "cannot execute", "not found" and fatal signals.
+readonly JELLYFIN_WIRING_FAILED=90
+
 # Tells Jellyfin to rescan when an import, upgrade or rename changes the
 # library. Without it Jellyfin only notices on its own scheduled scan, so a
 # finished download can sit there invisible for hours.
@@ -1029,6 +1042,13 @@ wire_arr_app() {
   # this looking the same as every legitimate skip inside the function itself
   # (Jellyfin disabled, no API key yet, connection already there, app doesn't
   # support it), all of which still return 0 on purpose.
+  #
+  # Reported as JELLYFIN_WIRING_FAILED rather than a plain non-zero status
+  # because the three calls above are not guarded, so under `set -e` any one
+  # of them failing kills this job before the Jellyfin call is ever reached.
+  # A bare "did this job fail" test cannot tell those apart, and would file a
+  # failed qBittorrent client under Jellyfin and tell the reader to re-run
+  # once Jellyfin is up, which would not fix it.
   local jellyfin_status=0
   ensure_jellyfin_connection "$app_name" "$container" "$scheme" "$port" "$api_ver" "$key" || jellyfin_status=$?
 
@@ -1036,7 +1056,10 @@ wire_arr_app() {
     ensure_readarr_metadata_source "$container" "$scheme" "$port" "$api_ver" "$key" || true
   fi
 
-  return "$jellyfin_status"
+  if [[ "$jellyfin_status" -ne 0 ]]; then
+    return "$JELLYFIN_WIRING_FAILED"
+  fi
+  return 0
 }
 
 # ---------------------------------------------------------------------------
@@ -1551,13 +1574,20 @@ for name in audiobookshelf calibre calibre-web jellyfin prowlarr; do
   wait_job "$name" || true
 done
 
-# Each of these five ran wire_arr_app, which now returns whether its own
-# Jellyfin connection actually succeeded (see ensure_jellyfin_connection and
+# Each of these five ran wire_arr_app, which now reports whether its own
+# Jellyfin connection succeeded (see ensure_jellyfin_connection and
 # JELLYFIN_FAILED above), so their status is worth keeping instead of
-# discarding like the jobs above.
+# discarding like the jobs above. JELLYFIN_WIRING_FAILED is the only status
+# that means the Jellyfin connection specifically; anything else non-zero is
+# a job that died earlier and is recorded separately rather than blamed on
+# Jellyfin.
 for name in lidarr radarr readarr sonarr whisparr; do
-  if ! wait_job "$name"; then
+  arr_status=0
+  wait_job "$name" || arr_status=$?
+  if [[ "$arr_status" -eq "$JELLYFIN_WIRING_FAILED" ]]; then
     JELLYFIN_FAILED+=("$name")
+  elif [[ "$arr_status" -ne 0 ]]; then
+    ARR_JOB_FAILED+=("$name (exit ${arr_status})")
   fi
 done
 
@@ -1567,6 +1597,15 @@ if [[ ${#JELLYFIN_FAILED[@]} -gt 0 ]]; then
     echo "[Jellyfin]   - ${failed}"
   done
   echo "[Jellyfin] Re-run 'make wire_connections' once Jellyfin and the app are both up."
+fi
+
+if [[ ${#ARR_JOB_FAILED[@]} -gt 0 ]]; then
+  echo "[arr] WARNING: these apps did not finish wiring, and stopped before"
+  echo "[arr] their Jellyfin connection was even attempted:"
+  for failed in "${ARR_JOB_FAILED[@]}"; do
+    echo "[arr]   - ${failed}"
+  done
+  echo "[arr] Check the output above for the first error each one printed."
 fi
 
 # Sequential, not part of the parallel batch above: this stops/starts the
