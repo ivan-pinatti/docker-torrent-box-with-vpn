@@ -1,0 +1,123 @@
+---
+name: CodeRabbit Review Queue
+
+# Asks CodeRabbit to review a pull request whose current head has not actually
+# been read, one per run, hourly.
+#
+# Why this exists. CodeRabbit support confirmed that pull requests authored by
+# bots are hardcoded to be ignored on their side, so renovate[bot] and
+# dependabot[bot] pull requests are never auto-reviewed here. Those are exactly
+# the pull requests that merge unattended, and docs/HARDENING.md names CodeRabbit
+# as the only thing in the pipeline that reads a bump for intent. Asked directly
+# it answers in under three minutes, so the capability is there and only the
+# automatic trigger is missing. They are investigating; until that changes, this
+# is the trigger.
+#
+# It is not limited to bots, because "was this reviewed" is not the same question
+# as "who opened it". A green `CodeRabbit` status is not evidence of a review: it
+# is also green on a skipped draft, on a rate-limited decline, and on a silent
+# pause once `auto_pause_after_reviewed_commits` is reached. So the condition
+# below is about the head commit rather than the author, which catches a human
+# pull request whose review the quota dropped just as well as a bot's.
+on:
+  schedule:
+    # Hourly, matching the rolling window the review quota is measured over.
+    # Cron on a public repository is best effort and can run late, which is fine:
+    # a late nudge is still a nudge.
+    - cron: "23 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  nudge:
+    name: Ask for one missing review
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      # For the comment. Reading statuses and comments needs nothing extra on a
+      # public repository.
+      pull-requests: write
+    steps:
+      - name: Find one head with no review, and ask
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          # Forks are capped so a contributor's pull request cannot collect a
+          # comment every hour forever while the quota is exhausted. Our own
+          # branches are not capped: the noise is ours to bear, and a bump that
+          # merges unattended should keep asking until it is read.
+          FORK_ATTEMPT_CAP: "3"
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Oldest first, so nothing is starved by newer pull requests arriving
+          # ahead of it every hour. Drafts are excluded deliberately: skipping
+          # them is what gets the mechanical linters to clean a diff before a
+          # review slot is spent on it, which is why .coderabbit.yaml sets
+          # drafts: false.
+          prs=$(gh pr list --repo "$REPO" --state open --limit 50 \
+            --json number,headRefOid,isDraft,isCrossRepository \
+            --jq 'sort_by(.number) | .[] | select(.isDraft == false)
+                  | "\(.number) \(.headRefOid) \(.isCrossRepository)"')
+
+          if [ -z "$prs" ]; then
+            echo "No open non-draft pull requests."
+            exit 0
+          fi
+
+          while read -r number sha is_fork; do
+            [ -n "$number" ] || continue
+
+            # A status whose description says it declined is not a review. Those
+            # are the ones worth re-asking for; a real "Review completed" is not.
+            state=$(gh api "repos/$REPO/commits/$sha/status" \
+              --jq "[.statuses[] | select(.context == \"CodeRabbit\") | .description] | first // \"\"")
+
+            case "$state" in
+              "")
+                reason="no CodeRabbit status on this head" ;;
+              *[Rr]"ate limited"* | *[Ss]"kipped"*)
+                reason="status says \"$state\", which is not a review" ;;
+              *)
+                echo "#$number: \"$state\" on ${sha:0:8}, nothing to do."
+                continue ;;
+            esac
+
+            # One marker per attempt, carrying the head SHA, so the cap below
+            # counts attempts against this head only and a rebase starts fresh.
+            marker="<!-- coderabbit-nudge: $sha -->"
+            attempts=$(gh api "repos/$REPO/issues/$number/comments" --paginate \
+              | jq -s --arg m "$marker" '[.[][] | select(.body | contains($m))] | length')
+
+            if [ "$attempts" -gt 0 ]; then
+              last=$(gh api "repos/$REPO/issues/$number/comments" --paginate \
+                | jq -s -r --arg m "$marker" '[.[][] | select(.body | contains($m)) | .created_at] | max')
+              age=$(( $(date -u +%s) - $(date -u -d "$last" +%s) ))
+              if [ "$age" -lt 3000 ]; then
+                echo "#$number: nudged ${age}s ago, leaving it alone this run."
+                continue
+              fi
+            fi
+
+            if [ "$is_fork" = "true" ] && [ "$attempts" -ge "$FORK_ATTEMPT_CAP" ]; then
+              echo "#$number: fork, already asked $attempts times for ${sha:0:8}. Staying quiet."
+              continue
+            fi
+
+            echo "#$number (${sha:0:8}): $reason. Asking for a review."
+            # GITHUB_TOKEN is enough. The suppression that bites elsewhere in
+            # this repository, where an event a workflow's own token creates
+            # starts no further workflow, does not apply: CodeRabbit is a GitHub
+            # App on a webhook, not a workflow trigger.
+            gh pr comment "$number" --repo "$REPO" --body "$(printf '@coderabbitai review\n\n%s' "$marker")"
+
+            # One per run. The quota frees a slot at a time, and firing a batch
+            # into an exhausted window bounces all of them and wastes the slot
+            # that was free.
+            exit 0
+          done <<< "$prs"
+
+          echo "Every open non-draft pull request has a real review on its head."
