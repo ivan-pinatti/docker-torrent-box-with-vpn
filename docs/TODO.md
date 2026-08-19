@@ -144,17 +144,6 @@ for what was fixed and when.
 
 ## Repository settings
 
-- [ ] Change Actions' default workflow permissions from write to read
-  (Settings, Actions, General, Workflow permissions). Verified still `write` via
-  `gh api repos/ivan-pinatti/docker-torrent-box-with-vpn/actions/permissions/workflow`.
-  Every workflow in this repository already declares its own `permissions:`
-  block, so nothing needs the permissive default today. It matters more than it
-  used to: since code owner review came off `main`, a single approving review is
-  enough to merge, and any future workflow that forgets a `permissions:` block
-  would hold a token able to approve pull requests and push. Leave
-  `can_approve_pull_request_reviews` enabled, since bot-auto-merge.yml depends
-  on it
-
 - [ ] Narrow `DOCKERHUB_TOKEN` to public read only. The integration suite
   authenticates to Docker Hub and then runs whatever image a dependency bump
   just introduced, in the same job, and those merges are now unattended. The
@@ -176,23 +165,6 @@ for what was fixed and when.
   Renovate, so check that before choosing
 
 ## Renovate
-
-- [ ] Enable `dependencyDashboard` in `.github/renovate.json5`, and rewrite the
-  comment above it that argues for leaving it off. That comment weighed a
-  standing issue that never resolves against the noise, and missed the thing the
-  dashboard is actually for: warnings. Two lookup failures sat on Mend's hosted
-  dashboard for weeks, unseen because nothing in this repository surfaces it,
-  while the checkov pin in `.pre-commit-config.yaml` silently stopped updating
-  and drifted three patch versions behind the copy in the workflow. The
-  `Renovate Config` job cannot catch that class of problem, because the config
-  is valid, it just does the wrong thing. An issue in this repository would have
-  shown it. The dashboard issue Renovate opened before the setting was turned
-  off is #24, now closed
-
-- [ ] Stop labelling every Renovate pull request `docker`. The root `labels`
-  setting applies it unconditionally, so pypi and go updates arrive tagged as
-  container images: #54, a checkov bump, carried it. Cosmetic, but the labels are
-  load-bearing now that `automerge` is one of them
 
 - [ ] Annotate the twelve container image pins Renovate cannot see. Each carries
   a digest but no `# renovate:` comment, so nothing watches it and the pin is

@@ -12,10 +12,15 @@
   // podman-compose happened to be current.
   extends: ["config:recommended"],
 
-  // config:recommended enables a standing "Dependency Dashboard" issue that
-  // never resolves on its own; PRs still open on the normal schedule below
-  // without it, this just drops the one consolidated overview issue.
-  dependencyDashboard: false,
+  // Kept on for its warnings, not for the overview of pending updates. Two
+  // lookup failures sat unseen on Mend's hosted dashboard for weeks: nothing
+  // in this repository surfaces them, and during that stretch the checkov pin
+  // in .pre-commit-config.yaml silently stopped updating, drifting three
+  // patch versions behind the copy in the workflow. Renovate Config cannot
+  // catch that class of problem, because the config is valid, it just does
+  // the wrong thing; an issue here would have shown it. The cost is one
+  // standing issue that never closes on its own, taken deliberately.
+  dependencyDashboard: true,
 
   timezone: "America/Toronto",
 
@@ -46,7 +51,12 @@
   // worked through by hand any more.
   schedule: ["before 7am on saturday"],
 
-  labels: ["dependencies", "docker"],
+  // `docker` is not here on purpose. It is added by the datasource rule in
+  // packageRules below, so a pypi or go update no longer arrives tagged as a
+  // container image: #54, #64, #67 and #70 all carried it wrongly. The labels
+  // are load bearing now that bot-auto-merge.yml keys on `automerge`, so one
+  // that says the wrong thing is worth correcting rather than tolerating.
+  labels: ["dependencies"],
   commitMessagePrefix: "chore:",
 
   // Keep PR volume manageable so CI is not overwhelmed.
@@ -122,6 +132,19 @@
       matchUpdateTypes: ["patch", "minor", "digest", "pin", "pinDigest"],
       automerge: true,
       addLabels: ["automerge"],
+    },
+    // The `docker` label, applied by datasource instead of to everything. It
+    // used to live in the root `labels` above, so every pypi and go update
+    // arrived tagged as a container image. This covers both customManagers
+    // that set `datasourceTemplate: "docker"`, and correctly leaves out the
+    // ones taking their datasource from the annotation, which is how checkov,
+    // zizmor, podman-compose and gitleaks stop being called images.
+    //
+    // addLabels accumulates rather than replacing, so this composes with the
+    // rule above and with the group rules below instead of racing them.
+    {
+      matchDatasources: ["docker"],
+      addLabels: ["docker"],
     },
     // The arr suite. Grouped to cut the pull request volume these seven images
     // would otherwise open one at a time, not because they share a release
