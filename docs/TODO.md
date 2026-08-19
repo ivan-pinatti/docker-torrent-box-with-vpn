@@ -102,6 +102,7 @@ for what was fixed and when.
   docs/HARDENING.md names CodeRabbit as the only thing that reads a dependency
   bump for intent, and right now it is not reading them. Until it is fixed,
   `@coderabbitai review` on a bot pull request works as a manual fallback
+  <!-- cspell:ignore coderabbitai -->
 
 ## Repository settings
 
