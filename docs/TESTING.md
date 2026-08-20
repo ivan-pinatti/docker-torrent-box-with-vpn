@@ -110,8 +110,9 @@ on every pull request without standing anything up.
 repo hygiene checks (live databases stay untracked, every seeded config has a
 committed `.example`). `tests/test_renovate_pins.py` holds the dependency pin
 checks: every image version variable a compose file interpolates carries a
-`# renovate:` annotation and a digest, that annotation names the image the
-compose file actually pulls, the `customManagers` regex in
+`# renovate:` annotation unless the tag deliberately floats, every annotated
+pin carries a digest unless it cannot hold one, that annotation names the image
+the compose file actually pulls, the `customManagers` regex in
 `.github/renovate.json5` captures every annotation in `.env.example`, and
 every `matchPackageNames` entry names a package some annotation declares, and
 every service running a file bind mounted out of `patches/` has its image held

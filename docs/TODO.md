@@ -211,11 +211,14 @@ for what was fixed and when.
 
 ## Renovate
 
-- [ ] Give `LAZYLIBRARIAN_VERSION` a versioning scheme that can order it, on
-  the day `patches/lazylibrarian/` is dropped and the hold on the pin lifts.
-  Moot until then, since the pin is switched off entirely in
-  `.github/renovate.json5`, and recorded now because the hold is not the reason
-  it never bumped and will not be the reason afterwards either.
+- [ ] Give `LAZYLIBRARIAN_VERSION` a versioning scheme that can order it,
+  before `patches/lazylibrarian/` is dropped and the hold on the pin lifts. Two
+  separate things stop this pin moving and only one of them is temporary: the
+  pin is switched off outright in `.github/renovate.json5` while the patch
+  exists, and the tag cannot be ordered at all, which was true before the hold
+  and stays true after it. Lifting the hold without fixing the ordering would
+  leave the pin looking watched and still never bumping, which is the exact
+  state the rest of this change set out to remove.
   `40a389ea-ls310` holds no version number, so `loose` reads the leading `40` as
   the version and ranks the current pin above `9a2c0d5e-ls334`, comparing a
   commit hash fragment as a number. `versioning=regex:^[0-9a-f]+-ls(?<major>\d+)$`

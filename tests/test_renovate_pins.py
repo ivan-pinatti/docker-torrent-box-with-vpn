@@ -101,7 +101,7 @@ LOCAL_BUILD_DOCKERFILES = {
     "MYLAR_VERSION": "build/mylar/Dockerfile",
 }
 
-# `#?` on both patterns is load bearing. The notifiarr service in
+# `#?` on both patterns is load-bearing. The notifiarr service in
 # docker-compose-servarr.yml is commented out in full, and NOTIFIARR_VERSION
 # still rots exactly like a live pin: a commented service is one uncomment away
 # from running, and the pin it comes back with is whatever was frozen here.
@@ -526,6 +526,15 @@ def _held_dependency_names() -> set[str]:
     return held
 
 
+def _digest_exempt_dependency_names() -> set[str]:
+    """Packages some packageRules entry holds out of pinDigests."""
+    exempt = set()
+    for rule in _renovate_config().get("packageRules", []):
+        if rule.get("pinDigests") is False:
+            exempt.update(rule.get("matchPackageNames", []))
+    return exempt
+
+
 def test_patched_services_were_found():
     """Guard the parametrize below: an empty sweep would pass every case."""
     assert len(_patched_service_variables()) >= 4, (
@@ -558,4 +567,28 @@ def test_patched_image_is_held_at_a_fixed_version(variable):
         f"{declared} is not held in {RENOVATE_CONFIG.name}, so Renovate will "
         f"bump the image out from under the patch. Add it to the "
         f"`enabled: false` rule there, or drop the patch."
+    )
+
+
+@pytest.mark.parametrize("variable", sorted(NO_DIGEST))
+def test_digest_exemption_is_backed_by_the_config(variable):
+    """A pin this file excuses from a digest needs pinDigests off in the config.
+
+    The two halves have to agree or the exemption is worse than useless. This
+    file skipping the digest check only records that the pin is allowed to have
+    none; `pinDigests` is on globally, so without a rule turning it off for the
+    same package Renovate opens a pinDigest pull request adding one anyway, and
+    that pull request is what breaks the wrapper build. Exactly that update was
+    already pending for lazylibrarian before the rule existed.
+    """
+    declared = _annotations().get(variable)
+    assert declared, (
+        f"NO_DIGEST names {variable}, which carries no `# renovate:` annotation, "
+        f"so there is no depName to hold pinDigests off for."
+    )
+    assert declared in _digest_exempt_dependency_names(), (
+        f"{variable} is in NO_DIGEST, but {declared} has no `pinDigests: false` "
+        f"rule in {RENOVATE_CONFIG.name}, so Renovate will add the digest this "
+        f"file excuses it from. Add the package to that rule, or drop the "
+        f"exemption."
     )

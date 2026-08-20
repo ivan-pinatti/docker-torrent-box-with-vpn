@@ -76,7 +76,7 @@ grouped anyway, purely to keep the number of pull requests down, and grouping on
 where a bad member costs little: those three groups hold images that have not caused a problem
 recently, or, for the observability stack, sit behind a profile that is disabled by default.
 
-The observability stack is the group where that reasoning is load bearing, because it went from
+The observability stack is the group where that reasoning is load-bearing, because it went from
 three images to eleven when the exporters were annotated, and because the integration suite never
 touches any of them. `make pull_docker_images` pulls `--profile enabled` only, and
 `integration-tests.yml` flips nothing but `VPN_MOCK_PROFILE`, so those eleven images are never
