@@ -231,10 +231,11 @@ Two pins are watched but cannot be ordered, which is a quieter kind of frozen an
   exactly, so Renovate can offer `3.14-alpine3.22` and will never offer `3.13-alpine3.24`, which
   exists.
 
-`LAZYLIBRARIAN_VERSION=40a389ea-ls310` has the same problem and is a third case only in waiting,
-because the hold above switches it off entirely. The tag holds no version number at all, so
-`loose` versioning reads the leading `40` as the version and ranks the current pin above
-`9a2c0d5e-ls334`, comparing a commit hash fragment as a number. That matters the day
+`LAZYLIBRARIAN_VERSION=40a389ea-ls310` is a third case only in waiting, because the hold above
+switches it off entirely. It fails differently from korsync: `loose` versioning parses the tag
+rather than refusing it, and then orders it wrongly. The tag holds no version number at all, so
+`loose` reads the leading `40` as the version and ranks the current pin above `9a2c0d5e-ls334`,
+comparing a commit hash fragment as a number. That matters the day
 `patches/lazylibrarian/` is dropped and the pin is allowed to move again, not before.
 
 All three are recorded in `docs/TODO.md`. The distinction that matters is that a pin with no
