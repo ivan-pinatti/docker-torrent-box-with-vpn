@@ -11,7 +11,9 @@ for what was fixed and when.
   2026-07-23, but `stable` is still 9 commits behind as of 2026-08-07
   (`gh api repos/MylarComics/mylar3/compare/stable...70ff41c3014e48daf88763134d976ef042244db`
   still reports `ahead_by: 9`). See `docs/MYLAR.md` for the full check to
-  run before removing the patch
+  run before removing the patch. `MYLAR_VERSION` is held at a fixed version
+  in `.github/renovate.json5` for as long as this patch exists, so dropping it
+  is also what unfreezes that pin
 
 ## jDownloader2
 
@@ -24,7 +26,9 @@ for what was fixed and when.
   image yet and the patch still applies. Asked the maintainer directly:
   <https://github.com/jlesage/docker-baseimage-gui/issues/196#issuecomment-5221788643>.
   Check for a `baseimage-gui` bump to 4.13.0+ in `docker-jdownloader-2`'s
-  Dockerfile before removing this patch
+  Dockerfile before removing this patch. `JDOWNLOADER2_VERSION` is held at a
+  fixed version in `.github/renovate.json5` for as long as this patch exists,
+  so dropping it is also what unfreezes that pin
 
 ## SABnzbd
 
@@ -63,7 +67,9 @@ for what was fixed and when.
   Note that the bind address is not the control that matters in this stack:
   `test_vpn_namespace_has_no_global_ipv6_address` asserts the property
   `docker-compose-vpn.yml` actually relies on, so this patch is defense in depth
-  and its removal is safe whenever upstream changes
+  and its removal is safe whenever upstream changes. `SABNZBD_VERSION` is held
+  at a fixed version in `.github/renovate.json5` for as long as this patch
+  exists, so dropping it is also what unfreezes that pin
 
 - [ ] Report `linuxserver/github-workflows`' broken permission check, which is
   why [#275](https://github.com/linuxserver/docker-sabnzbd/pull/275) shows red.
@@ -205,28 +211,35 @@ for what was fixed and when.
 
 ## Renovate
 
-- [ ] Annotate the twelve container image pins Renovate cannot see. Each carries
-  a digest but no `# renovate:` comment, so nothing watches it and the pin is
-  frozen: `CADVISOR`, `MYLAR`, `NGINX_EXPORTER`, `NODE_EXPORTER`, `NOTIFIARR`,
-  `PODMAN_LIMITS_EXPORTER`, `PODMAN_EXPORTER`, `ALLOY`, `LOG_ROTATOR`,
-  `QBITTORRENT_EXPORTER`, `SABNZBD_EXPORTER` and `JACKETT`. Some are more than a
-  year old. `NGINX_VERSION=stable-alpine`, `PLEX_VERSION=latest` and
-  `WHISPARR_VERSION=v3` are deliberately floating and want no annotation.
-  `LAZYLIBRARIAN_VERSION` is annotated but carries no digest, unlike every other
-  managed pin, so `pinDigests` should be allowed to add one. Left out of the
-  staggering change on purpose: annotating twelve images changes what arrives
-  every week and deserves its own pull request and its own suite runs. See
-  [docs/DEPENDENCY_UPDATES.md](DEPENDENCY_UPDATES.md) for how the managed set is
-  divided today
+- [ ] Give `LAZYLIBRARIAN_VERSION` a versioning scheme that can order it, on
+  the day `patches/lazylibrarian/` is dropped and the hold on the pin lifts.
+  Moot until then, since the pin is switched off entirely in
+  `.github/renovate.json5`, and recorded now because the hold is not the reason
+  it never bumped and will not be the reason afterwards either.
+  `40a389ea-ls310` holds no version number, so `loose` reads the leading `40` as
+  the version and ranks the current pin above `9a2c0d5e-ls334`, comparing a
+  commit hash fragment as a number. `versioning=regex:^[0-9a-f]+-ls(?<major>\d+)$`
+  keys on the `ls` counter and orders these correctly, and lazylibrarian's
+  counter has not reset, unlike jackett's, which went `ls491` then `ls1`. Worth
+  confirming first how Renovate labels the resulting update, since a scheme
+  whose only numeric group is `major` makes every build a major bump, and major
+  bumps match no automerge rule in `.github/renovate.json5` and would sit
+  waiting for a person
 
-- [ ] Add a test that fails when an image pin goes unwatched, so the gap above
-  cannot recur silently. Walk `.env.example`, and for every variable naming a
-  container image assert it carries a `# renovate:` annotation and a digest, with
-  an explicit allowlist for the tags that are deliberately floating. Same shape
-  as `tests/test_prerequisites.py` asserting runtime databases stay untracked,
-  where the point is that a reintroduced mistake fails the suite rather than
-  reaching a commit. It would have caught all twelve, and lazylibrarian's
-  missing digest
+- [ ] Decide what `KORSYNC_VERSION` should track. It is pinned to
+  `sha-7bcefd34...`, a commit tag no versioning scheme can order, so Renovate
+  looks the package up and can offer nothing. Upstream publishes semantic tags
+  up to `0.2.3`, but none of them carries the digest this pin runs (the pinned
+  build is a later commit), so moving to one changes the running image rather
+  than only how it is tracked. That is a deliberate upgrade decision, not a
+  configuration fix
+
+- [ ] Decide whether `PODMAN_LIMITS_EXPORTER_VERSION` should track Alpine too.
+  `3.13-alpine3.22` moves in one dimension only: `docker` versioning treats
+  everything after the first hyphen as a compatibility string that has to match
+  exactly, so Renovate can offer `3.14-alpine3.22` and will never offer
+  `3.13-alpine3.24`, which exists. Using `3.13-alpine` instead would track
+  Alpine at the cost of naming a less specific base
 
 ## LazyLibrarian
 
@@ -236,4 +249,7 @@ for what was fixed and when.
   (login/logout redirect doubles `HTTP_ROOT` and 404s for pages reached via
   `check_auth()`'s redirect while logged out), with a fix submitted as
   [LazyLibrarian/LazyLibrarian!1832](https://gitlab.com/LazyLibrarian/LazyLibrarian/-/merge_requests/1832).
-  Check whether it merged and reached a release before removing the patch
+  Check whether it merged and reached a release before removing the patch.
+  `LAZYLIBRARIAN_VERSION` is held at a fixed version in
+  `.github/renovate.json5` for as long as this patch exists, so dropping it is
+  also what unfreezes that pin

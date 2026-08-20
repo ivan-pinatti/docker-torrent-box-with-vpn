@@ -33,7 +33,7 @@ than restating it differently.
 | Tuesday | Dependabot | GitHub Actions |
 | Wednesday | Dependabot | pip, `tests/requirements.txt` |
 | Thursday | Renovate | The arr suite group (sonarr, radarr, lidarr, readarr, prowlarr, bazarr, recyclarr) |
-| Friday | Renovate | The observability stack group and the library and reading tools group |
+| Friday | Renovate | The observability stack group (eleven images) and the library and reading tools group |
 | Saturday | Renovate | Every ungrouped image, one pull request each (the root schedule, used as the default) |
 | Sunday | Renovate | The lint and scanner tooling group and the container runtime tooling pin |
 
@@ -76,9 +76,24 @@ grouped anyway, purely to keep the number of pull requests down, and grouping on
 where a bad member costs little: those three groups hold images that have not caused a problem
 recently, or, for the observability stack, sit behind a profile that is disabled by default.
 
+The observability stack is the group where that reasoning is load bearing, because it went from
+three images to eleven when the exporters were annotated, and because the integration suite never
+touches any of them. `make pull_docker_images` pulls `--profile enabled` only, and
+`integration-tests.yml` flips nothing but `VPN_MOCK_PROFILE`, so those eleven images are never
+pulled, never started, and every test carrying the `observability` marker skips. A bump in that
+group merges on `Prerequisite Checks` and `Security Reports` alone. That is accepted on the
+grounds that the profile ships disabled, so a bad image there breaks nothing until someone turns
+it on, and the alternative on offer was the frozen pins in the table below.
+
+`docker.io/library/alpine`, which `log_rotator` runs, is the one observability image left out of
+that group. `LOG_ROTATOR_PROFILE` ships enabled, so CI does pull and start it, which is coverage
+no other image in the stack gets, and grouping it in would trade that away for nothing.
+
 The download clients (qbittorrent, sabnzbd, nzbget, nzbhydra2, jdownloader-2), jellyfin,
 homepage, flaresolverr, wireguard, and gluetun are deliberately left out of every group, so each
-arrives as its own pull request on the Saturday default instead. A group is only as mergeable as
+arrives as its own pull request on the Saturday default instead. sabnzbd and jdownloader-2 arrive
+with nothing at all while the hold described under "Images pinned to a patch" stands; the
+isolation still describes where they land the day it is lifted. A group is only as mergeable as
 its worst member, and this week supplied two examples, both download clients: SABnzbd 5.0.4
 rewrote its own bind address in a way that broke a test (see `docs/TODO.md`), and qBittorrent
 5.2.2 changed its login response to `204 No Content`, which is still holding pull request #83.
@@ -86,6 +101,14 @@ Had either of those shipped inside a group, it would have blocked every other im
 it rather than only itself. gluetun is isolated for the same reason: it is what the download
 clients' kill switch depends on, so a bad gluetun bump is exactly the kind of failure a group
 should not be allowed to spread.
+
+Four more pins are ungrouped without that argument applying to them, simply because there is no
+group they belong in: `docker.io/library/alpine` for the reason above,
+`docker.io/linuxserver/mylar3` because it is the base of a wrapper this repository builds rather
+than an image it pulls, `ghcr.io/notifiarr/notifiarr` because its service is commented out, and
+`docker.io/linuxserver/jackett` because it has no service at all. The last two are watched
+anyway. An unwatched pin is the thing this arrangement exists to prevent, and a year stale image
+is a worse starting point than a current one for whoever turns either service back on.
 
 ## Security updates
 
@@ -106,22 +129,117 @@ it the way `vulnerabilityAlerts` bypasses it for Actions and pip. That is a cons
 a hedge: see [docs/HARDENING.md](HARDENING.md) for the full reasoning behind leaning on the
 cooling window instead of a scanner for this class of dependency.
 
-## Known gaps
+## What was frozen, and for how long
 
-Twelve image pins in `.env.example` carry no `# renovate:` annotation at all, so Renovate cannot
-see them and they stay frozen at whatever version is committed: `CADVISOR_VERSION`,
-`MYLAR_VERSION`, `NGINX_EXPORTER_VERSION`, `NODE_EXPORTER_VERSION`, `NOTIFIARR_VERSION`,
-`PODMAN_LIMITS_EXPORTER_VERSION`, `PODMAN_EXPORTER_VERSION`, `ALLOY_VERSION`,
-`LOG_ROTATOR_VERSION`, `QBITTORRENT_EXPORTER_VERSION`, `SABNZBD_EXPORTER_VERSION`, and
-`JACKETT_VERSION`. Annotating them is a follow up, not part of this change.
+Twelve image pins carried no `# renovate:` annotation, so Renovate could not see them and they
+sat at whatever version was committed. Their build dates, measured with `skopeo inspect` on
+2026-08-20 alongside the newest tag available on the same day:
 
-Separately, three tags are deliberately left floating rather than pinned to a version at all:
+| Pin | Image | Pinned build | Newest available |
+| --- | --- | --- | --- |
+| `QBITTORRENT_EXPORTER_VERSION` | `ghcr.io/esanchezm/prometheus-qbittorrent-exporter` | 2024-10-25 | `v1.7.0` |
+| `NGINX_EXPORTER_VERSION` | `docker.io/nginx/nginx-prometheus-exporter` | 2024-12-04 | `1.5.3` |
+| `CADVISOR_VERSION` | `gcr.io/cadvisor/cadvisor` | 2025-03-20 | `v0.55.1` |
+| `SABNZBD_EXPORTER_VERSION` | `docker.io/msroest/sabnzbd_exporter` | 2025-11-07 | already current |
+| `PODMAN_EXPORTER_VERSION` | `quay.io/navidys/prometheus-podman-exporter` | 2025-12-22 | `v1.21.2` |
+| `NODE_EXPORTER_VERSION` | `docker.io/prom/node-exporter` | 2026-04-07 | `v1.12.1` |
+| `PODMAN_LIMITS_EXPORTER_VERSION` | `docker.io/library/python` | 2026-04-17 | `3.14-alpine3.22` |
+| `ALLOY_VERSION` | `docker.io/grafana/alloy` | 2026-04-23 | `v1.18.1` |
+| `JACKETT_VERSION` | `docker.io/linuxserver/jackett` | 2026-04-23 | `0.24.2424` |
+| `MYLAR_VERSION` | `docker.io/linuxserver/mylar3` | 2026-05-01 | `v0.11.0-ls268` |
+| `LOG_ROTATOR_VERSION` | `docker.io/library/alpine` | 2026-06-22 | `3.24` |
+| `NOTIFIARR_VERSION` | `ghcr.io/notifiarr/notifiarr` | the tag did not exist | `v0.9.5` |
+
+The three oldest are between 17 and 22 months behind. All twelve are annotated now, and
+`tests/test_renovate_pins.py` fails the suite if a pin is ever added without an annotation
+again.
+
+`NOTIFIARR_VERSION` deserves its own line, because the pin was not merely stale. It read
+`v0.9.5-alpine`, and that tag does not exist: Notifiarr stopped publishing the `-alpine`
+variant after `v0.9.1-alpine` when Alpine became the default flavour, so the plain
+`v0.9.5` tag is the same image. Nothing noticed because the `notifiarr` service block is commented
+out in `docker-compose-servarr.yml`, so nothing ever tried to pull it. `docker` versioning would
+also have refused to update it forever, since the compatibility suffix `alpine` has to match
+exactly and no `-alpine` tag above `0.9.1` exists.
+
+`KORSYNC_VERSION` was a thirteenth case, and the one worth understanding, because it looked
+watched. Its annotation read `# renovate: datasource=docker depName=...`, and the custom manager
+in `.github/renovate.json5` matches `# renovate: depName=` only, so that one extra word made the
+whole pin invisible while reading exactly like every other line in the file. `datasource` was
+redundant anyway, because the manager sets `datasourceTemplate: "docker"` for every pin it reads.
+That is the case the new test's fourth check exists for: it runs the manager's own regex against
+`.env.example` and fails when the annotations present in the file and the ones Renovate can
+actually parse are not the same set.
+
+## Images pinned to a patch
+
+Four containers run a file bind mounted out of `patches/`: sabnzbd, lazylibrarian, mylar, and
+jdownloader-2. Their images are held at a fixed version in `.github/renovate.json5`, with
+`enabled: false`, until the patch that made each one special is gone.
+
+The reason is that a patch shadows one file inside an image, and nothing in this repository can
+tell whether the shadowing copy still matches the file it replaces. An unattended bump pairs
+patched old source with new upstream code, and the result starts, reports healthy, and passes the
+suite while being subtly wrong. mylar shows the scale of it: its first offered bump is
+`v0.9.0-ls252` to `v0.11.0-ls268`, which `loose` versioning calls a minor because both share
+major `0`, so it would have merged unattended across two upstream minor releases with five
+patched files mounted over it. The alternative to holding the pin is re-deriving each patch
+against each release, which is work with no end date and no test that would catch getting it
+wrong.
+
+The hold covers digest refreshes too, not only version bumps. Two of the four patches shadow a
+file belonging to the image rather than to the application: `patches/sabnzbd/svc-sabnzbd/run` is
+an s6 service script and `patches/jdownloader2/10-webauth.sh` is a `baseimage-gui` init script,
+and a rebuild of the same tag is exactly how either changes underneath the patch. `docs/TODO.md`
+already frames the jdownloader-2 case that way, since the fix it waits on arrives as a
+`baseimage-gui` bump inside an image whose tag need not move.
+
+Worth being explicit about the cost: sabnzbd and jdownloader-2 were both flowing, and merging
+unattended, before this. It costs less than it looks like, because, as the section above says,
+GitHub raises no vulnerability alert for a container image at all, so neither pin had a security
+path that this closes. What is given up is routine version updates on two download clients, and a deliberate
+hand bump is what replaces them.
+
+`tests/test_renovate_pins.py` closes the loop in the other direction: it derives the patched set
+from the `./patches/` volumes in the compose files rather than from a list, so a service that
+grows a patch mount whose image is not held fails the suite. Each of the four has an open item in
+`docs/TODO.md` for dropping its patch, and dropping one is what unfreezes its pin. That is the
+distinction this whole page turns on: these pins are deliberately fixed, not accidentally frozen.
+
+## Remaining gaps
+
+Three tags are deliberately left floating rather than pinned to a version at all:
 `NGINX_VERSION=stable-alpine`, `PLEX_VERSION=latest`, and `WHISPARR_VERSION=v3`.
+`tests/test_renovate_pins.py` carries them in an explicit allowlist, so the exemption is a
+decision on the record rather than an omission.
 
-`LAZYLIBRARIAN_VERSION` is annotated and Renovate does see it, but unlike every other annotated
-pin in the file it carries no digest, only a loose upstream tag. It is the one annotated pin
-this change did not add a digest to, since inventing one would not be honest about what has
-actually been verified.
+`LAZYLIBRARIAN_VERSION` and `MYLAR_VERSION` carry no digest, and cannot. Each is read twice out
+of one variable: as the base image the wrapper in `build/` is built on, and as the tag of the
+locally built result. A digest is legal in the first position and not in the second, because an
+image being built can only be given a tag, so `pinDigests` is turned off for both in
+`.github/renovate.json5` and the test exempts them by name. `docs/TODO.md` previously recorded
+this the other way round, asking for a digest to be added to lazylibrarian; adding one would have
+stopped the wrapper building.
+
+Two pins are watched but cannot be ordered, which is a quieter kind of frozen and worth naming:
+
+- `KORSYNC_VERSION=sha-7bcefd34...` is a commit tag, which no versioning scheme can order.
+  Upstream does publish semantic tags, up to `0.2.3`, but none of them carries the digest this
+  pin runs, so moving to one would change the running image rather than just how it is tracked.
+- `PODMAN_LIMITS_EXPORTER_VERSION=3.13-alpine3.22` moves in one dimension only. `docker`
+  versioning treats everything after the first hyphen as a compatibility string that has to match
+  exactly, so Renovate can offer `3.14-alpine3.22` and will never offer `3.13-alpine3.24`, which
+  exists.
+
+`LAZYLIBRARIAN_VERSION=40a389ea-ls310` has the same problem and is a third case only in waiting,
+because the hold above switches it off entirely. The tag holds no version number at all, so
+`loose` versioning reads the leading `40` as the version and ranks the current pin above
+`9a2c0d5e-ls334`, comparing a commit hash fragment as a number. That matters the day
+`patches/lazylibrarian/` is dropped and the pin is allowed to move again, not before.
+
+All three are recorded in `docs/TODO.md`. The distinction that matters is that a pin with no
+annotation is invisible, while these are visible and merely stuck: Renovate looks up the first two
+every run, and the dependency dashboard is where a lookup that cannot resolve shows up.
 
 ---
 

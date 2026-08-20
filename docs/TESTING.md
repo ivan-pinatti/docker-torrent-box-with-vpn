@@ -103,6 +103,25 @@ checks, no containers needed at all). `make test_no_rotate_passwords` runs
 everything except `pw_rotation`, useful when iterating on something
 unrelated to password rotation without paying for its slowest tier.
 
+That marker also carries the static checks, the ones that read files rather
+than a running stack, which is why the `Prerequisite Checks` job can run them
+on every pull request without standing anything up.
+`tests/test_prerequisites.py` holds the pre-flight system requirements and the
+repo hygiene checks (live databases stay untracked, every seeded config has a
+committed `.example`). `tests/test_renovate_pins.py` holds the dependency pin
+checks: every image version variable a compose file interpolates carries a
+`# renovate:` annotation and a digest, that annotation names the image the
+compose file actually pulls, the `customManagers` regex in
+`.github/renovate.json5` captures every annotation in `.env.example`, and
+every `matchPackageNames` entry names a package some annotation declares, and
+every service running a file bind mounted out of `patches/` has its image held
+at a fixed version. Twelve pins once sat there unannotated and froze, and one
+rule matched none of the five images it listed; neither state breaks anything
+at runtime, so nothing but a static check can catch either. Its exemptions are explicit
+tables in the module (`FLOATING`, `NO_DIGEST`, `NO_SERVICE`) and a stale entry
+in one fails rather than quietly covering nothing. See
+[docs/DEPENDENCY_UPDATES.md](DEPENDENCY_UPDATES.md) for what the two bots own.
+
 `PYTEST_ARGS="..."` appends extra arguments to whichever pytest invocations
 a target runs. Note `make test`/`test_extended` are multiple separate
 pytest calls, each with its own `-m` marker filter, and pytest's `-m` is
