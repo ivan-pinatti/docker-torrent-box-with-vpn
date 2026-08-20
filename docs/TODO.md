@@ -77,33 +77,33 @@ for what was fixed and when.
   run. Diagnosis and three suggested fixes are already in a comment on #275; the
   useful next step is raising it where the workflow lives
 
-## Jellyfin wiring
+## Concurrent checkouts
 
-- [ ] Confirm the `ensure_jellyfin_connection` race is actually closed, once
-  `/run-tests` runs against this change. `scripts/wire-connections.sh` used to
-  call it with `|| true`, so a failure left the app without the connection
-  while `make wire_connections` still reported success. That swallow is gone:
-  the same reasoning `PROWLARR_FAILED` already used in this file, "so the end
-  of the run can report them instead of letting a partial result look
-  identical to a complete one", now applies to the Jellyfin path too, via a
-  `JELLYFIN_FAILED` array collected as each arr app's job finishes.
+- [ ] Decide whether two checkouts should be able to run at the same time, and
+  if so, drop the explicit `container_name` values. Thirty-seven services set
+  one, and compose does not project prefix an explicit name, so the names are
+  global: a second checkout cannot create `jellyfin` while the first one holds
+  it, whatever `COMPOSE_PROJECT_NAME` says. Raised by CodeRabbit on #92, and
+  correct. It is deliberately not part of that pull request, which makes a
+  second checkout safe to run **one at a time** (its own networks, its own
+  fstab entry, its own published ports) rather than concurrently.
 
-  The actual failure behind
-  `test_jellyfin_connection_matches_what_the_app_supports[lidarr]` (`supports
-  MediaBrowser=True but wired=False`, seen twice on 2026-08-18, runs
-  `32176749677` on #72 and `32179005406` on #77, both shortly after the
-  Jellyfin 10.11.10 bump merged unattended in #76) is right there in both
-  runs' own logs, and it is the same one both times: lidarr gets through its
-  WebUI login and both download clients, then `jellyfin_host_for` logs
-  `WARNING: Jellyfin is running but not reachable from this container` and
-  gives up. That function tried each candidate host once, with a 5 second cap
-  each, unlike almost every other first boot readiness check in this file,
-  which retries for up to 180s. It is now wrapped in this file's own `retry`
-  helper the same way, up to 120s, which should clear the same race the two
-  observed runs hit. Marking this pull request ready and commenting
-  `/run-tests` is deliberately left to a person rather than done here, so the
-  fix has not yet been checked against a real run; watch the next
-  lidarr Jellyfin result to close this out
+  The reason it is its own change is the blast radius, not disagreement.
+  Removing those names means every caller that addresses a container by its
+  literal name has to move to the generated one: roughly 170 call sites across
+  `scripts/wire-connections.sh`, `scripts/rotate-passwords.sh` and
+  `scripts/rotate-api-keys.sh`, plus `tests/conftest.py`, plus the 68
+  `proxy_pass` directives in `configs/nginx/templates/default.conf.template`
+  that reach services by name on the shared networks, plus every compose
+  `depends_on` and healthcheck that does the same. Note also that the names are
+  a documented interface here: docs/APP_LINKS.md and the README tell people to
+  run `podman exec qbittorrent ...`, and `make down` filters on the project
+  label rather than on names, so it is unaffected either way.
+
+  Worth weighing against the actual need. Running two full stacks at once also
+  needs a second set of published ports, which is already manual, so the
+  question is whether concurrent operation is wanted at all or whether one at a
+  time is the honest supported model
 
 ## CodeRabbit
 

@@ -17,19 +17,19 @@ networks:
   # went unnoticed locally.
   apps:
     external: true
-    name: docker-torrent-box-with-vpn_apps
+    name: ${COMPOSE_PROJECT_NAME:-docker-torrent-box-with-vpn}_apps
 
   services:
     external: true
-    name: docker-torrent-box-with-vpn_services
+    name: ${COMPOSE_PROJECT_NAME:-docker-torrent-box-with-vpn}_services
 
   media:
     external: true
-    name: docker-torrent-box-with-vpn_media
+    name: ${COMPOSE_PROJECT_NAME:-docker-torrent-box-with-vpn}_media
 
   observability:
     external: true
-    name: docker-torrent-box-with-vpn_observability
+    name: ${COMPOSE_PROJECT_NAME:-docker-torrent-box-with-vpn}_observability
 
 include:
   - docker-compose-media-library.yml

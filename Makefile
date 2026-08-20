@@ -52,6 +52,13 @@ VPN_ROUTE_FILES := $(if $(filter servarr,$(VPN_ON_LIST)),docker-compose.routes/s
 ROUTE_FILES ?= $(VPN_ROUTE_FILES)
 COMPOSE_FILES := --file docker-compose.yml $(foreach route_file,$(ROUTE_FILES),--file $(route_file))
 COMPOSE_PROJECT_NAME ?= $(notdir $(CURDIR))
+# Exported, not just defined. The four shared networks are named
+# ${COMPOSE_PROJECT_NAME}_<name> in both this file and the compose files, and
+# compose only sees the value if it reaches the environment: a checkout whose
+# .env does not set it would otherwise have make create `<dir>_apps` while
+# compose looked up the fallback name, and `external: true` turns that
+# mismatch into "network not found" rather than anything self-explanatory.
+export COMPOSE_PROJECT_NAME
 PODMAN_DOWN_TIMEOUT ?= 60
 
 # Remembers the VPN_ON used by the last successful `make start`, so down/stop/restart
@@ -469,7 +476,7 @@ down:
 			fi; \
 			echo "$$project_containers" | grep -vx gluetun | xargs -r podman rm --force --time 0 >/dev/null || true; \
 			echo "$$project_containers" | grep -x gluetun | xargs -r podman rm --force --time 0 >/dev/null || true; \
-			for network in edge media wan; do \
+			for network in edge wan apps services media observability; do \
 				podman network rm "$(COMPOSE_PROJECT_NAME)_$$network" >/dev/null 2>&1 || true; \
 			done; \
 		fi; \
@@ -545,6 +552,41 @@ configure_jdownloader2_api:
 	$$runner sh -c "jq -c '.externinterfaceenabled = true | .externinterfacelocalhostonly = false | .deprecatedapienabled = true | .deprecatedapilocalhostonly = false | .deprecatedapiport = 3128' '$$target' > '$$target.tmp' && mv '$$target.tmp' '$$target'"; \
 	$(COMPOSE) $(COMPOSE_FILES) --profile enabled start jdownloader2
 
+# Patches the certificate password into one app's config and reports what
+# actually happened. These lines used to be `<edit>; echo OK!`, where the `;`
+# printed OK whatever the edit did: confirmed live, a missing
+# configs/nzbhydra2/config/nzbhydra.yml printed xmlstarlet's own "no such file"
+# error and then "OK!" on the very next line, so the run claimed to have set a
+# password it had not set.
+#
+# A config that simply is not there yet is reported as skipped rather than
+# failing the target, because that is a legitimate state: a disabled profile
+# never gets seeded, and `make bootstrap` calls this before every app has a
+# live config. An edit that genuinely fails still stops the run.
+define patch_cert_xml
+	@printf '%-14s' "$(1)..."; \
+	if [ ! -f "$(2)" ]; then \
+		echo "skipped (no config yet)"; \
+	elif xmlstarlet --quiet ed --inplace --update '$(3)' --value "${CERT_PASSWORD}" "$(2)"; then \
+		echo "OK!"; \
+	else \
+		echo "FAILED"; \
+		exit 1; \
+	fi
+endef
+
+define patch_cert_nzbhydra
+	@printf '%-14s' "$(1)..."; \
+	if [ ! -f "$(2)" ]; then \
+		echo "skipped (no config yet)"; \
+	elif sslKey="${CERT_PASSWORD}" yq -i '(.main.sslKeyStorePassword) = strenv(sslKey)' "$(2)"; then \
+		echo "OK!"; \
+	else \
+		echo "FAILED"; \
+		exit 1; \
+	fi
+endef
+
 generate_certificate:
 	@if [ "$(LAN_IP)" = "192.168.1.x" ]; then \
 		echo "ERROR: LAN_IP in .env is still the example placeholder (192.168.1.x)."; \
@@ -570,14 +612,14 @@ generate_certificate:
 	@echo Hash for the certificate is...
 	@openssl x509 -noout -fingerprint -sha256 -inform pem -in ${CERTIFICATES_FOLDER}/server.crt
 	@echo Updating certificate password in Apps configs...
-	@echo -n "Lidarr... 		"; 	xmlstarlet --quiet ed --inplace --update '/Config/SslCertPassword' --value "${CERT_PASSWORD}" "configs/lidarr/config/config.xml"; 			echo OK!  # pragma: allowlist secret
-	@echo -n "Prowlarr...		"; 	xmlstarlet --quiet ed --inplace --update '/Config/SslCertPassword' --value "${CERT_PASSWORD}" "configs/prowlarr/config/config.xml"; 		echo OK!  # pragma: allowlist secret
-	@echo -n "Radarr... 		";	xmlstarlet --quiet ed --inplace --update '/Config/SslCertPassword' --value "${CERT_PASSWORD}" "configs/radarr/config/config.xml"; 			echo OK!  # pragma: allowlist secret
-	@echo -n "Readarr... 		";	xmlstarlet --quiet ed --inplace --update '/Config/SslCertPassword' --value "${CERT_PASSWORD}" "configs/readarr/config/config.xml"; 			echo OK!  # pragma: allowlist secret
-	@echo -n "Sonarr... 		";	xmlstarlet --quiet ed --inplace --update '/Config/SslCertPassword' --value "${CERT_PASSWORD}" "configs/sonarr/config/config.xml"; 			echo OK!  # pragma: allowlist secret
-	@echo -n "Whisparr...		";	xmlstarlet --quiet ed --inplace --update '/Config/SslCertPassword' --value "${CERT_PASSWORD}" "configs/whisparr/config/config.xml"; 		echo OK!  # pragma: allowlist secret
-	@echo -n "Jellyfin...		"; 	xmlstarlet --quiet ed --inplace --update '/NetworkConfiguration/CertificatePassword' --value "${CERT_PASSWORD}" "configs/jellyfin/config/network.xml"; 		echo OK!  # pragma: allowlist secret
-	@echo -n "NZBHydra...		"; 	sslKey="${CERT_PASSWORD}" yq -i '(.main.sslKeyStorePassword) = strenv(sslKey)' "configs/nzbhydra2/config/nzbhydra.yml"; 	echo OK!
+	$(call patch_cert_xml,Lidarr,configs/lidarr/config/config.xml,/Config/SslCertPassword)
+	$(call patch_cert_xml,Prowlarr,configs/prowlarr/config/config.xml,/Config/SslCertPassword)
+	$(call patch_cert_xml,Radarr,configs/radarr/config/config.xml,/Config/SslCertPassword)
+	$(call patch_cert_xml,Readarr,configs/readarr/config/config.xml,/Config/SslCertPassword)
+	$(call patch_cert_xml,Sonarr,configs/sonarr/config/config.xml,/Config/SslCertPassword)
+	$(call patch_cert_xml,Whisparr,configs/whisparr/config/config.xml,/Config/SslCertPassword)
+	$(call patch_cert_xml,Jellyfin,configs/jellyfin/config/network.xml,/NetworkConfiguration/CertificatePassword)
+	$(call patch_cert_nzbhydra,NZBHydra,configs/nzbhydra2/config/nzbhydra.yml)
 
 rotate_certificate:
 	@./scripts/rotate-certificate.sh
@@ -807,11 +849,27 @@ start: storage_guard permissions_repair
 		fi \
 	fi
 	@echo "Ensuring required networks exist..."
-	@$(RUNTIME) network exists docker-torrent-box-with-vpn_apps || $(RUNTIME) network create docker-torrent-box-with-vpn_apps
-	@$(RUNTIME) network exists docker-torrent-box-with-vpn_services || $(RUNTIME) network create --internal --subnet ${SERVICES_SUBNET} --ip-range ${SERVICES_DYNAMIC_IP_RANGE} docker-torrent-box-with-vpn_services
-	@$(RUNTIME) network exists docker-torrent-box-with-vpn_media || $(RUNTIME) network create --subnet ${MEDIA_SUBNET} --ip-range ${MEDIA_DYNAMIC_IP_RANGE} docker-torrent-box-with-vpn_media
-	@$(RUNTIME) network exists docker-torrent-box-with-vpn_observability || $(RUNTIME) network create --internal --subnet ${OBSERVABILITY_SUBNET} docker-torrent-box-with-vpn_observability
+	@$(RUNTIME) network exists $(COMPOSE_PROJECT_NAME)_apps || $(RUNTIME) network create $(COMPOSE_PROJECT_NAME)_apps
+	@$(RUNTIME) network exists $(COMPOSE_PROJECT_NAME)_services || $(RUNTIME) network create --internal --subnet ${SERVICES_SUBNET} --ip-range ${SERVICES_DYNAMIC_IP_RANGE} $(COMPOSE_PROJECT_NAME)_services
+	@$(RUNTIME) network exists $(COMPOSE_PROJECT_NAME)_media || $(RUNTIME) network create --subnet ${MEDIA_SUBNET} --ip-range ${MEDIA_DYNAMIC_IP_RANGE} $(COMPOSE_PROJECT_NAME)_media
+	@$(RUNTIME) network exists $(COMPOSE_PROJECT_NAME)_observability || $(RUNTIME) network create --internal --subnet ${OBSERVABILITY_SUBNET} $(COMPOSE_PROJECT_NAME)_observability
 	@echo "Starting VPN gateway..."
+	# vpn_mock has to be up before gluetun, not alongside everything else.
+	# When VPN_MOCK_PROFILE is enabled, vpn_mock IS the WireGuard endpoint
+	# gluetun dials (docs/VPN_MOCK.md), and gluetun's healthcheck only passes
+	# once that tunnel carries traffic. wait_for_gluetun below then blocks on
+	# exactly that for 180s, while vpn_mock would only start in the "all
+	# containers" pass underneath it. From a fully stopped stack that is a
+	# deadlock: confirmed live, gluetun sat in a restart loop logging
+	# "dial tcp4: lookup github.com: i/o timeout" until the wait timed out and
+	# the whole target failed, and starting vpn_mock by hand made gluetun
+	# healthy within 10s with nothing else changed. It went unnoticed because
+	# seed-vpn-mock.sh leaves vpn_mock running, so the first bootstrap after
+	# seeding works and only a later down/up cycle exposes it.
+	@if [ "$(VPN_MOCK_PROFILE)" = "enabled" ]; then \
+		echo "Starting the local mock VPN endpoint gluetun dials..."; \
+		$(COMPOSE) $(COMPOSE_FILES) --profile enabled up --detach --no-recreate vpn_mock; \
+	fi
 	@$(COMPOSE) $(COMPOSE_FILES) --profile enabled up --detach --no-recreate gluetun
 	$(call wait_for_gluetun)
 	@echo "Starting all containers..."
@@ -820,16 +878,16 @@ start: storage_guard permissions_repair
 
 start_library: storage_guard permissions_repair
 	@echo "Starting Media Library containers..."
-	@$(RUNTIME) network exists docker-torrent-box-with-vpn_apps || $(RUNTIME) network create docker-torrent-box-with-vpn_apps
-	@$(RUNTIME) network exists docker-torrent-box-with-vpn_services || $(RUNTIME) network create --internal --subnet ${SERVICES_SUBNET} --ip-range ${SERVICES_DYNAMIC_IP_RANGE} docker-torrent-box-with-vpn_services
-	@$(RUNTIME) network exists docker-torrent-box-with-vpn_media || $(RUNTIME) network create --subnet ${MEDIA_SUBNET} --ip-range ${MEDIA_DYNAMIC_IP_RANGE} docker-torrent-box-with-vpn_media
+	@$(RUNTIME) network exists $(COMPOSE_PROJECT_NAME)_apps || $(RUNTIME) network create $(COMPOSE_PROJECT_NAME)_apps
+	@$(RUNTIME) network exists $(COMPOSE_PROJECT_NAME)_services || $(RUNTIME) network create --internal --subnet ${SERVICES_SUBNET} --ip-range ${SERVICES_DYNAMIC_IP_RANGE} $(COMPOSE_PROJECT_NAME)_services
+	@$(RUNTIME) network exists $(COMPOSE_PROJECT_NAME)_media || $(RUNTIME) network create --subnet ${MEDIA_SUBNET} --ip-range ${MEDIA_DYNAMIC_IP_RANGE} $(COMPOSE_PROJECT_NAME)_media
 	@$(COMPOSE) --file docker-compose.yml --file docker-compose-media-library.yml --profile enabled up --detach --no-recreate
 
 start_observability: storage_guard permissions_repair
 	@echo "Starting Observability containers..."
-	@$(RUNTIME) network exists docker-torrent-box-with-vpn_apps || $(RUNTIME) network create docker-torrent-box-with-vpn_apps
-	@$(RUNTIME) network exists docker-torrent-box-with-vpn_services || $(RUNTIME) network create --internal --subnet ${SERVICES_SUBNET} --ip-range ${SERVICES_DYNAMIC_IP_RANGE} docker-torrent-box-with-vpn_services
-	@$(RUNTIME) network exists docker-torrent-box-with-vpn_observability || $(RUNTIME) network create --internal --subnet ${OBSERVABILITY_SUBNET} docker-torrent-box-with-vpn_observability
+	@$(RUNTIME) network exists $(COMPOSE_PROJECT_NAME)_apps || $(RUNTIME) network create $(COMPOSE_PROJECT_NAME)_apps
+	@$(RUNTIME) network exists $(COMPOSE_PROJECT_NAME)_services || $(RUNTIME) network create --internal --subnet ${SERVICES_SUBNET} --ip-range ${SERVICES_DYNAMIC_IP_RANGE} $(COMPOSE_PROJECT_NAME)_services
+	@$(RUNTIME) network exists $(COMPOSE_PROJECT_NAME)_observability || $(RUNTIME) network create --internal --subnet ${OBSERVABILITY_SUBNET} $(COMPOSE_PROJECT_NAME)_observability
 	@$(COMPOSE) --file docker-compose-observability.yml --profile enabled up --detach
 
 stop: stop_all
@@ -843,9 +901,9 @@ update_containers:
 	@$(COMPOSE) $(STOP_COMPOSE_FILES) --profile enabled stop
 
 	@echo "Ensuring required networks exist..."
-	@$(RUNTIME) network exists docker-torrent-box-with-vpn_apps || $(RUNTIME) network create docker-torrent-box-with-vpn_apps
-	@$(RUNTIME) network exists docker-torrent-box-with-vpn_services || $(RUNTIME) network create --internal --subnet ${SERVICES_SUBNET} --ip-range ${SERVICES_DYNAMIC_IP_RANGE} docker-torrent-box-with-vpn_services
-	@$(RUNTIME) network exists docker-torrent-box-with-vpn_observability || $(RUNTIME) network create --internal --subnet ${OBSERVABILITY_SUBNET} docker-torrent-box-with-vpn_observability
+	@$(RUNTIME) network exists $(COMPOSE_PROJECT_NAME)_apps || $(RUNTIME) network create $(COMPOSE_PROJECT_NAME)_apps
+	@$(RUNTIME) network exists $(COMPOSE_PROJECT_NAME)_services || $(RUNTIME) network create --internal --subnet ${SERVICES_SUBNET} --ip-range ${SERVICES_DYNAMIC_IP_RANGE} $(COMPOSE_PROJECT_NAME)_services
+	@$(RUNTIME) network exists $(COMPOSE_PROJECT_NAME)_observability || $(RUNTIME) network create --internal --subnet ${OBSERVABILITY_SUBNET} $(COMPOSE_PROJECT_NAME)_observability
 
 	@echo "Pulling images..."
 	@$(COMPOSE) $(COMPOSE_FILES) pull
