@@ -66,12 +66,28 @@ SERVICE_PROFILE = {
 
 
 def read_env(env_file: Path) -> dict[str, str]:
-    """Every KEY=value in .env, for `${VAR}` expansion in the template."""
+    """Every KEY=value in .env, for `${VAR}` expansion in the template.
+
+    Trailing comments and either quote style are stripped. read_profiles below
+    parses the same file more loosely and can afford to, because it only compares
+    a value against the literal "enabled"; a value that reaches this function is
+    going into a URL, where an unnoticed ` # note` or a kept quote produces an
+    address Homepage cannot parse and reports as the same timeout it reports for
+    an address that is merely dead.
+    """
     values = {}
     for line in env_file.read_text().splitlines():
         m = re.match(r"^([A-Z0-9_]+)=(.*)$", line)
-        if m:
-            values[m.group(1)] = m.group(2).strip().strip('"')
+        if not m:
+            continue
+        value = m.group(2).strip()
+        if value[:1] in ("'", '"') and value[-1:] == value[:1] and len(value) > 1:
+            value = value[1:-1]
+        else:
+            # Only an unquoted value can carry a trailing comment, and only when
+            # the # is preceded by whitespace: a bare # is legal inside a value.
+            value = re.split(r"\s+#", value, maxsplit=1)[0].strip()
+        values[m.group(1)] = value
     return values
 
 

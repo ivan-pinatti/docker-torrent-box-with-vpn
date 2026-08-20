@@ -144,7 +144,7 @@ sat at whatever version was committed. Their build dates, measured with `skopeo 
 | `SABNZBD_EXPORTER_VERSION` | `docker.io/msroest/sabnzbd_exporter` | 2025-11-07 | already current |
 | `PODMAN_EXPORTER_VERSION` | `quay.io/navidys/prometheus-podman-exporter` | 2025-12-22 | `v1.21.2` |
 | `NODE_EXPORTER_VERSION` | `docker.io/prom/node-exporter` | 2026-04-07 | `v1.12.1` |
-| `PODMAN_LIMITS_EXPORTER_VERSION` | `docker.io/library/python` | 2026-04-17 | held, see below |
+| `PODMAN_LIMITS_EXPORTER_VERSION` | `docker.io/library/python` | 2026-04-17 | `3.14-alpine3.22` |
 | `ALLOY_VERSION` | `docker.io/grafana/alloy` | 2026-04-23 | `v1.18.1` |
 | `JACKETT_VERSION` | `docker.io/linuxserver/jackett` | 2026-04-23 | `0.24.2424` |
 | `MYLAR_VERSION` | `docker.io/linuxserver/mylar3` | 2026-05-01 | `v0.11.0-ls268` |
