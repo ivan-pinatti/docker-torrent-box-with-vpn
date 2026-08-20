@@ -231,7 +231,19 @@ wait_job() {
 # JELLYFIN_DETECTED_BASE_URL as a side effect since retry() only checks
 # exit status, not output.
 detect_jellyfin_base_url() {
-  local host_url="http://127.0.0.1:${JELLYFIN_HTTP_PORT}"
+  # 8096 rather than JELLYFIN_HTTP_PORT, deliberately. This curl runs inside
+  # the jellyfin container, and docker-compose-media-library.yml publishes the
+  # service as `${JELLYFIN_HTTP_PORT}:8096`, so that variable is the HOST side
+  # of the mapping while the server itself always listens on 8096. The two
+  # coincide with .env.example's default and the bug stays invisible; change
+  # the published port, which .env exists to allow, and this dialled a port
+  # nothing listens on. Confirmed live with JELLYFIN_HTTP_PORT=18096: inside
+  # the container 18096 is refused and 8096 answers 200, so first-run setup
+  # burned the full 180s retry and was skipped on every single start.
+  # jellyfin_host_for is the opposite case and correctly keeps the variable:
+  # it runs inside an arr container, reaching Jellyfin across the host, where
+  # the published port is exactly what it must use.
+  local host_url="http://127.0.0.1:8096"
   local info
   # `jq -e '.StartupWizardCompleted'` looked right but isn't: jq -e's exit
   # status reflects the truthiness of the printed value, not whether the key
@@ -935,11 +947,44 @@ ensure_jellyfin_connection() {
     return 0
   fi
 
+  # Both API reads below are checked rather than left bare. This function is
+  # called in an `||` list, which suspends `set -e` for everything inside it,
+  # so an unguarded `existing=$(...)` that failed would carry on with an empty
+  # value and return a confident looking skip. That is the very silent success
+  # this change exists to remove, so a read that fails is reported as a
+  # failure. `set -o pipefail` at the top of this file is what makes the
+  # curl half of each pipeline count, not just jq's status.
   local existing
-  existing=$(container_curl "$container" -sk --fail -H "X-Api-Key: ${api_key}" "$base_url" |
-    jq 'map(select(.implementation == "MediaBrowser")) | first')
+  if ! existing=$(container_curl "$container" -sk --fail -H "X-Api-Key: ${api_key}" "$base_url" |
+    jq 'map(select(.implementation == "MediaBrowser")) | first'); then
+    echo "[$app_name] WARNING: could not read its notification list; skipping its Jellyfin connection."
+    return 1
+  fi
   if [[ -n "$existing" && "$existing" != "null" ]]; then
     echo "[$app_name] Jellyfin connection already exists, skipping."
+    return 0
+  fi
+
+  local schema
+  if ! schema=$(container_curl "$container" -sk --fail -H "X-Api-Key: ${api_key}" "${base_url}/schema" |
+    jq 'map(select(.implementation == "MediaBrowser")) | first'); then
+    echo "[$app_name] WARNING: could not read its notification schema; skipping its Jellyfin connection."
+    return 1
+  fi
+
+  # Not every app offers this. Readarr has no MediaBrowser implementation at
+  # all, since Jellyfin does not take a book library from it; its equivalents
+  # are Kavita and Subsonic. Asking rather than assuming keeps the list of
+  # apps here honest as upstream changes.
+  #
+  # Deliberately answered before the reachability retry below, not after. An
+  # app that cannot use a Jellyfin connection at all must not sit through a
+  # 120s wait for Jellyfin, and must never be reported as having missed a
+  # connection it was never going to make: reachability failing returns
+  # non-zero, so with the order reversed an unreachable Jellyfin would file
+  # Readarr under JELLYFIN_FAILED.
+  if [[ -z "$schema" || "$schema" == "null" ]]; then
+    echo "[$app_name] Does not support Jellyfin connections, skipping."
     return 0
   fi
 
@@ -961,19 +1006,6 @@ ensure_jellyfin_connection() {
     return 1
   fi
   local jellyfin_host="$JELLYFIN_REACHABLE_HOST"
-
-  local schema
-  schema=$(container_curl "$container" -sk --fail -H "X-Api-Key: ${api_key}" "${base_url}/schema" |
-    jq 'map(select(.implementation == "MediaBrowser")) | first')
-
-  # Not every app offers this. Readarr has no MediaBrowser implementation at
-  # all, since Jellyfin does not take a book library from it; its equivalents
-  # are Kavita and Subsonic. Asking rather than assuming keeps the list of
-  # apps here honest as upstream changes.
-  if [[ -z "$schema" || "$schema" == "null" ]]; then
-    echo "[$app_name] Does not support Jellyfin connections, skipping."
-    return 0
-  fi
 
   echo "[$app_name] Creating Jellyfin connection..."
 
