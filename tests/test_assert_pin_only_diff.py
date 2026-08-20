@@ -256,8 +256,12 @@ def test_still_refuses_a_non_pin_number_after_widening_the_token():
 
 
 def test_accepts_a_sha_prefixed_tag():
-    # korsync is pinned to `sha-<hash>`, so the token cannot be required to
-    # start with a digit. Requiring one refused this form.
+    # korsync was pinned to `sha-<hash>` when this case was written, so the
+    # token cannot be required to start with a digit. Requiring one refused this
+    # form. korsync has since moved to a plain `0.2.3`, and the literal stays
+    # here rather than being read from .env.example so that the shape is tested
+    # whatever the file happens to pin: what is under test is the script's
+    # tolerance for the form, not that anything currently uses it.
     old = "sha-7bcefd34e9f6738ce34ccda338aedd316baa05c9"  # pragma: allowlist secret
     new = "sha-8adf1129c7a0d51e0b2a7f4e93a1b0c5d6e7f809"  # pragma: allowlist secret
     result = _check(

@@ -11,7 +11,9 @@ for what was fixed and when.
   2026-07-23, but `stable` is still 9 commits behind as of 2026-08-07
   (`gh api repos/MylarComics/mylar3/compare/stable...70ff41c3014e48daf88763134d976ef042244db`
   still reports `ahead_by: 9`). See `docs/MYLAR.md` for the full check to
-  run before removing the patch
+  run before removing the patch. `MYLAR_VERSION` is held at a fixed version
+  in `.github/renovate.json5` for as long as this patch exists, so dropping it
+  is also what unfreezes that pin
 
 ## jDownloader2
 
@@ -24,7 +26,9 @@ for what was fixed and when.
   image yet and the patch still applies. Asked the maintainer directly:
   <https://github.com/jlesage/docker-baseimage-gui/issues/196#issuecomment-5221788643>.
   Check for a `baseimage-gui` bump to 4.13.0+ in `docker-jdownloader-2`'s
-  Dockerfile before removing this patch
+  Dockerfile before removing this patch. `JDOWNLOADER2_VERSION` is held at a
+  fixed version in `.github/renovate.json5` for as long as this patch exists,
+  so dropping it is also what unfreezes that pin
 
 ## SABnzbd
 
@@ -63,7 +67,9 @@ for what was fixed and when.
   Note that the bind address is not the control that matters in this stack:
   `test_vpn_namespace_has_no_global_ipv6_address` asserts the property
   `docker-compose-vpn.yml` actually relies on, so this patch is defense in depth
-  and its removal is safe whenever upstream changes
+  and its removal is safe whenever upstream changes. `SABNZBD_VERSION` is held
+  at a fixed version in `.github/renovate.json5` for as long as this patch
+  exists, so dropping it is also what unfreezes that pin
 
 - [ ] Report `linuxserver/github-workflows`' broken permission check, which is
   why [#275](https://github.com/linuxserver/docker-sabnzbd/pull/275) shows red.
@@ -205,28 +211,51 @@ for what was fixed and when.
 
 ## Renovate
 
-- [ ] Annotate the twelve container image pins Renovate cannot see. Each carries
-  a digest but no `# renovate:` comment, so nothing watches it and the pin is
-  frozen: `CADVISOR`, `MYLAR`, `NGINX_EXPORTER`, `NODE_EXPORTER`, `NOTIFIARR`,
-  `PODMAN_LIMITS_EXPORTER`, `PODMAN_EXPORTER`, `ALLOY`, `LOG_ROTATOR`,
-  `QBITTORRENT_EXPORTER`, `SABNZBD_EXPORTER` and `JACKETT`. Some are more than a
-  year old. `NGINX_VERSION=stable-alpine`, `PLEX_VERSION=latest` and
-  `WHISPARR_VERSION=v3` are deliberately floating and want no annotation.
-  `LAZYLIBRARIAN_VERSION` is annotated but carries no digest, unlike every other
-  managed pin, so `pinDigests` should be allowed to add one. Left out of the
-  staggering change on purpose: annotating twelve images changes what arrives
-  every week and deserves its own pull request and its own suite runs. See
-  [docs/DEPENDENCY_UPDATES.md](DEPENDENCY_UPDATES.md) for how the managed set is
-  divided today
+- [ ] Give `LAZYLIBRARIAN_VERSION` a versioning scheme that can order it,
+  before `patches/lazylibrarian/` is dropped and the hold on the pin lifts. Two
+  separate things stop this pin moving and only one of them is temporary: the
+  pin is switched off outright in `.github/renovate.json5` while the patch
+  exists, and the `loose` scheme cannot order the tag correctly, which was true
+  before the hold and stays true after it. Lifting the hold without fixing the ordering would
+  leave the pin looking watched and still never bumping, which is the exact
+  state the rest of this change set out to remove.
+  `40a389ea-ls310` holds no version number, so `loose` reads the leading `40` as
+  the version and ranks the current pin above `9a2c0d5e-ls334`, comparing a
+  commit hash fragment as a number. `versioning=regex:^[0-9a-f]+-ls(?<major>\d+)$`
+  keys on the `ls` counter and orders these correctly, and lazylibrarian's
+  counter has not reset, unlike jackett's, which went `ls491` then `ls1`. Worth
+  confirming first how Renovate labels the resulting update, since a scheme
+  whose only numeric group is `major` makes every build a major bump, and major
+  bumps match no automerge rule in `.github/renovate.json5` and would sit
+  waiting for a person
 
-- [ ] Add a test that fails when an image pin goes unwatched, so the gap above
-  cannot recur silently. Walk `.env.example`, and for every variable naming a
-  container image assert it carries a `# renovate:` annotation and a digest, with
-  an explicit allowlist for the tags that are deliberately floating. Same shape
-  as `tests/test_prerequisites.py` asserting runtime databases stay untracked,
-  where the point is that a reintroduced mistake fails the suite rather than
-  reaching a commit. It would have caught all twelve, and lazylibrarian's
-  missing digest
+- [ ] Cover `podman_limits_exporter` in CI, which is what would let
+  `docker.io/library/python` come off its hold. The image is a bare interpreter
+  and `scripts/podman-limits-exporter.py` is the application, so a Python minor
+  bump changes the interpreter under this repository's own code and nothing
+  tests it: `PODMAN_LIMITS_EXPORTER_PROFILE` ships disabled and
+  integration-tests.yml never enables it. Doing this properly means enabling the
+  observability profile in CI, which pulls and starts ten more images and
+  lengthens the suite, so it is worth costing before committing to. Note the
+  interpreter has already drifted from the rest of the repository: the exporter
+  runs 3.13 while `PYTHON_VERSION=3.14` is what lints and tests everything else,
+  so whatever covers this should decide whether those two should be the same
+  number
+
+- [ ] Audit the eighteen compose services absent from `SERVICES` in
+  `tests/conftest.py`, adding each one or recording why it stays out. That
+  registry parametrizes the container, connectivity, auth and service tiers, so
+  a service outside it gets nothing from them: alloy, audiobookshelf, cadvisor,
+  calibre, calibre-web, gluetun, homepage, jdownloader2, korsync, lazylibrarian,
+  log_rotator, loki, mylar, nginx, nginx_exporter, nzbhydra2,
+  podman_limits_exporter and vpn_mock. Three of those are covered another way and
+  should come out of the list rather than into the registry: gluetun and vpn_mock
+  by the vpn and killswitch tiers and by `test_vpn_container_running`, and nginx
+  by every `proxy_path` case, which reaches its service through it. korsync is
+  what prompted this, since it now tracks a release tag Renovate will bump on its
+  own and a broken bump would fail nothing; it already carries a healthcheck in
+  `docker-compose-media-library.yml`, and `recyclarr` and the three exporters show
+  that an entry with every optional field `None` is a supported shape
 
 ## LazyLibrarian
 
@@ -236,4 +265,7 @@ for what was fixed and when.
   (login/logout redirect doubles `HTTP_ROOT` and 404s for pages reached via
   `check_auth()`'s redirect while logged out), with a fix submitted as
   [LazyLibrarian/LazyLibrarian!1832](https://gitlab.com/LazyLibrarian/LazyLibrarian/-/merge_requests/1832).
-  Check whether it merged and reached a release before removing the patch
+  Check whether it merged and reached a release before removing the patch.
+  `LAZYLIBRARIAN_VERSION` is held at a fixed version in
+  `.github/renovate.json5` for as long as this patch exists, so dropping it is
+  also what unfreezes that pin

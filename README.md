@@ -180,9 +180,11 @@ _\* ERC-20 accepts ETH, USDT, and USDC · BEP-20 accepts BNB, USDT, and USDC · 
 Jackett, NZBGet, and Plex are retained for existing setups only. Prowlarr,
 SABnzbd, and Jellyfin are the supported indexer, Usenet downloader, and
 media player defaults for new and maintained configurations. Because these
-apps are legacy, their image pins are managed manually and they are not
-covered by Renovate or the pytest container, connectivity, auth, and service
-health layers.
+apps are legacy, none of them is covered by the pytest container,
+connectivity, auth, and service health layers. Their image pins are watched by
+Renovate all the same, because a frozen image is a worse starting point than a
+current one for anyone re-enabling one of them. Plex is the exception: it
+floats on `latest`, so there is no version to watch.
 
 ---
 
