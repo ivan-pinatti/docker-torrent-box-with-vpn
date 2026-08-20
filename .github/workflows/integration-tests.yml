@@ -472,18 +472,31 @@ jobs:
           # RFC 1918 address works here since nothing on the runner resolves it.
           sed -i 's/^LAN_IP=192.168.1.x/LAN_IP=192.168.1.100/' .env
 
-      - name: Point the VPN at the local mock
+      - name: Apply the test profile overrides
         timeout-minutes: 3
-        # Always the mock, never a real credential. There is no
-        # PROTONVPN_PRIVATE_KEY secret in this repository and there is not going
-        # to be one: the mock is what validates the VPN, here and in
-        # make bootstrap_tests. This step used to branch on that secret and fall
-        # back, which meant a branch that never ran, dressed as the primary
-        # path, and a step name that claimed CI might be testing against a real
-        # provider. It never has.
+        # `make enable_test_profiles` applies .env.tests onto .env and then
+        # seeds the VPN mock, which is exactly what this step used to do by hand
+        # for one of that file's variables. Hand-rolling it meant CI enabled
+        # VPN_MOCK_PROFILE and nothing else, so the eleven observability
+        # profiles, whisparr and nzbhydra2 stayed off here, and every test
+        # written for them skipped: .env.tests exists precisely because each of
+        # those profiles "has real pytest coverage that never runs otherwise",
+        # and CI was the one place not reading it. The groundwork was already
+        # laid, since `make seed_all` above seeds configs/grafana's secrets and
+        # creates storage/{loki,prometheus,grafana}/data whether or not anything
+        # uses them.
         #
-        # Nothing is lost by it. `make test_ci` below excludes the killswitch
-        # tier, the only one that exercises a real VPN credential.
+        # Using the make target rather than restating the profile list keeps one
+        # source of truth. The list drifted once already, which is what this
+        # replaces.
+        #
+        # The VPN half of the reasoning is unchanged. Always the mock, never a
+        # real credential: there is no PROTONVPN_PRIVATE_KEY secret in this
+        # repository and there is not going to be one, and `make test_ci` below
+        # excludes the killswitch tier, the only one that exercises a real VPN
+        # credential. scripts/enable-test-profiles.sh only seeds the mock when
+        # configs/gluetun/.secret is still a placeholder, so a real key is never
+        # overwritten.
         #
         # gluetun can't be skipped the way GLUETUN_PROFILE=disabled tries to:
         # it's foundational, not optional the way other apps' profiles are,
@@ -495,9 +508,7 @@ jobs:
         # filtering. So it points at this repo's own credential-free mock
         # WireGuard endpoint instead; see docs/VPN_MOCK.md.
         shell: bash
-        run: |
-          sed -i 's/^VPN_MOCK_PROFILE=disabled/VPN_MOCK_PROFILE=enabled/' .env
-          ./scripts/seed-vpn-mock.sh
+        run: make enable_test_profiles
 
       - name: Read PYTHON_VERSION from .env
         timeout-minutes: 1

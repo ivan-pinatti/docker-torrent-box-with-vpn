@@ -209,6 +209,22 @@ for what was fixed and when.
   merge queues are reported to interact badly with required approvals and
   Renovate, so check that before choosing
 
+## Test suite
+
+- [ ] Make `test_arr_health_response_empty` fail, not warn, when an arr cannot
+  reach its download client. It warns for every health message on the grounds
+  that "some warnings are non-critical", which is true of "All indexers are
+  unavailable due to failures" in an environment with no real indexers, and not
+  true of "Unable to communicate with QBittorrent. Connection refused
+  (172.28.0.10:8085)". A stack with every download client unreachable currently
+  passes: found exactly that way, when a network subnet change left
+  `GLUETUN_SERVICES_IP` behind and `wire-connections.sh` had written the stale
+  address into every arr. The read-only tier reported 590 passed while nothing
+  could talk to qBittorrent. Splitting the messages into a fail list and a warn
+  list is the fix; the fail list wants to start with download client
+  reachability and stay short, since the whole point of the warning was that
+  most of what these endpoints report is environmental
+
 ## Renovate
 
 - [ ] Give `LAZYLIBRARIAN_VERSION` a versioning scheme that can order it,

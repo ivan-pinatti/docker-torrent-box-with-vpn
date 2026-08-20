@@ -215,6 +215,18 @@ SERVICES = {
         "api_key_source": None,
         "password_var": None,
     },
+    # The image here is a bare interpreter and scripts/podman-limits-exporter.py
+    # is the application, so this entry exists to give this repository's own code
+    # container-level coverage: a Python bump changes the interpreter under it.
+    # Deliberately absent from HARDENED_SERVICES in test_security.py, for the
+    # same reason podman_exporter is: userns_mode plus label=disable, so it runs
+    # as 0:0 with no dropped capabilities.
+    "podman_limits_exporter": {
+        "profile_var": "PODMAN_LIMITS_EXPORTER_PROFILE",
+        "api_health_path": None,
+        "api_key_source": None,
+        "password_var": None,
+    },
     "qbittorrent_exporter": {
         "profile_var": "QBITTORRENT_EXPORTER_PROFILE",
         "api_health_path": None,

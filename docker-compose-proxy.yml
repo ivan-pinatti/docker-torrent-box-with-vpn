@@ -128,6 +128,11 @@ services:
       NZBHYDRA2_UPSTREAM_PORT: "${NZBHYDRA2_HTTPS_PORT}"
       SABNZBD_UPSTREAM_SCHEME: https
       SABNZBD_UPSTREAM_HOST: "${GLUETUN_SERVICES_IP}"
+      # /stub_status's allow list, which is what nginx_exporter scrapes
+      # through. Hard coded as 172.29.0.0/24 until this change, so a
+      # deployment whose .env moved the observability subnet had the
+      # exporter denied by an ACL naming a subnet it was no longer on.
+      OBSERVABILITY_SUBNET: "${OBSERVABILITY_SUBNET}"
       SABNZBD_UPSTREAM_PORT: "${SABNZBD_HTTPS_PORT}"
       SONARR_UPSTREAM_SCHEME: http
       SONARR_UPSTREAM_HOST: sonarr-http

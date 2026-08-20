@@ -6,6 +6,13 @@ dropping any app whose compose profile is disabled in .env, and dropping any
 section left empty as a result. Run on every `make start`, not just bootstrap,
 so flipping a profile and restarting is enough to update Homepage; see the
 comment at the top of services.yaml.template.
+
+Also expands `${VAR}` from .env, which is what lets a widget point at an address
+the deployment actually uses instead of a literal. The template used to hard code
+gluetun's services address, so any checkout whose .env moved that subnet
+regenerated a Homepage that pointed at the previous deployment's address on every
+`make start`, and the widget answered with a timeout. Homepage's own
+`{{HOMEPAGE_FILE_*}}` placeholders use different delimiters and are left alone.
 """
 
 import re
@@ -58,6 +65,39 @@ SERVICE_PROFILE = {
 }
 
 
+def read_env(env_file: Path) -> dict[str, str]:
+    """Every KEY=value in .env, for `${VAR}` expansion in the template."""
+    values = {}
+    for line in env_file.read_text().splitlines():
+        m = re.match(r"^([A-Z0-9_]+)=(.*)$", line)
+        if m:
+            values[m.group(1)] = m.group(2).strip().strip('"')
+    return values
+
+
+def expand(text: str, values: dict[str, str]) -> str:
+    """Substitute `${VAR}` from .env, refusing anything .env does not define.
+
+    Refusing rather than leaving the placeholder in place on purpose: a typo
+    would otherwise reach Homepage as a literal `${FOO}` inside a URL, and a
+    widget that cannot parse its own address reports the same timeout as one
+    pointing somewhere dead, which is a considerably worse thing to debug.
+    """
+    missing = sorted(
+        {
+            name
+            for name in re.findall(r"\$\{([A-Z0-9_]+)\}", text)
+            if name not in values
+        }
+    )
+    if missing:
+        raise SystemExit(
+            f"ERROR: {TEMPLATE_FILE.name} references {', '.join(missing)}, "
+            f"which {ENV_FILE.name} does not define."
+        )
+    return re.sub(r"\$\{([A-Z0-9_]+)\}", lambda m: values[m.group(1)], text)
+
+
 def read_profiles(env_file: Path) -> dict[str, bool]:
     profiles = {}
     for line in env_file.read_text().splitlines():
@@ -83,7 +123,7 @@ def main() -> int:
         return 0
 
     profiles = read_profiles(ENV_FILE)
-    sections = yaml.safe_load(TEMPLATE_FILE.read_text())
+    sections = yaml.safe_load(expand(TEMPLATE_FILE.read_text(), read_env(ENV_FILE)))
 
     filtered_sections = []
     for section in sections:
