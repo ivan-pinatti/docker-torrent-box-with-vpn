@@ -211,6 +211,15 @@ for what was fixed and when.
 
 ## Test suite
 
+- [ ] Stop `test_compose_available` failing when one compose flavour is merely
+  slow. It probes `docker compose version` through conftest's `run()`, which
+  passes `timeout=10` and therefore raises `TimeoutExpired` rather than returning
+  non-zero, so a runner where that probe is slow aborts the test before it looks
+  at `docker-compose` or `podman-compose`. The assertion only needs one of the
+  three to exist, and podman-compose is present in CI, so the failure contradicts
+  what the test is checking. Seen on 2026-08-20, green on a re-run of the same
+  commit with nothing changed
+
 - [ ] Make `test_arr_health_response_empty` fail, not warn, when an arr cannot
   reach its download client. It warns for every health message on the grounds
   that "some warnings are non-critical", which is true of "All indexers are
