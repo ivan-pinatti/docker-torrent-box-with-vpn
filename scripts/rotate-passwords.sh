@@ -931,16 +931,45 @@ PYEOF
   fi
 
   echo "[qBittorrent] Logging in with current password..."
-  container_curl qbittorrent -sk -c /tmp/qbt_cookies.txt \
-    -d "username=qbittorrent&password=${current_password}" \
-    "https://${GLUETUN_SERVICES_IP}:${QBITTORRENT_HTTPS_PORT}/api/v2/auth/login" \
-    >/dev/null
+  # --data-urlencode, not -d: this password is read back from Sonarr's database
+  # and so can be anything a person once typed, where a raw -d body would let
+  # an `&` split it into extra parameters, a `+` arrive as a space, and a
+  # literal `%26` decode to `&`. Any of those sends a password that is not the
+  # stored one, and the login then fails for a reason nothing in the output
+  # would explain. The validation request below is unaffected, since it only
+  # ever sees a generated password from a restricted character set, but this
+  # one reads whatever is already there.
+  container_curl qbittorrent -sk -c /tmp/qbt_cookies.txt -o /dev/null \
+    --data-urlencode "username=qbittorrent" \
+    --data-urlencode "password=${current_password}" \
+    "https://${GLUETUN_SERVICES_IP}:${QBITTORRENT_HTTPS_PORT}/api/v2/auth/login"
+
+  # Same reasoning as qbittorrent_api_ok below: confirmed live against 5.1.4, a
+  # refused login still answers 200, so the status says nothing and the cookie
+  # jar is what proves the session is real. Without this the rotation would
+  # carry on and rewrite every consumer's stored credential with a password
+  # qBittorrent never accepted, leaving the whole stack unable to log in. The
+  # jar is the Netscape format, so field 6 is the cookie name and field 7 its
+  # value; the name is SID on 5.1.4 and QBT_SID_<port> on 5.2.2.
+  if ! podman exec qbittorrent \
+    awk '$6 ~ /SID/ && $7 != "" { found = 1 } END { exit !found }' \
+    /tmp/qbt_cookies.txt 2>/dev/null; then
+    podman exec qbittorrent rm -f /tmp/qbt_cookies.txt
+    echo "[qBittorrent] Login with the current password was refused, so no session was established. Aborting rotation." >&2
+    exit 1
+  fi
 
   echo "[qBittorrent] Setting new WebUI password..."
-  container_curl qbittorrent -sk -b /tmp/qbt_cookies.txt \
+  local set_code
+  set_code=$(container_curl qbittorrent -sk -b /tmp/qbt_cookies.txt -o /dev/null \
+    -w '%{http_code}' \
     --data-urlencode "json={\"web_ui_password\":\"${new_password}\"}" \
-    "https://${GLUETUN_SERVICES_IP}:${QBITTORRENT_HTTPS_PORT}/api/v2/app/setPreferences" \
-    >/dev/null
+    "https://${GLUETUN_SERVICES_IP}:${QBITTORRENT_HTTPS_PORT}/api/v2/app/setPreferences")
+  if [[ "$set_code" != 2* ]]; then
+    podman exec qbittorrent rm -f /tmp/qbt_cookies.txt
+    echo "[qBittorrent] setPreferences answered HTTP ${set_code}, so the new password was not applied. Aborting rotation." >&2
+    exit 1
+  fi
 
   # The cookie file lives inside the container (curl ran via podman exec),
   # so it must be removed there, not on the host.
@@ -1718,11 +1747,23 @@ nzbhydra_login_ok() {
 }
 
 qbittorrent_api_ok() {
-  local code
-  code=$(container_curl qbittorrent -sk -o /dev/null -w '%{http_code}' \
+  # A successful login answers 200 on qBittorrent 5.1.4 and 204 on 5.2.2
+  # (confirmed directly against standalone containers of both), so the status
+  # check accepts any 2xx rather than the exact code either version happens to
+  # use. The status alone is not enough to call the login good, though:
+  # confirmed live against 5.1.4, a REJECTED login also answers 200, with the
+  # body "Fails." and no cookie, so a status-only check passes a password that
+  # qBittorrent just refused. The session cookie is the part that only a real
+  # login produces, so require it too. Its name is version dependent, a bare
+  # SID on 5.1.4 and a port suffixed QBT_SID_<port> on 5.2.2, hence the
+  # substring match rather than one literal name.
+  local response code
+  response=$(container_curl qbittorrent -sk -o /dev/null -D - -w '\n%{http_code}' \
     "https://${GLUETUN_SERVICES_IP}:${QBITTORRENT_HTTPS_PORT}/api/v2/auth/login" \
     -d "username=qbittorrent&password=$1")
-  [[ "$code" == "200" ]]
+  code="${response##*$'\n'}"
+  [[ "$code" == 2* ]] || return 1
+  grep -qiE '^set-cookie:[[:space:]]*[^=]*SID[^=]*=..*' <<<"$response"
 }
 
 sabnzbd_key_ok() {

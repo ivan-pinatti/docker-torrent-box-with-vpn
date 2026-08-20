@@ -79,24 +79,31 @@ for what was fixed and when.
 
 ## Jellyfin wiring
 
-- [ ] Stop `ensure_jellyfin_connection` failing silently, and work out why it
-  fails for `lidarr`. `scripts/wire-connections.sh:1003` calls it with
-  `|| true`, so a failure leaves the app without the connection while `make wire_connections`
-  still reports success, and the first sign of it is
-  `test_jellyfin_connection_matches_what_the_app_supports[lidarr]` failing later
-  with `supports MediaBrowser=True but wired=False`. Seen on two runs on
-  2026-08-18 (`32176749677` on #72 and `32179005406` on #77), both shortly after
-  the Jellyfin 10.11.10 bump merged unattended in #76 at 19:17Z, and both passed
-  on a retry, so the bump appears to have widened a race rather than broken
-  anything outright. Two things to do, and the first stands on its own: the
-  Prowlarr path in the same file already collects failures in `PROWLARR_FAILED`
-  precisely "so the end of `wire_prowlarr_apps` can report them instead of
-  letting a partial result look identical to a complete one", and the Jellyfin
-  path should do the same rather than swallow. Then find the actual failure,
-  which the reporting will finally make visible. This matters more than a normal
-  flake now that dependency updates merge unattended: an intermittent test means
-  a bot pull request stalls at random and waits for a person, which is the one
-  outcome the automation exists to avoid
+- [ ] Confirm the `ensure_jellyfin_connection` race is actually closed, once
+  `/run-tests` runs against this change. `scripts/wire-connections.sh` used to
+  call it with `|| true`, so a failure left the app without the connection
+  while `make wire_connections` still reported success. That swallow is gone:
+  the same reasoning `PROWLARR_FAILED` already used in this file, "so the end
+  of the run can report them instead of letting a partial result look
+  identical to a complete one", now applies to the Jellyfin path too, via a
+  `JELLYFIN_FAILED` array collected as each arr app's job finishes.
+
+  The actual failure behind
+  `test_jellyfin_connection_matches_what_the_app_supports[lidarr]` (`supports
+  MediaBrowser=True but wired=False`, seen twice on 2026-08-18, runs
+  `32176749677` on #72 and `32179005406` on #77, both shortly after the
+  Jellyfin 10.11.10 bump merged unattended in #76) is right there in both
+  runs' own logs, and it is the same one both times: lidarr gets through its
+  WebUI login and both download clients, then `jellyfin_host_for` logs
+  `WARNING: Jellyfin is running but not reachable from this container` and
+  gives up. That function tried each candidate host once, with a 5 second cap
+  each, unlike almost every other first boot readiness check in this file,
+  which retries for up to 180s. It is now wrapped in this file's own `retry`
+  helper the same way, up to 120s, which should clear the same race the two
+  observed runs hit. Marking this pull request ready and commenting
+  `/run-tests` is deliberately left to a person rather than done here, so the
+  fix has not yet been checked against a real run; watch the next
+  lidarr Jellyfin result to close this out
 
 ## CodeRabbit
 
@@ -131,12 +138,44 @@ for what was fixed and when.
   `pre-commit-checklists#12` (seven commits), where reviews stopped after the
   fifth and twelve hours passed with no review and no warning
 - [ ] Nothing to configure for the other half of the problem: the
-  included-review quota (3/hour) **drops** a review rather than queueing it, so
-  a push during exhaustion is lost. The published schema
-  (`schema.v2.json`) has no retry, backoff or queue setting. Recovery is a
-  manual `@coderabbitai review`. Treat a green CodeRabbit check as "no review
-  blocked this", not as "a review happened": it is also green on a skipped
-  draft and on a rate-limited decline
+  included-review quota **drops** a review rather than queueing it, so a push
+  during exhaustion is lost. The published schema (`schema.v2.json`) has no
+  retry, backoff or queue setting. Recovery is a manual `@coderabbitai review`.
+  Treat a green CodeRabbit check as "no review blocked this", not as "a review
+  happened": it is also green on a skipped draft and on a rate-limited decline,
+  which is the item below
+- [ ] Stop a rate limited decline reporting green, which is how three pull
+  requests merged with no review on 2026-08-19. CodeRabbit reports through the
+  legacy commit status API rather than check runs, and that API offers only
+  `error`, `failure`, `pending` and `success`, with no `neutral`. An exhausted
+  quota resolves the status to `success` with the description
+  `Review rate limited`, which neither branch protection nor anything else
+  reading the status can tell apart from `success` with `Review completed`.
+  #86, #87 and #88 all ended there and all merged, and none of their status
+  histories carries a `Review completed` entry, while #82, #85 and #90 do. #87
+  is titled "Stagger dependency updates, and stop losing CodeRabbit reviews"
+  and was itself never read. The quota figure is also unclear: the review on
+  #90 reported "up to 10 included reviews per hour; 5 remain", not the 3 per
+  hour previously recorded here.
+
+  Raised as a follow-up on the existing support ticket, framed as one value
+  meaning two opposite things rather than as the wrong state being chosen. The
+  deadlock argument against holding `pending` forever is defensible, and a
+  status that cannot tell the two apart is not, so that framing is the one that
+  cannot be closed as intended behavior. `reviews.fail_commit_status` is the only related
+  setting and does not cover this: it acts on review errors, not on declines.
+
+  The fix that does not depend on them is a gate job asserting the description
+  equals `Review completed`, in the same shape as `Integration Tests` gating
+  `Integration Suite`. It has to special case bot pull requests, which get no
+  status at all, because a required context that is absent blocks a merge
+  indefinitely and would freeze every Renovate pull request. For the same
+  reason, do not simply mark the `CodeRabbit` context required: it would cause
+  that freeze while still passing every rate limited human pull request.
+  `required_conversation_resolution` is already enabled on `main`, so the
+  "every thread addressed" half is enforced today and only "a review happened"
+  is missing
+
 - [ ] `drafts: false` stays deliberate. CodeRabbit is a GitHub App posting a
   check, not a workflow job, so it cannot be ordered after pre-commit with a
   `needs:` dependency; skipping drafts is the lever that gets the mechanical
@@ -188,27 +227,6 @@ for what was fixed and when.
   where the point is that a reintroduced mistake fails the suite rather than
   reaching a commit. It would have caught all twelve, and lazylibrarian's
   missing digest
-
-## qBittorrent
-
-- [ ] Decide what the 5.1.4 to 5.2.2 bump means for `tests/test_auth.py`, and
-  unblock #83. Both `test_qbittorrent_api_login` and
-  `test_qbittorrent_web_session_login` assert `status_code == 200` and a body of
-  `Ok.`, and 5.2.2 answers with `204 No Content`, so both assertions fail and
-  the pull request is correctly red. The suite caught it, which is the system
-  working, and the bump has not merged.
-
-  What is not yet known is whether authentication still succeeds. A 204 with no
-  body could be the same successful login reported differently, or it could be a
-  login that is no longer working, and the tests fail at the status assertion
-  before reaching anything that would tell them apart. Check whether the
-  response still carries the `SID` cookie. If it does, keep a status assertion and
-  add the cookie: accept any successful 2xx and require a non-empty `SID`,
-  dropping only the exact `200` and the `Ok.` body, which are the two parts
-  upstream is free to change. Do not swap the status check out for a cookie check
-  alone, or an error response that happens to set a cookie would pass. If the
-  cookie is absent, hold the bump and find out what the new flow expects. Note both requests go through
-  nginx, so rule that out as the source of the 204 before blaming qBittorrent
 
 ## LazyLibrarian
 

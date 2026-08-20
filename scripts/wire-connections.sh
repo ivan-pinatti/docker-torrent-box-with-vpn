@@ -204,7 +204,7 @@ start_job() {
 
 wait_job() {
   local name="$1"
-  wait "${JOB_PID[$name]}" || true
+  wait "${JOB_PID[$name]}"
 }
 
 # ---------------------------------------------------------------------------
@@ -231,7 +231,19 @@ wait_job() {
 # JELLYFIN_DETECTED_BASE_URL as a side effect since retry() only checks
 # exit status, not output.
 detect_jellyfin_base_url() {
-  local host_url="http://127.0.0.1:${JELLYFIN_HTTP_PORT}"
+  # 8096 rather than JELLYFIN_HTTP_PORT, deliberately. This curl runs inside
+  # the jellyfin container, and docker-compose-media-library.yml publishes the
+  # service as `${JELLYFIN_HTTP_PORT}:8096`, so that variable is the HOST side
+  # of the mapping while the server itself always listens on 8096. The two
+  # coincide with .env.example's default and the bug stays invisible; change
+  # the published port, which .env exists to allow, and this dialled a port
+  # nothing listens on. Confirmed live with JELLYFIN_HTTP_PORT=18096: inside
+  # the container 18096 is refused and 8096 answers 200, so first-run setup
+  # burned the full 180s retry and was skipped on every single start.
+  # jellyfin_host_for is the opposite case and correctly keeps the variable:
+  # it runs inside an arr container, reaching Jellyfin across the host, where
+  # the published port is exactly what it must use.
+  local host_url="http://127.0.0.1:8096"
   local info
   # `jq -e '.StartupWizardCompleted'` looked right but isn't: jq -e's exit
   # status reflects the truthiness of the printed value, not whether the key
@@ -881,6 +893,10 @@ ensure_sabnzbd_client() {
 # alias for the host, which is what works when LAN_IP is still the
 # .env.example placeholder, CI being the case that matters. host.docker
 # .internal covers RUNTIME=docker.
+# Sets JELLYFIN_REACHABLE_HOST as a side effect rather than printing the
+# candidate to stdout, the same reasoning as detect_jellyfin_base_url's own
+# comment: the caller wraps this in retry(), and retry() only checks exit
+# status, not output.
 jellyfin_host_for() {
   local container="$1" candidate
   for candidate in "$LAN_IP" host.containers.internal host.docker.internal; do
@@ -888,12 +904,32 @@ jellyfin_host_for() {
     if container_curl "$container" -s --fail --max-time 5 \
       "http://${candidate}:${JELLYFIN_HTTP_PORT}${JELLYFIN_BASE_URL}/System/Info/Public" \
       >/dev/null 2>&1; then
-      printf '%s' "$candidate"
+      JELLYFIN_REACHABLE_HOST="$candidate"
       return 0
     fi
   done
   return 1
 }
+
+# Names of arr apps whose Jellyfin connection did not succeed this run, so
+# the end of the run can report them instead of letting wire_arr_app's own
+# handling of ensure_jellyfin_connection make a partial result look
+# identical to a complete one, matching PROWLARR_FAILED's own reasoning
+# above.
+JELLYFIN_FAILED=()
+
+# Names of arr apps whose job failed somewhere other than the Jellyfin
+# connection, kept apart from JELLYFIN_FAILED so neither summary claims a
+# cause that is not its own. See wire_arr_app for why the two are
+# distinguishable at all.
+ARR_JOB_FAILED=()
+
+# Exit status wire_arr_app uses for "everything else worked, the Jellyfin
+# connection did not". Any other non-zero status from that job means it died
+# earlier, under `set -e`, before the Jellyfin call was reached. 90 is chosen
+# to sit clear of both the shell's own 1 and 2 and the 126 to 165 range it
+# reserves for "cannot execute", "not found" and fatal signals.
+readonly JELLYFIN_WIRING_FAILED=90
 
 # Tells Jellyfin to rescan when an import, upgrade or rename changes the
 # library. Without it Jellyfin only notices on its own scheduled scan, so a
@@ -911,32 +947,65 @@ ensure_jellyfin_connection() {
     return 0
   fi
 
+  # Both API reads below are checked rather than left bare. This function is
+  # called in an `||` list, which suspends `set -e` for everything inside it,
+  # so an unguarded `existing=$(...)` that failed would carry on with an empty
+  # value and return a confident looking skip. That is the very silent success
+  # this change exists to remove, so a read that fails is reported as a
+  # failure. `set -o pipefail` at the top of this file is what makes the
+  # curl half of each pipeline count, not just jq's status.
   local existing
-  existing=$(container_curl "$container" -sk --fail -H "X-Api-Key: ${api_key}" "$base_url" |
-    jq 'map(select(.implementation == "MediaBrowser")) | first')
+  if ! existing=$(container_curl "$container" -sk --fail -H "X-Api-Key: ${api_key}" "$base_url" |
+    jq 'map(select(.implementation == "MediaBrowser")) | first'); then
+    echo "[$app_name] WARNING: could not read its notification list; skipping its Jellyfin connection."
+    return 1
+  fi
   if [[ -n "$existing" && "$existing" != "null" ]]; then
     echo "[$app_name] Jellyfin connection already exists, skipping."
     return 0
   fi
 
-  local jellyfin_host
-  if ! jellyfin_host=$(jellyfin_host_for "$container"); then
-    echo "[$app_name] WARNING: Jellyfin is running but not reachable from this container; skipping its connection."
-    return 0
-  fi
-
   local schema
-  schema=$(container_curl "$container" -sk --fail -H "X-Api-Key: ${api_key}" "${base_url}/schema" |
-    jq 'map(select(.implementation == "MediaBrowser")) | first')
+  if ! schema=$(container_curl "$container" -sk --fail -H "X-Api-Key: ${api_key}" "${base_url}/schema" |
+    jq 'map(select(.implementation == "MediaBrowser")) | first'); then
+    echo "[$app_name] WARNING: could not read its notification schema; skipping its Jellyfin connection."
+    return 1
+  fi
 
   # Not every app offers this. Readarr has no MediaBrowser implementation at
   # all, since Jellyfin does not take a book library from it; its equivalents
   # are Kavita and Subsonic. Asking rather than assuming keeps the list of
   # apps here honest as upstream changes.
+  #
+  # Deliberately answered before the reachability retry below, not after. An
+  # app that cannot use a Jellyfin connection at all must not sit through a
+  # 120s wait for Jellyfin, and must never be reported as having missed a
+  # connection it was never going to make: reachability failing returns
+  # non-zero, so with the order reversed an unreachable Jellyfin would file
+  # Readarr under JELLYFIN_FAILED.
   if [[ -z "$schema" || "$schema" == "null" ]]; then
     echo "[$app_name] Does not support Jellyfin connections, skipping."
     return 0
   fi
+
+  # Confirmed live (GitHub Actions runs 32176749677 and 32179005406, both on
+  # 2026-08-18): this is the actual failure behind
+  # test_jellyfin_connection_matches_what_the_app_supports[lidarr], not the
+  # POST below. Both runs logged this exact warning for lidarr and nothing
+  # else unusual before it; Jellyfin's own setup had already produced a real
+  # API key by that point (the check above already passed), so what was not
+  # yet ready was the host path this container reaches Jellyfin through, not
+  # Jellyfin itself. jellyfin_host_for previously tried each candidate host
+  # exactly once with a 5 second cap each, unlike almost every other
+  # first-boot readiness check in this file, which retries for up to 180s.
+  # Wrapping it the same way self-heals the race instead of giving up on the
+  # first attempt.
+  local JELLYFIN_REACHABLE_HOST=""
+  if ! retry 120 "[$app_name]" jellyfin_host_for "$container"; then
+    echo "[$app_name] WARNING: Jellyfin is running but not reachable from this container; skipping its connection."
+    return 1
+  fi
+  local jellyfin_host="$JELLYFIN_REACHABLE_HOST"
 
   echo "[$app_name] Creating Jellyfin connection..."
 
@@ -1000,11 +1069,29 @@ wire_arr_app() {
   ensure_arr_host_prereqs "$app_name" "$container" "$scheme" "$port" "$api_ver" "$key"
   ensure_qbittorrent_client "$app_name" "$container" "$scheme" "$port" "$api_ver" "$key" "$qbit_category"
   ensure_sabnzbd_client "$app_name" "$container" "$scheme" "$port" "$api_ver" "$key" "$sab_category"
-  ensure_jellyfin_connection "$app_name" "$container" "$scheme" "$port" "$api_ver" "$key" || true
+  # Not "|| true": the caller needs to know whether this actually succeeded,
+  # so the dispatch loop below can collect it into JELLYFIN_FAILED instead of
+  # this looking the same as every legitimate skip inside the function itself
+  # (Jellyfin disabled, no API key yet, connection already there, app doesn't
+  # support it), all of which still return 0 on purpose.
+  #
+  # Reported as JELLYFIN_WIRING_FAILED rather than a plain non-zero status
+  # because the three calls above are not guarded, so under `set -e` any one
+  # of them failing kills this job before the Jellyfin call is ever reached.
+  # A bare "did this job fail" test cannot tell those apart, and would file a
+  # failed qBittorrent client under Jellyfin and tell the reader to re-run
+  # once Jellyfin is up, which would not fix it.
+  local jellyfin_status=0
+  ensure_jellyfin_connection "$app_name" "$container" "$scheme" "$port" "$api_ver" "$key" || jellyfin_status=$?
 
   if [[ "$app_name" == "readarr" ]]; then
     ensure_readarr_metadata_source "$container" "$scheme" "$port" "$api_ver" "$key" || true
   fi
+
+  if [[ "$jellyfin_status" -ne 0 ]]; then
+    return "$JELLYFIN_WIRING_FAILED"
+  fi
+  return 0
 }
 
 # ---------------------------------------------------------------------------
@@ -1515,10 +1602,43 @@ start_job sonarr wire_arr_app sonarr sonarr http "$SONARR_HTTP_PORT" v3 sonarr t
 start_job whisparr wire_arr_app whisparr whisparr https "$WHISPARR_HTTPS_PORT" v3 whisparr mature
 start_job prowlarr wire_prowlarr_apps
 
-for name in audiobookshelf calibre calibre-web jellyfin \
-  lidarr radarr readarr sonarr whisparr prowlarr; do
-  wait_job "$name"
+for name in audiobookshelf calibre calibre-web jellyfin prowlarr; do
+  wait_job "$name" || true
 done
+
+# Each of these five ran wire_arr_app, which now reports whether its own
+# Jellyfin connection succeeded (see ensure_jellyfin_connection and
+# JELLYFIN_FAILED above), so their status is worth keeping instead of
+# discarding like the jobs above. JELLYFIN_WIRING_FAILED is the only status
+# that means the Jellyfin connection specifically; anything else non-zero is
+# a job that died earlier and is recorded separately rather than blamed on
+# Jellyfin.
+for name in lidarr radarr readarr sonarr whisparr; do
+  arr_status=0
+  wait_job "$name" || arr_status=$?
+  if [[ "$arr_status" -eq "$JELLYFIN_WIRING_FAILED" ]]; then
+    JELLYFIN_FAILED+=("$name")
+  elif [[ "$arr_status" -ne 0 ]]; then
+    ARR_JOB_FAILED+=("$name (exit ${arr_status})")
+  fi
+done
+
+if [[ ${#JELLYFIN_FAILED[@]} -gt 0 ]]; then
+  echo "[Jellyfin] WARNING: these apps did NOT get their Jellyfin connection wired:"
+  for failed in "${JELLYFIN_FAILED[@]}"; do
+    echo "[Jellyfin]   - ${failed}"
+  done
+  echo "[Jellyfin] Re-run 'make wire_connections' once Jellyfin and the app are both up."
+fi
+
+if [[ ${#ARR_JOB_FAILED[@]} -gt 0 ]]; then
+  echo "[arr] WARNING: these apps did not finish wiring, and stopped before"
+  echo "[arr] their Jellyfin connection was even attempted:"
+  for failed in "${ARR_JOB_FAILED[@]}"; do
+    echo "[arr]   - ${failed}"
+  done
+  echo "[arr] Check the output above for the first error each one printed."
+fi
 
 # Sequential, not part of the parallel batch above: this stops/starts the
 # mylar container, which would otherwise race with wire_prowlarr_apps'
