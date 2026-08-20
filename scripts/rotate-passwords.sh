@@ -931,8 +931,17 @@ PYEOF
   fi
 
   echo "[qBittorrent] Logging in with current password..."
+  # --data-urlencode, not -d: this password is read back from Sonarr's database
+  # and so can be anything a person once typed, where a raw -d body would let
+  # an `&` split it into extra parameters, a `+` arrive as a space, and a
+  # literal `%26` decode to `&`. Any of those sends a password that is not the
+  # stored one, and the login then fails for a reason nothing in the output
+  # would explain. The validation request below is unaffected, since it only
+  # ever sees a generated password from a restricted character set, but this
+  # one reads whatever is already there.
   container_curl qbittorrent -sk -c /tmp/qbt_cookies.txt -o /dev/null \
-    -d "username=qbittorrent&password=${current_password}" \
+    --data-urlencode "username=qbittorrent" \
+    --data-urlencode "password=${current_password}" \
     "https://${GLUETUN_SERVICES_IP}:${QBITTORRENT_HTTPS_PORT}/api/v2/auth/login"
 
   # Same reasoning as qbittorrent_api_ok below: confirmed live against 5.1.4, a
