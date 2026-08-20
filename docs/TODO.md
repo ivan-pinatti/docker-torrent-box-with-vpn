@@ -80,7 +80,7 @@ for what was fixed and when.
 ## Concurrent checkouts
 
 - [ ] Decide whether two checkouts should be able to run at the same time, and
-  if so, drop the explicit `container_name` values. Thirty seven services set
+  if so, drop the explicit `container_name` values. Thirty-seven services set
   one, and compose does not project prefix an explicit name, so the names are
   global: a second checkout cannot create `jellyfin` while the first one holds
   it, whatever `COMPOSE_PROJECT_NAME` says. Raised by CodeRabbit on #92, and
