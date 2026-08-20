@@ -595,3 +595,58 @@ def test_hardlink_probe_uses_a_unique_directory():
     source = SCRIPT.read_text()
     assert "mktemp -d" in source
     assert 'rm -rf "$probe"' not in source.split("mktemp -d")[0]
+
+
+# ---------------------------------------------------------------------------
+# Second checkout isolation. FSTAB_MARKER is one fixed string with no path in
+# it, so every clone of this repository writes and looks for the same comment.
+# Keying the boot-entry checks on it made a second checkout read the first
+# one's entry as its own.
+# ---------------------------------------------------------------------------
+
+
+def _foreign_entry(fstab, mountpoint):
+    """Appends another checkout's boot entry, marker and all."""
+    fstab.write_text(
+        fstab.read_text()
+        + "# docker-torrent-box-with-vpn external storage\n"
+        + f"//server/share {mountpoint} cifs credentials=/elsewhere/.smbcredentials,_netdev,nofail 0 0\n"
+    )
+
+
+def test_status_does_not_claim_another_checkouts_boot_entry(fake_repo, fstab):
+    """A clone with no entry of its own must not report one as installed."""
+    _write_env(fake_repo)
+    _foreign_entry(fstab, "/somewhere/else/docker-torrent-box-with-vpn/data")
+
+    result = _run(fake_repo, "status", env={"FSTAB": str(fstab)})
+
+    assert "no fstab entry" in result.stdout, result.stdout
+    assert "fstab entry installed" not in result.stdout, result.stdout
+
+
+def test_install_boot_is_not_blocked_by_another_checkouts_entry(fake_repo, fstab):
+    """Two checkouts each get their own entry; one must not block the other."""
+    _write_env(fake_repo)
+    _foreign_entry(fstab, "/somewhere/else/docker-torrent-box-with-vpn/data")
+
+    result = _install(fake_repo, fstab)
+
+    assert result.returncode == 0, result.stderr
+    assert str(fake_repo / "data") in fstab.read_text()
+    # The other checkout's entry survives untouched.
+    assert "/somewhere/else/docker-torrent-box-with-vpn/data" in fstab.read_text()
+
+
+def test_uninstall_boot_leaves_another_checkouts_entry_alone(fake_repo, fstab):
+    """Removing this clone's entry must not take the other clone's with it."""
+    _write_env(fake_repo)
+    _foreign_entry(fstab, "/somewhere/else/docker-torrent-box-with-vpn/data")
+    _install(fake_repo, fstab)
+
+    result = _run(fake_repo, "uninstall-boot", env={"FSTAB": str(fstab)})
+
+    assert result.returncode == 0, result.stderr
+    remaining = fstab.read_text()
+    assert str(fake_repo / "data") not in remaining
+    assert "/somewhere/else/docker-torrent-box-with-vpn/data" in remaining

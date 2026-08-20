@@ -282,4 +282,4 @@ networks:
   # networks both claiming ${MEDIA_SUBNET}.
   media:
     external: true
-    name: docker-torrent-box-with-vpn_media
+    name: ${COMPOSE_PROJECT_NAME:-docker-torrent-box-with-vpn}_media

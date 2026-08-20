@@ -1540,8 +1540,11 @@ ensure_prowlarr_application() {
   # Deliberately not fatal. Every entry in wire_prowlarr_apps runs in one
   # function inside one background job, so under `set -e` a single failing
   # POST used to kill that job outright, silently skipping every remaining
-  # app AND the indexer, with wait_job's `|| true` swallowing the failure so
-  # nothing in the bootstrap output even hinted at it. Confirmed live: a real
+  # app AND the indexer, with the `|| true` on this job's own wait_job call
+  # swallowing the failure so nothing in the bootstrap output even hinted at
+  # it. (That `|| true` used to live inside wait_job itself; it moved to the
+  # call sites when the arr jobs started reporting their Jellyfin status, and
+  # the Prowlarr job kept it.) Confirmed live: a real
   # bootstrap printed "Registering application 'LazyLibrarian'..." and then
   # nothing at all, leaving Prowlarr with zero applications and zero
   # indexers. Record the failure, keep going, and surface it in the summary.

@@ -371,10 +371,10 @@ services:
 networks:
   observability:
     external: true
-    name: docker-torrent-box-with-vpn_observability
+    name: ${COMPOSE_PROJECT_NAME:-docker-torrent-box-with-vpn}_observability
   services:
     external: true
-    name: docker-torrent-box-with-vpn_services
+    name: ${COMPOSE_PROJECT_NAME:-docker-torrent-box-with-vpn}_services
   apps:
     external: true
-    name: docker-torrent-box-with-vpn_apps
+    name: ${COMPOSE_PROJECT_NAME:-docker-torrent-box-with-vpn}_apps

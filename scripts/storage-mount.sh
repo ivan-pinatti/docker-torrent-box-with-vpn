@@ -87,6 +87,27 @@ esac
 
 credentials_abs="$repo_root/${STORAGE_CREDENTIALS_FILE#./}"
 
+# True when $FSTAB already carries an entry for THIS checkout's mountpoint.
+#
+# Deliberately keyed on the mountpoint and not on FSTAB_MARKER. That marker is
+# one fixed string with no path in it, so every checkout of this repository
+# writes and then looks for the exact same comment. Confirmed live on a machine
+# with two checkouts: the second one reported "fstab entry installed" for an
+# entry that mounts the first one's data/, and would have gone on to report a
+# share as set up for boot that it does not mount. `uninstall-boot` had the
+# same flaw the other way round, deleting whichever block came first rather
+# than its own. The mountpoint is the one field that is unique per checkout.
+#
+# Comment lines are skipped so the marker itself never counts as an entry, and
+# field 2 is fstab's mountpoint column.
+fstab_has_entry() {
+  awk -v mp="$mountpoint_abs" '
+    /^[[:space:]]*#/ { next }
+    NF >= 2 && $2 == mp { found = 1 }
+    END { exit !found }
+  ' "$FSTAB" 2>/dev/null
+}
+
 require_configured() {
   [ -n "$STORAGE_REMOTE" ] || die "STORAGE_REMOTE is empty in .env; external storage is not configured."
   [ -f "$credentials_abs" ] || die "credentials file not found: $credentials_abs (copy .smbcredentials.example and fill it in)"
@@ -226,7 +247,7 @@ cmd_status() {
   # Reported either way. Returning early on an unmounted share was exactly
   # backwards: "is this set up to come back after a reboot" is most worth
   # answering when the share is not currently there.
-  if grep -qF "$FSTAB_MARKER" "$FSTAB" 2>/dev/null; then
+  if fstab_has_entry; then
     log "boot:       fstab entry installed"
   else
     log "boot:       no fstab entry (run: make storage_install_boot)"
@@ -255,8 +276,8 @@ fstab_line() {
 
 cmd_install_boot() {
   require_configured
-  if grep -qF "$FSTAB_MARKER" "$FSTAB" 2>/dev/null; then
-    die "an entry is already installed in $FSTAB; run uninstall-boot first."
+  if fstab_has_entry; then
+    die "an entry for $mountpoint_abs is already installed in $FSTAB; run uninstall-boot first."
   fi
   log "This will append the following to $FSTAB:"
   log ""
@@ -308,14 +329,29 @@ cmd_install_boot() {
 }
 
 cmd_uninstall_boot() {
-  grep -qF "$FSTAB_MARKER" "$FSTAB" 2>/dev/null || {
-    log "no entry found in $FSTAB"
+  fstab_has_entry || {
+    log "no entry found for $mountpoint_abs in $FSTAB"
     return 0
   }
   local backup="${FSTAB}.$(date +%Y-%m-%d-%H%M%S).bak"
   $SUDO cp -a "$FSTAB" "$backup"
   log "backed up $FSTAB -> $backup"
-  $SUDO sed -i "\|^${FSTAB_MARKER}\$|,+1d" "$FSTAB"
+  # Removes this checkout's own entry, and the marker comment sitting directly
+  # above it, leaving any other checkout's block untouched. The previous
+  # `sed -i "\|^${FSTAB_MARKER}$|,+1d"` keyed on the shared marker, so with two
+  # checkouts installed it deleted whichever block appeared first in the file
+  # rather than the one belonging to the clone it was run from.
+  local scrubbed
+  scrubbed="$(mktemp)" || die "could not create a temporary file."
+  awk -v mp="$mountpoint_abs" -v marker="$FSTAB_MARKER" '
+    $0 == marker { held = $0; next }
+    /^[[:space:]]*#/ { if (held != "") { print held; held = "" } print; next }
+    NF >= 2 && $2 == mp { held = ""; next }
+    { if (held != "") { print held; held = "" } print }
+    END { if (held != "") print held }
+  ' "$FSTAB" >"$scrubbed"
+  $SUDO cp "$scrubbed" "$FSTAB"
+  rm -f "$scrubbed"
   # Only the system fstab has a systemd generator behind it; reloading for
   # any other file would be a no-op that still stalls on polkit.
   [ "$FSTAB" = /etc/fstab ] && { $SUDO systemctl daemon-reload 2>/dev/null || true; }

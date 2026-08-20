@@ -77,34 +77,6 @@ for what was fixed and when.
   run. Diagnosis and three suggested fixes are already in a comment on #275; the
   useful next step is raising it where the workflow lives
 
-## Jellyfin wiring
-
-- [ ] Confirm the `ensure_jellyfin_connection` race is actually closed, once
-  `/run-tests` runs against this change. `scripts/wire-connections.sh` used to
-  call it with `|| true`, so a failure left the app without the connection
-  while `make wire_connections` still reported success. That swallow is gone:
-  the same reasoning `PROWLARR_FAILED` already used in this file, "so the end
-  of the run can report them instead of letting a partial result look
-  identical to a complete one", now applies to the Jellyfin path too, via a
-  `JELLYFIN_FAILED` array collected as each arr app's job finishes.
-
-  The actual failure behind
-  `test_jellyfin_connection_matches_what_the_app_supports[lidarr]` (`supports
-  MediaBrowser=True but wired=False`, seen twice on 2026-08-18, runs
-  `32176749677` on #72 and `32179005406` on #77, both shortly after the
-  Jellyfin 10.11.10 bump merged unattended in #76) is right there in both
-  runs' own logs, and it is the same one both times: lidarr gets through its
-  WebUI login and both download clients, then `jellyfin_host_for` logs
-  `WARNING: Jellyfin is running but not reachable from this container` and
-  gives up. That function tried each candidate host once, with a 5 second cap
-  each, unlike almost every other first boot readiness check in this file,
-  which retries for up to 180s. It is now wrapped in this file's own `retry`
-  helper the same way, up to 120s, which should clear the same race the two
-  observed runs hit. Marking this pull request ready and commenting
-  `/run-tests` is deliberately left to a person rather than done here, so the
-  fix has not yet been checked against a real run; watch the next
-  lidarr Jellyfin result to close this out
-
 ## CodeRabbit
 
 - [ ] Chase the open support ticket: CodeRabbit does not auto-review pull

@@ -21,6 +21,21 @@ env_value() {
   grep -m1 "^$1=" "$ENV_FILE" | cut -d= -f2-
 }
 
+# The four shared networks are named ${COMPOSE_PROJECT_NAME}_<name>, so the
+# ones seeded here have to carry the name compose will later look them up
+# under, or `external: true` fails with "network not found". Resolved the same
+# way the Makefile does it (COMPOSE_PROJECT_NAME ?= $(notdir $(CURDIR))):
+# an already exported value first, then .env's, then this checkout's own
+# directory name. Defaulted explicitly because `set -u` would otherwise abort
+# the script on an unset variable.
+#
+# `|| true` is load bearing: env_value greps, grep exits 1 on no match, and
+# under `set -euo pipefail` the failing substitution in an assignment takes the
+# whole script with it. Most checkouts do not set this key at all, so the
+# common case is exactly the one that would abort.
+COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-$(env_value COMPOSE_PROJECT_NAME || true)}"
+COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-$(basename "$PWD")}"
+
 # A real key alone isn't proof the job finished: this script also has to
 # point gluetun's own config at the mock (VPN_SERVICE_PROVIDER=custom,
 # below), and that step runs after the key is generated and saved. If a
@@ -69,10 +84,10 @@ echo "[vpn_mock] No real VPN key found; starting the local mock WireGuard endpoi
 # external (make start creates them itself, see its own network create
 # calls): this runs before that, same ordering issue as above, so vpn_mock
 # (which attaches to services) needs them pre-created too, confirmed live.
-"$RUNTIME" network exists docker-torrent-box-with-vpn_apps || "$RUNTIME" network create docker-torrent-box-with-vpn_apps
-"$RUNTIME" network exists docker-torrent-box-with-vpn_services || "$RUNTIME" network create --internal --subnet "$(env_value SERVICES_SUBNET)" --ip-range "$(env_value SERVICES_DYNAMIC_IP_RANGE)" docker-torrent-box-with-vpn_services
-"$RUNTIME" network exists docker-torrent-box-with-vpn_media || "$RUNTIME" network create --subnet "$(env_value MEDIA_SUBNET)" --ip-range "$(env_value MEDIA_DYNAMIC_IP_RANGE)" docker-torrent-box-with-vpn_media
-"$RUNTIME" network exists docker-torrent-box-with-vpn_observability || "$RUNTIME" network create --internal --subnet "$(env_value OBSERVABILITY_SUBNET)" docker-torrent-box-with-vpn_observability
+"$RUNTIME" network exists ${COMPOSE_PROJECT_NAME}_apps || "$RUNTIME" network create ${COMPOSE_PROJECT_NAME}_apps
+"$RUNTIME" network exists ${COMPOSE_PROJECT_NAME}_services || "$RUNTIME" network create --internal --subnet "$(env_value SERVICES_SUBNET)" --ip-range "$(env_value SERVICES_DYNAMIC_IP_RANGE)" ${COMPOSE_PROJECT_NAME}_services
+"$RUNTIME" network exists ${COMPOSE_PROJECT_NAME}_media || "$RUNTIME" network create --subnet "$(env_value MEDIA_SUBNET)" --ip-range "$(env_value MEDIA_DYNAMIC_IP_RANGE)" ${COMPOSE_PROJECT_NAME}_media
+"$RUNTIME" network exists ${COMPOSE_PROJECT_NAME}_observability || "$RUNTIME" network create --internal --subnet "$(env_value OBSERVABILITY_SUBNET)" ${COMPOSE_PROJECT_NAME}_observability
 
 "${COMPOSE[@]}" --file docker-compose.yml --profile enabled up -d vpn_mock >/dev/null
 
