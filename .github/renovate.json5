@@ -229,8 +229,9 @@
     // bare interpreter over scripts/podman-limits-exporter.py, this
     // repository's own code, bind mounted in as /exporter.py, so a Python minor
     // bump swaps the interpreter out from under code written here rather than
-    // shipping a new version of somebody else's program. It is the only pin in
-    // .env.example where that is true.
+    // shipping a new version of somebody else's program. Two pins have that
+    // shape and docker.io/library/alpine is the other; what singles this one out
+    // is coverage, below.
     //
     // Nothing tests it. PODMAN_LIMITS_EXPORTER_PROFILE ships disabled and
     // integration-tests.yml never enables it, so automating this bump safely

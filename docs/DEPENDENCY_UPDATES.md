@@ -200,17 +200,17 @@ GitHub raises no vulnerability alert for a container image at all, so neither pi
 path that this closes. What is given up is routine version updates on two download clients, and a deliberate
 hand bump is what replaces them.
 
-`docker.io/library/python` is held too, for a different reason, and it is the only pin in
-`.env.example` where the image is not the application. `podman_limits_exporter` runs a bare
-interpreter over `scripts/podman-limits-exporter.py`, this repository's own code, bind mounted in
-as `/exporter.py`, so a Python minor bump swaps the interpreter out from under code written here
-rather than shipping a new version of somebody else's program. Nothing tests that:
-`PODMAN_LIMITS_EXPORTER_PROFILE` ships disabled and `integration-tests.yml` never enables it, so
-automating the bump safely means enabling the observability profile in CI, which is a piece of
-work of its own rather than a config line. Holding it costs little, because `3.13-alpine3.22` only
-ever moved in one dimension anyway: `docker` versioning requires the compatibility suffix to match
-exactly, so Renovate could offer `3.14-alpine3.22` and would never offer `3.13-alpine3.24`, which
-exists.
+`docker.io/library/python` is held too, for a different reason: it is one of the two pins here
+where the image is not the application, and the only one of the two that nothing tests.
+`podman_limits_exporter` runs a bare interpreter over `scripts/podman-limits-exporter.py`, this
+repository's own code, bind mounted in as `/exporter.py`, so a Python minor bump swaps the
+interpreter out from under code written here rather than shipping a new version of somebody
+else's program. `PODMAN_LIMITS_EXPORTER_PROFILE` ships disabled and `integration-tests.yml` never
+enables it, so covering that bump means enabling the observability profile in CI, which is a piece
+of work of its own rather than a config line. Holding the pin costs little in the meantime,
+because `3.13-alpine3.22` only ever moved in one dimension anyway: `docker` versioning requires
+the compatibility suffix to match exactly, so Renovate could offer `3.14-alpine3.22` and would
+never offer `3.13-alpine3.24`, which exists.
 
 `docker.io/library/alpine` has the same shape and is deliberately left flowing. `log_rotator` runs
 `scripts/rotate-nginx-logs.sh` over a bare Alpine image, so that is our code too, but
