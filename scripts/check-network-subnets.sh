@@ -30,6 +30,33 @@ else
   RUNTIME=docker
 fi
 
+# podman and docker disagree on both of these. `network exists` is podman only,
+# and the inspect format differs: podman puts subnets in `.Subnets`, docker in
+# `.IPAM.Config`. Handing docker the podman template does not return empty, it
+# raises "map has no entry for key \"Subnets\"", which a swallowed error would
+# turn into an empty answer and a guard that passes whatever the subnet is.
+# Confirmed against docker 29.0.4 and podman 5.8.4. Both shapes are tried rather
+# than branching on the runtime name, so this keeps working if either changes
+# which one it reports.
+network_exists() {
+  if [[ "$RUNTIME" == "podman" ]]; then
+    podman network exists "$1" 2>/dev/null
+  else
+    docker network inspect "$1" >/dev/null 2>&1
+  fi
+}
+
+network_subnet() {
+  local out
+  for template in '{{range .Subnets}}{{.Subnet}}{{end}}' '{{range .IPAM.Config}}{{.Subnet}}{{end}}'; do
+    out="$("$RUNTIME" network inspect "$1" --format "$template" 2>/dev/null || true)"
+    if [[ -n "$out" ]]; then
+      printf '%s' "$out"
+      return 0
+    fi
+  done
+}
+
 env_value() {
   grep -m1 "^${1}=" "$ENV_FILE" 2>/dev/null | cut -d= -f2- | tr -d '"' || true
 }
@@ -47,9 +74,17 @@ check() {
   local want actual
   want="$(env_value "$var")"
   [[ -n "$want" ]] || return 0
-  "$RUNTIME" network exists "$name" 2>/dev/null || return 0
-  actual="$("$RUNTIME" network inspect "$name" --format '{{range .Subnets}}{{.Subnet}}{{end}}' 2>/dev/null || true)"
-  [[ -n "$actual" ]] || return 0
+  network_exists "$name" || return 0
+  actual="$(network_subnet "$name")"
+  if [[ -z "$actual" ]]; then
+    # Neither shape answered for a network that exists. Warn rather than fail:
+    # the point of this script is to stop a container attaching silently to the
+    # wrong network, and turning an unreadable inspect into a hard stop would
+    # trade that for a different way of refusing to start. Saying so is enough
+    # for someone to look.
+    echo "WARNING: could not read ${name}'s subnet, so it was not checked against ${var}." >&2
+    return 0
+  fi
   if [[ "$actual" != "$want" ]]; then
     echo "ERROR: network ${name} is on ${actual}, but ${var} in ${ENV_FILE} asks for ${want}." >&2
     problems=$((problems + 1))
