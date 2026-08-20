@@ -77,6 +77,34 @@ for what was fixed and when.
   run. Diagnosis and three suggested fixes are already in a comment on #275; the
   useful next step is raising it where the workflow lives
 
+## Concurrent checkouts
+
+- [ ] Decide whether two checkouts should be able to run at the same time, and
+  if so, drop the explicit `container_name` values. Thirty seven services set
+  one, and compose does not project prefix an explicit name, so the names are
+  global: a second checkout cannot create `jellyfin` while the first one holds
+  it, whatever `COMPOSE_PROJECT_NAME` says. Raised by CodeRabbit on #92, and
+  correct. It is deliberately not part of that pull request, which makes a
+  second checkout safe to run **one at a time** (its own networks, its own
+  fstab entry, its own published ports) rather than concurrently.
+
+  The reason it is its own change is the blast radius, not disagreement.
+  Removing those names means every caller that addresses a container by its
+  literal name has to move to the generated one: roughly 170 call sites across
+  `scripts/wire-connections.sh`, `scripts/rotate-passwords.sh` and
+  `scripts/rotate-api-keys.sh`, plus `tests/conftest.py`, plus the 68
+  `proxy_pass` directives in `configs/nginx/templates/default.conf.template`
+  that reach services by name on the shared networks, plus every compose
+  `depends_on` and healthcheck that does the same. Note also that the names are
+  a documented interface here: docs/APP_LINKS.md and the README tell people to
+  run `podman exec qbittorrent ...`, and `make down` filters on the project
+  label rather than on names, so it is unaffected either way.
+
+  Worth weighing against the actual need. Running two full stacks at once also
+  needs a second set of published ports, which is already manual, so the
+  question is whether concurrent operation is wanted at all or whether one at a
+  time is the honest supported model
+
 ## CodeRabbit
 
 - [ ] Chase the open support ticket: CodeRabbit does not auto-review pull

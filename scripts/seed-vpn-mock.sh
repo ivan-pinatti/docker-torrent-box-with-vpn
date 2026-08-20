@@ -23,18 +23,24 @@ env_value() {
 
 # The four shared networks are named ${COMPOSE_PROJECT_NAME}_<name>, so the
 # ones seeded here have to carry the name compose will later look them up
-# under, or `external: true` fails with "network not found". Resolved the same
-# way the Makefile does it (COMPOSE_PROJECT_NAME ?= $(notdir $(CURDIR))):
-# an already exported value first, then .env's, then this checkout's own
-# directory name. Defaulted explicitly because `set -u` would otherwise abort
-# the script on an unset variable.
+# under, or `external: true` fails with "network not found".
+#
+# The precedence is .env, then an inherited value, then this checkout's own
+# directory name, and it is in that order deliberately: it has to match the
+# Makefile, which is what creates these same networks on every other path.
+# The Makefile gets that order from `include .env`, since a makefile assignment
+# beats the environment, so reading the environment first here would resolve to
+# a different name than make did whenever a shell exports one value and .env
+# carries another. The networks would then be created under one name while
+# compose looked up the other.
 #
 # `|| true` is load bearing: env_value greps, grep exits 1 on no match, and
 # under `set -euo pipefail` the failing substitution in an assignment takes the
 # whole script with it. Most checkouts do not set this key at all, so the
 # common case is exactly the one that would abort.
-COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-$(env_value COMPOSE_PROJECT_NAME || true)}"
-COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-$(basename "$PWD")}"
+env_file_project_name="$(env_value COMPOSE_PROJECT_NAME || true)"
+COMPOSE_PROJECT_NAME="${env_file_project_name:-${COMPOSE_PROJECT_NAME:-$(basename "$PWD")}}"
+unset env_file_project_name
 
 # A real key alone isn't proof the job finished: this script also has to
 # point gluetun's own config at the mock (VPN_SERVICE_PROVIDER=custom,
