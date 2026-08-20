@@ -33,7 +33,7 @@ than restating it differently.
 | Tuesday | Dependabot | GitHub Actions |
 | Wednesday | Dependabot | pip, `tests/requirements.txt` |
 | Thursday | Renovate | The arr suite group (sonarr, radarr, lidarr, readarr, prowlarr, bazarr, recyclarr) |
-| Friday | Renovate | The observability stack group (ten images) and the library and reading tools group |
+| Friday | Renovate | The observability stack group (eleven images) and the library and reading tools group |
 | Saturday | Renovate | Every ungrouped image, one pull request each (the root schedule, used as the default) |
 | Sunday | Renovate | The lint and scanner tooling group and the container runtime tooling pin |
 
@@ -76,18 +76,19 @@ grouped anyway, purely to keep the number of pull requests down, and grouping on
 where a bad member costs little: those three groups hold images that have not caused a problem
 recently, or, for the observability stack, sit behind a profile that is disabled by default.
 
-The observability stack is the group where that reasoning is load-bearing, because it went from
-three images to ten when the exporters were annotated, and because the integration suite never
-touches any of them. `make pull_docker_images` pulls `--profile enabled` only, and
-`integration-tests.yml` flips nothing but `VPN_MOCK_PROFILE`, so those ten images are never
-pulled, never started, and every test carrying the `observability` marker skips. A bump in that
-group merges on `Prerequisite Checks` and `Security Reports` alone. That is accepted on the
-grounds that the profile ships disabled, so a bad image there breaks nothing until someone turns
-it on, and the alternative on offer was the frozen pins in the table below.
+The observability stack went from three images to eleven when the exporters were annotated, and
+the integration suite does exercise all of them. That was not true at first: CI applied one
+variable out of `.env.tests` by hand and left the rest, so those profiles stayed disabled there
+and every test carrying the `observability` marker skipped. CI now applies the whole file through
+`make enable_test_profiles`, so the images are pulled, the containers started, and the tests run.
+That is what lets the group merge unattended and stay defensible rather than merely cheap: the
+argument before it was only that the profile ships disabled, so a bad image there breaks nothing
+until someone turns it on.
 
 `docker.io/library/alpine`, which `log_rotator` runs, is the one observability image left out of
-that group. `LOG_ROTATOR_PROFILE` ships enabled, so CI does pull and start it, which is coverage
-no other image in the stack gets, and grouping it in would trade that away for nothing.
+that group. `LOG_ROTATOR_PROFILE` ships enabled, so it was the only one CI pulled and started
+before the rest were covered at all, and keeping it on its own schedule costs nothing now that
+they are.
 
 The download clients (qbittorrent, sabnzbd, nzbget, nzbhydra2, jdownloader-2), jellyfin,
 homepage, flaresolverr, wireguard, and gluetun are deliberately left out of every group, so each
@@ -200,17 +201,27 @@ GitHub raises no vulnerability alert for a container image at all, so neither pi
 path that this closes. What is given up is routine version updates on two download clients, and a deliberate
 hand bump is what replaces them.
 
-`docker.io/library/python` is held too, for a different reason: it is one of the two pins here
-where the image is not the application, and the only one of the two that nothing tests.
-`podman_limits_exporter` runs a bare interpreter over `scripts/podman-limits-exporter.py`, this
-repository's own code, bind mounted in as `/exporter.py`, so a Python minor bump swaps the
-interpreter out from under code written here rather than shipping a new version of somebody
-else's program. `PODMAN_LIMITS_EXPORTER_PROFILE` ships disabled and `integration-tests.yml` never
-enables it, so covering that bump means enabling the observability profile in CI, which is a piece
-of work of its own rather than a config line. Holding the pin costs little in the meantime,
-because `3.13-alpine3.22` only ever moved in one dimension anyway: `docker` versioning requires
-the compatibility suffix to match exactly, so Renovate could offer `3.14-alpine3.22` and would
-never offer `3.13-alpine3.24`, which exists.
+`docker.io/library/python` was held here too and is not any more, and the reason it was is worth
+keeping because it says what the coverage had to be worth. It is one of two pins where the image
+is not the application: `podman_limits_exporter` runs a bare interpreter over
+`scripts/podman-limits-exporter.py`, this repository's own code, bind mounted in as
+`/exporter.py`, so a Python minor bump swaps the interpreter out from under code written here
+rather than shipping a new version of somebody else's program. Nothing tested that, so the pin
+waited for a person.
+
+Reachability alone would not have been enough to release it. The container's healthcheck is
+`wget -q -O /dev/null .../metrics`, which discards the body, and a Prometheus scrape target counts
+as up on an empty but parseable response, so neither notices an interpreter change that leaves the
+script serving 200 and producing nothing. `tests/test_observability.py` therefore asserts three
+things: that both series reach Prometheus, that at least one CPU limit is above zero, since zero
+is the exporter's own value for "unlimited" and an all-zeros regression is otherwise
+indistinguishable from a real reading, and that the exporter's own limit matches what
+`TELEMETRY_CPUS` asked compose for, which walks `.env` to compose to the podman API to Prometheus
+rather than checking that bytes came back.
+
+One limit remains and is not a bug: `3.13-alpine3.22` only moves in one dimension, because
+`docker` versioning requires the compatibility suffix to match exactly, so Renovate can offer
+`3.14-alpine3.22` and will never offer `3.13-alpine3.24`, which exists.
 
 `docker.io/library/alpine` has the same shape and is deliberately left flowing. `log_rotator` runs
 `scripts/rotate-nginx-logs.sh` over a bare Alpine image, so that is our code too, but
