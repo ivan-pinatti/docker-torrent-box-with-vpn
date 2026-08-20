@@ -88,8 +88,11 @@ DIGEST = re.compile(r"@(?:sha256:[0-9a-f]{7,}|[0-9a-f]{40})")
 # in the prefix rather than in the shape. Two rounds of guessing at the shape
 # were both wrong: `\d+(\.\d+)*` matched only the `40` of lazylibrarian's
 # `40a389ea-ls310` and refused PR #62, and requiring a leading digit still
-# refused `KORSYNC_VERSION=sha-7bcefd34...`, which is what korsync is pinned to
-# right now. `stable-alpine` and `latest` are in .env.example too.
+# refused `KORSYNC_VERSION=sha-7bcefd34...`, which is what korsync was pinned to
+# at the time. It has since moved to a plain `0.2.3`, but the shape has to stay
+# accepted: nothing stops the next pin being a commit tag again, and this file
+# is the wrong place to find that out. `stable-alpine` and `latest` are in
+# .env.example too.
 #
 # Being this permissive about the value costs nothing, because whatever is being
 # pinned is always named to the *left* of the prefix and stays literal:

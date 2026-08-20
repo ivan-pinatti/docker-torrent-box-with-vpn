@@ -224,6 +224,36 @@
       ],
       enabled: false,
     },
+    // docker.io/library/python, held for a different reason than the four
+    // above: the image is not the application. podman_limits_exporter runs a
+    // bare interpreter over scripts/podman-limits-exporter.py, this
+    // repository's own code, bind mounted in as /exporter.py, so a Python minor
+    // bump swaps the interpreter out from under code written here rather than
+    // shipping a new version of somebody else's program. It is the only pin in
+    // .env.example where that is true.
+    //
+    // Nothing tests it. PODMAN_LIMITS_EXPORTER_PROFILE ships disabled and
+    // integration-tests.yml never enables it, so automating this bump safely
+    // means enabling the observability profile in CI, which is a piece of work
+    // of its own rather than a config line. Until then, held: a bump that
+    // merges unattended against untested code of ours is worse than a pin that
+    // waits for a person.
+    //
+    // Holding it costs less than it looks like, because the tag only ever moved
+    // in one dimension anyway. `docker` versioning requires the compatibility
+    // suffix to match exactly, so 3.13-alpine3.22 could only ever be offered
+    // 3.14-alpine3.22, never 3.13-alpine3.24, which exists. See docs/TODO.md
+    // for the wider question of whether the tag should name Alpine at all.
+    //
+    // docker.io/library/alpine has the same shape and is deliberately left
+    // flowing. log_rotator runs scripts/rotate-nginx-logs.sh over a bare alpine
+    // image, so that is our code too, but LOG_ROTATOR_PROFILE ships enabled so
+    // CI does pull and start it, and a shell script against a new BusyBox is a
+    // far smaller surface than our Python against a new interpreter.
+    {
+      matchPackageNames: ["docker.io/library/python"],
+      enabled: false,
+    },
     // The arr suite. Grouped to cut the pull request volume these seven images
     // would otherwise open one at a time, not because they share a release
     // cadence. They do not: image creation dates measured with skopeo inspect
@@ -250,8 +280,8 @@
     },
     // The observability stack. Every image in it sits behind a profile that
     // ships disabled. Grouped for pull request volume rather than tidiness now:
-    // it was three images until the eight unannotated pins in .env.example were
-    // given `# renovate:` annotations, and eight more pull requests a week for
+    // it was three images until the seven unannotated pins in .env.example were
+    // given `# renovate:` annotations, and seven more pull requests a week for
     // a stack nobody has enabled would be noise.
     //
     // One consequence is worth stating rather than leaving implicit: the
@@ -262,7 +292,7 @@
     // group merges on Prerequisite Checks and Security Reports alone. Taken
     // deliberately: the profile is off by default, so a bad image here breaks
     // nothing until someone turns it on, and the alternative on offer was these
-    // eight pins staying frozen, which cadvisor and the nginx and qbittorrent
+    // seven pins staying frozen, which cadvisor and the nginx and qbittorrent
     // exporters had been for between 17 and 22 months.
     //
     // docker.io/library/alpine, which log_rotator runs, is deliberately not
@@ -286,7 +316,6 @@
         "gcr.io/cadvisor/cadvisor",
         "docker.io/prom/node-exporter",
         "quay.io/navidys/prometheus-podman-exporter",
-        "docker.io/library/python",
         "docker.io/nginx/nginx-prometheus-exporter",
         "ghcr.io/esanchezm/prometheus-qbittorrent-exporter",
         "docker.io/msroest/sabnzbd_exporter",

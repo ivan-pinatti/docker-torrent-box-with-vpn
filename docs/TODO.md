@@ -229,20 +229,33 @@ for what was fixed and when.
   bumps match no automerge rule in `.github/renovate.json5` and would sit
   waiting for a person
 
-- [ ] Decide what `KORSYNC_VERSION` should track. It is pinned to
-  `sha-7bcefd34...`, a commit tag no versioning scheme can order, so Renovate
-  looks the package up and can offer nothing. Upstream publishes semantic tags
-  up to `0.2.3`, but none of them carries the digest this pin runs (the pinned
-  build is a later commit), so moving to one changes the running image rather
-  than only how it is tracked. That is a deliberate upgrade decision, not a
-  configuration fix
+- [ ] Cover `podman_limits_exporter` in CI, which is what would let
+  `docker.io/library/python` come off its hold. The image is a bare interpreter
+  and `scripts/podman-limits-exporter.py` is the application, so a Python minor
+  bump changes the interpreter under this repository's own code and nothing
+  tests it: `PODMAN_LIMITS_EXPORTER_PROFILE` ships disabled and
+  integration-tests.yml never enables it. Doing this properly means enabling the
+  observability profile in CI, which pulls and starts ten more images and
+  lengthens the suite, so it is worth costing before committing to. Note the
+  interpreter has already drifted from the rest of the repository: the exporter
+  runs 3.13 while `PYTHON_VERSION=3.14` is what lints and tests everything else,
+  so whatever covers this should decide whether those two should be the same
+  number
 
-- [ ] Decide whether `PODMAN_LIMITS_EXPORTER_VERSION` should track Alpine too.
-  `3.13-alpine3.22` moves in one dimension only: `docker` versioning treats
-  everything after the first hyphen as a compatibility string that has to match
-  exactly, so Renovate can offer `3.14-alpine3.22` and will never offer
-  `3.13-alpine3.24`, which exists. Using `3.13-alpine` instead would track
-  Alpine at the cost of naming a less specific base
+- [ ] Audit the eighteen compose services absent from `SERVICES` in
+  `tests/conftest.py`, adding each one or recording why it stays out. That
+  registry parametrizes the container, connectivity, auth and service tiers, so
+  a service outside it gets nothing from them: alloy, audiobookshelf, cadvisor,
+  calibre, calibre-web, gluetun, homepage, jdownloader2, korsync, lazylibrarian,
+  log_rotator, loki, mylar, nginx, nginx_exporter, nzbhydra2,
+  podman_limits_exporter and vpn_mock. Three of those are covered another way and
+  should come out of the list rather than into the registry: gluetun and vpn_mock
+  by the vpn and killswitch tiers and by `test_vpn_container_running`, and nginx
+  by every `proxy_path` case, which reaches its service through it. korsync is
+  what prompted this, since it now tracks a release tag Renovate will bump on its
+  own and a broken bump would fail nothing; it already carries a healthcheck in
+  `docker-compose-media-library.yml`, and `recyclarr` and the three exporters show
+  that an entry with every optional field `None` is a supported shape
 
 ## LazyLibrarian
 
