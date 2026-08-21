@@ -759,6 +759,9 @@ restart:
 # happens. Detect and fix it after the fact: any container sharing gluetun's
 # network namespace whose StartedAt predates gluetun's current StartedAt has
 # a stale namespace and gets restarted.
+# Service names, not container names: heal_vpn_dependents prefixes each one
+# with CONTAINER_PREFIX itself, so this list stays readable and stays valid
+# whatever a checkout sets.
 VPN_DEPENDENT_CONTAINERS := qbittorrent jdownloader2 sabnzbd
 
 heal_vpn_dependents:
@@ -770,13 +773,14 @@ heal_vpn_dependents:
 	gluetun_epoch=$$(date -d "$$gluetun_started" +%s); \
 	stale=""; \
 	for c in $(VPN_DEPENDENT_CONTAINERS); do \
-		if [ "$$($(RUNTIME) inspect $$c --format '{{.State.Running}}' 2>/dev/null)" != "true" ]; then \
+		container="$(CONTAINER_PREFIX)$$c"; \
+		if [ "$$($(RUNTIME) inspect $$container --format '{{.State.Running}}' 2>/dev/null)" != "true" ]; then \
 			continue; \
 		fi; \
-		c_started=$$($(RUNTIME) inspect $$c --format '{{json .State.StartedAt}}' | tr -d '"'); \
+		c_started=$$($(RUNTIME) inspect $$container --format '{{json .State.StartedAt}}' | tr -d '"'); \
 		c_epoch=$$(date -d "$$c_started" +%s); \
 		if [ "$$c_epoch" -lt "$$gluetun_epoch" ]; then \
-			stale="$$stale $$c"; \
+			stale="$$stale $$container"; \
 		fi; \
 	done; \
 	if [ -n "$$stale" ]; then \
