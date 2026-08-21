@@ -386,12 +386,18 @@ def running_containers(docker_client):
     SERVICES registry; the objects still carry their real prefixed names, which is
     what exec and restart need.
     """
-    try:
-        found = docker_client.containers.list(
-            filters={"label": f"com.docker.compose.project={COMPOSE_PROJECT}"}
-        )
-    except Exception:
-        return {}
+    # Deliberately not wrapped in a try/except that returns {}. An empty list is
+    # a legitimate answer, meaning nothing from this project is running, and
+    # every test then skips itself for a stated reason. A raised exception is a
+    # different thing: the podman socket is gone, or the filter is malformed, and
+    # swallowing it produces exactly the same empty inventory as a stopped stack.
+    # The whole suite would then skip and report green while having tested
+    # nothing, which is the failure mode this file has already been bitten by
+    # twice. Let it raise: a collection error is loud and an all-skipped pass is
+    # not.
+    found = docker_client.containers.list(
+        filters={"label": f"com.docker.compose.project={COMPOSE_PROJECT}"}
+    )
     keyed = {}
     for c in found:
         service = (c.labels or {}).get("com.docker.compose.service")

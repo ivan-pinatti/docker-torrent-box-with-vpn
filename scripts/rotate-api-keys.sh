@@ -208,7 +208,7 @@ stop_existing() {
   STOPPED_CONTAINERS=()
   local c
   for c in "$@"; do
-    if podman container exists "$c" 2>/dev/null; then
+    if podman container exists "$(cname "$c")" 2>/dev/null; then
       stop_container "$c"
       STOPPED_CONTAINERS+=("$c")
     fi
@@ -354,7 +354,7 @@ update_prowlarr_application() {
   local app_name="$2"
   local new_key="$3"
 
-  if ! podman container exists prowlarr 2>/dev/null; then
+  if ! podman container exists "$(cname prowlarr)" 2>/dev/null; then
     echo "[Prowlarr] Container doesn't exist, skipping application update for '${app_name}'."
     return 0
   fi
@@ -410,7 +410,7 @@ update_prowlarr_application() {
 propagate_prowlarr_key() {
   local new_key="$1"
 
-  if ! podman container exists prowlarr 2>/dev/null; then
+  if ! podman container exists "$(cname prowlarr)" 2>/dev/null; then
     return 0
   fi
 
@@ -439,7 +439,7 @@ propagate_prowlarr_key() {
   local entry app scheme port base api_version xml_path app_key indexers
   for entry in "${targets[@]}"; do
     read -r app api_version xml_path <<<"$entry"
-    podman container exists "$app" 2>/dev/null || continue
+    podman container exists "$(cname "$app")" 2>/dev/null || continue
     app_key=$(get_xml_apikey "$xml_path") || continue
     [[ -n "$app_key" ]] || continue
     read -r scheme port base <<<"$(arr_endpoint "$xml_path")"
@@ -472,7 +472,7 @@ propagate_prowlarr_key() {
   # on shutdown like every other INI-configured app in this stack, so the
   # edit needs the same stop-edit-start as rotate_nzbhydra2() already uses
   # for the same file, not a live write.
-  if [[ -f "$LAZYLIBRARIAN_INI" ]] && podman container exists lazylibrarian 2>/dev/null; then
+  if [[ -f "$LAZYLIBRARIAN_INI" ]] && podman container exists "$(cname lazylibrarian)" 2>/dev/null; then
     stop_existing lazylibrarian
     python3 - <<PYEOF
 from pathlib import Path
@@ -879,7 +879,7 @@ rotate_if_enabled() {
     echo "ERROR: ${profile_var}_PROFILE is disabled in .env; not rotating $container_name" >&2
     exit 1
   fi
-  if ! podman container exists "$container_name" 2>/dev/null; then
+  if ! podman container exists "$(cname "$container_name")" 2>/dev/null; then
     if [[ "$TARGET" == "all" ]]; then
       echo "[$container_name] Skipped, container doesn't exist"
       return
@@ -944,7 +944,7 @@ esac
 # a couple of seconds and this one succeeds right after.
 # ---------------------------------------------------------------------------
 
-if podman container exists homepage 2>/dev/null; then
+if podman container exists "$(cname homepage)" 2>/dev/null; then
   echo ""
   echo "Recreating homepage to load the new keys..."
   if ! retry 30 podman-compose --file docker-compose.yml --profile enabled up -d --force-recreate homepage; then

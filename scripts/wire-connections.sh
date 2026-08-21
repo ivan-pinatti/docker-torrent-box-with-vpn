@@ -275,7 +275,7 @@ detect_jellyfin_base_url() {
 }
 
 ensure_jellyfin_setup() {
-  if ! podman container exists jellyfin 2>/dev/null; then
+  if ! podman container exists "$(cname jellyfin)" 2>/dev/null; then
     echo "[Jellyfin] Container doesn't exist, skipping."
     return 0
   fi
@@ -397,7 +397,7 @@ ensure_jellyfin_homepage_wiring() {
 # so this talks to it the same way scripts/rotate-passwords.sh's
 # homepage_http() talks to Homepage for the same reason.
 ensure_audiobookshelf_setup() {
-  if ! podman container exists audiobookshelf 2>/dev/null; then
+  if ! podman container exists "$(cname audiobookshelf)" 2>/dev/null; then
     echo "[Audiobookshelf] Container doesn't exist, skipping."
     return 0
   fi
@@ -471,7 +471,7 @@ ensure_audiobookshelf_api_key() {
 # (verified directly), unlike the desktop GUI/noVNC login, which is already
 # usable from its own committed secret file.
 ensure_calibre_content_server_user() {
-  if ! podman container exists calibre 2>/dev/null; then
+  if ! podman container exists "$(cname calibre)" 2>/dev/null; then
     echo "[Calibre] Container doesn't exist, skipping."
     return 0
   fi
@@ -570,7 +570,7 @@ PYEOF
 }
 
 ensure_calibre_web_setup() {
-  if ! podman container exists calibre-web 2>/dev/null; then
+  if ! podman container exists "$(cname calibre-web)" 2>/dev/null; then
     echo "[Calibre-Web] Container doesn't exist, skipping."
     return 0
   fi
@@ -631,7 +631,7 @@ PYEOF
 # running app's database. Status stays "Paused" so Mylar never actually
 # searches or downloads anything for it.
 ensure_mylar_placeholder_comic() {
-  if ! podman container exists mylar 2>/dev/null; then
+  if ! podman container exists "$(cname mylar)" 2>/dev/null; then
     echo "[Mylar] Container doesn't exist, skipping."
     return 0
   fi
@@ -946,7 +946,7 @@ ensure_jellyfin_connection() {
   local app_name="$1" container="$2" scheme="$3" port="$4" api_ver="$5" api_key="$6"
   local base_url="${scheme}://127.0.0.1:${port}/${app_name}/api/${api_ver}/notification"
 
-  if ! podman container exists jellyfin 2>/dev/null; then
+  if ! podman container exists "$(cname jellyfin)" 2>/dev/null; then
     echo "[$app_name] Jellyfin is not running, skipping its connection."
     return 0
   fi
@@ -1061,7 +1061,7 @@ wire_arr_app() {
   local qbit_category="$6" sab_category="$7"
   local xml="configs/${app_name}/config/config.xml"
 
-  if ! podman container exists "$container" 2>/dev/null; then
+  if ! podman container exists "$(cname "$container")" 2>/dev/null; then
     echo "[$app_name] Container does not exist, skipping."
     return 0
   fi
@@ -1116,7 +1116,7 @@ wire_arr_app() {
 PROWLARR_FAILED=()
 
 wire_prowlarr_apps() {
-  if ! podman container exists prowlarr 2>/dev/null; then
+  if ! podman container exists "$(cname prowlarr)" 2>/dev/null; then
     echo "[Prowlarr] Container doesn't exist (PROWLARR_PROFILE=disabled), skipping."
     return 0
   fi
@@ -1253,7 +1253,7 @@ ensure_prowlarr_indexer_proxy() {
   local prowlarr_api_key="$1"
   local base_url="https://127.0.0.1:${PROWLARR_HTTPS_PORT}/prowlarr/api/v1/indexerproxy"
 
-  if ! podman container exists flaresolverr 2>/dev/null; then
+  if ! podman container exists "$(cname flaresolverr)" 2>/dev/null; then
     echo "[Prowlarr] FlareSolverr container doesn't exist, skipping indexer proxy."
     return 0
   fi
@@ -1453,7 +1453,7 @@ sync_prowlarr_indexers() {
     local missing=() entry app scheme port api_version xml_var key
     for entry in "${targets[@]}"; do
       read -r app scheme port api_version <<<"$entry"
-      podman container exists "$app" 2>/dev/null || continue
+      podman container exists "$(cname "$app")" 2>/dev/null || continue
       xml_var="$(echo "$app" | tr '[:lower:]' '[:upper:]')_XML"
       key=$(get_xml_apikey "${!xml_var}" 2>/dev/null) || continue
       arr_has_indexer "$app" "$scheme" "$port" "$api_version" "$key" || missing+=("$app")
@@ -1496,7 +1496,7 @@ ensure_prowlarr_application() {
   # one entry failing outright used to abort every entry after it too,
   # confirmed live when a wrong URL scheme for one app silently prevented
   # every other app from ever being registered.
-  if ! podman container exists "$container" 2>/dev/null; then
+  if ! podman container exists "$(cname "$container")" 2>/dev/null; then
     echo "[Prowlarr] ${display_name} container doesn't exist, skipping registration."
     return 0
   fi

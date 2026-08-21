@@ -265,7 +265,7 @@ stop_existing() {
   STOPPED_CONTAINERS=()
   local c
   for c in "$@"; do
-    if podman container exists "$c" 2>/dev/null; then
+    if podman container exists "$(cname "$c")" 2>/dev/null; then
       STOPPED_CONTAINERS+=("$c")
     fi
   done
@@ -574,7 +574,7 @@ rotate_calibre() {
 
   echo "[Calibre] Stopping calibre and lazylibrarian to update credentials..."
   stop_existing lazylibrarian
-  if podman container exists calibre 2>/dev/null; then
+  if podman container exists "$(cname calibre)" 2>/dev/null; then
     stop_container calibre
   fi
 
@@ -1252,7 +1252,7 @@ container_ready() {
 ensure_running() {
   local container="$1"
   container_ready "$container" && return 0
-  if ! podman container exists "$container" 2>/dev/null; then
+  if ! podman container exists "$(cname "$container")" 2>/dev/null; then
     echo "[$container] Container does not exist; run 'make start' to create it" >&2
     return 1
   fi
@@ -1526,12 +1526,12 @@ if [[ ${#RESTART_CONSUMERS[@]} -gt 0 ]]; then
   recreate_homepage=false
   for consumer in "${RESTART_CONSUMERS[@]}"; do
     if [[ "$consumer" == "homepage" ]]; then
-      if podman container exists homepage 2>/dev/null; then
+      if podman container exists "$(cname homepage)" 2>/dev/null; then
         recreate_homepage=true
       fi
       continue
     fi
-    if podman container exists "$consumer" 2>/dev/null; then
+    if podman container exists "$(cname "$consumer")" 2>/dev/null; then
       existing_consumers+=("$consumer")
     fi
   done

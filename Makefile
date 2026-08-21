@@ -732,7 +732,7 @@ define wait_for_gluetun
 			--format 'status={{.State.Status}} health={{.State.Health.Status}} exitcode={{.State.ExitCode}}' \
 			2>/dev/null || echo "(gluetun could not be inspected; it may never have been created)"; \
 		echo "--- gluetun log, last 40 lines ---"; \
-		$(RUNTIME) logs --tail 40 gluetun 2>&1 || echo "(no logs available)"; \
+		$(RUNTIME) logs --tail 40 $(CONTAINER_PREFIX)gluetun 2>&1 || echo "(no logs available)"; \
 		exit 1; \
 	}
 endef
@@ -762,11 +762,11 @@ restart:
 VPN_DEPENDENT_CONTAINERS := qbittorrent jdownloader2 sabnzbd
 
 heal_vpn_dependents:
-	@if [ "$$($(RUNTIME) inspect gluetun --format '{{.State.Running}}' 2>/dev/null)" != "true" ]; then \
+	@if [ "$$($(RUNTIME) inspect $(CONTAINER_PREFIX)gluetun --format '{{.State.Running}}' 2>/dev/null)" != "true" ]; then \
 		echo "gluetun is not running, nothing to heal."; \
 		exit 0; \
 	fi; \
-	gluetun_started=$$($(RUNTIME) inspect gluetun --format '{{json .State.StartedAt}}' | tr -d '"'); \
+	gluetun_started=$$($(RUNTIME) inspect $(CONTAINER_PREFIX)gluetun --format '{{json .State.StartedAt}}' | tr -d '"'); \
 	gluetun_epoch=$$(date -d "$$gluetun_started" +%s); \
 	stale=""; \
 	for c in $(VPN_DEPENDENT_CONTAINERS); do \
