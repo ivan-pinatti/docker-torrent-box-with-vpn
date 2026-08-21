@@ -61,6 +61,12 @@ COMPOSE_PROJECT_NAME ?= $(notdir $(CURDIR))
 export COMPOSE_PROJECT_NAME
 PODMAN_DOWN_TIMEOUT ?= 60
 
+# How long scripts/assert-stack-started.sh waits for every enabled service to
+# appear before calling the start failed. It polls alongside `compose up` rather
+# than after it, so this bounds the stack, not the known hang in that command.
+STACK_START_TIMEOUT ?= 300
+export STACK_START_TIMEOUT
+
 # Remembers the VPN_ON used by the last successful `make start`, so down/stop/restart
 # match a running stack even when VPN_ON isn't repeated on the command line. An
 # explicit VPN_ON on the command line always wins over the remembered value.
@@ -874,7 +880,17 @@ start: storage_guard permissions_repair
 	@$(COMPOSE) $(COMPOSE_FILES) --profile enabled up --detach --no-recreate gluetun
 	$(call wait_for_gluetun)
 	@echo "Starting all containers..."
-	@$(COMPOSE) $(COMPOSE_FILES) --profile enabled up --detach --no-recreate
+	# Run in the background and judged by what is running, not by whether it
+	# returned. podman-compose answers neither question on its own: it returns 0
+	# when every container failed to create, and intermittently never returns when
+	# they all succeeded. Polling alongside it means a start costs what the stack
+	# actually needs rather than the full bound on the hang, and the assert stops
+	# early once the process is gone since nothing more will appear then.
+	@set -e; \
+	$(COMPOSE) $(COMPOSE_FILES) --profile enabled up --detach --no-recreate & \
+	up_pid=$$!; \
+	trap 'kill $$up_pid 2>/dev/null || true' EXIT; \
+	COMPOSE_UP_PID=$$up_pid ./scripts/assert-stack-started.sh $(COMPOSE_FILES)
 	@echo "$(VPN_ON)" > $(VPN_STATE_FILE)
 
 start_library: storage_guard permissions_repair
