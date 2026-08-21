@@ -19,7 +19,9 @@ from conftest import (
 pytestmark = pytest.mark.security
 
 # Services that received security_opt + cap_drop hardening.
-# Excludes: cadvisor (privileged:true), podman_exporter (userns_mode), gluetun (VPN caps).
+# Excludes: cadvisor (privileged:true), podman_exporter and
+# podman_limits_exporter (userns_mode plus label=disable, both run 0:0 with no
+# dropped capabilities), gluetun (VPN caps).
 HARDENED_SERVICES = [
     s
     for s in [
@@ -38,7 +40,6 @@ HARDENED_SERVICES = [
         "prometheus",
         "grafana",
         "node_exporter",
-        "promtail",
         "nginx_exporter",
         "qbittorrent_exporter",
         "sabnzbd_exporter",

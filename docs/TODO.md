@@ -209,6 +209,31 @@ for what was fixed and when.
   merge queues are reported to interact badly with required approvals and
   Renovate, so check that before choosing
 
+## Test suite
+
+- [ ] Stop `test_compose_available` failing when one compose flavour is merely
+  slow. It probes `docker compose version` through conftest's `run()`, which
+  passes `timeout=10` and therefore raises `TimeoutExpired` rather than returning
+  non-zero, so a runner where that probe is slow aborts the test before it looks
+  at `docker-compose` or `podman-compose`. The assertion only needs one of the
+  three to exist, and podman-compose is present in CI, so the failure contradicts
+  what the test is checking. Seen on 2026-08-20, green on a re-run of the same
+  commit with nothing changed
+
+- [ ] Make `test_arr_health_response_empty` fail, not warn, when an arr cannot
+  reach its download client. It warns for every health message on the grounds
+  that "some warnings are non-critical", which is true of "All indexers are
+  unavailable due to failures" in an environment with no real indexers, and not
+  true of "Unable to communicate with QBittorrent. Connection refused
+  (172.28.0.10:8085)". A stack with every download client unreachable currently
+  passes: found exactly that way, when a network subnet change left
+  `GLUETUN_SERVICES_IP` behind and `wire-connections.sh` had written the stale
+  address into every arr. The read-only tier reported 590 passed while nothing
+  could talk to qBittorrent. Splitting the messages into a fail list and a warn
+  list is the fix; the fail list wants to start with download client
+  reachability and stay short, since the whole point of the warning was that
+  most of what these endpoints report is environmental
+
 ## Renovate
 
 - [ ] Give `LAZYLIBRARIAN_VERSION` a versioning scheme that can order it,
@@ -229,18 +254,35 @@ for what was fixed and when.
   bumps match no automerge rule in `.github/renovate.json5` and would sit
   waiting for a person
 
-- [ ] Cover `podman_limits_exporter` in CI, which is what would let
-  `docker.io/library/python` come off its hold. The image is a bare interpreter
-  and `scripts/podman-limits-exporter.py` is the application, so a Python minor
-  bump changes the interpreter under this repository's own code and nothing
-  tests it: `PODMAN_LIMITS_EXPORTER_PROFILE` ships disabled and
-  integration-tests.yml never enables it. Doing this properly means enabling the
-  observability profile in CI, which pulls and starts ten more images and
-  lengthens the suite, so it is worth costing before committing to. Note the
-  interpreter has already drifted from the rest of the repository: the exporter
-  runs 3.13 while `PYTHON_VERSION=3.14` is what lints and tests everything else,
-  so whatever covers this should decide whether those two should be the same
-  number
+- [ ] Decide whether `PODMAN_LIMITS_EXPORTER_VERSION` and `PYTHON_VERSION`
+  should be the same number. The exporter runs Python 3.13 while
+  `PYTHON_VERSION=3.14` is what lints and tests everything else in the
+  repository, so `scripts/podman-limits-exporter.py` is checked under one
+  interpreter and executed under another. Both are watched and both can move, so
+  this is a question of whether the drift is deliberate rather than a gap
+
+- [ ] Offset the live deployment's three network subnets so it and a test stack
+  can run at once, then drop the offset from `.env.tests` if that turns out to be
+  the tidier side to special case. Deferred because the share at
+  `STORAGE_REMOTE=//vox114/torrentbox` was unmounted, and `storage_guard`
+  correctly refuses to start a deployment whose data directory is not mounted, so
+  neither the change nor the simultaneous run could be verified. Ports need
+  nothing: all seven published mappings are already offset by 10000. What is left
+  to check is the two stacks' containers up at the same time; their networks
+  already coexist on this host
+
+- [ ] Expand `${VAR}` from `.env` when `seed-configs.sh` copies a `.example`
+  into place, or record why not. Five seeded configs still name an address
+  literally, so an environment whose `.env` moves a subnet needs them edited by
+  hand once: `configs/mylar/config/mylar/config.ini.example` (3),
+  `configs/lazylibrarian/config/config.ini.example` (2),
+  `configs/jellyfin/config/network.xml.example` (`KnownProxies`),
+  `configs/nzbget/config/nzbget.conf` (`ControlIP`, legacy and disabled) and the
+  stale comment in `configs/gluetun/.env.example`. Unlike the two templates this
+  change parameterized, these only apply at first seed, so they cost one edit
+  rather than recurring on every `make start`. Blanket expansion is not
+  obviously safe: `grafana.ini.example` legitimately contains `${...}`, so this
+  wants an allowlist or an opt-in marker rather than a global pass
 
 - [ ] Audit the eighteen compose services absent from `SERVICES` in
   `tests/conftest.py`, adding each one or recording why it stays out. That

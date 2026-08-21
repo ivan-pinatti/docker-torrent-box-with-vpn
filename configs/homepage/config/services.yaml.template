@@ -85,7 +85,7 @@
         description: Torrent Client
         widget:
           type: qbittorrent
-          url: https://172.28.0.10:8085
+          url: https://${GLUETUN_SERVICES_IP}:${QBITTORRENT_HTTPS_PORT}
           username: "{{HOMEPAGE_FILE_QBITTORRENT_USER}}"
           password: "{{HOMEPAGE_FILE_QBITTORRENT_PASS}}"
 
@@ -95,7 +95,7 @@
         description: Usenet Client
         widget:
           type: sabnzbd
-          url: http://172.28.0.10:8086
+          url: http://${GLUETUN_SERVICES_IP}:${SABNZBD_HTTP_PORT}
           key: "{{HOMEPAGE_FILE_SABNZBD_API_KEY}}"
 
     - Prowlarr:

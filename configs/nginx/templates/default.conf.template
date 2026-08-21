@@ -21,7 +21,7 @@ server {
     stub_status;
     access_log off;
     allow 127.0.0.1;
-    allow 172.29.0.0/24;
+    allow ${OBSERVABILITY_SUBNET};
     deny all;
   }
 
@@ -57,7 +57,7 @@ server {
     stub_status;
     access_log off;
     allow 127.0.0.1;
-    allow 172.29.0.0/24;
+    allow ${OBSERVABILITY_SUBNET};
     deny all;
   }
 

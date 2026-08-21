@@ -849,6 +849,7 @@ start: storage_guard permissions_repair
 		fi \
 	fi
 	@echo "Ensuring required networks exist..."
+	@./scripts/check-network-subnets.sh
 	@$(RUNTIME) network exists $(COMPOSE_PROJECT_NAME)_apps || $(RUNTIME) network create $(COMPOSE_PROJECT_NAME)_apps
 	@$(RUNTIME) network exists $(COMPOSE_PROJECT_NAME)_services || $(RUNTIME) network create --internal --subnet ${SERVICES_SUBNET} --ip-range ${SERVICES_DYNAMIC_IP_RANGE} $(COMPOSE_PROJECT_NAME)_services
 	@$(RUNTIME) network exists $(COMPOSE_PROJECT_NAME)_media || $(RUNTIME) network create --subnet ${MEDIA_SUBNET} --ip-range ${MEDIA_DYNAMIC_IP_RANGE} $(COMPOSE_PROJECT_NAME)_media
@@ -878,6 +879,7 @@ start: storage_guard permissions_repair
 
 start_library: storage_guard permissions_repair
 	@echo "Starting Media Library containers..."
+	@./scripts/check-network-subnets.sh
 	@$(RUNTIME) network exists $(COMPOSE_PROJECT_NAME)_apps || $(RUNTIME) network create $(COMPOSE_PROJECT_NAME)_apps
 	@$(RUNTIME) network exists $(COMPOSE_PROJECT_NAME)_services || $(RUNTIME) network create --internal --subnet ${SERVICES_SUBNET} --ip-range ${SERVICES_DYNAMIC_IP_RANGE} $(COMPOSE_PROJECT_NAME)_services
 	@$(RUNTIME) network exists $(COMPOSE_PROJECT_NAME)_media || $(RUNTIME) network create --subnet ${MEDIA_SUBNET} --ip-range ${MEDIA_DYNAMIC_IP_RANGE} $(COMPOSE_PROJECT_NAME)_media
@@ -885,6 +887,7 @@ start_library: storage_guard permissions_repair
 
 start_observability: storage_guard permissions_repair
 	@echo "Starting Observability containers..."
+	@./scripts/check-network-subnets.sh
 	@$(RUNTIME) network exists $(COMPOSE_PROJECT_NAME)_apps || $(RUNTIME) network create $(COMPOSE_PROJECT_NAME)_apps
 	@$(RUNTIME) network exists $(COMPOSE_PROJECT_NAME)_services || $(RUNTIME) network create --internal --subnet ${SERVICES_SUBNET} --ip-range ${SERVICES_DYNAMIC_IP_RANGE} $(COMPOSE_PROJECT_NAME)_services
 	@$(RUNTIME) network exists $(COMPOSE_PROJECT_NAME)_observability || $(RUNTIME) network create --internal --subnet ${OBSERVABILITY_SUBNET} $(COMPOSE_PROJECT_NAME)_observability
@@ -901,6 +904,7 @@ update_containers:
 	@$(COMPOSE) $(STOP_COMPOSE_FILES) --profile enabled stop
 
 	@echo "Ensuring required networks exist..."
+	@./scripts/check-network-subnets.sh
 	@$(RUNTIME) network exists $(COMPOSE_PROJECT_NAME)_apps || $(RUNTIME) network create $(COMPOSE_PROJECT_NAME)_apps
 	@$(RUNTIME) network exists $(COMPOSE_PROJECT_NAME)_services || $(RUNTIME) network create --internal --subnet ${SERVICES_SUBNET} --ip-range ${SERVICES_DYNAMIC_IP_RANGE} $(COMPOSE_PROJECT_NAME)_services
 	@$(RUNTIME) network exists $(COMPOSE_PROJECT_NAME)_observability || $(RUNTIME) network create --internal --subnet ${OBSERVABILITY_SUBNET} $(COMPOSE_PROJECT_NAME)_observability

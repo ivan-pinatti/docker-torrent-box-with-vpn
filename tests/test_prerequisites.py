@@ -1,5 +1,6 @@
 """Pre-flight checks: verify system requirements before starting the stack."""
 
+import base64
 import pathlib
 import platform
 import re
@@ -254,4 +255,42 @@ def test_runtime_state_has_seed_when_app_needs_one(rel_path):
     )
     assert rel_path in _seeded_configs(), (
         f"{rel_path}.example exists but `make bootstrap` never copies it into place"
+    )
+
+
+# Homepage's Grafana widget sends a precomputed Basic-auth header rather than a
+# password, so two seeded files have to agree about the same credential:
+# grafana.ini.example sets Grafana's admin user and password, and
+# homepage_auth.txt.example carries base64 of exactly that pair. They disagreed,
+# `changeme:changeme` against grafana's own `admin:changeme`, and a fresh clone
+# that enabled Grafana got HTTP 403 from the widget. It stayed invisible because
+# GRAFANA_PROFILE ships disabled, so generate-homepage-services.py drops the
+# Grafana entry and test_homepage_widget_integrations never checks it, and
+# because `make bootstrap` rotates both files together and papers over the seed.
+# CI seeds without rotating, which is the case that breaks.
+GRAFANA_INI_EXAMPLE = "configs/grafana/config/grafana.ini.example"
+GRAFANA_HOMEPAGE_AUTH_EXAMPLE = "configs/grafana/secrets/homepage_auth.txt.example"
+
+
+def _grafana_example_admin() -> tuple[str, str]:
+    """The admin user and password grafana.ini.example seeds Grafana with."""
+    ini = (REPO_ROOT / GRAFANA_INI_EXAMPLE).read_text()
+    found = {}
+    for key in ("admin_user", "admin_password"):
+        match = re.search(rf"^{key}\s*=\s*(.+)$", ini, re.MULTILINE)
+        assert match, f"{GRAFANA_INI_EXAMPLE} declares no {key}"
+        found[key] = match.group(1).strip()
+    return found["admin_user"], found["admin_password"]
+
+
+def test_homepage_grafana_auth_seed_matches_grafana_admin():
+    """The seeded Basic-auth header has to encode the seeded admin credential."""
+    user, password = _grafana_example_admin()
+    expected = "Basic " + base64.b64encode(f"{user}:{password}".encode()).decode()
+    actual = (REPO_ROOT / GRAFANA_HOMEPAGE_AUTH_EXAMPLE).read_text().strip()
+    assert actual == expected, (
+        f"{GRAFANA_HOMEPAGE_AUTH_EXAMPLE} does not encode "
+        f"{GRAFANA_INI_EXAMPLE}'s admin credential, so a clone that seeds "
+        f"without rotating gets HTTP 403 from Homepage's Grafana widget. "
+        f"Expected {expected!r}, found {actual!r}."
     )

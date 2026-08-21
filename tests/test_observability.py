@@ -29,6 +29,7 @@ GRAFANA_PASSWORD = env("ADMIN_PASSWORD", "admin")
 EXPECTED_PROMETHEUS_JOBS = {
     "node_exporter",
     "podman",
+    "podman_limits_exporter",
     "prometheus",
     "qbittorrent",
     "sabnzbd",
@@ -198,6 +199,97 @@ def test_podman_exporter_cpu_metrics(running_containers, prometheus_url):
     )
     assert data["status"] == "success"
     assert data["data"]["result"], "No CPU metrics from podman_exporter"
+
+
+# podman_limits_exporter is the one exporter here whose application this
+# repository wrote: the image is a bare Python interpreter and
+# scripts/podman-limits-exporter.py is bind mounted in as /exporter.py. Its pin
+# is allowed to bump unattended, so these three have to be worth that. The
+# container tier proves it runs and its healthcheck answers, but that healthcheck
+# is `wget -q -O /dev/null .../metrics`, which discards the body, and a scrape
+# target counts as up on an empty-but-parseable response. Neither notices an
+# interpreter change that leaves the script serving 200 and producing nothing,
+# which is exactly the regression a Python bump would cause, and which would
+# break podman_containers.json silently.
+def test_podman_limits_exporter_metrics_present(running_containers, prometheus_url):
+    """Both series the exporter exists to produce reach Prometheus."""
+    if not is_enabled("podman_limits_exporter"):
+        pytest.skip("PODMAN_LIMITS_EXPORTER_PROFILE is disabled")
+    skip_if_not_running("podman_limits_exporter", running_containers)
+    if not is_enabled("prometheus"):
+        pytest.skip("prometheus profile is disabled")
+
+    for metric in ("podman_container_cpu_limit_vcpus", "podman_container_pids_limit"):
+        data = _prom_get(prometheus_url, "/query", {"query": metric})
+        assert data["status"] == "success"
+        assert data["data"]["result"], (
+            f"No {metric} series from podman_limits_exporter. "
+            f"configs/grafana/.../podman_containers.json queries this metric, so "
+            f"an empty result is a broken dashboard as well as a broken exporter."
+        )
+
+
+def test_podman_limits_exporter_reports_nonzero_limits(
+    running_containers, prometheus_url
+):
+    """At least one CPU limit is above zero, so an all-zeros result fails.
+
+    Separate from the presence check because zero is the exporter's own documented
+    value for "unlimited", which makes a regression that emits nothing but zeros
+    indistinguishable from a legitimate reading unless something asserts
+    otherwise.
+    """
+    if not is_enabled("podman_limits_exporter"):
+        pytest.skip("PODMAN_LIMITS_EXPORTER_PROFILE is disabled")
+    skip_if_not_running("podman_limits_exporter", running_containers)
+    if not is_enabled("prometheus"):
+        pytest.skip("prometheus profile is disabled")
+
+    data = _prom_get(
+        prometheus_url, "/query", {"query": "podman_container_cpu_limit_vcpus > 0"}
+    )
+    assert data["status"] == "success"
+    assert data["data"]["result"], (
+        "Every podman_container_cpu_limit_vcpus series is zero. The compose files "
+        "set a CPU limit on most services, so this means the exporter is serving "
+        "metrics it did not derive from the podman socket."
+    )
+
+
+def test_podman_limits_exporter_agrees_with_the_configured_limit(
+    running_containers, prometheus_url
+):
+    """The exporter's own CPU limit matches what .env asked compose for.
+
+    The strongest of the three, and the one that makes an unattended bump
+    defensible: it walks the whole chain, .env to compose to the podman API to the
+    exporter to Prometheus, rather than checking that bytes came back. The
+    exporter's own container is used as the subject because its limit comes from a
+    single variable, TELEMETRY_CPUS, with no per-app override in between.
+    """
+    if not is_enabled("podman_limits_exporter"):
+        pytest.skip("PODMAN_LIMITS_EXPORTER_PROFILE is disabled")
+    skip_if_not_running("podman_limits_exporter", running_containers)
+    if not is_enabled("prometheus"):
+        pytest.skip("prometheus profile is disabled")
+
+    expected = env("TELEMETRY_CPUS")
+    if not expected:
+        pytest.skip("TELEMETRY_CPUS is not set")
+
+    data = _prom_get(
+        prometheus_url,
+        "/query",
+        {"query": 'podman_container_cpu_limit_vcpus{name="podman_limits_exporter"}'},
+    )
+    result = data["data"]["result"]
+    assert result, "podman_limits_exporter reports no CPU limit for itself"
+    reported = float(result[0]["value"][1])
+    assert reported == pytest.approx(float(expected)), (
+        f"podman_limits_exporter reports its own CPU limit as {reported}, but "
+        f"TELEMETRY_CPUS asks compose for {expected}. The exporter is answering, "
+        f"and the number it answers with is wrong."
+    )
 
 
 def test_podman_exporter_memory_metrics(running_containers, prometheus_url):
