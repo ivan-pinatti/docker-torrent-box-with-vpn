@@ -209,6 +209,58 @@ for what was fixed and when.
   merge queues are reported to interact badly with required approvals and
   Renovate, so check that before choosing
 
+## Container names and running two checkouts
+
+- [ ] Make `make start` fail when it creates no containers. It runs
+  `$(COMPOSE) ... up --detach --no-recreate` with no error check, and
+  podman-compose returns zero even when every individual container fails to
+  create, so the target reported success having created nothing at all: 33
+  "the container name is already in use" errors, an empty pod, exit code 0.
+  CI survives that only by accident, because `wire-connections.sh` runs
+  `set -euo pipefail` and dies trying to reach absent apps. The designed gate
+  does not catch it either: `Wait for containers to be ready` greps for
+  containers reporting `starting`, and zero containers means zero matches, so
+  it passes instantly, after which every test hits `skip_if_not_running` and
+  skips. There is no minimum container count assertion anywhere, so an empty
+  stack can produce a green suite. Asserting the started count against the
+  enabled profile set is the fix
+
+- [ ] Say in the documentation that adopting `CONTAINER_PREFIX` on an existing
+  checkout needs a `make down` first, not a `make stop_all`. Stopping leaves
+  the containers in place and podman container names belong to stopped
+  containers too, so a merely stopped checkout still holds every bare name and
+  still blocks the other one. Worse, the teardown ordering in `make down`
+  (which removes gluetun last, because every download client
+  network_mode-depends on it) matches on the prefixed name, so it cannot
+  cleanly remove containers created before the prefix was set. Hit exactly
+  that: `make down` failed on gluetun with "has dependent containers" and
+  needed a second pass
+
+- [ ] Decide whether the Grafana dashboards should follow a prefixed checkout
+  or stay pinned to the deployment. `podman_containers.json` hardcodes
+  `pod_name="pod_docker-torrent-box-with-vpn"` and its `stack` variable lists
+  bare service names as a regex, and PromQL anchors `=~`, so neither matches
+  `dev-qbittorrent` and a prefixed checkout's panels are empty. This is not a
+  mechanical fix: `test_podman_dashboard_container_variable_is_repo_scoped`,
+  `test_podman_dashboard_default_stack_filter_is_repo_only` and
+  `test_podman_dashboard_podman_exporter_queries_are_repo_scoped` assert that
+  hardcoded pod name deliberately, to guarantee the dashboard never shows
+  containers from outside this repository's pod. Deriving the pod from a query
+  variable would weaken exactly that property. The alternative is accepting
+  empty panels in a second checkout, which costs nothing operationally since
+  the deployment is the one being watched
+
+- [ ] Reconcile an existing download client's host when `GLUETUN_SERVICES_IP`
+  changes. `ensure_qbittorrent_client` and its SABnzbd counterpart return early
+  when a client with that implementation already exists, so `make
+  wire_connections` cannot repair a stale address and every arr keeps pointing
+  at the previous one. Running two checkouts makes this sharper rather than
+  merely stale: the address a second checkout inherits is the *other*
+  environment's gateway, so its arrs are aimed at the deployment's download
+  clients and only fail because the two internal networks do not route to each
+  other. Seen live, with every arr in the clone holding 172.28.0.10 while its
+  own gluetun sat at 172.25.0.10
+
 ## Test suite
 
 - [ ] Stop `test_compose_available` failing when one compose flavour is merely

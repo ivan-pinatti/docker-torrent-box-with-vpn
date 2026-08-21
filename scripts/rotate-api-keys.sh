@@ -27,6 +27,14 @@ env_value() {
   grep -m1 "^${key}=" .env | cut -d= -f2-
 }
 
+# Container names carry CONTAINER_PREFIX, which is empty for a deployment and
+# set in a second checkout's .env so its containers do not collide with the
+# deployment's on podman's global container namespace. Service names stay
+# unprefixed everywhere else in this script, and this is resolved at the point
+# podman is invoked and nowhere else, so no caller can prefix something twice.
+CONTAINER_PREFIX="$(env_value CONTAINER_PREFIX)"
+cname() { printf '%s%s' "$CONTAINER_PREFIX" "$1"; }
+
 JELLYFIN_HTTP_PORT="$(env_value JELLYFIN_HTTP_PORT)"
 # BaseUrl is a server-wide Jellyfin setting (see wire-connections.sh), not an
 # nginx-only rewrite, so every direct call here needs it too: a bare
@@ -149,7 +157,7 @@ write_secret_file() {
 container_curl() {
   local container_name="$1"
   shift
-  podman exec "$container_name" curl "$@"
+  podman exec "$(cname "$container_name")" curl "$@"
 }
 
 # Stop the listed containers if they exist, remembering which ones were
@@ -174,9 +182,9 @@ stop_container() {
   local c exempt=() normal=() pids=()
   for c in "$@"; do
     if [[ " ${STOP_TIMEOUT_EXEMPT[*]} " == *" ${c} "* ]]; then
-      exempt+=("$c")
+      exempt+=("$(cname "$c")")
     else
-      normal+=("$c")
+      normal+=("$(cname "$c")")
     fi
   done
   # Both batches run concurrently so an exempt container waiting out its
@@ -208,7 +216,7 @@ stop_existing() {
 }
 
 container_running() {
-  podman container inspect -f '{{.State.Running}}' "$1" 2>/dev/null | grep -q '^true$'
+  podman container inspect -f '{{.State.Running}}' "$(cname "$1")" 2>/dev/null | grep -q '^true$'
 }
 
 # podman start can transiently fail with "container state improper" when
@@ -226,7 +234,7 @@ start_containers_retrying() {
     still_remaining=()
     for c in "${remaining[@]}"; do
       container_running "$c" && continue
-      podman start "$c" >/dev/null 2>&1 || still_remaining+=("$c")
+      podman start "$(cname "$c")" >/dev/null 2>&1 || still_remaining+=("$c")
     done
     remaining=("${still_remaining[@]}")
     [[ ${#remaining[@]} -eq 0 ]] && return 0
@@ -622,7 +630,7 @@ rotate_bazarr() {
   echo "[Bazarr] Stopping container and updating auth.apikey in config.yaml..."
   stop_container bazarr
   yq -i ".auth.apikey = \"$new_key\"" "$BAZARR_CONFIG"
-  podman start bazarr >/dev/null
+  podman start "$(cname bazarr)" >/dev/null
 
   write_secret_file "$BAZARR_API_KEY_SECRET" "$new_key"
 
@@ -658,7 +666,7 @@ rotate_lazylibrarian() {
   echo "[LazyLibrarian] Stopping container and writing new api_key..."
   stop_container lazylibrarian
   sed -i "s|^api_key = .*|api_key = ${new_key}|" "$LAZYLIBRARIAN_INI"
-  podman start lazylibrarian >/dev/null
+  podman start "$(cname lazylibrarian)" >/dev/null
 
   local prowlarr_key
   prowlarr_key=$(get_xml_apikey "$PROWLARR_XML")
@@ -682,7 +690,7 @@ rotate_mylar() {
   echo "[Mylar] Stopping container and writing new api_key..."
   stop_container mylar
   sed -i "s|^api_key = .*|api_key = ${new_key}|" "$MYLAR_INI"
-  podman start mylar >/dev/null
+  podman start "$(cname mylar)" >/dev/null
 
   local prowlarr_key
   prowlarr_key=$(get_xml_apikey "$PROWLARR_XML")

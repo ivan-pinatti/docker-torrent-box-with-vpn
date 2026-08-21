@@ -58,6 +58,14 @@ env_value() {
   grep -m1 "^${key}=" .env | cut -d= -f2-
 }
 
+# Container names carry CONTAINER_PREFIX, which is empty for a deployment and
+# set in a second checkout's .env so its containers do not collide with the
+# deployment's on podman's global container namespace. Service names stay
+# unprefixed everywhere else in this script, and this is resolved at the point
+# podman is invoked and nowhere else, so no caller can prefix something twice.
+CONTAINER_PREFIX="$(env_value CONTAINER_PREFIX)"
+cname() { printf '%s%s' "$CONTAINER_PREFIX" "$1"; }
+
 LAN_IP="$(env_value LAN_IP)"
 GLUETUN_SERVICES_IP="$(env_value GLUETUN_SERVICES_IP)"
 QBITTORRENT_HTTPS_PORT="$(env_value QBITTORRENT_HTTPS_PORT)"
@@ -121,7 +129,7 @@ get_ini_apikey() {
 container_curl() {
   local container_name="$1"
   shift
-  podman exec "$container_name" curl "$@"
+  podman exec "$(cname "$container_name")" curl "$@"
 }
 
 # Podman's default stop timeout is 10 seconds. The servarr apps shut down
@@ -144,9 +152,9 @@ stop_container() {
   local c exempt=() normal=()
   for c in "$@"; do
     if [[ " ${STOP_TIMEOUT_EXEMPT[*]} " == *" ${c} "* ]]; then
-      exempt+=("$c")
+      exempt+=("$(cname "$c")")
     else
-      normal+=("$c")
+      normal+=("$(cname "$c")")
     fi
   done
   # Both batches run concurrently so an exempt container waiting out its
@@ -381,7 +389,7 @@ ensure_jellyfin_homepage_wiring() {
     container_curl jellyfin -sS --fail -X POST -H "Authorization: MediaBrowser Token=\"${token}\"" \
       -H "Content-Type: application/json" -d "$updated_network_config" \
       "${base_url}/System/Configuration/network" >/dev/null
-    podman restart jellyfin >/dev/null
+    podman restart "$(cname jellyfin)" >/dev/null
   fi
 }
 
@@ -395,16 +403,16 @@ ensure_audiobookshelf_setup() {
   fi
 
   local base_url="http://127.0.0.1:${AUDIOBOOKSHELF_HTTP_PORT}"
-  if ! retry 180 "[Audiobookshelf]" podman exec audiobookshelf wget -qO- "${base_url}/status"; then
+  if ! retry 180 "[Audiobookshelf]" podman exec "$(cname audiobookshelf)" wget -qO- "${base_url}/status"; then
     echo "[Audiobookshelf] Not reachable, skipping."
     return 0
   fi
   local status
-  status=$(podman exec audiobookshelf wget -qO- "${base_url}/status")
+  status=$(podman exec "$(cname audiobookshelf)" wget -qO- "${base_url}/status")
   if [[ "$(echo "$status" | jq -r '.isInit')" != "true" ]]; then
     echo "[Audiobookshelf] Creating initial root user..."
     local init_payload='{"newRoot":{"username":"root","password":"audiobookshelf"}}' # pragma: allowlist secret
-    podman exec audiobookshelf wget -qO- --header='Content-Type: application/json' \
+    podman exec "$(cname audiobookshelf)" wget -qO- --header='Content-Type: application/json' \
       --post-data="$init_payload" "${base_url}/init" >/dev/null
   fi
 
@@ -427,7 +435,7 @@ ensure_audiobookshelf_api_key() {
   local base_url="$1"
   local login_response token
   local login_payload='{"username":"root","password":"audiobookshelf"}' # pragma: allowlist secret
-  login_response=$(podman exec audiobookshelf wget -qO- --header='Content-Type: application/json' \
+  login_response=$(podman exec "$(cname audiobookshelf)" wget -qO- --header='Content-Type: application/json' \
     --post-data="$login_payload" "${base_url}/login" 2>/dev/null)
   token=$(echo "$login_response" | jq -r '.user.token // empty')
   if [[ -z "$token" ]]; then
@@ -440,7 +448,7 @@ ensure_audiobookshelf_api_key() {
   # file's content directly the way ensure_jellyfin_homepage_wiring does; a
   # name unique to this script is enough to tell "already made one" from
   # "never made one, or it's still the seeded placeholder".
-  if podman exec audiobookshelf wget -qO- --header="Authorization: Bearer ${token}" \
+  if podman exec "$(cname audiobookshelf)" wget -qO- --header="Authorization: Bearer ${token}" \
     "${base_url}/api/api-keys" | jq -e '.apiKeys[] | select(.name == "wire-connections")' >/dev/null 2>&1; then
     return 0
   fi
@@ -449,7 +457,7 @@ ensure_audiobookshelf_api_key() {
   local user_id
   user_id=$(echo "$login_response" | jq -r '.user.id')
   local key_response
-  key_response=$(podman exec audiobookshelf wget -qO- --header="Authorization: Bearer ${token}" \
+  key_response=$(podman exec "$(cname audiobookshelf)" wget -qO- --header="Authorization: Bearer ${token}" \
     --header='Content-Type: application/json' \
     --post-data="$(jq -n --arg userId "$user_id" '{name: "wire-connections", userId: $userId, isActive: true}')" \
     "${base_url}/api/api-keys")
@@ -467,7 +475,7 @@ ensure_calibre_content_server_user() {
     echo "[Calibre] Container doesn't exist, skipping."
     return 0
   fi
-  if podman exec calibre calibre-server --userdb "$CALIBRE_USERS_DB_CONTAINER_PATH" \
+  if podman exec "$(cname calibre)" calibre-server --userdb "$CALIBRE_USERS_DB_CONTAINER_PATH" \
     --manage-users -- list 2>/dev/null | grep -qx "$CALIBRE_CONTENT_SERVER_USER"; then
     echo "[Calibre] Content server user already exists, skipping."
     return 0
@@ -476,7 +484,7 @@ ensure_calibre_content_server_user() {
   echo "[Calibre] Creating content server user..."
   local password
   password=$(cat "$CALIBRE_PASSWORD_FILE")
-  podman exec calibre calibre-server --userdb "$CALIBRE_USERS_DB_CONTAINER_PATH" \
+  podman exec "$(cname calibre)" calibre-server --userdb "$CALIBRE_USERS_DB_CONTAINER_PATH" \
     --manage-users -- add "$CALIBRE_CONTENT_SERVER_USER" "$password" >/dev/null
   echo "[Calibre] Done."
 }
@@ -606,7 +614,7 @@ conn.execute(
 conn.commit()
 conn.close()
 PYEOF
-  podman start calibre-web >/dev/null
+  podman start "$(cname calibre-web)" >/dev/null
   echo "[Calibre-Web] Done."
 }
 
@@ -664,7 +672,7 @@ conn.execute(
 conn.commit()
 conn.close()
 PYEOF
-  podman start mylar >/dev/null
+  podman start "$(cname mylar)" >/dev/null
   echo "[Mylar] Done."
 }
 
