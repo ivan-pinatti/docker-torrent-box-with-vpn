@@ -14,6 +14,26 @@ from dotenv import dotenv_values
 REPO_ROOT = Path(__file__).parent.parent
 ENV = dotenv_values(REPO_ROOT / ".env")
 
+# Which checkout's containers this suite is allowed to see, derived the way the
+# Makefile derives it: COMPOSE_PROJECT_NAME when .env sets one, otherwise the
+# directory name. Without this the suite reaches every container on the host,
+# and two checkouts running at once means the tests silently operate on whichever
+# one happens to own the name they looked up. Confirmed live: with a deployment
+# up and this checkout's containers prefixed, `pytest -m containers` reported 57
+# passed against the *deployment's* containers, and the rotation tier restarts
+# what it finds.
+COMPOSE_PROJECT = ENV.get("COMPOSE_PROJECT_NAME") or REPO_ROOT.name
+
+# Prepended to every container_name in the compose files, empty for a normal
+# deployment. Service names are unprefixed, so tests and the SERVICES registry
+# keep naming services and this is the only place that knows the difference.
+CONTAINER_PREFIX = ENV.get("CONTAINER_PREFIX") or ""
+
+
+def container_name(service: str) -> str:
+    """The real container name for a service in this checkout."""
+    return f"{CONTAINER_PREFIX}{service}"
+
 
 def pytest_collection_modifyitems(config, items):
     """Keep every rotation_isolated case for one app on a single xdist worker.
@@ -357,10 +377,26 @@ def docker_client():
 
 @pytest.fixture(scope="session")
 def running_containers(docker_client):
+    """This checkout's running containers, keyed by service name.
+
+    Filtered by the compose project label rather than listing everything on the
+    host, so a second checkout's containers are invisible here even when they are
+    running. Keyed by the `com.docker.compose.service` label rather than the
+    container name, so a CONTAINER_PREFIX never reaches the callers or the
+    SERVICES registry; the objects still carry their real prefixed names, which is
+    what exec and restart need.
+    """
     try:
-        return {c.name: c for c in docker_client.containers.list()}
+        found = docker_client.containers.list(
+            filters={"label": f"com.docker.compose.project={COMPOSE_PROJECT}"}
+        )
     except Exception:
         return {}
+    keyed = {}
+    for c in found:
+        service = (c.labels or {}).get("com.docker.compose.service")
+        keyed[service or c.name] = c
+    return keyed
 
 
 def container_running(name: str, running_containers: dict) -> bool:
@@ -380,7 +416,7 @@ def fresh_container(docker_client, name: str):
     container (rotation, rinse-and-repeat), that container gets a new ID and
     the cached object's exec_run() calls 404 against the old one.
     """
-    return docker_client.containers.get(name)
+    return docker_client.containers.get(container_name(name))
 
 
 def skip_if_not_running_fresh(docker_client, name: str, timeout: int = 60):
@@ -402,7 +438,7 @@ def skip_if_not_running_fresh(docker_client, name: str, timeout: int = 60):
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
-            if docker_client.containers.get(name).status == "running":
+            if docker_client.containers.get(container_name(name)).status == "running":
                 return
         except docker.errors.NotFound:
             pass
@@ -590,7 +626,9 @@ def restart_container(name: str, retries: int = 6, delay: int = 5):
     for _ in range(retries):
         try:
             subprocess.run(  # nosec B607 - podman is a trusted, fixed CLI in this stack
-                ["podman", "restart", name], check=True, capture_output=True
+                ["podman", "restart", container_name(name)],
+                check=True,
+                capture_output=True,
             )
             return
         except subprocess.CalledProcessError as exc:

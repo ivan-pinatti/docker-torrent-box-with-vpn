@@ -11,7 +11,7 @@ services:
   gluetun:
     <<: *limit-gluetun
     image: ghcr.io/qdm12/gluetun:${GLUETUN_VERSION}
-    container_name: gluetun
+    container_name: ${CONTAINER_PREFIX}gluetun
     profiles: ["${GLUETUN_PROFILE}"]
     networks:
       wan: {}
@@ -90,7 +90,7 @@ services:
   # ever populates gluetun's config to actually point at it.
   vpn_mock:
     image: docker.io/linuxserver/wireguard:${VPN_MOCK_VERSION}
-    container_name: vpn_mock
+    container_name: ${CONTAINER_PREFIX}vpn_mock
     profiles: ["${VPN_MOCK_PROFILE}"]
     networks:
       wan: {}

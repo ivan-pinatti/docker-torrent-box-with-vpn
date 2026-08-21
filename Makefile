@@ -327,7 +327,7 @@ bootstrap: configs/flaresolverr/config/chromedriver
 		echo "ERROR: Gluetun did not report a running VPN connection after 90s."; \
 		echo "This usually means the WireGuard key in configs/gluetun/.secret is wrong,"; \
 		echo "or the provider/server settings in configs/gluetun/.env don't match your"; \
-		echo "account. Check 'podman logs gluetun' for the exact reason, fix"; \
+		echo "account. Check 'podman logs $(CONTAINER_PREFIX)gluetun' for the exact reason, fix"; \
 		echo "configs/gluetun/.env or .secret, then re-run 'make bootstrap'."; \
 		exit 1; \
 	fi
@@ -474,8 +474,8 @@ down:
 					echo "$$remaining" | xargs -r podman kill >/dev/null || true; \
 				fi; \
 			fi; \
-			echo "$$project_containers" | grep -vx gluetun | xargs -r podman rm --force --time 0 >/dev/null || true; \
-			echo "$$project_containers" | grep -x gluetun | xargs -r podman rm --force --time 0 >/dev/null || true; \
+			echo "$$project_containers" | grep -vx $(CONTAINER_PREFIX)gluetun | xargs -r podman rm --force --time 0 >/dev/null || true; \
+			echo "$$project_containers" | grep -x $(CONTAINER_PREFIX)gluetun | xargs -r podman rm --force --time 0 >/dev/null || true; \
 			for network in edge wan apps services media observability; do \
 				podman network rm "$(COMPOSE_PROJECT_NAME)_$$network" >/dev/null 2>&1 || true; \
 			done; \
@@ -723,12 +723,12 @@ pull_docker_images:
 # scheduled it.
 define wait_for_gluetun
 	@echo "Waiting for VPN gateway to be healthy (up to 180s)..."
-	@timeout 180 sh -c 'until $(RUNTIME) inspect gluetun --format "{{.State.Running}} {{.State.Health.Status}}" 2>/dev/null | grep -qx "true healthy" \
-		|| { $(RUNTIME) inspect gluetun --format "{{.State.Running}}" 2>/dev/null | grep -qx true \
-			&& $(RUNTIME) exec gluetun wget -q -O /dev/null http://127.0.0.1:9999/ 2>/dev/null; }; do sleep 5; done' || { \
+	@timeout 180 sh -c 'until $(RUNTIME) inspect $(CONTAINER_PREFIX)gluetun --format "{{.State.Running}} {{.State.Health.Status}}" 2>/dev/null | grep -qx "true healthy" \
+		|| { $(RUNTIME) inspect $(CONTAINER_PREFIX)gluetun --format "{{.State.Running}}" 2>/dev/null | grep -qx true \
+			&& $(RUNTIME) exec $(CONTAINER_PREFIX)gluetun wget -q -O /dev/null http://127.0.0.1:9999/ 2>/dev/null; }; do sleep 5; done' || { \
 		echo "ERROR: gluetun did not become healthy in time"; \
 		echo "--- gluetun state ---"; \
-		$(RUNTIME) inspect gluetun \
+		$(RUNTIME) inspect $(CONTAINER_PREFIX)gluetun \
 			--format 'status={{.State.Status}} health={{.State.Health.Status}} exitcode={{.State.ExitCode}}' \
 			2>/dev/null || echo "(gluetun could not be inspected; it may never have been created)"; \
 		echo "--- gluetun log, last 40 lines ---"; \

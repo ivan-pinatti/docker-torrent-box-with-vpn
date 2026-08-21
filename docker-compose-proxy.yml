@@ -81,7 +81,7 @@ services:
   nginx:
     <<: *limit-nginx
     image: docker.io/nginx:${NGINX_VERSION}
-    container_name: nginx
+    container_name: ${CONTAINER_PREFIX}nginx
     profiles: ["${NGINX_PROFILE}"]
     networks:
       edge: {}
@@ -182,7 +182,7 @@ services:
   homepage:
     <<: *limit-homepage
     image: ghcr.io/gethomepage/homepage:${HOMEPAGE_VERSION}
-    container_name: homepage
+    container_name: ${CONTAINER_PREFIX}homepage
     profiles: ["${HOMEPAGE_PROFILE}"]
     networks:
       apps:
