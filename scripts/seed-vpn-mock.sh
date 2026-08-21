@@ -134,7 +134,7 @@ until [[ -s "$PEER_CONF" ]]; do
   elapsed=$((elapsed + 2))
   if [[ $elapsed -ge 60 ]]; then
     echo "ERROR: ${PEER_CONF} was not generated after 60s." >&2
-    echo "Check 'podman logs vpn_mock' for details." >&2
+    echo "Check 'podman logs $(env_value CONTAINER_PREFIX)vpn_mock' for details." >&2
     exit 1
   fi
 done

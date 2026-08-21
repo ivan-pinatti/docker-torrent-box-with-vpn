@@ -27,6 +27,14 @@ env_value() {
   grep -m1 "^${key}=" .env | cut -d= -f2-
 }
 
+# Container names carry CONTAINER_PREFIX, which is empty for a deployment and
+# set in a second checkout's .env so its containers do not collide with the
+# deployment's on podman's global container namespace. Service names stay
+# unprefixed everywhere else in this script, and this is resolved at the point
+# podman is invoked and nowhere else, so no caller can prefix something twice.
+CONTAINER_PREFIX="$(env_value CONTAINER_PREFIX)"
+cname() { printf '%s%s' "$CONTAINER_PREFIX" "$1"; }
+
 JELLYFIN_HTTP_PORT="$(env_value JELLYFIN_HTTP_PORT)"
 # BaseUrl is a server-wide Jellyfin setting (see wire-connections.sh), not an
 # nginx-only rewrite, so every direct call here needs it too: a bare
@@ -149,7 +157,7 @@ write_secret_file() {
 container_curl() {
   local container_name="$1"
   shift
-  podman exec "$container_name" curl "$@"
+  podman exec "$(cname "$container_name")" curl "$@"
 }
 
 # Stop the listed containers if they exist, remembering which ones were
@@ -174,9 +182,9 @@ stop_container() {
   local c exempt=() normal=() pids=()
   for c in "$@"; do
     if [[ " ${STOP_TIMEOUT_EXEMPT[*]} " == *" ${c} "* ]]; then
-      exempt+=("$c")
+      exempt+=("$(cname "$c")")
     else
-      normal+=("$c")
+      normal+=("$(cname "$c")")
     fi
   done
   # Both batches run concurrently so an exempt container waiting out its
@@ -200,7 +208,7 @@ stop_existing() {
   STOPPED_CONTAINERS=()
   local c
   for c in "$@"; do
-    if podman container exists "$c" 2>/dev/null; then
+    if podman container exists "$(cname "$c")" 2>/dev/null; then
       stop_container "$c"
       STOPPED_CONTAINERS+=("$c")
     fi
@@ -208,7 +216,7 @@ stop_existing() {
 }
 
 container_running() {
-  podman container inspect -f '{{.State.Running}}' "$1" 2>/dev/null | grep -q '^true$'
+  podman container inspect -f '{{.State.Running}}' "$(cname "$1")" 2>/dev/null | grep -q '^true$'
 }
 
 # podman start can transiently fail with "container state improper" when
@@ -226,7 +234,7 @@ start_containers_retrying() {
     still_remaining=()
     for c in "${remaining[@]}"; do
       container_running "$c" && continue
-      podman start "$c" >/dev/null 2>&1 || still_remaining+=("$c")
+      podman start "$(cname "$c")" >/dev/null 2>&1 || still_remaining+=("$c")
     done
     remaining=("${still_remaining[@]}")
     [[ ${#remaining[@]} -eq 0 ]] && return 0
@@ -346,7 +354,7 @@ update_prowlarr_application() {
   local app_name="$2"
   local new_key="$3"
 
-  if ! podman container exists prowlarr 2>/dev/null; then
+  if ! podman container exists "$(cname prowlarr)" 2>/dev/null; then
     echo "[Prowlarr] Container doesn't exist, skipping application update for '${app_name}'."
     return 0
   fi
@@ -402,7 +410,7 @@ update_prowlarr_application() {
 propagate_prowlarr_key() {
   local new_key="$1"
 
-  if ! podman container exists prowlarr 2>/dev/null; then
+  if ! podman container exists "$(cname prowlarr)" 2>/dev/null; then
     return 0
   fi
 
@@ -431,7 +439,7 @@ propagate_prowlarr_key() {
   local entry app scheme port base api_version xml_path app_key indexers
   for entry in "${targets[@]}"; do
     read -r app api_version xml_path <<<"$entry"
-    podman container exists "$app" 2>/dev/null || continue
+    podman container exists "$(cname "$app")" 2>/dev/null || continue
     app_key=$(get_xml_apikey "$xml_path") || continue
     [[ -n "$app_key" ]] || continue
     read -r scheme port base <<<"$(arr_endpoint "$xml_path")"
@@ -464,7 +472,7 @@ propagate_prowlarr_key() {
   # on shutdown like every other INI-configured app in this stack, so the
   # edit needs the same stop-edit-start as rotate_nzbhydra2() already uses
   # for the same file, not a live write.
-  if [[ -f "$LAZYLIBRARIAN_INI" ]] && podman container exists lazylibrarian 2>/dev/null; then
+  if [[ -f "$LAZYLIBRARIAN_INI" ]] && podman container exists "$(cname lazylibrarian)" 2>/dev/null; then
     stop_existing lazylibrarian
     python3 - <<PYEOF
 from pathlib import Path
@@ -622,7 +630,7 @@ rotate_bazarr() {
   echo "[Bazarr] Stopping container and updating auth.apikey in config.yaml..."
   stop_container bazarr
   yq -i ".auth.apikey = \"$new_key\"" "$BAZARR_CONFIG"
-  podman start bazarr >/dev/null
+  podman start "$(cname bazarr)" >/dev/null
 
   write_secret_file "$BAZARR_API_KEY_SECRET" "$new_key"
 
@@ -658,7 +666,7 @@ rotate_lazylibrarian() {
   echo "[LazyLibrarian] Stopping container and writing new api_key..."
   stop_container lazylibrarian
   sed -i "s|^api_key = .*|api_key = ${new_key}|" "$LAZYLIBRARIAN_INI"
-  podman start lazylibrarian >/dev/null
+  podman start "$(cname lazylibrarian)" >/dev/null
 
   local prowlarr_key
   prowlarr_key=$(get_xml_apikey "$PROWLARR_XML")
@@ -682,7 +690,7 @@ rotate_mylar() {
   echo "[Mylar] Stopping container and writing new api_key..."
   stop_container mylar
   sed -i "s|^api_key = .*|api_key = ${new_key}|" "$MYLAR_INI"
-  podman start mylar >/dev/null
+  podman start "$(cname mylar)" >/dev/null
 
   local prowlarr_key
   prowlarr_key=$(get_xml_apikey "$PROWLARR_XML")
@@ -871,7 +879,7 @@ rotate_if_enabled() {
     echo "ERROR: ${profile_var}_PROFILE is disabled in .env; not rotating $container_name" >&2
     exit 1
   fi
-  if ! podman container exists "$container_name" 2>/dev/null; then
+  if ! podman container exists "$(cname "$container_name")" 2>/dev/null; then
     if [[ "$TARGET" == "all" ]]; then
       echo "[$container_name] Skipped, container doesn't exist"
       return
@@ -936,7 +944,7 @@ esac
 # a couple of seconds and this one succeeds right after.
 # ---------------------------------------------------------------------------
 
-if podman container exists homepage 2>/dev/null; then
+if podman container exists "$(cname homepage)" 2>/dev/null; then
   echo ""
   echo "Recreating homepage to load the new keys..."
   if ! retry 30 podman-compose --file docker-compose.yml --profile enabled up -d --force-recreate homepage; then

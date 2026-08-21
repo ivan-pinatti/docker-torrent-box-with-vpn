@@ -43,13 +43,13 @@ services:
   sabnzbd:
     <<: *limit-downloaders
     image: docker.io/linuxserver/sabnzbd:${SABNZBD_VERSION}
-    container_name: sabnzbd
+    container_name: ${CONTAINER_PREFIX}sabnzbd
     depends_on:
       ${VPN_PROVIDER}:
         condition: service_healthy
         restart: true
     profiles: ["${SABNZBD_PROFILE}"]
-    network_mode: container:${VPN_PROVIDER}
+    network_mode: container:${CONTAINER_PREFIX}${VPN_PROVIDER}
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
@@ -93,10 +93,10 @@ services:
   nzbget:
     <<: *limit-downloaders
     image: docker.io/linuxserver/nzbget:${NZBGET_VERSION}
-    container_name: nzbget
+    container_name: ${CONTAINER_PREFIX}nzbget
     depends_on: ["${VPN_PROVIDER}"]
     profiles: ["${NZBGET_PROFILE}"]
-    network_mode: container:${VPN_PROVIDER}
+    network_mode: container:${CONTAINER_PREFIX}${VPN_PROVIDER}
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
@@ -123,7 +123,7 @@ services:
   nzbhydra2:
     <<: *limit-nzbhydra2
     image: docker.io/linuxserver/nzbhydra2:${NZBHYDRA2_VERSION}
-    container_name: nzbhydra2
+    container_name: ${CONTAINER_PREFIX}nzbhydra2
     profiles: ["${NZBHYDRA2_PROFILE}"]
     networks:
       apps:
