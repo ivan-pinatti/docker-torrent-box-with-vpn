@@ -209,6 +209,21 @@ for what was fixed and when.
   merge queues are reported to interact badly with required approvals and
   Renovate, so check that before choosing
 
+## Observability in CI
+
+- [ ] Get `podman_exporter` and `podman_limits_exporter` running in CI, or record
+  that they never will. Both set `userns_mode`, podman-compose puts every service
+  in a pod, and podman 4.9.3 refuses the combination outright with `--userns and
+  --pod cannot be set together`. CI runs the Ubuntu archive's 4.9.3 deliberately,
+  so the version is not the thing to change. The options are podman-compose's
+  `--in-pod=false`, which alters the topology CI tests against and would break
+  `test_observability`'s assertions on the pod name, or dropping `userns_mode`,
+  which is what lets those exporters read the podman socket as the right
+  identity. Both work on a bench, verified on podman 5.8.4, so
+  `make bootstrap_tests` still covers them: this is a CI coverage gap rather than
+  a broken service. The workflow disables them explicitly, with the reason beside
+  the line
+
 ## Test suite
 
 - [ ] Stop `test_compose_available` failing when one compose flavour is merely
