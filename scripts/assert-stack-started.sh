@@ -36,6 +36,20 @@ set -uo pipefail
 readonly TIMEOUT="${STACK_START_TIMEOUT:-300}"
 readonly INTERVAL=5
 
+# Validated rather than trusted, because a non-numeric value fails quietly in the
+# worst direction. This script runs under `set -uo pipefail` and deliberately not
+# `set -e`, so `[ "$elapsed" -ge "$TIMEOUT" ]` against a non-number prints
+# "integer expression expected" and returns non-zero, the bound never triggers,
+# and the loop runs until `compose up` happens to exit. A typo in the variable
+# would therefore remove the timeout instead of reporting itself. Zero stays
+# valid: it means check once and report what is already running.
+case "$TIMEOUT" in
+'' | *[!0-9]*)
+  echo "ERROR: STACK_START_TIMEOUT must be a whole number of seconds, got '${TIMEOUT}'." >&2
+  exit 1
+  ;;
+esac
+
 if command -v podman >/dev/null 2>&1; then
   RUNTIME=podman
   if command -v podman-compose >/dev/null 2>&1; then
