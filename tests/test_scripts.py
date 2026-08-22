@@ -323,3 +323,74 @@ def test_generate_homepage_services_tolerates_unowned_output_file(
 
     assert module.main() == 0
     assert "Sonarr" in output_file.read_text()
+
+
+def test_assert_stack_started_refuses_an_empty_service_list(tmp_path):
+    """No service list means nothing was checked, which must not read as success.
+
+    The script decides whether a start worked by comparing the enabled services
+    against the running ones. If the compose invocation yields no services at
+    all, the comparison is vacuous and every service trivially "present", which
+    is the shape of bug this script exists to end rather than to repeat. It has
+    to refuse instead.
+    """
+    empty = tmp_path / "empty-compose.yml"
+    empty.write_text("services: {}\n")
+    result = subprocess.run(
+        [str(SCRIPTS / "assert-stack-started.sh"), "--file", str(empty)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert result.returncode != 0, (
+        f"an empty service list was accepted: {result.stdout}{result.stderr}"
+    )
+    assert "could not determine which services should be running" in result.stderr
+
+
+def test_assert_stack_started_reports_the_services_it_cannot_find(tmp_path):
+    """A failure names the missing services rather than only a count.
+
+    The message is the whole value of this check when a start goes wrong: the
+    step it replaced reported an exit status and nothing about which containers
+    were absent.
+    """
+    compose = tmp_path / "compose.yml"
+    compose.write_text(
+        "services:\n"
+        "  nothing-of-this-name-is-running:\n"
+        "    image: docker.io/library/alpine:3\n"
+    )
+    result = subprocess.run(
+        [str(SCRIPTS / "assert-stack-started.sh"), "--file", str(compose)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        env={**os.environ, "STACK_START_TIMEOUT": "0"},
+    )
+    assert result.returncode != 0
+    assert "nothing-of-this-name-is-running" in result.stderr, result.stderr
+
+
+@pytest.mark.parametrize("value", ["abc", "5s", "-1", "3.5", " "])
+def test_assert_stack_started_rejects_a_non_numeric_timeout(value):
+    """A bad timeout must be reported, not silently remove the bound.
+
+    The script runs under `set -uo pipefail` and deliberately not `set -e`, so an
+    non-number that is never checked makes the `-ge` comparison print "integer expression
+    expected" and return non-zero. The bound would then never trigger and the
+    loop would run until `compose up` happened to exit, which is a typo quietly
+    disabling the timeout rather than announcing itself.
+    """
+    result = subprocess.run(
+        [str(SCRIPTS / "assert-stack-started.sh"), "--file", "docker-compose.yml"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        env={**os.environ, "STACK_START_TIMEOUT": value},
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "must be a whole number of seconds" in result.stderr, result.stderr
