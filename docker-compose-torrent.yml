@@ -41,13 +41,13 @@ services:
   qbittorrent:
     <<: *limit-downloaders
     image: docker.io/linuxserver/qbittorrent:${QBITTORRENT_VERSION}
-    container_name: qbittorrent
+    container_name: ${CONTAINER_PREFIX}qbittorrent
     depends_on:
       ${VPN_PROVIDER}:
         condition: service_healthy
         restart: true
     profiles: ["${QBITTORRENT_PROFILE}"]
-    network_mode: container:${VPN_PROVIDER}
+    network_mode: container:${CONTAINER_PREFIX}${VPN_PROVIDER}
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
@@ -75,13 +75,13 @@ services:
   jdownloader2:
     <<: *limit-downloaders
     image: docker.io/jlesage/jdownloader-2:${JDOWNLOADER2_VERSION}
-    container_name: jdownloader2
+    container_name: ${CONTAINER_PREFIX}jdownloader2
     depends_on:
       ${VPN_PROVIDER}:
         condition: service_healthy
         restart: true
     profiles: ["${JDOWNLOADER2_PROFILE}"]
-    network_mode: container:${VPN_PROVIDER}
+    network_mode: container:${CONTAINER_PREFIX}${VPN_PROVIDER}
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true

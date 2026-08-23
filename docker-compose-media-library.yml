@@ -73,7 +73,7 @@ services:
   jellyfin:
     <<: *limit-jellyfin
     image: docker.io/linuxserver/jellyfin:${JELLYFIN_VERSION}
-    container_name: jellyfin
+    container_name: ${CONTAINER_PREFIX}jellyfin
     profiles: ["${JELLYFIN_PROFILE}"]
     networks:
       - media
@@ -120,7 +120,7 @@ services:
   audiobookshelf:
     <<: *limit-audiobookshelf
     image: ghcr.io/advplyr/audiobookshelf:${AUDIOBOOKSHELF_VERSION}
-    container_name: audiobookshelf
+    container_name: ${CONTAINER_PREFIX}audiobookshelf
     profiles: ["${AUDIOBOOKSHELF_PROFILE}"]
     networks:
       media:
@@ -153,7 +153,7 @@ services:
   calibre:
     <<: *limit-calibre
     image: docker.io/linuxserver/calibre:${CALIBRE_VERSION}
-    container_name: calibre
+    container_name: ${CONTAINER_PREFIX}calibre
     profiles: ["${CALIBRE_PROFILE}"]
     networks:
       media:
@@ -202,7 +202,7 @@ services:
   calibre-web:
     <<: *limit-calibreweb
     image: docker.io/linuxserver/calibre-web:${CALIBREWEB_VERSION}
-    container_name: calibre-web
+    container_name: ${CONTAINER_PREFIX}calibre-web
     profiles: ["${CALIBREWEB_PROFILE}"]
     networks:
       media:
@@ -242,7 +242,7 @@ services:
   korsync:
     <<: *limit-korsync
     image: ghcr.io/nperez0111/koreader-sync:${KORSYNC_VERSION}
-    container_name: korsync
+    container_name: ${CONTAINER_PREFIX}korsync
     profiles: ["${KORSYNC_PROFILE}"]
     networks:
       media:

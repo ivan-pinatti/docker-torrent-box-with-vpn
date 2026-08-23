@@ -60,7 +60,7 @@ services:
   cadvisor:
     <<: *limit-telemetry
     image: gcr.io/cadvisor/cadvisor:${CADVISOR_VERSION}
-    container_name: cadvisor
+    container_name: ${CONTAINER_PREFIX}cadvisor
     profiles: ["${CADVISOR_PROFILE}"]
     networks: ["observability"]
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
@@ -88,7 +88,7 @@ services:
   podman_exporter:
     <<: *limit-telemetry
     image: quay.io/navidys/prometheus-podman-exporter:${PODMAN_EXPORTER_VERSION}
-    container_name: podman_exporter
+    container_name: ${CONTAINER_PREFIX}podman_exporter
     profiles: ["${PODMAN_EXPORTER_PROFILE}"]
     networks: ["observability"]
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
@@ -108,7 +108,7 @@ services:
   podman_limits_exporter:
     <<: *limit-telemetry
     image: docker.io/library/python:${PODMAN_LIMITS_EXPORTER_VERSION}
-    container_name: podman_limits_exporter
+    container_name: ${CONTAINER_PREFIX}podman_limits_exporter
     profiles: ["${PODMAN_LIMITS_EXPORTER_PROFILE}"]
     networks: ["observability"]
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
@@ -127,7 +127,7 @@ services:
   node_exporter:
     <<: *limit-telemetry
     image: docker.io/prom/node-exporter:${NODE_EXPORTER_VERSION}
-    container_name: node_exporter
+    container_name: ${CONTAINER_PREFIX}node_exporter
     profiles: ["${NODE_EXPORTER_PROFILE}"]
     networks: ["observability"]
     # ports:
@@ -158,7 +158,7 @@ services:
           memory: ${ALLOY_MEMORY}
           cpus: "${TELEMETRY_CPUS}"
     image: docker.io/grafana/alloy:${ALLOY_VERSION}
-    container_name: alloy
+    container_name: ${CONTAINER_PREFIX}alloy
     profiles: ["${ALLOY_PROFILE}"]
     networks: ["observability"]
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
@@ -184,7 +184,7 @@ services:
   log_rotator:
     <<: *limit-log-rotator
     image: docker.io/alpine:${LOG_ROTATOR_VERSION}
-    container_name: log_rotator
+    container_name: ${CONTAINER_PREFIX}log_rotator
     profiles: ["${LOG_ROTATOR_PROFILE}"]
     restart: unless-stopped
     user: "${LOG_ROTATOR_UID}:${LOG_ROTATOR_GID}"
@@ -211,7 +211,7 @@ services:
   prometheus:
     <<: *limit-telemetry
     image: docker.io/prom/prometheus:${PROMETHEUS_VERSION}
-    container_name: prometheus
+    container_name: ${CONTAINER_PREFIX}prometheus
     profiles: ["${PROMETHEUS_PROFILE}"]
     networks: ["observability"]
     # ports:
@@ -243,7 +243,7 @@ services:
   loki:
     <<: *limit-telemetry
     image: docker.io/grafana/loki:${LOKI_VERSION}
-    container_name: loki
+    container_name: ${CONTAINER_PREFIX}loki
     profiles: ["${LOKI_PROFILE}"]
     networks: ["observability"]
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
@@ -264,7 +264,7 @@ services:
   grafana:
     <<: *limit-grafana
     image: docker.io/grafana/grafana-oss:${GRAFANA_VERSION}
-    container_name: grafana
+    container_name: ${CONTAINER_PREFIX}grafana
     profiles: ["${GRAFANA_PROFILE}"]
     networks: ["observability", "apps"]
     # ports:
@@ -296,7 +296,7 @@ services:
   nginx_exporter:
     <<: *limit-telemetry
     image: docker.io/nginx/nginx-prometheus-exporter:${NGINX_EXPORTER_VERSION}
-    container_name: nginx_exporter
+    container_name: ${CONTAINER_PREFIX}nginx_exporter
     profiles: ["${NGINX_EXPORTER_PROFILE}"]
     networks: ["observability"]
     sysctls: ["net.ipv6.conf.all.disable_ipv6=1", net.ipv6.conf.default.disable_ipv6=1, net.ipv6.conf.lo.disable_ipv6=1]
@@ -312,7 +312,7 @@ services:
   qbittorrent_exporter:
     <<: *limit-telemetry
     image: ghcr.io/esanchezm/prometheus-qbittorrent-exporter:${QBITTORRENT_EXPORTER_VERSION}
-    container_name: qbittorrent_exporter
+    container_name: ${CONTAINER_PREFIX}qbittorrent_exporter
     profiles: ["${QBITTORRENT_EXPORTER_PROFILE}"]
     networks: ["observability", "services"]
     restart: unless-stopped
@@ -340,7 +340,7 @@ services:
   sabnzbd_exporter:
     <<: *limit-telemetry
     image: docker.io/msroest/sabnzbd_exporter:${SABNZBD_EXPORTER_VERSION}
-    container_name: sabnzbd_exporter
+    container_name: ${CONTAINER_PREFIX}sabnzbd_exporter
     profiles: ["${SABNZBD_EXPORTER_PROFILE}"]
     networks: ["observability", "services"]
     sysctls:

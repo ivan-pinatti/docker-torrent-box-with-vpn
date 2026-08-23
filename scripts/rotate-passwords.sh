@@ -27,6 +27,14 @@ env_value() {
   grep -m1 "^${key}=" .env | cut -d= -f2-
 }
 
+# Container names carry CONTAINER_PREFIX, which is empty for a deployment and
+# set in a second checkout's .env so its containers do not collide with the
+# deployment's on podman's global container namespace. Service names stay
+# unprefixed everywhere else in this script, and this is resolved at the point
+# podman is invoked and nowhere else, so no caller can prefix something twice.
+CONTAINER_PREFIX="$(env_value CONTAINER_PREFIX)"
+cname() { printf '%s%s' "$CONTAINER_PREFIX" "$1"; }
+
 # Generated password length and whether to include special characters, both
 # configurable via .env (ROTATE_PASSWORD_LENGTH, ROTATE_PASSWORD_SPECIAL_CHARS).
 ROTATE_PASSWORD_LENGTH="$(env_value ROTATE_PASSWORD_LENGTH)"
@@ -209,7 +217,7 @@ mask() {
 container_curl() {
   local container_name="$1"
   shift
-  podman exec "$container_name" curl "$@"
+  podman exec "$(cname "$container_name")" curl "$@"
 }
 
 # Stop the listed containers if they exist, remembering which ones were
@@ -236,9 +244,9 @@ stop_container() {
   local c exempt=() normal=()
   for c in "$@"; do
     if [[ " ${STOP_TIMEOUT_EXEMPT[*]} " == *" ${c} "* ]]; then
-      exempt+=("$c")
+      exempt+=("$(cname "$c")")
     else
-      normal+=("$c")
+      normal+=("$(cname "$c")")
     fi
   done
   # Both batches run concurrently so an exempt container waiting out its
@@ -257,7 +265,7 @@ stop_existing() {
   STOPPED_CONTAINERS=()
   local c
   for c in "$@"; do
-    if podman container exists "$c" 2>/dev/null; then
+    if podman container exists "$(cname "$c")" 2>/dev/null; then
       STOPPED_CONTAINERS+=("$c")
     fi
   done
@@ -282,7 +290,7 @@ start_containers_retrying() {
     still_remaining=()
     for c in "${remaining[@]}"; do
       container_running "$c" && continue
-      podman start "$c" >/dev/null 2>&1 || still_remaining+=("$c")
+      podman start "$(cname "$c")" >/dev/null 2>&1 || still_remaining+=("$c")
     done
     remaining=("${still_remaining[@]}")
     [[ ${#remaining[@]} -eq 0 ]] && return 0
@@ -514,7 +522,7 @@ finally:
     conn.close()
 raise SystemExit(0 if updated else 1)
 PYEOF
-    podman start audiobookshelf >/dev/null
+    podman start "$(cname audiobookshelf)" >/dev/null
     # Audiobookshelf has no other host-readable record of its own password
     # (its bcrypt hash lives only in absdatabase.sqlite): persist it the same
     # way qBittorrent/Calibre-Web/Jellyfin do, rather than leaving the new
@@ -530,7 +538,7 @@ PYEOF
     SUMMARY_AUDIOBOOKSHELF_USER="$AUDIOBOOKSHELF_USER"
     SUMMARY_AUDIOBOOKSHELF_NEW="$new_password"
   else
-    podman start audiobookshelf >/dev/null
+    podman start "$(cname audiobookshelf)" >/dev/null
     echo "[Audiobookshelf] No user '${AUDIOBOOKSHELF_USER}' yet, skipping."
     echo "[Audiobookshelf] Complete its setup wizard first, then re-run"
     echo "[Audiobookshelf] 'make rotate_all SERVICE=audiobookshelf'."
@@ -547,7 +555,7 @@ rotate_bazarr() {
   echo "[Bazarr] Stopping container and writing MD5-hashed password to config.yaml..."
   stop_container bazarr
   yq -i ".auth.password = \"$new_md5\"" "$BAZARR_CONFIG"
-  podman start bazarr >/dev/null
+  podman start "$(cname bazarr)" >/dev/null
   SUMMARY_BAZARR_USER="bazarr"
   SUMMARY_BAZARR_NEW="$new_password"
 }
@@ -566,7 +574,7 @@ rotate_calibre() {
 
   echo "[Calibre] Stopping calibre and lazylibrarian to update credentials..."
   stop_existing lazylibrarian
-  if podman container exists calibre 2>/dev/null; then
+  if podman container exists "$(cname calibre)" 2>/dev/null; then
     stop_container calibre
   fi
 
@@ -682,7 +690,7 @@ finally:
     conn.close()
 raise SystemExit(0 if updated else 1)
 PYEOF
-    podman start calibre-web >/dev/null
+    podman start "$(cname calibre-web)" >/dev/null
 
     python3 - <<PYEOF
 from pathlib import Path
@@ -704,7 +712,7 @@ PYEOF
     SUMMARY_CALIBRE_WEB_USER="$CALIBREWEB_USER"
     SUMMARY_CALIBRE_WEB_NEW="$new_password"
   else
-    podman start calibre-web >/dev/null
+    podman start "$(cname calibre-web)" >/dev/null
     echo "[Calibre-Web] No user '${CALIBREWEB_USER}' in app.db, skipping."
   fi
 }
@@ -843,7 +851,7 @@ rotate_lazylibrarian() {
   echo "[LazyLibrarian] Stopping container and writing new http_pass..."
   stop_container lazylibrarian
   sed -i "s|^http_pass = .*|http_pass = ${new_password}|" "$LAZYLIBRARIAN_CONFIG"
-  podman start lazylibrarian >/dev/null
+  podman start "$(cname lazylibrarian)" >/dev/null
   SUMMARY_LAZYLIBRARIAN_USER="lazylibrarian"
   SUMMARY_LAZYLIBRARIAN_NEW="$new_password"
 }
@@ -867,7 +875,7 @@ rotate_mylar() {
   echo "[Mylar] Stopping container and writing new http_password..."
   stop_container mylar
   sed -i "s|^http_password = .*|http_password = ${new_password}|" "$MYLAR_CONFIG"
-  podman start mylar >/dev/null
+  podman start "$(cname mylar)" >/dev/null
   SUMMARY_MYLAR_USER="mylar"
   SUMMARY_MYLAR_NEW="$new_password"
 }
@@ -889,7 +897,7 @@ PYEOF
   echo "[NZBHydra2] Stopping container and writing new bcrypt password hash..."
   stop_container nzbhydra2
   pwHash="{bcrypt}${new_hash}" yq -i '(.auth.users[0].password) = strenv(pwHash)' "$NZBHYDRA_YML"
-  podman start nzbhydra2 >/dev/null
+  podman start "$(cname nzbhydra2)" >/dev/null
 
   SUMMARY_NZBHYDRA2_USER="admin"
   SUMMARY_NZBHYDRA2_NEW="$new_password"
@@ -951,10 +959,10 @@ PYEOF
   # qBittorrent never accepted, leaving the whole stack unable to log in. The
   # jar is the Netscape format, so field 6 is the cookie name and field 7 its
   # value; the name is SID on 5.1.4 and QBT_SID_<port> on 5.2.2.
-  if ! podman exec qbittorrent \
+  if ! podman exec "$(cname qbittorrent)" \
     awk '$6 ~ /SID/ && $7 != "" { found = 1 } END { exit !found }' \
     /tmp/qbt_cookies.txt 2>/dev/null; then
-    podman exec qbittorrent rm -f /tmp/qbt_cookies.txt
+    podman exec "$(cname qbittorrent)" rm -f /tmp/qbt_cookies.txt
     echo "[qBittorrent] Login with the current password was refused, so no session was established. Aborting rotation." >&2
     exit 1
   fi
@@ -966,14 +974,14 @@ PYEOF
     --data-urlencode "json={\"web_ui_password\":\"${new_password}\"}" \
     "https://${GLUETUN_SERVICES_IP}:${QBITTORRENT_HTTPS_PORT}/api/v2/app/setPreferences")
   if [[ "$set_code" != 2* ]]; then
-    podman exec qbittorrent rm -f /tmp/qbt_cookies.txt
+    podman exec "$(cname qbittorrent)" rm -f /tmp/qbt_cookies.txt
     echo "[qBittorrent] setPreferences answered HTTP ${set_code}, so the new password was not applied. Aborting rotation." >&2
     exit 1
   fi
 
   # The cookie file lives inside the container (curl ran via podman exec),
   # so it must be removed there, not on the host.
-  podman exec qbittorrent rm -f /tmp/qbt_cookies.txt
+  podman exec "$(cname qbittorrent)" rm -f /tmp/qbt_cookies.txt
 
   # The arr apps' DownloadClients tables, and LazyLibrarian's and Mylar's
   # config files, are edited on disk; stop everything in the blast radius so
@@ -1226,13 +1234,13 @@ profile_var_for() {
 }
 
 container_running() {
-  podman container inspect -f '{{.State.Running}}' "$1" 2>/dev/null | grep -q '^true$'
+  podman container inspect -f '{{.State.Running}}' "$(cname "$1")" 2>/dev/null | grep -q '^true$'
 }
 
 container_ready() {
   local container="$1" status
   container_running "$container" || return 1
-  status=$(podman inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$container" 2>/dev/null)
+  status=$(podman inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$(cname "$container")" 2>/dev/null)
   [[ "$status" == "healthy" || "$status" == "none" ]]
 }
 
@@ -1244,7 +1252,7 @@ container_ready() {
 ensure_running() {
   local container="$1"
   container_ready "$container" && return 0
-  if ! podman container exists "$container" 2>/dev/null; then
+  if ! podman container exists "$(cname "$container")" 2>/dev/null; then
     echo "[$container] Container does not exist; run 'make start' to create it" >&2
     return 1
   fi
@@ -1299,7 +1307,7 @@ prestart_api_containers() {
     if ! profile_enabled "$(profile_var_for "$svc")"; then
       continue
     fi
-    if ! podman container exists "$svc" 2>/dev/null || container_ready "$svc"; then
+    if ! podman container exists "$(cname "$svc")" 2>/dev/null || container_ready "$svc"; then
       continue
     fi
     # A container can already be running but not yet healthy right after
@@ -1518,12 +1526,12 @@ if [[ ${#RESTART_CONSUMERS[@]} -gt 0 ]]; then
   recreate_homepage=false
   for consumer in "${RESTART_CONSUMERS[@]}"; do
     if [[ "$consumer" == "homepage" ]]; then
-      if podman container exists homepage 2>/dev/null; then
+      if podman container exists "$(cname homepage)" 2>/dev/null; then
         recreate_homepage=true
       fi
       continue
     fi
-    if podman container exists "$consumer" 2>/dev/null; then
+    if podman container exists "$(cname "$consumer")" 2>/dev/null; then
       existing_consumers+=("$consumer")
     fi
   done
@@ -1613,7 +1621,7 @@ arr_login_ok() {
 # The audiobookshelf image ships no curl, but it is a node image with global
 # fetch; the login check runs node inside the container instead.
 audiobookshelf_login_ok() {
-  podman exec audiobookshelf node -e '
+  podman exec "$(cname audiobookshelf)" node -e '
     const [port, username, password] = process.argv.slice(1);
     fetch(`http://127.0.0.1:${port}/audiobookshelf/login`, {
       method: "POST",
@@ -1691,7 +1699,7 @@ validate_calibre_web() {
     return
   fi
   echo "[Calibre-Web] Not responding after 90s; restarting..."
-  podman restart calibre-web >/dev/null 2>&1 || true
+  podman restart "$(cname calibre-web)" >/dev/null 2>&1 || true
   if retry 300 "[Calibre-Web]" calibre_web_login_ok "$password"; then
     printf "%-14s  OK\n" "calibre-web"
   else
@@ -1711,7 +1719,7 @@ grafana_login_ok() {
 # no longer redirects to /login/. Runs as a single in-container shell script
 # since container_curl only wraps one curl call.
 jdownloader2_login_ok() {
-  podman exec jdownloader2 sh -c '
+  podman exec "$(cname jdownloader2)" sh -c '
     jar=$(mktemp)
     curl -sk -c "$jar" -o /dev/null "https://127.0.0.1:'"${JDOWNLOADER2_HTTP_PORT}"'/"
     curl -sk -b "$jar" -c "$jar" -o /dev/null \
@@ -1816,7 +1824,7 @@ validate_calibre() {
     return
   fi
   echo "[Calibre] Not responding after 90s; restarting the desktop service..."
-  podman exec calibre s6-svc -r /run/service/svc-de >/dev/null 2>&1 || true
+  podman exec "$(cname calibre)" s6-svc -r /run/service/svc-de >/dev/null 2>&1 || true
   if retry 420 "[Calibre]" calibre_login_ok "$password"; then
     printf "%-14s  OK\n" "calibre"
     retry 60 "[Calibre]" calibre_content_server_ok "$password" ||

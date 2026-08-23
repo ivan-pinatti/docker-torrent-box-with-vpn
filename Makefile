@@ -333,7 +333,7 @@ bootstrap: configs/flaresolverr/config/chromedriver
 		echo "ERROR: Gluetun did not report a running VPN connection after 90s."; \
 		echo "This usually means the WireGuard key in configs/gluetun/.secret is wrong,"; \
 		echo "or the provider/server settings in configs/gluetun/.env don't match your"; \
-		echo "account. Check 'podman logs gluetun' for the exact reason, fix"; \
+		echo "account. Check 'podman logs $(CONTAINER_PREFIX)gluetun' for the exact reason, fix"; \
 		echo "configs/gluetun/.env or .secret, then re-run 'make bootstrap'."; \
 		exit 1; \
 	fi
@@ -480,8 +480,8 @@ down:
 					echo "$$remaining" | xargs -r podman kill >/dev/null || true; \
 				fi; \
 			fi; \
-			echo "$$project_containers" | grep -vx gluetun | xargs -r podman rm --force --time 0 >/dev/null || true; \
-			echo "$$project_containers" | grep -x gluetun | xargs -r podman rm --force --time 0 >/dev/null || true; \
+			echo "$$project_containers" | grep -vx $(CONTAINER_PREFIX)gluetun | xargs -r podman rm --force --time 0 >/dev/null || true; \
+			echo "$$project_containers" | grep -x $(CONTAINER_PREFIX)gluetun | xargs -r podman rm --force --time 0 >/dev/null || true; \
 			for network in edge wan apps services media observability; do \
 				podman network rm "$(COMPOSE_PROJECT_NAME)_$$network" >/dev/null 2>&1 || true; \
 			done; \
@@ -729,16 +729,16 @@ pull_docker_images:
 # scheduled it.
 define wait_for_gluetun
 	@echo "Waiting for VPN gateway to be healthy (up to 180s)..."
-	@timeout 180 sh -c 'until $(RUNTIME) inspect gluetun --format "{{.State.Running}} {{.State.Health.Status}}" 2>/dev/null | grep -qx "true healthy" \
-		|| { $(RUNTIME) inspect gluetun --format "{{.State.Running}}" 2>/dev/null | grep -qx true \
-			&& $(RUNTIME) exec gluetun wget -q -O /dev/null http://127.0.0.1:9999/ 2>/dev/null; }; do sleep 5; done' || { \
+	@timeout 180 sh -c 'until $(RUNTIME) inspect $(CONTAINER_PREFIX)gluetun --format "{{.State.Running}} {{.State.Health.Status}}" 2>/dev/null | grep -qx "true healthy" \
+		|| { $(RUNTIME) inspect $(CONTAINER_PREFIX)gluetun --format "{{.State.Running}}" 2>/dev/null | grep -qx true \
+			&& $(RUNTIME) exec $(CONTAINER_PREFIX)gluetun wget -q -O /dev/null http://127.0.0.1:9999/ 2>/dev/null; }; do sleep 5; done' || { \
 		echo "ERROR: gluetun did not become healthy in time"; \
 		echo "--- gluetun state ---"; \
-		$(RUNTIME) inspect gluetun \
+		$(RUNTIME) inspect $(CONTAINER_PREFIX)gluetun \
 			--format 'status={{.State.Status}} health={{.State.Health.Status}} exitcode={{.State.ExitCode}}' \
 			2>/dev/null || echo "(gluetun could not be inspected; it may never have been created)"; \
 		echo "--- gluetun log, last 40 lines ---"; \
-		$(RUNTIME) logs --tail 40 gluetun 2>&1 || echo "(no logs available)"; \
+		$(RUNTIME) logs --tail 40 $(CONTAINER_PREFIX)gluetun 2>&1 || echo "(no logs available)"; \
 		exit 1; \
 	}
 endef
@@ -765,24 +765,28 @@ restart:
 # happens. Detect and fix it after the fact: any container sharing gluetun's
 # network namespace whose StartedAt predates gluetun's current StartedAt has
 # a stale namespace and gets restarted.
+# Service names, not container names: heal_vpn_dependents prefixes each one
+# with CONTAINER_PREFIX itself, so this list stays readable and stays valid
+# whatever a checkout sets.
 VPN_DEPENDENT_CONTAINERS := qbittorrent jdownloader2 sabnzbd
 
 heal_vpn_dependents:
-	@if [ "$$($(RUNTIME) inspect gluetun --format '{{.State.Running}}' 2>/dev/null)" != "true" ]; then \
+	@if [ "$$($(RUNTIME) inspect $(CONTAINER_PREFIX)gluetun --format '{{.State.Running}}' 2>/dev/null)" != "true" ]; then \
 		echo "gluetun is not running, nothing to heal."; \
 		exit 0; \
 	fi; \
-	gluetun_started=$$($(RUNTIME) inspect gluetun --format '{{json .State.StartedAt}}' | tr -d '"'); \
+	gluetun_started=$$($(RUNTIME) inspect $(CONTAINER_PREFIX)gluetun --format '{{json .State.StartedAt}}' | tr -d '"'); \
 	gluetun_epoch=$$(date -d "$$gluetun_started" +%s); \
 	stale=""; \
 	for c in $(VPN_DEPENDENT_CONTAINERS); do \
-		if [ "$$($(RUNTIME) inspect $$c --format '{{.State.Running}}' 2>/dev/null)" != "true" ]; then \
+		container="$(CONTAINER_PREFIX)$$c"; \
+		if [ "$$($(RUNTIME) inspect $$container --format '{{.State.Running}}' 2>/dev/null)" != "true" ]; then \
 			continue; \
 		fi; \
-		c_started=$$($(RUNTIME) inspect $$c --format '{{json .State.StartedAt}}' | tr -d '"'); \
+		c_started=$$($(RUNTIME) inspect $$container --format '{{json .State.StartedAt}}' | tr -d '"'); \
 		c_epoch=$$(date -d "$$c_started" +%s); \
 		if [ "$$c_epoch" -lt "$$gluetun_epoch" ]; then \
-			stale="$$stale $$c"; \
+			stale="$$stale $$container"; \
 		fi; \
 	done; \
 	if [ -n "$$stale" ]; then \

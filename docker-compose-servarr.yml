@@ -74,7 +74,7 @@ services:
   bazarr:
     <<: [*servarr-common, *limit-servarr]
     image: docker.io/linuxserver/bazarr:${BAZARR_VERSION}
-    container_name: bazarr
+    container_name: ${CONTAINER_PREFIX}bazarr
     profiles: ["${BAZARR_PROFILE}"]
     networks:
       apps:
@@ -97,7 +97,7 @@ services:
   lidarr:
     <<: [*servarr-common, *limit-servarr]
     image: docker.io/linuxserver/lidarr:${LIDARR_VERSION}
-    container_name: lidarr
+    container_name: ${CONTAINER_PREFIX}lidarr
     profiles: ["${LIDARR_PROFILE}"]
     networks:
       apps:
@@ -127,7 +127,7 @@ services:
   prowlarr:
     <<: [*servarr-common, *limit-servarr]
     image: docker.io/linuxserver/prowlarr:${PROWLARR_VERSION}
-    container_name: prowlarr
+    container_name: ${CONTAINER_PREFIX}prowlarr
     profiles: ["${PROWLARR_PROFILE}"]
     networks:
       apps:
@@ -153,7 +153,7 @@ services:
   radarr:
     <<: [*servarr-common, *limit-servarr]
     image: docker.io/linuxserver/radarr:${RADARR_VERSION}
-    container_name: radarr
+    container_name: ${CONTAINER_PREFIX}radarr
     profiles: ["${RADARR_PROFILE}"]
     networks:
       apps:
@@ -181,7 +181,7 @@ services:
   readarr:
     <<: [*servarr-common, *limit-servarr]
     image: docker.io/linuxserver/readarr:${READARR_VERSION}
-    container_name: readarr
+    container_name: ${CONTAINER_PREFIX}readarr
     profiles: ["${READARR_PROFILE}"]
     networks:
       apps:
@@ -209,7 +209,7 @@ services:
   recyclarr:
     <<: *limit-servarr
     image: ghcr.io/recyclarr/recyclarr:${RECYCLARR_VERSION}
-    container_name: recyclarr
+    container_name: ${CONTAINER_PREFIX}recyclarr
     profiles: ["${RECYCLARR_PROFILE}"]
     networks: [apps, services]
     sysctls:
@@ -232,7 +232,7 @@ services:
   sonarr:
     <<: [*servarr-common, *limit-servarr]
     image: docker.io/linuxserver/sonarr:${SONARR_VERSION}
-    container_name: sonarr
+    container_name: ${CONTAINER_PREFIX}sonarr
     profiles: ["${SONARR_PROFILE}"]
     networks:
       apps:
@@ -260,7 +260,7 @@ services:
   flaresolverr:
     <<: *limit-flaresolverr
     image: docker.io/flaresolverr/flaresolverr:${FLARESOLVERR_VERSION}
-    container_name: flaresolverr
+    container_name: ${CONTAINER_PREFIX}flaresolverr
     profiles: ["${FLARESOLVERR_PROFILE}"]
     networks:
       apps:
@@ -292,7 +292,7 @@ services:
   whisparr:
     <<: [*servarr-common, *limit-servarr]
     image: ghcr.io/hotio/whisparr:${WHISPARR_VERSION}
-    container_name: whisparr
+    container_name: ${CONTAINER_PREFIX}whisparr
     profiles: ["${WHISPARR_PROFILE}"]
     networks:
       apps:
@@ -327,7 +327,7 @@ services:
       context: ./build/lazylibrarian
       args:
         BASE_VERSION: ${LAZYLIBRARIAN_VERSION}
-    container_name: lazylibrarian
+    container_name: ${CONTAINER_PREFIX}lazylibrarian
     profiles: ["${LAZYLIBRARIAN_PROFILE}"]
     networks:
       apps:
@@ -359,7 +359,7 @@ services:
       context: ./build/mylar
       args:
         BASE_VERSION: ${MYLAR_VERSION}
-    container_name: mylar
+    container_name: ${CONTAINER_PREFIX}mylar
     profiles: ["${MYLAR_PROFILE}"]
     networks:
       apps:
@@ -389,7 +389,7 @@ services:
 
   # notifiarr:
   #   image: ghcr.io/notifiarr/notifiarr:${NOTIFIARR_VERSION}
-  #   container_name: notifiarr
+  #   container_name: ${CONTAINER_PREFIX}notifiarr
   #   profiles: ["${NOTIFIARR_PROFILE}"]
   #   networks: [apps, services]
   #   sysctls:
