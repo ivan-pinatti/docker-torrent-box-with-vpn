@@ -32,4 +32,41 @@ while IFS= read -r line; do
   echo "[${ENV_FILE}] ${line}"
 done <"$OVERRIDES_FILE"
 
+# UID and GID ship as 1000 in .env.example, which is right on a typical bench and
+# wrong anywhere else. Three observability services mount the rootless podman
+# socket from /run/user/${UID}/podman, so a value that is not the invoking user's
+# makes that path not exist and podman refuses the container outright: "statfs
+# /run/user/1000/podman/podman.sock: no such file or directory". Seen on a runner
+# whose user is 1001, where cadvisor, podman_exporter and podman_limits_exporter
+# all failed to be created and `make start` reported 3 of 36 services missing.
+#
+# Derived rather than asked for, because there is no case where a test run wants
+# a UID other than the one invoking it.
+for var_line in "UID=$(id -u)" "GID=$(id -g)"; do
+  key="${var_line%%=*}"
+  if grep -q "^${key}=" "$ENV_FILE"; then
+    sed -i "s|^${key}=.*|${var_line}|" "$ENV_FILE"
+  else
+    printf '%s\n' "$var_line" >>"$ENV_FILE"
+  fi
+  echo "[${ENV_FILE}] ${var_line}"
+done
+
+# podman_exporter and podman_limits_exporter both set userns_mode, podman-compose
+# puts every service in a pod, and podman refuses that combination before version
+# 5 with "--userns and --pod cannot be set together". Disabled on those runtimes
+# rather than left to fail, since a service that cannot be created is not a test
+# result. Both are verified working on podman 5.8.4, so a bench keeps the
+# coverage and `make bootstrap_tests` remains the release gate.
+#
+# Gated on the runtime rather than on a CI environment variable: the limitation
+# belongs to podman's version, and anyone on a 4.x runtime hits it identically.
+podman_major="$(podman version --format '{{.Client.Version}}' 2>/dev/null | cut -d. -f1)"
+if [[ -n "$podman_major" ]] && ((podman_major < 5)); then
+  for key in PODMAN_EXPORTER_PROFILE PODMAN_LIMITS_EXPORTER_PROFILE; do
+    sed -i "s|^${key}=.*|${key}=disabled|" "$ENV_FILE"
+    echo "[${ENV_FILE}] ${key}=disabled (podman ${podman_major}.x cannot set --userns inside a pod)"
+  done
+fi
+
 ./scripts/seed-vpn-mock.sh
