@@ -471,6 +471,15 @@ jobs:
           # (OpenSSL needs a real IP for the certificate's subjectAltName); any
           # RFC 1918 address works here since nothing on the runner resolves it.
           sed -i 's/^LAN_IP=192.168.1.x/LAN_IP=192.168.1.100/' .env
+          # UID and GID ship as 1000, the common case on a bench and wrong here:
+          # this runner's user is 1001. Three observability services mount the
+          # rootless podman socket at /run/user/${UID}/podman, so a wrong UID
+          # makes that path not exist and podman refuses the container with
+          # "statfs /run/user/1000/podman/podman.sock: no such file or directory".
+          # It went unnoticed until `make start` began reporting which services
+          # failed to come up instead of hanging.
+          sed -i "s/^UID=.*/UID=$(id -u)/" .env
+          sed -i "s/^GID=.*/GID=$(id -g)/" .env
 
       - name: Apply the test profile overrides
         timeout-minutes: 3
@@ -508,7 +517,24 @@ jobs:
         # filtering. So it points at this repo's own credential-free mock
         # WireGuard endpoint instead; see docs/VPN_MOCK.md.
         shell: bash
-        run: make enable_test_profiles
+        run: |
+          make enable_test_profiles
+          # podman_exporter and podman_limits_exporter cannot start here, and it
+          # is the runtime rather than the services: both set userns_mode,
+          # podman-compose puts every service in a pod, and podman 4.9.3 refuses
+          # the combination outright with "--userns and --pod cannot be set
+          # together". CI runs the Ubuntu archive's 4.9.3 deliberately, see the
+          # podman install step above, so this is not a version to chase.
+          #
+          # Disabled here rather than in .env.tests, because they do work on a
+          # bench: verified on podman 5.8.4, where both come up healthy and serve
+          # metrics. `make bootstrap_tests` therefore still exercises them, and
+          # that is where the release gate lives.
+          #
+          # cadvisor stays enabled: it sets no userns_mode and only ever failed
+          # on the UID above.
+          sed -i 's/^PODMAN_EXPORTER_PROFILE=enabled/PODMAN_EXPORTER_PROFILE=disabled/' .env
+          sed -i 's/^PODMAN_LIMITS_EXPORTER_PROFILE=enabled/PODMAN_LIMITS_EXPORTER_PROFILE=disabled/' .env
 
       - name: Read PYTHON_VERSION from .env
         timeout-minutes: 1

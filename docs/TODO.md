@@ -209,21 +209,22 @@ for what was fixed and when.
   merge queues are reported to interact badly with required approvals and
   Renovate, so check that before choosing
 
-## Container names and running two checkouts
+## Observability in CI
 
-- [ ] Make `make start` fail when it creates no containers. It runs
-  `$(COMPOSE) ... up --detach --no-recreate` with no error check, and
-  podman-compose returns zero even when every individual container fails to
-  create, so the target reported success having created nothing at all: 33
-  "the container name is already in use" errors, an empty pod, exit code 0.
-  CI survives that only by accident, because `wire-connections.sh` runs
-  `set -euo pipefail` and dies trying to reach absent apps. The designed gate
-  does not catch it either: `Wait for containers to be ready` greps for
-  containers reporting `starting`, and zero containers means zero matches, so
-  it passes instantly, after which every test hits `skip_if_not_running` and
-  skips. There is no minimum container count assertion anywhere, so an empty
-  stack can produce a green suite. Asserting the started count against the
-  enabled profile set is the fix
+- [ ] Get `podman_exporter` and `podman_limits_exporter` running in CI, or record
+  that they never will. Both set `userns_mode`, podman-compose puts every service
+  in a pod, and podman 4.9.3 refuses the combination outright with `--userns and
+  --pod cannot be set together`. CI runs the Ubuntu archive's 4.9.3 deliberately,
+  so the version is not the thing to change. The options are podman-compose's
+  `--in-pod=false`, which alters the topology CI tests against and would break
+  `test_observability`'s assertions on the pod name, or dropping `userns_mode`,
+  which is what lets those exporters read the podman socket as the right
+  identity. Both work on a bench, verified on podman 5.8.4, so
+  `make bootstrap_tests` still covers them: this is a CI coverage gap rather than
+  a broken service. The workflow disables them explicitly, with the reason beside
+  the line
+
+## Container names and running two checkouts
 
 - [ ] Say in the documentation that adopting `CONTAINER_PREFIX` on an existing
   checkout needs a `make down` first, not a `make stop_all`. Stopping leaves
