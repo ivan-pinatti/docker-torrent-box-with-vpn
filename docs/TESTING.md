@@ -131,7 +131,7 @@ overrides each pass's own filter rather than combining with it. Invoke
 `tests/.venv/bin/pytest -m security` directly instead when you want just
 one marker.
 
-## The merge queue, and why `strict` came off
+## Why the suite also runs in a merge queue
 
 `main` required `strict` status checks until #117: a pull request had to be
 up to date with the current `main` before it could merge, so every merge put
@@ -142,30 +142,9 @@ applying `.env.tests` and the observability profiles came on, so a rerun costs
 more wall clock than it used to, and the number of open pull requests the
 churn multiplies against is driven by Renovate and Dependabot, which are
 deliberately scheduled to spread bumps across the week rather than land them
-one at a time.
-
-`strict` bought a real guarantee: a pull request only merges having been
-tested against the exact `main` it lands on. Dropping it without anything in
-its place would have meant a pull request could merge having only ever been
-tested against a base it is no longer on, which is not decorative for a
-repository whose suite stands up the whole stack. A merge queue is what
-restores the guarantee without the rebase cost: it tests a throwaway merge
-commit against the current `main` instead of moving the pull request's own
-head, so every merge is still proven against what it is about to land on, and
-nothing else in the queue has to rebase or rerun to stay caught up. Every
-context branch protection requires runs a second time against that commit:
-`Code Check`, `Prerequisite Checks` and `Detect Changed Paths` from
-`pull-request-validation.yml`, `Tests Verified` from this file's own suite,
-and `Pin Only` and `Review Verified` from `.github/workflows/coderabbit-gate.yml`.
-The PR-stage suite stays required exactly as it was: the queue run is an
-addition, because a dependency bot's approval has to carry test evidence
-behind it either way, and the queue commit is not the commit the bot's diff
-was actually read on.
-
-There is no post-merge canary on `main` and no revert-based recovery to fall
-back on if the queue lets something through: `main` has to be green by
-construction, which is the whole reason the queue re-runs every required
-check on its own commit rather than trusting the pull request's copy of them.
+one at a time. See [docs/MERGE_PIPELINE.md](MERGE_PIPELINE.md) for what
+replaced `strict`, why the two are paired, and what runs against the queue's
+own commit; this section covers only why a cheaper alternative was rejected.
 
 Selective or per-service testing (running only the tests a change plausibly
 touches, rather than the whole suite) was considered as a cheaper answer to
@@ -216,5 +195,5 @@ before writing your own container/HTTP helpers.
 
 ---
 
-See also: [README.md](../README.md), [docs/MAKE_COMMANDS.md](MAKE_COMMANDS.md),
-[docs/CONTRIBUTING.md](CONTRIBUTING.md)
+See also: [README.md](../README.md), [docs/MERGE_PIPELINE.md](MERGE_PIPELINE.md),
+[docs/MAKE_COMMANDS.md](MAKE_COMMANDS.md), [docs/CONTRIBUTING.md](CONTRIBUTING.md)

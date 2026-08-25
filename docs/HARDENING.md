@@ -320,26 +320,23 @@ What is placed against it instead:
   compromised Renovate could rewrite a workflow and be approved for it, and two
   of those five paths execute what they contain.
 - **CodeRabbit as the reader, gated by `Review Verified` rather than by
-  `CodeRabbit` itself** (#114). CodeRabbit's own status reports `success` on a
-  real review, a rate limited decline and a skipped draft alike, which is how
-  three pull requests merged with no review ever having happened on
-  2026-08-19. `scripts/coderabbit-review-verdict.py`, published by the same
-  gate workflow, reads the actual status description and only ever reports
-  `success` for `Review completed`. A dependency bot's pull request is graded
-  on `Pin Only` instead, since CodeRabbit never reviews one at all (#113): a
-  pin-only diff passes unattended, same as before, and a diff that reaches
-  outside that lane is graded exactly like a human pull request, which already
-  gets no automatic approval either way. Its reach is genuinely narrow either
-  way: a version bump has no reviewable content, so it cannot detect a
-  backdoored image, and it covers the same case the assertion above does, a
-  change to logic carried alongside a bump. Its comments still arrive as
-  unresolved conversations, which branch protection blocks on regardless of
-  either status, and `request_changes_workflow` stays off for the reason
-  recorded in `.coderabbit.yaml`.
+  `CodeRabbit` itself** (#114). A pin-only diff passes unattended since
+  CodeRabbit never reviews a bot's pull request at all (#113); anything that
+  reaches outside that lane is graded like a human pull request instead. Its
+  reach is genuinely narrow either way: a version bump has no reviewable
+  content, so it cannot detect a backdoored image, and it covers the same case
+  the assertion above does, a change to logic carried alongside a bump. Its
+  comments still arrive as unresolved conversations, which branch protection
+  blocks on regardless of either status, and `request_changes_workflow` stays
+  off for the reason recorded in `.coderabbit.yaml`. See
+  [docs/MERGE_PIPELINE.md](MERGE_PIPELINE.md) for the three lanes
+  `Review Verified` actually grades and why a green `CodeRabbit` check was not
+  evidence of a review in the first place.
 - **The suite itself**, which has to pass on the exact commit that merges: the
   pull request's own head, and again, against a throwaway merge commit, in the
-  merge queue. See [docs/TESTING.md](TESTING.md) for why the queue exists and
-  what replacing `strict` required status checks with it trades away.
+  merge queue. See [docs/MERGE_PIPELINE.md](MERGE_PIPELINE.md) for why the
+  queue exists and what replacing `strict` required status checks with it
+  trades away.
 
 What remains, and is accepted: the two bot identities are trusted to be
 themselves, and an upstream release that survives seven days, produces a
@@ -368,4 +365,5 @@ tests/.venv/bin/pytest -m security
 
 ---
 
-See also: [README.md](../README.md), [docs/MAKE_COMMANDS.md](MAKE_COMMANDS.md)
+See also: [README.md](../README.md), [docs/MERGE_PIPELINE.md](MERGE_PIPELINE.md),
+[docs/MAKE_COMMANDS.md](MAKE_COMMANDS.md)

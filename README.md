@@ -569,6 +569,9 @@ See [LICENSE](LICENSE.md) for full details, and [NOTICE](NOTICE.md) for the
 
 ## Contribute / Donate
 
-Contributions, bug reports, and feature requests are welcome. If you are using
-the code entirely or partially, forking it, or getting inspired by it, please see
+Contributions, bug reports, and feature requests are welcome. See
+[docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for how to get a pull request
+merged, and [docs/MERGE_PIPELINE.md](docs/MERGE_PIPELINE.md) for what runs
+between opening one and it landing on `main`. If you are using the code
+entirely or partially, forking it, or getting inspired by it, please see
 [Support the Project](#support-the-project) for sponsorship and donation options.

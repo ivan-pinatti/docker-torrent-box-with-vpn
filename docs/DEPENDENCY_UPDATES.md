@@ -3,7 +3,7 @@
 Two bots open dependency pull requests here, Dependabot and Renovate, and each owns a
 different slice of the surface. This page is the reference for what runs when and why the
 schedule is shaped the way it is. The mechanics of how a bump actually merges live in
-[docs/CONTRIBUTING.md](CONTRIBUTING.md) step 8; this page does not repeat them.
+[docs/MERGE_PIPELINE.md](MERGE_PIPELINE.md); this page does not repeat them.
 
 ## Which tool manages what
 
@@ -39,14 +39,15 @@ than restating it differently.
 
 ## Why the days are staggered
 
-Required status checks are strict on `main`, which is the setting that makes the stagger worth
-doing. Every merge puts every other open pull request behind, so each one needs a rebase and
-another full run of the integration suite, roughly fifteen minutes a time. If every ecosystem
-opened on the same day, the pull requests it produced would queue behind each other: the first
-merge rebases the rest, which triggers another round of runs, which produces another merge that
-rebases what is left again. Spreading the ecosystems and groups across the week keeps that churn
-from compounding into one bad day. Issue #117 records a case where a single small change needed
-three separate suite runs for this reason, before the schedule was spread out.
+This was written while required status checks were `strict` on `main`, the setting that made the
+stagger worth doing on its own: every merge put every other open pull request behind, so each one
+needed a rebase and another full run of the integration suite, roughly fifteen minutes a time.
+Issue #117 records a case where a single small change needed three separate suite runs for this
+reason. `strict` came off in favor of a merge queue (see [docs/MERGE_PIPELINE.md](MERGE_PIPELINE.md)),
+which removed that specific rebase cascade, but the stagger stays: the queue still processes one
+entry at a time, so opening every ecosystem's pull requests on the same day would still queue them
+behind each other for a maintainer's attention and for a runner's worth of the queue's own suite
+run, even without a rebase forcing it.
 
 ## The grouping rationale
 
