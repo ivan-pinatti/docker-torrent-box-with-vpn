@@ -49,6 +49,13 @@ jobs:
           # branches are not capped: the noise is ours to bear, and a bump that
           # merges unattended should keep asking until it is read.
           FORK_ATTEMPT_CAP: "3"
+          # Every other required context. A nudge is only worth sending when
+          # `Review Verified` is the single thing standing between a pull
+          # request and a merge; asking CodeRabbit to spend a quota slot on
+          # something that still can't merge for an unrelated reason (a
+          # failing suite, a conflict, an unresolved thread of its own) wastes
+          # the slot on a pull request that would not merge afterwards anyway.
+          OTHER_REQUIRED_CONTEXTS: "Code Check,Prerequisite Checks,Detect Changed Paths,Tests Verified,Pin Only"
         shell: bash
         run: |
           set -euo pipefail
@@ -71,20 +78,75 @@ jobs:
           while read -r number sha is_fork; do
             [ -n "$number" ] || continue
 
-            # A status whose description says it declined is not a review. Those
-            # are the ones worth re-asking for; a real "Review completed" is not.
+            # `Review Verified` already carries the reading that matters: a bot
+            # pull request that resolved green through a pin-only `Pin Only`
+            # verdict reads `success` here without CodeRabbit ever having been
+            # asked, and a pull request still waiting on something other than a
+            # review (a draft, a bot's diff not yet graded) reads `pending` for
+            # a reason a nudge cannot fix. Only a `failure` here, meaning the
+            # latest CodeRabbit description was read and was not
+            # "Review completed", is worth asking again for.
+            verified=$(gh api "repos/$REPO/commits/$sha/status" \
+              --jq "[.statuses[] | select(.context == \"Review Verified\")] | first | .state // \"\"")
+
+            case "$verified" in
+              failure) : ;;
+              *)
+                echo "#$number: Review Verified is \"${verified:-absent}\", nothing to nudge."
+                continue
+                ;;
+            esac
+
             state=$(gh api "repos/$REPO/commits/$sha/status" \
               --jq "[.statuses[] | select(.context == \"CodeRabbit\") | .description] | first // \"\"")
+            reason="Review Verified failed on \"${state:-no CodeRabbit status}\""
 
-            case "$state" in
-              "")
-                reason="no CodeRabbit status on this head" ;;
-              *[Rr]"ate limited"* | *[Ss]"kipped"*)
-                reason="status says \"$state\", which is not a review" ;;
-              *)
-                echo "#$number: \"$state\" on ${sha:0:8}, nothing to do."
-                continue ;;
-            esac
+            # Every other required context has to already be green, or a
+            # review is not the single thing this pull request is waiting on.
+            other_ok=true
+            IFS=',' read -ra contexts <<< "$OTHER_REQUIRED_CONTEXTS"
+            for context in "${contexts[@]}"; do
+              # $c below is a jq variable bound by --arg, not a shell expansion.
+              # shellcheck disable=SC2016
+              context_state=$(gh api "repos/$REPO/commits/$sha/status" \
+                --jq --arg c "$context" '[.statuses[] | select(.context == $c)] | first | .state // ""')
+              if [ "$context_state" != "success" ]; then
+                echo "#$number: \"$context\" is \"${context_state:-absent}\", not the single thing blocking this."
+                other_ok=false
+                break
+              fi
+            done
+            [ "$other_ok" = "true" ] || continue
+
+            # Unresolved threads and a real conflict both already block the
+            # merge on their own; asking for a review that cannot change either
+            # one is a wasted slot.
+            #
+            # $owner, $name and $number below are GraphQL query variables, not
+            # shell expansions; they are meant to stay literal inside the
+            # single-quoted query and are bound by the -f/-F arguments that
+            # follow it.
+            # shellcheck disable=SC2016
+            merge_info=$(gh api graphql -f query='
+              query($owner: String!, $name: String!, $number: Int!) {
+                repository(owner: $owner, name: $name) {
+                  pullRequest(number: $number) {
+                    mergeStateStatus
+                    reviewThreads(first: 1, states: [UNRESOLVED]) { totalCount }
+                  }
+                }
+              }' -f owner="${REPO%%/*}" -f name="${REPO##*/}" -F number="$number" \
+              --jq '.data.repository.pullRequest | "\(.mergeStateStatus) \(.reviewThreads.totalCount)"')
+            read -r merge_state_status unresolved_threads <<< "$merge_info"
+
+            if [ "$merge_state_status" = "DIRTY" ]; then
+              echo "#$number: has a merge conflict, nothing to nudge."
+              continue
+            fi
+            if [ "${unresolved_threads:-0}" -gt 0 ]; then
+              echo "#$number: has $unresolved_threads unresolved review thread(s) already, nothing to nudge."
+              continue
+            fi
 
             # One marker per attempt, carrying the head SHA, so the cap below
             # counts attempts against this head only and a rebase starts fresh.

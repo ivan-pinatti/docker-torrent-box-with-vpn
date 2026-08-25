@@ -306,27 +306,40 @@ What is placed against it instead:
 - **Digest pinning** (`pinDigests`). Every image that names a version is pinned
   to its manifest-list digest, so a republished tag cannot change what runs
   without a pull request saying so.
-- **A pin-only diff assertion** (`scripts/assert-pin-only-diff.py`, enforced by
-  `bot-auto-merge.yml`). The approval is withheld unless every changed line
-  differs in nothing but a version or a digest *in a pin position*, across four
-  allowed files. The qualifier is the point: a number that is not a pin is not
-  substitutable, so `PUID=1000` becoming `PUID=0`, which would run every
-  container as root, is refused like any other structural change. This
-  is aimed at the bot identity rather than the upstream: without it, approving on
-  the strength of the author means a compromised Renovate could rewrite a
-  workflow and be approved for it, and two of those four paths execute what they
-  contain.
-- **CodeRabbit as the reader.** Its comments arrive as unresolved
-  conversations, which branch protection blocks on, and neither bot resolves a
-  thread, so anything it objects to waits for a person. `request_changes_workflow`
-  is deliberately off: it would add an automatic approval once its comments were
-  resolved, and since a pull request's author may resolve conversations on their
-  own pull request without write access, that approval would let a contributor
-  clear the one review `main` requires without changing a line. Its reach is
-  genuinely narrow either way: a version bump has no reviewable content, so it
-  cannot detect a backdoored image, and it covers the same case as the assertion
-  above, a change to logic carried alongside a bump.
-- **The suite itself**, which has to pass on the exact commit that merges.
+- **A pin-only diff assertion** (`scripts/assert-pin-only-diff.py`). Its verdict
+  is published as the `Pin Only` commit status by
+  `.github/workflows/coderabbit-gate.yml`, and both `bot-auto-merge.yml`'s
+  approval and the `Review Verified` status below read that published result
+  rather than each running the script again. The approval is withheld unless
+  every changed line differs in nothing but a version or a digest *in a pin
+  position*, across five allowed files. The qualifier is the point: a number
+  that is not a pin is not substitutable, so `PUID=1000` becoming `PUID=0`,
+  which would run every container as root, is refused like any other
+  structural change. This is aimed at the bot identity rather than the
+  upstream: without it, approving on the strength of the author means a
+  compromised Renovate could rewrite a workflow and be approved for it, and two
+  of those five paths execute what they contain.
+- **CodeRabbit as the reader, gated by `Review Verified` rather than by
+  `CodeRabbit` itself** (#114). CodeRabbit's own status reports `success` on a
+  real review, a rate limited decline and a skipped draft alike, which is how
+  three pull requests merged with no review ever having happened on
+  2026-08-19. `scripts/coderabbit-review-verdict.py`, published by the same
+  gate workflow, reads the actual status description and only ever reports
+  `success` for `Review completed`. A dependency bot's pull request is graded
+  on `Pin Only` instead, since CodeRabbit never reviews one at all (#113): a
+  pin-only diff passes unattended, same as before, and a diff that reaches
+  outside that lane is graded exactly like a human pull request, which already
+  gets no automatic approval either way. Its reach is genuinely narrow either
+  way: a version bump has no reviewable content, so it cannot detect a
+  backdoored image, and it covers the same case the assertion above does, a
+  change to logic carried alongside a bump. Its comments still arrive as
+  unresolved conversations, which branch protection blocks on regardless of
+  either status, and `request_changes_workflow` stays off for the reason
+  recorded in `.coderabbit.yaml`.
+- **The suite itself**, which has to pass on the exact commit that merges: the
+  pull request's own head, and again, against a throwaway merge commit, in the
+  merge queue. See [docs/TESTING.md](TESTING.md) for why the queue exists and
+  what replacing `strict` required status checks with it trades away.
 
 What remains, and is accepted: the two bot identities are trusted to be
 themselves, and an upstream release that survives seven days, produces a

@@ -26,8 +26,9 @@ welcome your pull requests.
 | Stage | What runs | What you do |
 | --- | --- | --- |
 | Open as a **draft** | `Code Check` (the pre-commit hooks) | Fix whatever it reports |
-| **Mark ready for review** | CodeRabbit reviews (it skips drafts) | Address its comments, pushing fixes |
+| **Mark ready for review** | CodeRabbit reviews (it skips drafts); `Review Verified` grades whether it actually did | Address its comments, pushing fixes |
 | Comment **`/run-tests`** | The integration suite, against your PR | Wait for it to go green |
+| Every check green | Added to the merge queue | Wait for the queue's own run to pass |
 | Merge | | |
 
 Checks run in this order on purpose, so a cheap failure is never paid for
@@ -37,6 +38,15 @@ minutes; it never runs on a push. Only a maintainer can ask for it. The
 required `Tests Verified` check is absent on a head no run has covered, which
 reads as waiting and blocks the merge, `pending` while a run is under way, and
 `success` or `failure` once it ends, so nothing merges untested.
+
+`main` uses a merge queue rather than requiring a pull request to be rebased
+onto the latest `main` before it can merge (`strict` required status checks,
+which this repository ran until #117). The queue tests a throwaway merge
+commit against the current `main` instead of forcing a rebase of your branch,
+so `Code Check`, `Prerequisite Checks`, `Detect Changed Paths`, `Tests
+Verified`, `Pin Only` and `Review Verified` all run a second time, against
+that commit, before it actually merges. See [docs/TESTING.md](TESTING.md) for
+why this replaced `strict` rather than sitting alongside it.
 
 Pull requests from forks are tested exactly the same way. You cannot start the
 suite yourself, so say in the pull request when your change has settled and a
@@ -76,7 +86,12 @@ maintainer will comment for you.
       CodeRabbit, so it reviews an already-clean diff once, rather than
       re-reviewing after every formatting fix.
    3. **Address the review, pushing fixes as needed.** Each push re-runs the
-      lint gate, and CodeRabbit re-reviews.
+      lint gate, and CodeRabbit re-reviews. The required check here is
+      `Review Verified`, not `CodeRabbit`: `.github/workflows/coderabbit-gate.yml`
+      reads the actual description behind `CodeRabbit`'s status and only reports
+      `success` for "Review completed" (#114), so a rate limited decline or a
+      skipped draft reads `failure` or `pending` instead of the green
+      `CodeRabbit` shows for all three.
    4. **Comment `/run-tests` once the review is settled.** The suite never runs
       on a push. It stands the whole stack up and takes upward of twelve
       minutes, so it is worth spending once, on the version you intend to
@@ -86,6 +101,11 @@ maintainer will comment for you.
       tested. Push again and that status no longer applies to the new head, so
       the required check goes back to waiting; comment again when you are ready
       to spend another run.
+   5. **Once every required check is green, the merge queue takes over.**
+      `main` requires a merge queue instead of an up to date branch (#117), so
+      the pull request is added to the queue automatically and merges once a
+      throwaway merge commit against the current `main` passes every required
+      check a second time.
 
    The required `Tests Verified` check is a commit status the suite publishes
    against the head SHA it ran on, not a job. Its full lifecycle: absent on a
@@ -117,22 +137,29 @@ maintainer will comment for you.
       published without anyone commenting `/run-tests`. Nothing else changes
       about the suite: for every other pull request, forks included, it still
       only runs when a maintainer asks.
-   2. `bot-auto-merge.yml` supplies the approving review branch protection
-      requires, but only after `scripts/assert-pin-only-diff.py` confirms the
-      diff changes nothing but a version or a digest in a pin position, in one
-      of four allowed files. A number that is not a pin does not count, so a
-      `PUID` or a timeout moving is refused just as an added line would be. A
-      bump that reaches anything else waits, which is what should happen when a
-      dependency bot steps outside its lane.
-   3. CodeRabbit reviews it as the reader nobody else provides. Its comments
-      land as unresolved conversations, which branch protection will not let
-      past, and neither bot ever resolves a thread, so anything it objects to
-      waits for the maintainer. It has nothing to say about a pure digest bump,
-      which is a real limit rather than an oversight; see
+   2. `.github/workflows/coderabbit-gate.yml` publishes `scripts/assert-pin-only-diff.py`'s
+      verdict as the `Pin Only` status, confirming the diff changes nothing but
+      a version or a digest in a pin position, in one of five allowed files. A
+      number that is not a pin does not count, so a `PUID` or a timeout moving
+      is refused just as an added line would be. `bot-auto-merge.yml` supplies
+      the approving review branch protection requires only once that status
+      reads `success`; a bump that reaches anything else waits, which is what
+      should happen when a dependency bot steps outside its lane.
+   3. The same workflow publishes `Review Verified`, gating on CodeRabbit's
+      actual review rather than on its `CodeRabbit` status, which reads
+      `success` on a rate limited decline exactly as it does on a real review
+      (#114). A bot pull request that resolved pin-only in step 2 is `success`
+      here too, unread: CodeRabbit never reviews a bot's pull request at all
+      (#113). Anything that reaches outside the pin-only lane is graded like a
+      human pull request, on the actual review, which still arrives as
+      unresolved conversations that branch protection will not let past
+      whatever either status says. It has nothing to say about a pure digest
+      bump, which is a real limit rather than an oversight; see
       [docs/HARDENING.md](HARDENING.md) for what covers that instead.
-   4. GitHub merges it once every required check is green. Renovate arms
-      auto-merge itself when it opens the pull request; the workflow does it on
-      the Dependabot path, which cannot.
+   4. GitHub merges it once every required check is green, through the merge
+      queue like any other pull request (see [docs/TESTING.md](TESTING.md)).
+      Renovate arms auto-merge itself when it opens the pull request; the
+      workflow does it on the Dependabot path, which cannot.
 
    Two coupled settings make this work, and both need writing down because
    neither is visible in the repository:

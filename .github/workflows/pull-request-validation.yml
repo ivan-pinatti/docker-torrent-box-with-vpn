@@ -32,6 +32,13 @@ on:
         description: "Which jobs to run: all, checks, or tests"
         required: false
         default: all
+  # Required checks are judged against the merge queue's own temporary commit,
+  # not against the pull request's head, so `Code Check`, `Prerequisite
+  # Checks` and `Detect Changed Paths` all have to run there too or the queue
+  # can never see them pass. `github.ref` already resolves to that commit for
+  # every job below, since none of them special case the trigger the way
+  # integration-tests.yml's suite job has to.
+  merge_group:
 
 permissions:
   contents: read

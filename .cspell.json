@@ -704,6 +704,8 @@
     "unconfigured",
     "unlogged",
     "unmatch",
+    "unrecognized",
+    "unreviewed",
     "unscanned",
     "untracking",
     "urandom",

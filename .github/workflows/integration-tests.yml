@@ -62,6 +62,16 @@ on:
   # which is strictly worse.
   pull_request_target:
     types: [opened, synchronize, reopened]
+  # The merge queue tests a throwaway merge commit rather than the pull
+  # request's own head, which is the trade `strict: false` makes for dropping
+  # the rebase cascade every merge used to cause: see docs/TESTING.md. That
+  # commit has to earn its own `Tests Verified`, since required checks on
+  # `merge_group` are judged against it, not against whatever the pull request
+  # already published. The gate job below authorizes every merge_group commit
+  # unconditionally, which is safe only because reaching the queue already
+  # took a merge_group re-run of `Code Check` and `Prerequisite Checks` on
+  # this exact commit, and PR-stage approval on the pull request it came from.
+  merge_group:
 
 # The floor. Each job below narrows or widens this for itself.
 permissions:
@@ -108,6 +118,8 @@ jobs:
       ) || (
         github.event_name == 'pull_request_target' &&
         github.event.pull_request.head.repo.fork == false
+      ) || (
+        github.event_name == 'merge_group'
       )
     outputs:
       authorized: ${{ steps.auth.outputs.authorized }}
@@ -150,6 +162,16 @@ jobs:
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
+          if [ "$EVENT_NAME" = "merge_group" ]; then
+            # Unconditional, and safe only because of what already happened to
+            # reach here: PR-stage approval on the pull request this commit
+            # came from, plus a merge_group re-run of every other required
+            # check on this exact commit. Nothing about who opened the pull
+            # request is asked again.
+            echo "authorized=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           if [ "$EVENT_NAME" = "pull_request_target" ]; then
             echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
             author="${PR_AUTHOR,,}"
@@ -213,12 +235,23 @@ jobs:
         # head.repo is null when the fork it came from has since been deleted,
         # which would otherwise fail the jq here; the fallback makes that read
         # as a fork, which is the safe way round.
+        #
+        # `merge_group` needs no lookup at all: the commit under test is the
+        # event's own head, and it can never be a fork's, since the queue only
+        # ever builds this commit inside this repository.
         id: pr
         if: steps.auth.outputs.authorized == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ steps.auth.outputs.pr_number }}
+          EVENT_NAME: ${{ github.event_name }}
+          MERGE_GROUP_HEAD_SHA: ${{ github.event.merge_group.head_sha }}
         run: |
+          if [ "$EVENT_NAME" = "merge_group" ]; then
+            echo "head_sha=$MERGE_GROUP_HEAD_SHA" >> "$GITHUB_OUTPUT"
+            echo "is_fork=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER" \
             --jq '"head_sha=" + .head.sha,
                   "is_fork=" + (((.head.repo.full_name // "") != "${{ github.repository }}") | tostring)' \
@@ -286,8 +319,15 @@ jobs:
     # job goes on to use: the two triggers carry it under different keys, and a
     # fallback expression is readable where a context lookup would send the
     # reader to another job to find out what the group even is.
+    #
+    # merge_group falls back to the queue commit itself, since neither an
+    # issue nor a pull request number exists on that event; each merge group
+    # is a distinct commit, so this never collides with another one in flight.
     concurrency:
-      group: ${{ github.workflow }}-${{ github.event.issue.number || github.event.pull_request.number }}
+      group: >-
+        ${{ github.workflow }}-${{ github.event.issue.number
+        || github.event.pull_request.number
+        || github.event.merge_group.head_sha }}
       cancel-in-progress: true
     # This job runs the pull request's own code, so it gets a token that can do
     # nothing but read this public repository, and no `statuses: write`. Steps
@@ -299,10 +339,16 @@ jobs:
         timeout-minutes: 2
         uses: actions/checkout@v7
         with:
-          ref: refs/pull/${{ needs.gate.outputs.pr_number }}/merge
+          # On merge_group, `github.ref` already is the queue's own temporary
+          # commit, which is exactly what needs testing there; the pull
+          # request merge ref that every other trigger uses does not exist for
+          # this event at all.
+          ref: ${{ github.event_name == 'merge_group' && github.ref || format('refs/pull/{0}/merge', needs.gate.outputs.pr_number) }}
           # For the parent check below. At the default depth of 1 the merge
           # commit is a shallow boundary, and git reports a boundary commit as
           # having no parents at all, so there would be nothing to compare.
+          # merge_group doesn't need the second parent, but the depth is
+          # harmless there too.
           fetch-depth: 2
           # Nothing after this point should be able to reach the API with the
           # workflow's token, least of all the code being tested.
@@ -320,6 +366,12 @@ jobs:
         # GitHub computes asynchronously: a single API response can carry a
         # current head.sha next to the merge of an older head, which is the
         # same mismatch the other way round.
+        #
+        # merge_group has no such race to prove: the checkout above pinned
+        # `github.ref` directly, which is the same commit the gate already
+        # read as `head_sha`, and there is no separate "pull request head"
+        # inside a queue commit to compare it against.
+        if: github.event_name != 'merge_group'
         env:
           HEAD_SHA: ${{ needs.gate.outputs.head_sha }}
         shell: bash
