@@ -702,15 +702,36 @@ PYEOF
   # attempt on its own: this probe is checking for exactly the kind of
   # connection that never completes, so an unbounded curl could block past
   # the 420s budget below instead of retrying within it.
+  # `timeout 15`, not just curl's own --max-time 10, wraps the whole
+  # `podman exec`: --max-time only bounds curl itself once it starts, and
+  # podman exec establishing that connection is a step this probe cannot
+  # otherwise put a bound on.
   mylar_answering() {
     local status
-    status=$(container_curl mylar -sk --max-time 10 -o /dev/null -w '%{http_code}' \
-      "https://127.0.0.1:${MYLAR_HTTPS_PORT}/mylar/") || return 1
+    status=$(timeout 15 podman exec "$(cname mylar)" curl -sk --max-time 10 -o /dev/null \
+      -w '%{http_code}' "https://127.0.0.1:${MYLAR_HTTPS_PORT}/mylar/") || return 1
     [[ "$status" == "200" || "$status" == "303" || "$status" == "401" ]]
   }
-  if ! retry 420 "[Mylar]" mylar_answering; then
-    echo "[Mylar] WARNING: did not answer within 420s of restarting; its Homepage widget may still fail."
-  fi
+  # A hand rolled wait rather than the shared `retry` above: that helper
+  # counts only its own 5s sleeps toward the timeout, not the time an
+  # attempt itself takes, which is fine for the rest of this file's
+  # sub-second checks but not here, where a single attempt is deliberately
+  # allowed to take up to 10s. Counting elapsed wall clock time instead
+  # keeps the 420s figure in the comment above an actual bound rather than
+  # a lower one.
+  local start=$SECONDS elapsed
+  until mylar_answering; do
+    elapsed=$((SECONDS - start))
+    if ((elapsed >= 420)); then
+      echo "[Mylar] WARNING: did not answer within 420s of restarting; its Homepage widget may still fail."
+      break
+    fi
+    sleep 5
+    elapsed=$((SECONDS - start))
+    if ((elapsed % 30 < 5)); then
+      echo "[Mylar] ...still waiting (${elapsed}s/420s)"
+    fi
+  done
   echo "[Mylar] Done."
 }
 
