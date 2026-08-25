@@ -121,13 +121,21 @@ jobs:
             # single-quoted query and are bound by the -f/-F arguments that
             # follow it.
             required_json=$(printf '%s' "$OTHER_REQUIRED_CONTEXTS" | jq -Rc 'split(",")')
+            # `reviewThreads` takes no `states` argument at all; GraphQL
+            # rejects the query outright rather than filtering, which a first
+            # draft here got wrong and would have failed this step's `gh api`
+            # call every single run. Every thread's `isResolved` is fetched
+            # instead and counted in jq below. `first: 100` rather than a full
+            # pagination loop: a hundred review threads on one pull request in
+            # this repository is not a real number to plan for, and the day it
+            # is, this workflow is the least of the problem.
             # shellcheck disable=SC2016
             info=$(gh api graphql -f query='
               query($owner: String!, $name: String!, $number: Int!) {
                 repository(owner: $owner, name: $name) {
                   pullRequest(number: $number) {
                     mergeStateStatus
-                    reviewThreads(first: 1, states: [UNRESOLVED]) { totalCount }
+                    reviewThreads(first: 100) { nodes { isResolved } }
                     commits(last: 1) {
                       nodes {
                         commit {
@@ -151,7 +159,8 @@ jobs:
                 | ($ctxs | map({(.context // .name):
                     ((.state // .conclusion // "pending") | ascii_downcase)}) | add // {}) as $states
                 | (($required | map(select(($states[.] // "absent") != "success")) | length) == 0) as $other_ok
-                | "\(.mergeStateStatus) \(.reviewThreads.totalCount) \($other_ok)"')
+                | ([.reviewThreads.nodes[] | select(.isResolved == false)] | length) as $unresolved
+                | "\(.mergeStateStatus) \($unresolved) \($other_ok)"')
             read -r merge_state_status unresolved_threads other_ok <<< "$info"
 
             if [ "$other_ok" != "true" ]; then

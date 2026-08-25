@@ -284,15 +284,19 @@ jobs:
         # CodeRabbit status on this repository, and the creator is what proves
         # this status actually came from CodeRabbit rather than from anything
         # else with `statuses: write` on this repository choosing to call
-        # itself `CodeRabbit`. `/statuses` keeps `creator` and is already
-        # newest first, so the same "no history walk" property holds; only the
-        # login is checked, since a login can never be spoofed by a payload
-        # the way a context string can.
+        # itself `CodeRabbit`. `/statuses` keeps `creator`, unlike the combined
+        # endpoint, at the cost of returning every status ever posted to this
+        # commit rather than one per context, 30 to a page, newest first.
+        # `--paginate` walks every page before the filter runs, which matters
+        # here specifically: every push posts three CodeRabbit statuses of its
+        # own ("Review queued", "Review in progress", "Review completed"),
+        # so a handful of pushes is already enough to push a trusted status
+        # off page one and read as absent.
         shell: bash
         run: |
           set -euo pipefail
-          description=$(gh api "repos/$REPO/commits/$HEAD_SHA/statuses" \
-            --jq '[.[] | select(.context == "CodeRabbit" and .creator.login == "coderabbitai[bot]")]
+          description=$(gh api --paginate "repos/$REPO/commits/$HEAD_SHA/statuses" \
+            | jq -sr '[.[][] | select(.context == "CodeRabbit" and .creator.login == "coderabbitai[bot]")]
                   | first | .description // ""')
           echo "description=$description" >> "$GITHUB_OUTPUT"
 
