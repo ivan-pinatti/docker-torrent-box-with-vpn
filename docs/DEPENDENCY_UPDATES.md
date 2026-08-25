@@ -45,8 +45,8 @@ another full run of the integration suite, roughly fifteen minutes a time. If ev
 opened on the same day, the pull requests it produced would queue behind each other: the first
 merge rebases the rest, which triggers another round of runs, which produces another merge that
 rebases what is left again. Spreading the ecosystems and groups across the week keeps that churn
-from compounding into one bad day. `docs/TODO.md` records a case where a single small change
-needed three separate suite runs for this reason, before the schedule was spread out.
+from compounding into one bad day. Issue #117 records a case where a single small change needed
+three separate suite runs for this reason, before the schedule was spread out.
 
 ## The grouping rationale
 
@@ -96,7 +96,7 @@ arrives as its own pull request on the Saturday default instead. sabnzbd and jdo
 with nothing at all while the hold described under "Images pinned to a patch" stands; the
 isolation still describes where they land the day it is lifted. A group is only as mergeable as
 its worst member, and this week supplied two examples, both download clients: SABnzbd 5.0.4
-rewrote its own bind address in a way that broke a test (see `docs/TODO.md`), and qBittorrent
+rewrote its own bind address in a way that broke a test (see issue #108), and qBittorrent
 5.2.2 changed its login response to `204 No Content`, which is still holding pull request #83.
 Had either of those shipped inside a group, it would have blocked every other image bundled with
 it rather than only itself. gluetun is isolated for the same reason: it is what the download
@@ -191,7 +191,7 @@ wrong.
 The hold covers digest refreshes too, not only version bumps. Two of the four patches shadow a
 file belonging to the image rather than to the application: `patches/sabnzbd/svc-sabnzbd/run` is
 an s6 service script and `patches/jdownloader2/10-webauth.sh` is a `baseimage-gui` init script,
-and a rebuild of the same tag is exactly how either changes underneath the patch. `docs/TODO.md`
+and a rebuild of the same tag is exactly how either changes underneath the patch. Issue #107
 already frames the jdownloader-2 case that way, since the fix it waits on arrives as a
 `baseimage-gui` bump inside an image whose tag need not move.
 
@@ -230,8 +230,9 @@ BusyBox is a far smaller surface than our Python against a new interpreter.
 
 `tests/test_renovate_pins.py` closes the loop in the other direction: it derives the patched set
 from the `./patches/` volumes in the compose files rather than from a list, so a service that
-grows a patch mount whose image is not held fails the suite. Each of the four has an open item in
-`docs/TODO.md` for dropping its patch, and dropping one is what unfreezes its pin. That is the
+grows a patch mount whose image is not held fails the suite. Each of the four has an open issue
+for dropping its patch (#106, #107, #108, #109), and dropping one is what unfreezes its pin. That
+is the
 distinction this whole page turns on: these pins are deliberately fixed, not accidentally frozen.
 
 ## Remaining gaps
@@ -245,8 +246,8 @@ decision on the record rather than an omission.
 of one variable: as the base image the wrapper in `build/` is built on, and as the tag of the
 locally built result. A digest is legal in the first position and not in the second, because an
 image being built can only be given a tag, so `pinDigests` is turned off for both in
-`.github/renovate.json5` and the test exempts them by name. `docs/TODO.md` previously recorded
-this the other way round, asking for a digest to be added to lazylibrarian; adding one would have
+`.github/renovate.json5` and the test exempts them by name. An earlier note recorded this the
+other way round, asking for a digest to be added to lazylibrarian; adding one would have
 stopped the wrapper building.
 
 One pin is watched and still cannot be ordered. `LAZYLIBRARIAN_VERSION=40a389ea-ls310` holds no
@@ -255,7 +256,7 @@ orders it wrongly: it reads the leading `40` as the version and ranks the curren
 `9a2c0d5e-ls334`, comparing a commit hash fragment as a number. Renovate reports nothing to do
 rather than reporting that it cannot tell, which is the worse of the two failures. The hold above
 switches the pin off entirely today, so this matters on the day `patches/lazylibrarian/` is
-dropped and not before, which is why `docs/TODO.md` asks for the versioning scheme to be settled
+dropped and not before, which is why issue #119 asks for the versioning scheme to be settled
 before the hold lifts rather than after.
 
 `KORSYNC_VERSION` used to be the other case, pinned to `sha-7bcefd34...`, a commit tag nothing can
@@ -271,5 +272,4 @@ dashboard is where a lookup that resolves to nothing shows up.
 ---
 
 See also: [README.md](../README.md), [docs/HARDENING.md](HARDENING.md),
-[docs/CONTRIBUTING.md](CONTRIBUTING.md), [docs/TESTING.md](TESTING.md),
-[docs/TODO.md](TODO.md)
+[docs/CONTRIBUTING.md](CONTRIBUTING.md), [docs/TESTING.md](TESTING.md)
