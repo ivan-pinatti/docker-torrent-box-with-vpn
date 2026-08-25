@@ -630,6 +630,21 @@ PYEOF
 # instead, following this project's stop-edit-start convention for a
 # running app's database. Status stays "Paused" so Mylar never actually
 # searches or downloads anything for it.
+#
+# The restart below has to be waited out, not just fired. Mylar's own
+# unpatched mylar/__init__.py runs a synchronous, timeout-less SABnzbd
+# connectivity check (sabnzbd.py's sab_versioncheck, which calls
+# webserve.py's SABtest) on its main thread, before it ever calls
+# webstart.initialize() to open its HTTPS port. Confirmed live: when that
+# connect attempt does not fail fast, Mylar's own log shows the SABtest
+# warning landing well over a minute after the "Remapping the sorting"
+# line that precedes it, and nothing answers on MYLAR_HTTPS_PORT until
+# after that. This function's own restart is the last synchronous step of
+# bootstrap, immediately before the test suite starts, so without a wait
+# here, Homepage's Mylar widget test starts its own, much shorter, retry
+# budget on a container whose webserver has not opened its port yet, and
+# reports a 500 (issue #130). Every other widget's backing container had
+# that same startup delay behind it long before the test suite ever ran.
 ensure_mylar_placeholder_comic() {
   if ! podman container exists "$(cname mylar)" 2>/dev/null; then
     echo "[Mylar] Container doesn't exist, skipping."
@@ -673,6 +688,18 @@ conn.commit()
 conn.close()
 PYEOF
   podman start "$(cname mylar)" >/dev/null
+  # Same probe the container's own healthcheck uses, so "ready" here means
+  # the same thing it means everywhere else in this stack. 420s, not the
+  # healthcheck's own shorter window: confirmed live, mylar.SABtest makes
+  # two of those timeout-less connection attempts back to back on startup
+  # (an HTTPS one, then an HTTP fallback once the first fails), each
+  # taking a full OS connect timeout on its own, well over two minutes
+  # apiece, so the pair alone can burn upward of four and a half minutes
+  # before Mylar ever calls webstart.initialize() to open its HTTPS port.
+  if ! retry 420 "[Mylar]" container_curl mylar -sk --fail \
+    "https://127.0.0.1:${MYLAR_HTTPS_PORT}/mylar/"; then
+    echo "[Mylar] WARNING: did not answer within 420s of restarting; its Homepage widget may still fail."
+  fi
   echo "[Mylar] Done."
 }
 
