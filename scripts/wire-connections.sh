@@ -688,20 +688,27 @@ conn.commit()
 conn.close()
 PYEOF
   podman start "$(cname mylar)" >/dev/null
-  # Same probe the container's own healthcheck uses, so "ready" here means
-  # the same thing it means everywhere else in this stack. 420s, not the
-  # healthcheck's own shorter window: confirmed live, mylar.SABtest makes
-  # two of those timeout-less connection attempts back to back on startup
-  # (an HTTPS one, then an HTTP fallback once the first fails), each
-  # taking a full OS connect timeout on its own, well over two minutes
-  # apiece, so the pair alone can burn upward of four and a half minutes
-  # before Mylar ever calls webstart.initialize() to open its HTTPS port.
-  # --max-time bounds each attempt on its own: this probe is checking for
-  # exactly the kind of connection that never completes, so an unbounded
-  # curl could block past the 420s budget below instead of retrying within
-  # it.
-  if ! retry 420 "[Mylar]" container_curl mylar -sk --fail --max-time 10 \
-    "https://127.0.0.1:${MYLAR_HTTPS_PORT}/mylar/"; then
+  # Same status codes the container's own healthcheck accepts (see the
+  # mylar service's healthcheck in docker-compose-servarr.yml), so "ready"
+  # here means the same thing it means everywhere else in this stack, and
+  # a 401 (WebUI auth enabled) does not read as unready the way plain
+  # curl --fail would treat it. 420s, not the healthcheck's own shorter
+  # window: confirmed live, mylar.SABtest makes two of those timeout-less
+  # connection attempts back to back on startup (an HTTPS one, then an
+  # HTTP fallback once the first fails), each taking a full OS connect
+  # timeout on its own, well over two minutes apiece, so the pair alone
+  # can burn upward of four and a half minutes before Mylar ever calls
+  # webstart.initialize() to open its HTTPS port. --max-time bounds each
+  # attempt on its own: this probe is checking for exactly the kind of
+  # connection that never completes, so an unbounded curl could block past
+  # the 420s budget below instead of retrying within it.
+  mylar_answering() {
+    local status
+    status=$(container_curl mylar -sk --max-time 10 -o /dev/null -w '%{http_code}' \
+      "https://127.0.0.1:${MYLAR_HTTPS_PORT}/mylar/") || return 1
+    [[ "$status" == "200" || "$status" == "303" || "$status" == "401" ]]
+  }
+  if ! retry 420 "[Mylar]" mylar_answering; then
     echo "[Mylar] WARNING: did not answer within 420s of restarting; its Homepage widget may still fail."
   fi
   echo "[Mylar] Done."
