@@ -102,42 +102,62 @@ jobs:
             reason="Review Verified failed on \"${state:-no CodeRabbit status}\""
 
             # Every other required context has to already be green, or a
-            # review is not the single thing this pull request is waiting on.
-            other_ok=true
-            IFS=',' read -ra contexts <<< "$OTHER_REQUIRED_CONTEXTS"
-            for context in "${contexts[@]}"; do
-              # $c below is a jq variable bound by --arg, not a shell expansion.
-              # shellcheck disable=SC2016
-              context_state=$(gh api "repos/$REPO/commits/$sha/status" \
-                --jq --arg c "$context" '[.statuses[] | select(.context == $c)] | first | .state // ""')
-              if [ "$context_state" != "success" ]; then
-                echo "#$number: \"$context\" is \"${context_state:-absent}\", not the single thing blocking this."
-                other_ok=false
-                break
-              fi
-            done
-            [ "$other_ok" = "true" ] || continue
-
-            # Unresolved threads and a real conflict both already block the
-            # merge on their own; asking for a review that cannot change either
-            # one is a wasted slot.
+            # review is not the single thing this pull request is waiting on;
+            # a merge conflict or an unresolved thread of its own already
+            # blocks the merge too, and asking for a review that cannot change
+            # any of those is a wasted slot.
+            #
+            # One GraphQL call for all of it, not one REST call per required
+            # context. `/commits/{sha}/status` only ever returns classic
+            # commit statuses, and three of the five required contexts here
+            # (`Code Check`, `Prerequisite Checks`, `Detect Changed Paths`)
+            # are ordinary workflow jobs, which report as check runs instead;
+            # asking that endpoint about them would read every one of them as
+            # permanently absent. `statusCheckRollup` is the one place both
+            # shapes show up together.
             #
             # $owner, $name and $number below are GraphQL query variables, not
             # shell expansions; they are meant to stay literal inside the
             # single-quoted query and are bound by the -f/-F arguments that
             # follow it.
+            required_json=$(printf '%s' "$OTHER_REQUIRED_CONTEXTS" | jq -Rc 'split(",")')
             # shellcheck disable=SC2016
-            merge_info=$(gh api graphql -f query='
+            info=$(gh api graphql -f query='
               query($owner: String!, $name: String!, $number: Int!) {
                 repository(owner: $owner, name: $name) {
                   pullRequest(number: $number) {
                     mergeStateStatus
                     reviewThreads(first: 1, states: [UNRESOLVED]) { totalCount }
+                    commits(last: 1) {
+                      nodes {
+                        commit {
+                          statusCheckRollup {
+                            contexts(first: 50) {
+                              nodes {
+                                ... on StatusContext { context state }
+                                ... on CheckRun { name conclusion }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
                   }
                 }
               }' -f owner="${REPO%%/*}" -f name="${REPO##*/}" -F number="$number" \
-              --jq '.data.repository.pullRequest | "\(.mergeStateStatus) \(.reviewThreads.totalCount)"')
-            read -r merge_state_status unresolved_threads <<< "$merge_info"
+              --jq '.data.repository.pullRequest' \
+              | jq -r --argjson required "$required_json" '
+                (.commits.nodes[0].commit.statusCheckRollup.contexts.nodes // []) as $ctxs
+                | ($ctxs | map({(.context // .name):
+                    ((.state // .conclusion // "pending") | ascii_downcase)}) | add // {}) as $states
+                | (($required | map(select(($states[.] // "absent") != "success")) | length) == 0) as $other_ok
+                | "\(.mergeStateStatus) \(.reviewThreads.totalCount) \($other_ok)"')
+            read -r merge_state_status unresolved_threads other_ok <<< "$info"
+
+            if [ "$other_ok" != "true" ]; then
+              echo "#$number: another required check is not green yet, not the single thing blocking this."
+              continue
+            fi
 
             if [ "$merge_state_status" = "DIRTY" ]; then
               echo "#$number: has a merge conflict, nothing to nudge."

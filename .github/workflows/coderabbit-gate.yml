@@ -118,9 +118,13 @@ jobs:
               # Zero, one, or in principle more than one open pull request can
               # share a head SHA (a branch pushed to two pull requests at
               # once). Grading all of them is no more work than grading one.
+              #
+              # `gh api --jq` takes a single filter string; it has no `--arg`
+              # of its own, so binding a shell variable into the filter needs
+              # the standalone `jq` binary on the receiving end instead.
               # shellcheck disable=SC2016
               matrix=$(gh api "repos/$REPO/commits/$STATUS_SHA/pulls" \
-                --jq --arg s "$STATUS_SHA" \
+                | jq -c --arg s "$STATUS_SHA" \
                 '[.[] | select(.state == "open") | {pr_number: .number, head_sha: $s, target_sha: $s}]')
               ;;
 
@@ -204,9 +208,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # `gh api --jq` takes a single filter string, with no `--arg` of its
+          # own; binding $REPO into the filter needs the standalone `jq`
+          # binary on the receiving end instead.
           # $repo below is a jq variable bound by --arg, not a shell expansion.
           # shellcheck disable=SC2016
-          gh api "repos/$REPO/pulls/$PR_NUMBER" --jq --arg repo "$REPO" '
+          gh api "repos/$REPO/pulls/$PR_NUMBER" | jq -r --arg repo "$REPO" '
             "is_draft=" + (.draft | tostring),
             "author=" + .user.login,
             "is_fork=" + (((.head.repo.full_name // "") != $repo) | tostring)
@@ -271,15 +278,22 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           HEAD_SHA: ${{ matrix.entry.head_sha }}
-        # The combined status endpoint already returns only the newest status
-        # per context, so this needs no history walk: reading the event
-        # payload instead is exactly what would let a slow trigger publish a
-        # stale verdict over a fresher one.
+        # The list endpoint, not the combined one: the combined
+        # `/commits/{sha}/status` collapses to the newest status per context
+        # but drops each one's `creator`, confirmed live against a real
+        # CodeRabbit status on this repository, and the creator is what proves
+        # this status actually came from CodeRabbit rather than from anything
+        # else with `statuses: write` on this repository choosing to call
+        # itself `CodeRabbit`. `/statuses` keeps `creator` and is already
+        # newest first, so the same "no history walk" property holds; only the
+        # login is checked, since a login can never be spoofed by a payload
+        # the way a context string can.
         shell: bash
         run: |
           set -euo pipefail
-          description=$(gh api "repos/$REPO/commits/$HEAD_SHA/status" \
-            --jq '[.statuses[] | select(.context == "CodeRabbit")] | first | .description // ""')
+          description=$(gh api "repos/$REPO/commits/$HEAD_SHA/statuses" \
+            --jq '[.[] | select(.context == "CodeRabbit" and .creator.login == "coderabbitai[bot]")]
+                  | first | .description // ""')
           echo "description=$description" >> "$GITHUB_OUTPUT"
 
       - name: Decide Review Verified

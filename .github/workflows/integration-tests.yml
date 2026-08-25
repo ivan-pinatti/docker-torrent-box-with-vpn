@@ -161,6 +161,7 @@ jobs:
           COMMENT_PR_NUMBER: ${{ github.event.issue.number }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          MERGE_GROUP_REF: ${{ github.event.merge_group.head_ref }}
         run: |
           if [ "$EVENT_NAME" = "merge_group" ]; then
             # Unconditional, and safe only because of what already happened to
@@ -168,6 +169,17 @@ jobs:
             # came from, plus a merge_group re-run of every other required
             # check on this exact commit. Nothing about who opened the pull
             # request is asked again.
+            #
+            # The number is still needed below, to ask the API whether that
+            # pull request's head lived in this repository, rather than
+            # trusting that a queue commit can never be a fork's.
+            # refs/heads/gh-readonly-queue/main/pr-42-<sha>.
+            number=$(printf '%s' "$MERGE_GROUP_REF" | grep -oE 'pr-[0-9]+-' | grep -oE '[0-9]+')
+            if [ -z "$number" ]; then
+              echo "::error::Could not read a pull request number out of '$MERGE_GROUP_REF'."
+              exit 1
+            fi
+            echo "pr_number=$number" >> "$GITHUB_OUTPUT"
             echo "authorized=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -236,9 +248,14 @@ jobs:
         # which would otherwise fail the jq here; the fallback makes that read
         # as a fork, which is the safe way round.
         #
-        # `merge_group` needs no lookup at all: the commit under test is the
-        # event's own head, and it can never be a fork's, since the queue only
-        # ever builds this commit inside this repository.
+        # `merge_group` needs no lookup for head_sha, since the commit under
+        # test is the event's own head, but it still asks the API whether the
+        # pull request behind it lived in this repository rather than assuming
+        # a queue commit can never be a fork's: a stale or misread pull
+        # request number would otherwise arm Docker Hub credentials for code
+        # this repository never approved pulling with them. Unset or
+        # unreadable answers fall to `is_fork=true`, the same direction the
+        # jq fallback below takes for the other two triggers.
         id: pr
         if: steps.auth.outputs.authorized == 'true'
         env:
@@ -249,7 +266,10 @@ jobs:
         run: |
           if [ "$EVENT_NAME" = "merge_group" ]; then
             echo "head_sha=$MERGE_GROUP_HEAD_SHA" >> "$GITHUB_OUTPUT"
-            echo "is_fork=false" >> "$GITHUB_OUTPUT"
+            is_fork=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER" \
+              --jq '((.head.repo.full_name // "") != "${{ github.repository }}") | tostring' \
+              || echo true)
+            echo "is_fork=$is_fork" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER" \
