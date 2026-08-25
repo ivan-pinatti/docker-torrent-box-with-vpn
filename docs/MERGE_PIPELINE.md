@@ -113,25 +113,29 @@ direct result (#114).
    decline, and a required context reading red for a pull request's entire
    draft phase would teach nothing. Pending blocks the merge exactly as hard
    as failure does, so nothing merges early either way.
-2. **A dependency bot pull request with a clean `Pin Only` verdict needs no
-   review at all**, and reads `success` unread. CodeRabbit never reviews a
-   bot's pull request in the first place, hardcoded upstream (#113), so
-   requiring a real review here would block every bot pull request forever.
-   A pin-only diff has nothing in it a review would catch beyond what the
-   assertion already read line by line, which is what makes passing it
-   unattended safe rather than merely convenient.
-3. **A bot pull request whose diff is *not* pin-only needs both a review and
-   a human**, graded exactly like a human pull request from here. It already
-   gets no automatic approval either way, since `bot-auto-merge.yml`
-   withholds one from anything but a clean `Pin Only` verdict, so a person is
-   already looking at it regardless of what `Review Verified` says. Requiring
-   a real review on top of that cannot stall the happy path, because there
-   was never an unattended path for this diff to begin with.
-4. **Everything else** (a human pull request, or a fork) is `success` only
-   for the literal description `Review completed`. Absent is `pending`. A
-   rate limited decline, a skipped-draft description reaching this lane (it
-   should not, since lane 1 already caught an actual draft), an error state,
-   or a description this script has never seen before, is `failure`. No
+2. **A dependency bot pull request is graded on `Pin Only` first.** A clean
+   verdict returns `success` with no CodeRabbit review at all, because
+   CodeRabbit never reviews a bot's pull request in the first place, hardcoded
+   upstream (#113), so requiring one here would block every bot pull request
+   forever; a pin-only diff has nothing in it a review would catch beyond what
+   the assertion already read line by line, which is what makes passing it
+   unattended safe rather than merely convenient. A diff that is *not*
+   pin-only falls through to lane 3 instead, and is graded exactly like a
+   human pull request from there: it already gets no automatic approval
+   either way, since `bot-auto-merge.yml` withholds one from anything but a
+   clean `Pin Only` verdict, so a person is already looking at it regardless
+   of what `Review Verified` says. Requiring a real review on top of that
+   cannot stall the happy path, since there was never an unattended path for
+   this diff to begin with, and it cannot deadlock either: CodeRabbit will
+   never review a bot's pull request on its own, but
+   `coderabbit-review-queue.yml`'s hourly nudge reaches exactly this pull
+   request, asking for the review this lane needs on its behalf.
+3. **Everything else** (a human pull request, a fork, or a bot pull request
+   that fell through from lane 2) is `success` only for the literal
+   description `Review completed`. Absent is `pending`. A rate limited
+   decline, a skipped-draft description reaching this lane (it should not,
+   since lane 1 already caught an actual draft), an error state, or a
+   description this script has never seen before, is `failure`. No
    exceptions: this is the lane the three unreviewed merges happened in, and
    a status this narrow is the point.
 
@@ -178,12 +182,16 @@ intervention.
 - **An absent or stale `Review Verified`.** `coderabbit-gate.yml` re-grades
   every open pull request hourly, so a missed or failed run recovers without
   anyone noticing it was ever wrong.
-- **A quota-exhausted `CodeRabbit` status.** `coderabbit-review-queue.yml`
-  nudges CodeRabbit hourly with `@coderabbitai review`, one pull request at a
-  time, but only when `Review Verified` is genuinely the single thing left
-  blocking a merge: it skips a pull request that is failing something else,
-  has a merge conflict, or already has an unresolved thread of its own, since
-  a review cannot fix any of those and the quota slot would be wasted.
+- **A quota-exhausted `CodeRabbit` status, or a bot pull request CodeRabbit has
+  never looked at.** `coderabbit-review-queue.yml` nudges CodeRabbit hourly
+  with `@coderabbitai review`, one pull request at a time, whenever
+  `Review Verified` reads `failure` or reads `pending` specifically for
+  "waiting for a CodeRabbit review", which is the state a bot pull request
+  that fell out of the pin-only lane sits in forever otherwise, since
+  CodeRabbit never reviews one on its own. It skips a pull request that is
+  failing something else, has a merge conflict, or already has an unresolved
+  thread of its own, since a review cannot fix any of those and the quota slot
+  would be wasted.
 - **A pull request behind on `main`.** The merge queue tests it fresh against
   the current `main` rather than requiring a rebase, which is the entire
   point of dropping `strict`.

@@ -74,8 +74,8 @@ maintainer will comment for you.
    `/run-check` re-runs the two lint layers against your pull request's
    current head without a new push. `/run-tests` is restricted to the
    maintainer list in `.github/workflows/integration-tests.yml`, and
-   `/run-check`, which costs a couple of lint runs rather than a whole stack,
-   to repository collaborators.
+   `/run-check` is restricted to repository collaborators. It costs a couple
+   of lint runs rather than a whole stack.
 8. Dependency updates are the one exception to all of the above, and they merge
    without anyone reviewing them. Dependabot opens weekly pull requests for
    `.pre-commit-config.yaml` hook revs, GitHub Action versions and

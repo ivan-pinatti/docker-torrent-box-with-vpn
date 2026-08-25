@@ -81,16 +81,40 @@ jobs:
             # `Review Verified` already carries the reading that matters: a bot
             # pull request that resolved green through a pin-only `Pin Only`
             # verdict reads `success` here without CodeRabbit ever having been
-            # asked, and a pull request still waiting on something other than a
-            # review (a draft, a bot's diff not yet graded) reads `pending` for
-            # a reason a nudge cannot fix. Only a `failure` here, meaning the
-            # latest CodeRabbit description was read and was not
-            # "Review completed", is worth asking again for.
-            verified=$(gh api "repos/$REPO/commits/$sha/status" \
-              --jq "[.statuses[] | select(.context == \"Review Verified\")] | first | .state // \"\"")
+            # asked, and a draft, or a bot pull request whose `Pin Only`
+            # verdict is not published yet, reads `pending` for a reason a
+            # nudge cannot fix.
+            #
+            # Two shapes are worth nudging, both read off `description` rather
+            # than `state` alone, because `state` collapses them together with
+            # the two `pending` cases above:
+            #   failure   the latest CodeRabbit description was read and was
+            #             not "Review completed" (a rate limited decline, or
+            #             anything else this repository has never seen).
+            #   pending, "waiting for a CodeRabbit review"
+            #             no CodeRabbit status exists on this head at all,
+            #             which is the steady state for a bot pull request
+            #             whose diff failed the pin-only check: CodeRabbit
+            #             never reviews a bot's pull request on its own
+            #             (#113), so nothing but this nudge will ever put a
+            #             status there. Treating this the same as the other
+            #             `pending` cases would have deadlocked exactly that
+            #             pull request, the one case #114 named explicitly as
+            #             needing both a review and a human.
+            result=$(gh api "repos/$REPO/commits/$sha/status" \
+              --jq "[.statuses[] | select(.context == \"Review Verified\")] | first | {state, description} | @json" \
+              || echo "")
+            verified=$(printf '%s' "$result" | jq -r '.state // ""' 2>/dev/null || echo "")
+            verified_description=$(printf '%s' "$result" | jq -r '.description // ""' 2>/dev/null || echo "")
 
             case "$verified" in
               failure) : ;;
+              pending)
+                if [ "$verified_description" != "waiting for a CodeRabbit review" ]; then
+                  echo "#$number: Review Verified is pending (\"$verified_description\"), nothing to nudge."
+                  continue
+                fi
+                ;;
               *)
                 echo "#$number: Review Verified is \"${verified:-absent}\", nothing to nudge."
                 continue
