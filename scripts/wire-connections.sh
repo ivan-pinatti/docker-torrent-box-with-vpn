@@ -696,7 +696,11 @@ PYEOF
   # taking a full OS connect timeout on its own, well over two minutes
   # apiece, so the pair alone can burn upward of four and a half minutes
   # before Mylar ever calls webstart.initialize() to open its HTTPS port.
-  if ! retry 420 "[Mylar]" container_curl mylar -sk --fail \
+  # --max-time bounds each attempt on its own: this probe is checking for
+  # exactly the kind of connection that never completes, so an unbounded
+  # curl could block past the 420s budget below instead of retrying within
+  # it.
+  if ! retry 420 "[Mylar]" container_curl mylar -sk --fail --max-time 10 \
     "https://127.0.0.1:${MYLAR_HTTPS_PORT}/mylar/"; then
     echo "[Mylar] WARNING: did not answer within 420s of restarting; its Homepage widget may still fail."
   fi
