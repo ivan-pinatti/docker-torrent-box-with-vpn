@@ -49,13 +49,18 @@ jobs:
           # branches are not capped: the noise is ours to bear, and a bump that
           # merges unattended should keep asking until it is read.
           FORK_ATTEMPT_CAP: "3"
-          # Every other required context. A nudge is only worth sending when
-          # `Review Verified` is the single thing standing between a pull
-          # request and a merge; asking CodeRabbit to spend a quota slot on
-          # something that still can't merge for an unrelated reason (a
-          # failing suite, a conflict, an unresolved thread of its own) wastes
-          # the slot on a pull request that would not merge afterwards anyway.
-          OTHER_REQUIRED_CONTEXTS: "Code Check,Prerequisite Checks,Detect Changed Paths,Tests Verified,Pin Only"
+          # Every other required context except `Pin Only`. A nudge is only
+          # worth sending when `Review Verified` is the single thing standing
+          # between a pull request and a merge; asking CodeRabbit to spend a
+          # quota slot on something that still can't merge for an unrelated
+          # reason (a failing suite, a conflict, an unresolved thread of its
+          # own) wastes the slot on a pull request that would not merge
+          # afterwards anyway. `Pin Only` is deliberately left out: a bot pull
+          # request reaches the pending-on-a-review state this queue exists to
+          # unstick precisely because `Pin Only` failed, so requiring it to
+          # already be `success` here would refuse the one nudge that lane
+          # actually needs.
+          OTHER_REQUIRED_CONTEXTS: "Code Check,Prerequisite Checks,Detect Changed Paths,Tests Verified"
         shell: bash
         run: |
           set -euo pipefail
@@ -182,7 +187,15 @@ jobs:
                 (.commits.nodes[0].commit.statusCheckRollup.contexts.nodes // []) as $ctxs
                 | ($ctxs | map({(.context // .name):
                     ((.state // .conclusion // "pending") | ascii_downcase)}) | add // {}) as $states
-                | (($required | map(select(($states[.] // "absent") != "success")) | length) == 0) as $other_ok
+                # A CheckRun (Code Check, Prerequisite Checks, Detect Changed
+                # Paths) can pass as `neutral` or `skipped` as well as
+                # `success`; a StatusContext never reports either, so
+                # widening the accepted set costs nothing there. Branch
+                # protection itself treats all three as a passing required
+                # check, and reading only `success` here would have refused a
+                # nudge GitHub itself considers this pull request clear of.
+                | (["success", "neutral", "skipped"]) as $passing
+                | (($required | map(select(($states[.] // "absent") as $s | ($passing | index($s)) | not)) | length) == 0) as $other_ok
                 | ([.reviewThreads.nodes[] | select(.isResolved == false)] | length) as $unresolved
                 | "\(.mergeStateStatus) \($unresolved) \($other_ok)"')
             read -r merge_state_status unresolved_threads other_ok <<< "$info"
