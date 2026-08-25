@@ -192,11 +192,19 @@ jobs:
       - name: Check out the default branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          # Never the pull request's own copy. See the trigger comment above:
-          # this job runs scripts/assert-pin-only-diff.py and
-          # scripts/coderabbit-review-verdict.py from this checkout, and both
-          # are exactly the kind of file a compromised or misconfigured bot
-          # could otherwise rewrite to approve itself.
+          # Explicit, and load bearing on `merge_group` specifically. Leaving
+          # `ref` unset resolves to `github.sha`, which is the base branch's
+          # head under `pull_request_target`, `status` and `schedule`, but is
+          # the queue's own temporary commit under `merge_group`, the one
+          # trigger here that carries a pull request's code on the ref this
+          # job would otherwise default to. This job runs
+          # scripts/assert-pin-only-diff.py and
+          # scripts/coderabbit-review-verdict.py from this checkout with a
+          # `statuses: write` token, and both are exactly the kind of file a
+          # compromised or misconfigured bot could rewrite to approve itself;
+          # an implicit ref would have handed it exactly that opening on the
+          # one trigger built to run its diff.
+          ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
 
       - name: Read the pull request's metadata
