@@ -159,8 +159,8 @@
     //
     // Not hypothetical for lazylibrarian. It has carried an annotation with no
     // digest since the other pins got theirs, with pinDigests on globally, so
-    // the pinDigest update that breaks it was already pending; docs/TODO.md read
-    // that gap the other way round and asked for the digest to be added. mylar
+    // the pinDigest update that breaks it was already pending; an earlier note
+    // read that gap the other way round and asked for the digest to be added. mylar
     // would have joined it the moment its annotation landed.
     //
     // Kept separate from the hold below, which switches both of these off for a
@@ -197,14 +197,15 @@
     // application: patches/sabnzbd/svc-sabnzbd/run is an s6 service script and
     // patches/jdownloader2/10-webauth.sh is a baseimage-gui init script, and a
     // rebuild of the same tag is exactly how either of those changes underneath
-    // the patch. docs/TODO.md records the jdownloader-2 case in those terms
+    // the patch. Issue #107 records the jdownloader-2 case in those terms
     // already: the fix it is waiting for arrives as a baseimage-gui bump inside
     // an image whose tag need not move.
     //
     // The alternative was chasing each upstream release with a fresh patch,
     // which is work with no end date and no test that would catch getting it
-    // wrong. Each of the four has an open item in docs/TODO.md for dropping its
-    // patch, and dropping one is what unfreezes its pin. Until then the pin is
+    // wrong. Each of the four has an open issue for dropping its patch (#106
+    // mylar, #107 jdownloader-2, #108 sabnzbd, #109 lazylibrarian), and dropping
+    // one is what unfreezes its pin. Until then the pin is
     // deliberately fixed rather than accidentally frozen, which is the whole
     // distinction the rest of this file is about, and
     // tests/test_renovate_pins.py fails when a service grows a patch mount
@@ -321,7 +322,7 @@
     // still describes where they land the day it is lifted. A group
     // is only as mergeable as its worst member, and the two bumps that broke
     // something this week, SABnzbd 5.0.4 and qBittorrent 5.2.2 (see
-    // docs/TODO.md), were both download clients. Isolating them keeps one bad
+    // issue #108), were both download clients. Isolating them keeps one bad
     // image from blocking every other pull request a shared group would have
     // bundled it with. gluetun is what every download client's kill switch
     // depends on, so the same argument isolates it too. This is where the

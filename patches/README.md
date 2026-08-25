@@ -28,7 +28,7 @@ the rest.
 Each patch tracks a specific upstream fix that is not yet in a release the
 stack can pin. `docs/MYLAR.md` records the upstream commit each Mylar patch
 corresponds to, so the whole directory can be deleted once a release carries
-the change. `docs/TODO.md` tracks the removal.
+the change. An issue labelled `upstream-blocked` tracks each removal.
 
 ## Tooling
 

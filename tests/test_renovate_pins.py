@@ -553,7 +553,7 @@ def test_patched_image_is_held_at_a_fixed_version(variable):
     reports healthy and passes the suite while being subtly wrong. Holding the
     pin is the decision; the alternative is re-deriving every patch against
     every release, forever. Dropping the patch is what unfreezes the pin, and
-    docs/TODO.md carries an item per patch for exactly that.
+    An issue labelled `upstream-blocked` tracks each patch for exactly that.
     """
     service = _patched_service_variables()[variable]
     declared = _annotations().get(variable)

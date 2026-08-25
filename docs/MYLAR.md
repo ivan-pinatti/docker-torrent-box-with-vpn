@@ -96,5 +96,5 @@ Once the fix commit is an ancestor of `stable` (`ahead_by: 0`), the next
 1. Delete `patches/mylar/`.
 2. Remove the five bind-mounted volumes from `docker-compose-servarr.yml`.
 3. Delete this "Status" section, and the related lines in `README.md` known
-   issue #3 and `docs/TODO.md`'s Mylar section.
+   issue #3, and close issue #106.
 4. Recreate the `mylar` container to pick up the base image's built-in fix.

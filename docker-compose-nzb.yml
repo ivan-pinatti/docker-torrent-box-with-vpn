@@ -77,7 +77,7 @@ services:
       # linuxserver/docker-sabnzbd#116 and #240, and closed as intended to stop
       # anyone binding 127.0.0.1 and locking themselves out of the web UI. This
       # replacement keeps that protection for a missing or loopback value and
-      # respects a reachable one. See patches/README.md and docs/TODO.md.
+      # respects a reachable one. See patches/README.md and issue #108.
       - ./patches/sabnzbd/svc-sabnzbd/run:/etc/s6-overlay/s6-rc.d/svc-sabnzbd/run:ro,z
     healthcheck:
       <<: *healthcheck-defaults
