@@ -131,6 +131,30 @@ overrides each pass's own filter rather than combining with it. Invoke
 `tests/.venv/bin/pytest -m security` directly instead when you want just
 one marker.
 
+## Why the suite also runs in a merge queue
+
+`main` required `strict` status checks until #117: a pull request had to be
+up to date with the current `main` before it could merge, so every merge put
+every other open pull request behind and each of those needed a rebase and a
+fresh suite run to catch back up. That got worse as this stack grew, not
+better: the suite now starts 34 services rather than 22, since CI began
+applying `.env.tests` and the observability profiles came on, so a rerun costs
+more wall clock than it used to, and the number of open pull requests the
+churn multiplies against is driven by Renovate and Dependabot, which are
+deliberately scheduled to spread bumps across the week rather than land them
+one at a time. See [docs/MERGE_PIPELINE.md](MERGE_PIPELINE.md) for what
+replaced `strict`, why the two are paired, and what runs against the queue's
+own commit; this section covers only why a cheaper alternative was rejected.
+
+Selective or per-service testing (running only the tests a change plausibly
+touches, rather than the whole suite) was considered as a cheaper answer to
+the same churn and rejected. Bootstrap, not the tests themselves, is where the
+suite's cost actually is: on run 32863340140, standing the stack up was 77% of
+the 681 second run and running the tests was 23%. A selective suite would
+still pay to stand the stack up and save only the smaller half, for a
+correctness question (which tests a change could plausibly affect) that is
+itself expensive to answer accurately in a stack this interconnected.
+
 ## Full test coverage: `make bootstrap_tests`
 
 `.env.example` ships several profiles disabled by default (an optional
@@ -171,5 +195,5 @@ before writing your own container/HTTP helpers.
 
 ---
 
-See also: [README.md](../README.md), [docs/MAKE_COMMANDS.md](MAKE_COMMANDS.md),
-[docs/CONTRIBUTING.md](CONTRIBUTING.md)
+See also: [README.md](../README.md), [docs/MERGE_PIPELINE.md](MERGE_PIPELINE.md),
+[docs/MAKE_COMMANDS.md](MAKE_COMMANDS.md), [docs/CONTRIBUTING.md](CONTRIBUTING.md)

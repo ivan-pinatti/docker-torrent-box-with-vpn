@@ -49,6 +49,18 @@ jobs:
           # branches are not capped: the noise is ours to bear, and a bump that
           # merges unattended should keep asking until it is read.
           FORK_ATTEMPT_CAP: "3"
+          # Every other required context except `Pin Only`. A nudge is only
+          # worth sending when `Review Verified` is the single thing standing
+          # between a pull request and a merge; asking CodeRabbit to spend a
+          # quota slot on something that still can't merge for an unrelated
+          # reason (a failing suite, a conflict, an unresolved thread of its
+          # own) wastes the slot on a pull request that would not merge
+          # afterwards anyway. `Pin Only` is deliberately left out: a bot pull
+          # request reaches the pending-on-a-review state this queue exists to
+          # unstick precisely because `Pin Only` failed, so requiring it to
+          # already be `success` here would refuse the one nudge that lane
+          # actually needs.
+          OTHER_REQUIRED_CONTEXTS: "Code Check,Prerequisite Checks,Detect Changed Paths,Tests Verified"
         shell: bash
         run: |
           set -euo pipefail
@@ -71,20 +83,136 @@ jobs:
           while read -r number sha is_fork; do
             [ -n "$number" ] || continue
 
-            # A status whose description says it declined is not a review. Those
-            # are the ones worth re-asking for; a real "Review completed" is not.
+            # `Review Verified` already carries the reading that matters: a bot
+            # pull request that resolved green through a pin-only `Pin Only`
+            # verdict reads `success` here without CodeRabbit ever having been
+            # asked, and a draft, or a bot pull request whose `Pin Only`
+            # verdict is not published yet, reads `pending` for a reason a
+            # nudge cannot fix.
+            #
+            # Two shapes are worth nudging, both read off `description` rather
+            # than `state` alone, because `state` collapses them together with
+            # the two `pending` cases above:
+            #   failure   the latest CodeRabbit description was read and was
+            #             not "Review completed" (a rate limited decline, or
+            #             anything else this repository has never seen).
+            #   pending, "waiting for a CodeRabbit review"
+            #             no CodeRabbit status exists on this head at all,
+            #             which is the steady state for a bot pull request
+            #             whose diff failed the pin-only check: CodeRabbit
+            #             never reviews a bot's pull request on its own
+            #             (#113), so nothing but this nudge will ever put a
+            #             status there. Treating this the same as the other
+            #             `pending` cases would have deadlocked exactly that
+            #             pull request, the one case #114 named explicitly as
+            #             needing both a review and a human.
+            result=$(gh api "repos/$REPO/commits/$sha/status" \
+              --jq "[.statuses[] | select(.context == \"Review Verified\")] | first | {state, description} | @json" \
+              || echo "")
+            verified=$(printf '%s' "$result" | jq -r '.state // ""' 2>/dev/null || echo "")
+            verified_description=$(printf '%s' "$result" | jq -r '.description // ""' 2>/dev/null || echo "")
+
+            case "$verified" in
+              failure) : ;;
+              pending)
+                if [ "$verified_description" != "waiting for a CodeRabbit review" ]; then
+                  echo "#$number: Review Verified is pending (\"$verified_description\"), nothing to nudge."
+                  continue
+                fi
+                ;;
+              *)
+                echo "#$number: Review Verified is \"${verified:-absent}\", nothing to nudge."
+                continue
+                ;;
+            esac
+
             state=$(gh api "repos/$REPO/commits/$sha/status" \
               --jq "[.statuses[] | select(.context == \"CodeRabbit\") | .description] | first // \"\"")
+            reason="Review Verified failed on \"${state:-no CodeRabbit status}\""
 
-            case "$state" in
-              "")
-                reason="no CodeRabbit status on this head" ;;
-              *[Rr]"ate limited"* | *[Ss]"kipped"*)
-                reason="status says \"$state\", which is not a review" ;;
-              *)
-                echo "#$number: \"$state\" on ${sha:0:8}, nothing to do."
-                continue ;;
-            esac
+            # Every other required context has to already be green, or a
+            # review is not the single thing this pull request is waiting on;
+            # a merge conflict or an unresolved thread of its own already
+            # blocks the merge too, and asking for a review that cannot change
+            # any of those is a wasted slot.
+            #
+            # One GraphQL call for all of it, not one REST call per required
+            # context. `/commits/{sha}/status` only ever returns classic
+            # commit statuses, and three of the five required contexts here
+            # (`Code Check`, `Prerequisite Checks`, `Detect Changed Paths`)
+            # are ordinary workflow jobs, which report as check runs instead;
+            # asking that endpoint about them would read every one of them as
+            # permanently absent. `statusCheckRollup` is the one place both
+            # shapes show up together.
+            #
+            # $owner, $name and $number below are GraphQL query variables, not
+            # shell expansions; they are meant to stay literal inside the
+            # single-quoted query and are bound by the -f/-F arguments that
+            # follow it.
+            required_json=$(printf '%s' "$OTHER_REQUIRED_CONTEXTS" | jq -Rc 'split(",")')
+            # `reviewThreads` takes no `states` argument at all; GraphQL
+            # rejects the query outright rather than filtering, which a first
+            # draft here got wrong and would have failed this step's `gh api`
+            # call every single run. Every thread's `isResolved` is fetched
+            # instead and counted in jq below. `first: 100` rather than a full
+            # pagination loop: a hundred review threads on one pull request in
+            # this repository is not a real number to plan for, and the day it
+            # is, this workflow is the least of the problem.
+            # shellcheck disable=SC2016
+            info=$(gh api graphql -f query='
+              query($owner: String!, $name: String!, $number: Int!) {
+                repository(owner: $owner, name: $name) {
+                  pullRequest(number: $number) {
+                    mergeStateStatus
+                    reviewThreads(first: 100) { nodes { isResolved } }
+                    commits(last: 1) {
+                      nodes {
+                        commit {
+                          statusCheckRollup {
+                            contexts(first: 50) {
+                              nodes {
+                                ... on StatusContext { context state }
+                                ... on CheckRun { name conclusion }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }' -f owner="${REPO%%/*}" -f name="${REPO##*/}" -F number="$number" \
+              --jq '.data.repository.pullRequest' \
+              | jq -r --argjson required "$required_json" '
+                (.commits.nodes[0].commit.statusCheckRollup.contexts.nodes // []) as $ctxs
+                | ($ctxs | map({(.context // .name):
+                    ((.state // .conclusion // "pending") | ascii_downcase)}) | add // {}) as $states
+                # A CheckRun (Code Check, Prerequisite Checks, Detect Changed
+                # Paths) can pass as `neutral` or `skipped` as well as
+                # `success`; a StatusContext never reports either, so
+                # widening the accepted set costs nothing there. Branch
+                # protection itself treats all three as a passing required
+                # check, and reading only `success` here would have refused a
+                # nudge GitHub itself considers this pull request clear of.
+                | (["success", "neutral", "skipped"]) as $passing
+                | (($required | map(select(($states[.] // "absent") as $s | ($passing | index($s)) | not)) | length) == 0) as $other_ok
+                | ([.reviewThreads.nodes[] | select(.isResolved == false)] | length) as $unresolved
+                | "\(.mergeStateStatus) \($unresolved) \($other_ok)"')
+            read -r merge_state_status unresolved_threads other_ok <<< "$info"
+
+            if [ "$other_ok" != "true" ]; then
+              echo "#$number: another required check is not green yet, not the single thing blocking this."
+              continue
+            fi
+
+            if [ "$merge_state_status" = "DIRTY" ]; then
+              echo "#$number: has a merge conflict, nothing to nudge."
+              continue
+            fi
+            if [ "${unresolved_threads:-0}" -gt 0 ]; then
+              echo "#$number: has $unresolved_threads unresolved review thread(s) already, nothing to nudge."
+              continue
+            fi
 
             # One marker per attempt, carrying the head SHA, so the cap below
             # counts attempts against this head only and a rebase starts fresh.
