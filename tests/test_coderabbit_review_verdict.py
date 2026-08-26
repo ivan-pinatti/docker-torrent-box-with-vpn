@@ -200,6 +200,33 @@ def test_no_status_yet_is_pending_not_a_pass():
     assert _outputs(result)["state"] == "pending"
 
 
+def test_review_queued_is_pending_not_failure():
+    # CodeRabbit's own in-flight state. Found live on #133, the first pull
+    # request the required gate ever ran against: a review that has not
+    # returned an answer yet has not declined one either.
+    result = _run(
+        {
+            "is_draft": False,
+            "author": "a-human",
+            "is_fork": False,
+            "coderabbit_description": "Review queued",
+        }
+    )
+    assert _outputs(result)["state"] == "pending"
+
+
+def test_review_in_progress_is_pending_not_failure():
+    result = _run(
+        {
+            "is_draft": False,
+            "author": "a-human",
+            "is_fork": False,
+            "coderabbit_description": "Review in progress",
+        }
+    )
+    assert _outputs(result)["state"] == "pending"
+
+
 def test_rate_limited_fails_instead_of_passing():
     # This is the actual bug: #86, #87 and #88 all merged on this exact
     # description reading as success.

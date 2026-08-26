@@ -39,15 +39,16 @@ than restating it differently.
 
 ## Why the days are staggered
 
-This was written while required status checks were `strict` on `main`, the setting that made the
-stagger worth doing on its own: every merge put every other open pull request behind, so each one
-needed a rebase and another full run of the integration suite, roughly fifteen minutes a time.
-Issue #117 records a case where a single small change needed three separate suite runs for this
-reason. `strict` came off in favor of a merge queue (see [docs/MERGE_PIPELINE.md](MERGE_PIPELINE.md)),
-which removed that specific rebase cascade, but the stagger stays: the queue still processes one
-entry at a time, so opening every ecosystem's pull requests on the same day would still queue them
-behind each other for a maintainer's attention and for a runner's worth of the queue's own suite
-run, even without a rebase forcing it.
+Required status checks are `strict` on `main`, which is the setting that makes the stagger worth
+doing: every merge puts every other open pull request behind, so each one needs a rebase and
+another full run of the integration suite, roughly fifteen minutes a time. Issue #117 records a
+case where a single small change needed three separate suite runs for this reason. A merge queue
+would remove that rebase cascade, and is the tracked intent, but it is not enabled: see
+[docs/MERGE_PIPELINE.md](MERGE_PIPELINE.md) for why. Until it is, the stagger is what keeps this
+from compounding into one bad day, spreading the ecosystems and groups across the week instead of
+opening every one of their pull requests at once and letting the first merge rebase the rest,
+which would trigger another round of runs, which would produce another merge that rebases what is
+left again.
 
 ## The grouping rationale
 

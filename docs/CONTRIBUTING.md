@@ -28,8 +28,7 @@ welcome your pull requests.
 | Open as a **draft** | `Code Check` (the pre-commit hooks) | Fix whatever it reports |
 | **Mark ready for review** | CodeRabbit reviews (it skips drafts); `Review Verified` grades whether it actually did | Address its comments, pushing fixes |
 | Comment **`/run-tests`** | The integration suite, against your PR | Wait for it to go green |
-| Every check green | Added to the merge queue | Wait for the queue's own run to pass |
-| Merge | | |
+| Every check green | A maintainer merges it | If `main` moved in the meantime, update the branch first |
 
 Checks run in this order on purpose, so a cheap failure is never paid for
 twice and the expensive one is spent only on the version being merged. See
@@ -66,10 +65,10 @@ maintainer will comment for you.
 6. Use `make sanity_fast` for the normal local check path and `make sanity_full`
    for the full repository check path.
 7. Checks run in order rather than all at once, so a cheap failure is not paid
-   for twice: draft, then ready for review, then `/run-tests`, then the merge
-   queue. See [docs/MERGE_PIPELINE.md](MERGE_PIPELINE.md) for what each stage
-   actually runs and proves, including why the required check on a review is
-   `Review Verified` rather than `CodeRabbit` itself (#114).
+   for twice: draft, then ready for review, then `/run-tests`, then a
+   maintainer merges it. See [docs/MERGE_PIPELINE.md](MERGE_PIPELINE.md) for
+   what each stage actually runs and proves, including why the required check
+   on a review is `Review Verified` rather than `CodeRabbit` itself (#114).
 
    `/run-check` re-runs the two lint layers against your pull request's
    current head without a new push. `/run-tests` is restricted to the
