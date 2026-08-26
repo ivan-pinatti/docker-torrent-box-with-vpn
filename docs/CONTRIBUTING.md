@@ -28,8 +28,7 @@ welcome your pull requests.
 | Open as a **draft** | `Code Check` (the pre-commit hooks) | Fix whatever it reports |
 | **Mark ready for review** | CodeRabbit reviews (it skips drafts); `Review Verified` grades whether it actually did | Address its comments, pushing fixes |
 | Comment **`/run-tests`** | The integration suite, against your PR | Wait for it to go green |
-| Every check green | Added to the merge queue | Wait for the queue's own run to pass |
-| Merge | | |
+| Every check green | A maintainer merges it | If `main` moved in the meantime, update the branch first |
 
 Checks run in this order on purpose, so a cheap failure is never paid for
 twice and the expensive one is spent only on the version being merged. See

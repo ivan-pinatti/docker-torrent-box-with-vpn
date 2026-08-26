@@ -332,11 +332,10 @@ What is placed against it instead:
   [docs/MERGE_PIPELINE.md](MERGE_PIPELINE.md) for the three lanes
   `Review Verified` actually grades and why a green `CodeRabbit` check was not
   evidence of a review in the first place.
-- **The suite itself**, which has to pass on the exact commit that merges: the
-  pull request's own head, and again, against a throwaway merge commit, in the
-  merge queue. See [docs/MERGE_PIPELINE.md](MERGE_PIPELINE.md) for why the
-  queue exists and what replacing `strict` required status checks with it
-  trades away.
+- **The suite itself**, which has to pass on the pull request's own head
+  before it merges. See [docs/MERGE_PIPELINE.md](MERGE_PIPELINE.md) for the
+  merge queue this is meant to gain a second, throwaway-commit run through,
+  and why that is not enabled yet.
 
 What remains, and is accepted: the two bot identities are trusted to be
 themselves, and an upstream release that survives seven days, produces a

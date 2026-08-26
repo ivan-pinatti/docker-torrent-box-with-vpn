@@ -131,20 +131,21 @@ overrides each pass's own filter rather than combining with it. Invoke
 `tests/.venv/bin/pytest -m security` directly instead when you want just
 one marker.
 
-## Why the suite also runs in a merge queue
+## Why a merge queue is the goal, not selective testing
 
-`main` required `strict` status checks until #117: a pull request had to be
-up to date with the current `main` before it could merge, so every merge put
-every other open pull request behind and each of those needed a rebase and a
-fresh suite run to catch back up. That got worse as this stack grew, not
+`main` requires `strict` status checks (#117): a pull request has to be up to
+date with the current `main` before it can merge, so every merge puts every
+other open pull request behind and each of those needs a rebase and a fresh
+suite run to catch back up. That has gotten worse as this stack grew, not
 better: the suite now starts 34 services rather than 22, since CI began
 applying `.env.tests` and the observability profiles came on, so a rerun costs
 more wall clock than it used to, and the number of open pull requests the
 churn multiplies against is driven by Renovate and Dependabot, which are
 deliberately scheduled to spread bumps across the week rather than land them
-one at a time. See [docs/MERGE_PIPELINE.md](MERGE_PIPELINE.md) for what
-replaced `strict`, why the two are paired, and what runs against the queue's
-own commit; this section covers only why a cheaper alternative was rejected.
+one at a time. See [docs/MERGE_PIPELINE.md](MERGE_PIPELINE.md) for the merge
+queue this is meant to be replaced with, and why it is not enabled yet; this
+section covers only why a cheaper alternative to a queue, running fewer tests
+rather than fewer times, was rejected.
 
 Selective or per-service testing (running only the tests a change plausibly
 touches, rather than the whole suite) was considered as a cheaper answer to
