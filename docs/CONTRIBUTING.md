@@ -65,10 +65,10 @@ maintainer will comment for you.
 6. Use `make sanity_fast` for the normal local check path and `make sanity_full`
    for the full repository check path.
 7. Checks run in order rather than all at once, so a cheap failure is not paid
-   for twice: draft, then ready for review, then `/run-tests`, then the merge
-   queue. See [docs/MERGE_PIPELINE.md](MERGE_PIPELINE.md) for what each stage
-   actually runs and proves, including why the required check on a review is
-   `Review Verified` rather than `CodeRabbit` itself (#114).
+   for twice: draft, then ready for review, then `/run-tests`, then a
+   maintainer merges it. See [docs/MERGE_PIPELINE.md](MERGE_PIPELINE.md) for
+   what each stage actually runs and proves, including why the required check
+   on a review is `Review Verified` rather than `CodeRabbit` itself (#114).
 
    `/run-check` re-runs the two lint layers against your pull request's
    current head without a new push. `/run-tests` is restricted to the
