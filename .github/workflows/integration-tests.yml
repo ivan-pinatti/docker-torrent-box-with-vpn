@@ -295,10 +295,15 @@ jobs:
     needs: gate
     if: needs.gate.outputs.authorized == 'true'
     runs-on: ubuntu-latest
-    # 20, from the steps of passing runs summing to about 15 minutes. An earlier
-    # comment here claimed two thirds of headroom, taken from run level
-    # timestamps reading 11 or 12; the steps are the honest measure and this is
-    # nearer a third. It should not come down without shortening the suite.
+    # 25, raised from 20 once the Mylar wait moved from the test's own retry
+    # budget into `wire_connections` (#130 / #132), which pushed an honest run
+    # from 681s to 1093s: two runs against #131's final head both landed at
+    # 18m8s and 18m10s, over 90% of the old 20 minute budget with no headroom
+    # left for normal variance. 25 minutes (1500s) is about a third of
+    # headroom over that 1093s, the same bar this comment stated for the old
+    # value against its own 681s baseline. It should not come down without
+    # shortening the suite, and it should not need raising again unless the
+    # suite grows further.
     #
     # This stays the binding limit and the per-step limits below do not try to
     # replace it. They sum past an hour because each has to allow for its own
@@ -313,7 +318,7 @@ jobs:
     # request that had changed nothing but a comment. Normal variance on a busy
     # runner is wide, so anything close to the observed maximum will fail honest
     # runs more often than it catches real hangs.
-    timeout-minutes: 20
+    timeout-minutes: 25
     # One suite per pull request: a second `/run-tests`, or a push to a bot's
     # branch, supersedes the first rather than standing a competing stack up on
     # the same runner pool. That matters more on the bot path than the comment
