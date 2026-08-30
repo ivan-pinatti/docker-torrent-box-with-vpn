@@ -218,7 +218,7 @@ repos:
           bash -c 'runtime=$(command -v docker || command -v podman) || {
           echo "hadolint hook needs docker or podman on PATH" >&2; exit 1; };
           exec "$runtime" run --rm -v "$PWD:/src:ro" -w /src
-          hadolint/hadolint:v2.14.0 hadolint --no-color "$0" "$@"'
+          hadolint/hadolint:v2.15.1 hadolint --no-color "$0" "$@"'
         language: system
         types: [dockerfile]
 
@@ -349,7 +349,7 @@ repos:
           --directory .
         language: python
         # renovate: datasource=pypi depName=checkov
-        additional_dependencies: ["checkov==3.3.10"]
+        additional_dependencies: ["checkov==3.3.13"]
         stages: [pre-push]
         pass_filenames: false
         always_run: true
@@ -374,7 +374,7 @@ repos:
           bash -c 'runtime=$(command -v docker || command -v podman) || {
           echo "trivy hook needs docker or podman on PATH" >&2; exit 1; };
           exec "$runtime" run --rm -v "$PWD:/src:ro"
-          -v trivy-cache:/root/.cache/trivy -w /src aquasec/trivy:0.73.0
+          -v trivy-cache:/root/.cache/trivy -w /src aquasec/trivy:0.74.0
           fs --scanners vuln,misconfig --exit-code 1 --skip-version-check
           --ignorefile .trivyignore.yaml
           --skip-dirs ./data --skip-dirs ./storage --skip-dirs ./cache

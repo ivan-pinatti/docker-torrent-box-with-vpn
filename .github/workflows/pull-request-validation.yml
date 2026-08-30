@@ -245,7 +245,7 @@ jobs:
         # renovate: datasource=docker depName=aquasec/trivy
         run: |
           docker run --rm -v "$PWD:/src:ro" -v "$PWD/sarif:/out" -w /src \
-            aquasec/trivy:0.73.0 \
+            aquasec/trivy:0.74.0 \
             fs --scanners vuln,misconfig --skip-version-check \
             --ignorefile .trivyignore.yaml \
             --skip-dirs ./data --skip-dirs ./storage --skip-dirs ./cache \
@@ -257,7 +257,7 @@ jobs:
         continue-on-error: true
         run: |
           # renovate: datasource=pypi depName=checkov
-          pip install checkov==3.3.10
+          pip install checkov==3.3.13
           checkov --quiet --compact --skip-check CKV_DOCKER_2 \
             --skip-framework secrets \
             --skip-path configs --skip-path data --skip-path storage \
@@ -289,7 +289,7 @@ jobs:
         # renovate: datasource=docker depName=hadolint/hadolint
         run: |
           docker run --rm -v "$PWD:/src:ro" -w /src \
-            hadolint/hadolint:v2.14.0 \
+            hadolint/hadolint:v2.15.1 \
             hadolint --no-color --format sarif \
             build/lazylibrarian/Dockerfile build/mylar/Dockerfile \
             > sarif/hadolint.sarif || true
