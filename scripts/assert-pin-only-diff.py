@@ -62,26 +62,79 @@ ALLOWED_PATHS = (
 # that file, which is why normalize takes the path.
 TOOL_VERSION_LINE = re.compile(r"^(?P<prefix>[A-Za-z0-9_.-]+[ \t]+)\S+[ \t]*$")
 
+# A released version, always starting with a digit (an optional single leading
+# `v` aside): `v7`, `v7.0.1`, `3.1.0`. Anchors the trailing comment on a GitHub
+# Actions pin below, and is deliberately narrower than "any tag-shaped token":
+# a floating ref like `main` is made entirely of characters that shape would
+# otherwise accept.
+RELEASE = r"v?[0-9][0-9A-Za-z.+_-]*"
+
 # Removed outright rather than replaced with a placeholder: Renovate's
 # pinDigests adds a digest to a line that had none, so a placeholder would make
 # the before and after differ by its presence and refuse a legitimate first pin.
-DIGEST = re.compile(r"@(?:sha256:[0-9a-f]{7,}|[0-9a-f]{40})")
+# This is a Docker image digest (`.env.example` only); a GitHub Actions SHA pin
+# is handled separately below, because it can carry a trailing release comment
+# that has to normalize together with the SHA.
+DIGEST = re.compile(r"@sha256:[0-9a-f]{7,}")
+
+# A GitHub Actions pin: a full 40 character commit SHA, optionally followed by
+# a trailing release comment (`# v7`, `# v7.0.1`) that Dependabot rewrites on
+# the same bump whenever the tag the SHA resolves from changes. Both have to
+# normalize together: an earlier version of this script normalized only the
+# SHA and left the comment as ordinary text, so an ordinary bump that also
+# moved `# v7` to `# v7.0.1` read as a structural change and `Pin Only`
+# refused a diff that was actually pin-only. Every grouped Actions update
+# makes this a near-certainty rather than an edge case, since one bump is
+# enough to trip it.
+#
+# The comment is folded into the normalization only when it is actually a
+# release token running to the end of the line; anything else after the SHA,
+# including a comment with extra text trailing a valid version token, is left
+# alone, so it is still read as a structural change if it differs between the
+# two sides. The negative lookahead after the hex run stops a 40 character
+# prefix of a longer hex run (a sha256 digest, in particular) from matching
+# and silently swallowing the character that would have made the shapes
+# differ.
+ACTION_SHA = re.compile(
+    r"@[0-9a-f]{40}(?![0-9a-fA-F])(?P<comment>[ \t]+#[ \t]*" + RELEASE + r")?$"
+)
+
+
+def _normalize_action_sha(match: re.Match[str]) -> str:
+    """Strip a `@<sha>` action pin, normalizing its trailing release comment."""
+    if match.group("comment"):
+        return " # <version>"
+    return ""
+
 
 # A version-shaped token that sits where a pin sits, and nowhere else. The
 # prefix is what makes this narrow: matching any number on the line would accept
 # `PUID=1000` becoming `PUID=0`, or a `fetch-depth` moving, since both sides
 # would normalize alike.
 #
-# The five prefixes are the shapes a pin takes everywhere except .tool-versions,
+# The six prefixes are the shapes a pin takes everywhere except .tool-versions,
 # which is handled whole-line above:
 #
 #   ==1.2.3              pip, in a workflow run step or additional_dependencies
+#   >=1.2.3              pip, in tests/requirements.txt, which pins floors
+#                        rather than exact versions
 #   @v1.2.3              an action ref, and what is left after a digest is cut
 #   FOO_VERSION=1.2.3    .env.example, where a bare `=` is not enough: PUID and
 #                        the port variables use one too
 #   rev: v1.2.3          a pre-commit hook revision
 #   image:1.2.3          a tag, the colon pressed against a non-space so that a
 #                        YAML `key: 25` cannot pass for one
+#
+# `>=` was missing until it was noticed on PR #94, a Dependabot bump of
+# tests/requirements.txt, which that pull request has been failing `Pin Only`
+# on ever since: every line in that file is a `>=` floor, so no bump of it
+# could ever grade pin-only and every one of them waited for a person for a
+# reason nobody could see from the status. Only `>=` is added, not the rest of
+# pip's operator vocabulary: `==` and `>=` are the only two that appear
+# anywhere in ALLOWED_PATHS, and inventing shapes this repository does not use
+# would widen what a bot may push for no benefit. The prefix is still captured
+# and put back, so `docker>=7.2.0` becoming `docker==7.2.0` is a change of pin
+# shape and still reads as a difference.
 # The prefix is captured and put back, so that a pin changing shape rather than
 # value, `foo==1.2.3` becoming `foo@1.2.3`, still reads as a difference.
 # The token is any tag-shaped run of characters, and the narrowing lives entirely
@@ -101,7 +154,7 @@ DIGEST = re.compile(r"@(?:sha256:[0-9a-f]{7,}|[0-9a-f]{40})")
 # the value in a pin position, and only there, which is why `PUID=1000` is
 # untouched by this and a change to it is refused.
 VERSION = re.compile(
-    r"(?P<prefix>==|@|(?<=VERSION)=|\brev:[ \t]+|(?<=\S):)"
+    r"(?P<prefix>==|>=|@|(?<=VERSION)=|\brev:[ \t]+|(?<=\S):)"
     r"[0-9A-Za-z][0-9A-Za-z.+_-]*"
 )
 
@@ -111,6 +164,7 @@ FILE_HEADER = re.compile(r"^diff --git a/(?P<old>.+) b/(?P<new>.+)$")
 def normalize(line: str, path: str = "") -> str:
     """Reduce a line to everything about it that a version bump may not change."""
     stripped = DIGEST.sub("", line)
+    stripped = ACTION_SHA.sub(_normalize_action_sha, stripped)
     if path.endswith(".tool-versions"):
         return TOOL_VERSION_LINE.sub(r"\g<prefix><version>", stripped)
     return VERSION.sub(r"\g<prefix><version>", stripped)

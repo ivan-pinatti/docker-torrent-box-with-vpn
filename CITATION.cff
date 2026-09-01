@@ -12,8 +12,8 @@ authors:
     alias: ivan-pinatti
     url: https://github.com/ivan-pinatti
 license: Apache-2.0
-repository-code: https://github.com/ivan-pinatti/docker-torrent-box-with-vpn
-url: https://github.com/ivan-pinatti/docker-torrent-box-with-vpn
+repository-code: https://github.com/ivan-pinatti-labs/docker-torrent-box-with-vpn
+url: https://github.com/ivan-pinatti-labs/docker-torrent-box-with-vpn
 keywords:
   - docker
   - podman

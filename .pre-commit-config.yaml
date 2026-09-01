@@ -182,14 +182,50 @@ repos:
       - id: ruff-format
         files: ^tests/
 
-  # Pinned to the actionlint MegaLinter ran (v1.7.12), so the switch cannot
-  # change which findings appear. The hook carries its own
-  # `files: ^\.github/workflows/`, which selects the same five workflows
-  # ACTION_ACTIONLINT did; verified by comparing against its file list.
-  - repo: https://github.com/rhysd/actionlint
-    rev: v1.7.12
+  # actionlint, pinned to the version MegaLinter ran (1.7.12), so the switch
+  # cannot change which findings appear.
+  #
+  # A repo: local hook driving the official image, rather than upstream's
+  # `actionlint` (language: golang) or `actionlint-docker`
+  # (language: docker_image). Both of those were tried and each fails here for
+  # its own reason.
+  #
+  # The golang build deadlocks. On any `run:` script larger than roughly 8 KB,
+  # with a shellcheck binary on PATH, it sits at 0% CPU with no child process
+  # and never returns. Measured, not inferred: the minimal reproduction is an
+  # `echo hello` script padded to 8180 bytes with `# pad` comment lines, where
+  # 8100 bytes passes. shellcheck is not the slow part; handed the same script
+  # with actionlint's own flags it returns no findings in 0.03s.
+  # coderabbit-review-queue.yml's single 8.6 KB step crosses that line, which
+  # made `pre-commit run --all-files` hang forever, and with it every `git
+  # push`, since all-files-sweep runs at the pre-push stage and git holds the
+  # connection to the remote open while hooks run until GitHub drops it.
+  #
+  # `actionlint-docker` does not deadlock (0.28s on the same file, with the
+  # image's own bundled shellcheck 0.11.0), so the bug is in the golang build
+  # rather than in actionlint or shellcheck generally. But that hook is
+  # `language: docker_image` and calls `docker` by name, and this project
+  # documents Podman as its runtime, so it would leave a Podman contributor
+  # unable to run it.
+  #
+  # Hence this: the image, invoked through the same docker-or-podman shim the
+  # hadolint, trivy, lychee and dotenv-linter hooks in this file already use.
+  # It keeps the shellcheck coverage of `run:` blocks that disabling it would
+  # have given up, and it works under either runtime. Report the golang
+  # deadlock upstream and revisit if a release fixes it.
+  - repo: local
     hooks:
       - id: actionlint
+        name: Lint GitHub Actions workflow files
+        # renovate: datasource=docker depName=rhysd/actionlint
+        entry: >-
+          bash -c 'runtime=$(command -v docker || command -v podman) || {
+          echo "actionlint hook needs docker or podman on PATH" >&2; exit 1; };
+          exec "$runtime" run --rm -v "$PWD:/repo:ro" -w /repo
+          rhysd/actionlint:1.7.12 -color "$0" "$@"'
+        language: system
+        types: ["yaml"]
+        files: ^\.github/workflows/
 
   # Dockerfile linting, which nothing here covered before. trivy and checkov
   # both read the two Dockerfiles already, but for security misconfiguration:

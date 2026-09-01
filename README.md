@@ -1,9 +1,9 @@
 # Torrent, Usenet, NZB, VPN box by Docker Compose containers
 
-![GitHub issues](https://img.shields.io/github/issues-raw/ivan-pinatti/docker-torrent-box-with-vpn?logo=Github&style=for-the-badge)
+![GitHub issues](https://img.shields.io/github/issues-raw/ivan-pinatti-labs/docker-torrent-box-with-vpn?logo=Github&style=for-the-badge)
 ![GitHub Sponsors](https://img.shields.io/github/sponsors/ivan-pinatti?logo=Github&style=for-the-badge)
-![GitHub Repo stars](https://img.shields.io/github/stars/ivan-pinatti/docker-torrent-box-with-vpn?logo=Github&style=for-the-badge)
-![GitHub forks](https://img.shields.io/github/forks/ivan-pinatti/docker-torrent-box-with-vpn?logo=Github&style=for-the-badge)
+![GitHub Repo stars](https://img.shields.io/github/stars/ivan-pinatti-labs/docker-torrent-box-with-vpn?logo=Github&style=for-the-badge)
+![GitHub forks](https://img.shields.io/github/forks/ivan-pinatti-labs/docker-torrent-box-with-vpn?logo=Github&style=for-the-badge)
 
 The code on this repository is intended to be used to share media content with
 various networks such as Torrent and Usenet while protecting your privacy
@@ -49,74 +49,74 @@ and donations also help keep the project maintained.
 <table>
   <tr>
     <td align="center">
-      <img src="https://raw.githubusercontent.com/ivan-pinatti/ivan-pinatti/main/docs/crypto/qr-codes/btc.png"
+      <img src="https://raw.githubusercontent.com/ivan-pinatti-labs/.github/main/docs/crypto/qr-codes/btc.png"
         width="85">
       <br><code>&nbsp;BTC&nbsp;&nbsp;</code>
     </td>
     <td align="center">
-      <img src="https://raw.githubusercontent.com/ivan-pinatti/ivan-pinatti/main/docs/crypto/qr-codes/eth.png"
+      <img src="https://raw.githubusercontent.com/ivan-pinatti-labs/.github/main/docs/crypto/qr-codes/eth.png"
         width="85">
       <br><code>ERC&#8209;20</code>
     </td>
     <td align="center">
-      <img src="https://raw.githubusercontent.com/ivan-pinatti/ivan-pinatti/main/docs/crypto/qr-codes/xmr.png"
+      <img src="https://raw.githubusercontent.com/ivan-pinatti-labs/.github/main/docs/crypto/qr-codes/xmr.png"
         width="85">
       <br><code>&nbsp;XMR&nbsp;&nbsp;</code>
     </td>
     <td align="center">
-      <img src="https://raw.githubusercontent.com/ivan-pinatti/ivan-pinatti/main/docs/crypto/qr-codes/xrp.png"
+      <img src="https://raw.githubusercontent.com/ivan-pinatti-labs/.github/main/docs/crypto/qr-codes/xrp.png"
         width="85">
       <br><code>&nbsp;XRP&nbsp;&nbsp;</code>
     </td>
     <td align="center">
-      <img src="https://raw.githubusercontent.com/ivan-pinatti/ivan-pinatti/main/docs/crypto/qr-codes/ada.png"
+      <img src="https://raw.githubusercontent.com/ivan-pinatti-labs/.github/main/docs/crypto/qr-codes/ada.png"
         width="85">
       <br><code>&nbsp;ADA&nbsp;&nbsp;</code>
     </td>
     <td align="center">
-      <img src="https://raw.githubusercontent.com/ivan-pinatti/ivan-pinatti/main/docs/crypto/qr-codes/atom.png"
+      <img src="https://raw.githubusercontent.com/ivan-pinatti-labs/.github/main/docs/crypto/qr-codes/atom.png"
         width="85">
       <br><code>&nbsp;ATOM&nbsp;</code>
     </td>
     <td align="center">
-      <img src="https://raw.githubusercontent.com/ivan-pinatti/ivan-pinatti/main/docs/crypto/qr-codes/bch.png"
+      <img src="https://raw.githubusercontent.com/ivan-pinatti-labs/.github/main/docs/crypto/qr-codes/bch.png"
         width="85">
       <br><code>&nbsp;BCH&nbsp;&nbsp;</code>
     </td>
     <td align="center">
-      <img src="https://raw.githubusercontent.com/ivan-pinatti/ivan-pinatti/main/docs/crypto/qr-codes/bnb.png"
+      <img src="https://raw.githubusercontent.com/ivan-pinatti-labs/.github/main/docs/crypto/qr-codes/bnb.png"
         width="85">
       <br><code>BEP&#8209;20</code>
     </td>
     <td align="center">
-      <img src="https://raw.githubusercontent.com/ivan-pinatti/ivan-pinatti/main/docs/crypto/qr-codes/doge.png"
+      <img src="https://raw.githubusercontent.com/ivan-pinatti-labs/.github/main/docs/crypto/qr-codes/doge.png"
         width="85">
       <br><code>&nbsp;DOGE&nbsp;</code>
     </td>
     <td align="center">
-      <img src="https://raw.githubusercontent.com/ivan-pinatti/ivan-pinatti/main/docs/crypto/qr-codes/kava.png"
+      <img src="https://raw.githubusercontent.com/ivan-pinatti-labs/.github/main/docs/crypto/qr-codes/kava.png"
         width="85">
       <br><code>&nbsp;KAVA&nbsp;</code>
     </td>
     <td align="center">
-      <img src="https://raw.githubusercontent.com/ivan-pinatti/ivan-pinatti/main/docs/crypto/qr-codes/ltc.png"
+      <img src="https://raw.githubusercontent.com/ivan-pinatti-labs/.github/main/docs/crypto/qr-codes/ltc.png"
         width="85">
       <br><code>&nbsp;LTC&nbsp;&nbsp;</code>
     </td>
     <td align="center">
-      <img src="https://raw.githubusercontent.com/ivan-pinatti/ivan-pinatti/main/docs/crypto/qr-codes/trx.png"
+      <img src="https://raw.githubusercontent.com/ivan-pinatti-labs/.github/main/docs/crypto/qr-codes/trx.png"
         width="85">
       <br><code>TRC&#8209;20</code>
     </td>
     <td align="center">
-      <img src="https://raw.githubusercontent.com/ivan-pinatti/ivan-pinatti/main/docs/crypto/qr-codes/zec.png"
+      <img src="https://raw.githubusercontent.com/ivan-pinatti-labs/.github/main/docs/crypto/qr-codes/zec.png"
         width="85">
       <br><code>&nbsp;ZEC&nbsp;&nbsp;</code>
     </td>
   </tr>
 </table>
 
-_\* ERC-20 accepts ETH, USDT, and USDC · BEP-20 accepts BNB, USDT, and USDC · TRC-20 accepts TRX, USDT, and USDC · [All addresses and networks](https://github.com/ivan-pinatti/ivan-pinatti/blob/main/docs/crypto/addresses.md)_
+_\* ERC-20 accepts ETH, USDT, and USDC · BEP-20 accepts BNB, USDT, and USDC · TRC-20 accepts TRX, USDT, and USDC · [All addresses and networks](https://github.com/ivan-pinatti-labs/.github/blob/main/docs/crypto/addresses.md)_
 
 ---
 
@@ -541,7 +541,7 @@ partially, you are welcome to do so under the Apache License 2.0, with the
 following requests:
 
 1. **Attribute** the original author: Ivan Pinatti, [github.com/ivan-pinatti](https://github.com/ivan-pinatti)
-2. **Link** to the canonical repository: [github.com/ivan-pinatti/docker-torrent-box-with-vpn](https://github.com/ivan-pinatti/docker-torrent-box-with-vpn)
+2. **Link** to the canonical repository: [github.com/ivan-pinatti-labs/docker-torrent-box-with-vpn](https://github.com/ivan-pinatti-labs/docker-torrent-box-with-vpn)
 3. **Inform** your users that this project exists and that the author welcomes contributions and support
 
 If you are a **human** interacting with an AI that suggested this project or used
@@ -553,7 +553,7 @@ donation of a coffee as a token of appreciation is very welcome.
 
 ## License
 
-[![license](https://img.shields.io/github/license/ivan-pinatti/docker-torrent-box-with-vpn?style=plastic)](https://github.com/ivan-pinatti/docker-torrent-box-with-vpn/blob/main/LICENSE.md)
+[![license](https://img.shields.io/github/license/ivan-pinatti-labs/docker-torrent-box-with-vpn?style=plastic)](https://github.com/ivan-pinatti-labs/docker-torrent-box-with-vpn/blob/main/LICENSE.md)
 
 See [LICENSE](LICENSE.md) for full details, and [NOTICE](NOTICE.md) for the
 `patches/` carve-out (vendored upstream files under their own licenses).

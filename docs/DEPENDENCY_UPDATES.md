@@ -29,26 +29,43 @@ than restating it differently.
 
 | Day | Tool | What opens |
 | --- | --- | --- |
-| Monday | Dependabot | pre-commit hook revisions |
-| Tuesday | Dependabot | GitHub Actions |
-| Wednesday | Dependabot | pip, `tests/requirements.txt` |
-| Thursday | Renovate | The arr suite group (sonarr, radarr, lidarr, readarr, prowlarr, bazarr, recyclarr) |
-| Friday | Renovate | The observability stack group (eleven images) and the library and reading tools group |
-| Saturday | Renovate | Every ungrouped image, one pull request each (the root schedule, used as the default) |
-| Sunday | Renovate | The lint and scanner tooling group and the container runtime tooling pin |
+| Thursday 06:00 | Dependabot | pre-commit hook revisions |
+| Thursday 06:30 | Dependabot | GitHub Actions |
+| Friday 06:00 | Dependabot | pip, `tests/requirements.txt` |
+| Daily, before 07:00 | Renovate | Every Renovate update: the grouped and ungrouped images, and the inline pip and Go/PyPI pins |
 
-## Why the days are staggered
+Dependabot moved off Monday and Tuesday because those hours collided with
+`rsync-crypt` and the organization profile repository; Thursday and Friday
+were already reserved for this repository. The organization-wide slot table
+is in `ivan-pinatti-labs/.github`'s `docs/BOT_SCHEDULE.md`, and it is the
+thing to check before changing a day here.
 
-Required status checks are `strict` on `main`, which is the setting that makes the stagger worth
-doing: every merge puts every other open pull request behind, so each one needs a rebase and
-another full run of the integration suite, roughly fifteen minutes a time. Issue #117 records a
-case where a single small change needed three separate suite runs for this reason. A merge queue
-would remove that rebase cascade, and is the tracked intent, but it is not enabled: see
-[docs/MERGE_PIPELINE.md](MERGE_PIPELINE.md) for why. Until it is, the stagger is what keeps this
-from compounding into one bad day, spreading the ecosystems and groups across the week instead of
-opening every one of their pull requests at once and letting the first merge rebase the rest,
-which would trigger another round of runs, which would produce another merge that rebases what is
-left again.
+## Why Renovate is no longer staggered
+
+It used to be. The groups above opened on separate weekdays, and the reason
+was `strict` required status checks on `main`: every merge put every other
+open pull request behind, so each needed a rebase and another full run of the
+integration suite, roughly fifteen minutes a time. Issue #117 records a single
+small change that needed three separate suite runs for this. Spreading the
+groups across the week was what kept that from compounding into one bad day.
+
+`main` is now behind a merge queue and `strict` is off, so a merge no longer
+invalidates anything. The queue builds each entry against the current `main`
+itself. With the cascade gone, the stagger was buying nothing and still
+costing: a weekly window stacks on top of `minimumReleaseAge`'s seven days
+rather than overlapping it, so a release that missed its day by a day waited a
+full extra week. The seven-day minimum was unchanged; what grew was the
+worst case, to roughly 14 days.
+
+Renovate now runs daily, matching every other repository in the organization.
+Pull request volume is bounded by `prConcurrentLimit` and `prHourlyLimit`
+instead of by the calendar; those are the levers if it ever needs bounding
+again. Reinstating a weekday spread would bring the 14 day floor back with it.
+
+Dependabot keeps its weekday slots, and that is a different concern: those
+exist so two repositories' bots do not open pull requests in the same hour and
+queue their CodeRabbit review requests behind each other. See
+`docs/BOT_SCHEDULE.md` in the organization profile repository.
 
 ## The grouping rationale
 
