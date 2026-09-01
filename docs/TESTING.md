@@ -139,13 +139,12 @@ other open pull request behind and each of those needs a rebase and a fresh
 suite run to catch back up. That has gotten worse as this stack grew, not
 better: the suite now starts 34 services rather than 22, since CI began
 applying `.env.tests` and the observability profiles came on, so a rerun costs
-more wall clock than it used to, and the number of open pull requests the
-churn multiplies against is driven by Renovate and Dependabot, which are
-deliberately scheduled to spread bumps across the week rather than land them
-one at a time. See [docs/MERGE_PIPELINE.md](MERGE_PIPELINE.md) for the merge
-queue this is meant to be replaced with, and why it is not enabled yet; this
-section covers only why a cheaper alternative to a queue, running fewer tests
-rather than fewer times, was rejected.
+more wall clock than it used to. That churn is now gone: `main` is behind a
+merge queue and required checks are no longer `strict`, so a merge does not
+invalidate the other open pull requests and none of them needs a rebase and a
+re-run. See [docs/MERGE_PIPELINE.md](MERGE_PIPELINE.md). This section is kept
+because the question recurs, and covers only why a cheaper alternative to a
+queue, running fewer tests rather than fewer times, was rejected.
 
 Selective or per-service testing (running only the tests a change plausibly
 touches, rather than the whole suite) was considered as a cheaper answer to

@@ -31,13 +31,12 @@ actually being merged, rather than after every push. See
 [docs/CONTRIBUTING.md](CONTRIBUTING.md) for the comment mechanics
 (`/run-check` for the lint layers alone, the maintainer allowlist, and so on).
 
-Once every required check reads green, a maintainer merges it. `main`
-currently requires `strict` status checks, meaning the branch has to be up to
-date with `main` first; if another pull request has merged in the meantime,
-that means a `gh pr update-branch` (or an equivalent rebase) before merging,
-which dismisses the existing approval and re-runs the mechanical checks and
-the review on the new head. See "The merge queue, and why it isn't one yet"
-below for why this is the current state rather than the intended one.
+Once every required check reads green, a maintainer selects **Merge when
+ready**. That enqueues it; the queue then builds a throwaway merge commit
+against the current `main`, runs every required context a second time against
+that commit, and merges only if they pass. The branch does not have to be
+rebased first, and another pull request merging in the meantime does not
+invalidate this one. See "The merge queue" below.
 
 ## A dependency bot pull request
 
@@ -68,10 +67,9 @@ merge on their own:
 4. **GitHub merges it** once every required check, `Review Verified` included,
    is green. Renovate arms auto-merge itself when it opens the pull request;
    the workflow arms it on the Dependabot path, since Dependabot cannot.
-   `main`'s `strict` requirement applies here too: whether GitHub's own
-   auto-merge keeps a bot pull request current against `main` on its own, or
-   this still needs each one rebased in turn the way a human pull request
-   does, has not been observed directly and is not asserted here either way.
+   Arming auto-merge enqueues the pull request once every required context
+   is green; the queue takes it from there, so a bot pull request no longer
+   has to be rebased in turn behind each merge.
 
 `Review Verified` is not skipped here, and that is deliberate: see the next
 section for what a pin-only diff actually earns it.
@@ -149,38 +147,47 @@ Read the reason beside a `CodeRabbit` check, not its color, if you are
 looking at it directly; `Review Verified` is what makes that reading a
 required check rather than a habit a person has to remember.
 
-## The merge queue, and why it isn't one yet
+## The merge queue
 
-`main` requires `strict` status checks today: a pull request has to be
-rebased onto the current `main` before it can merge. That guarantee is real
-for a stack whose suite stands the whole thing up, but the cost compounds
-with every dependency bot pull request in flight, since one merge invalidates
-every other open pull request's checks and each one needs a fresh rebase and
-a fresh run to catch back up (#117).
+`main` is behind a `merge_queue` ruleset, and required status checks are no
+longer `strict`. Those two changes are one decision, not two, and the reason
+is worth keeping.
 
-A merge queue is the intended fix, and it is not enabled. GitHub refuses the
-`merge_queue` ruleset rule on a repository owned by a personal account,
-confirmed empirically: the identical ruleset payload that GitHub rejects here
-with `422 Invalid rule 'merge_queue'` was accepted, active, on a repository
-inside a free organization. This repository is owned by a personal account,
-so the queue stays blocked on that until something changes, tracked on #117.
-Moving this specific repository into an organization is not a decision that
-has been made; an organization migration is being rehearsed separately, on a
-different repository, and has not been approved here.
+`strict` required a pull request to be rebased onto the current `main` before
+it could merge. The guarantee is real for a stack whose suite stands the whole
+thing up, but the cost compounded with every dependency bot pull request in
+flight: one merge invalidated every other open pull request's checks, and each
+needed a fresh rebase and a fresh fifteen minute run to catch back up.
+Issue #117 recorded a single small change that needed three separate suite
+runs for exactly this.
 
-Once a queue can be enabled, the design is unchanged from what was built for
-it: it would test a throwaway merge commit against the current `main` instead
-of moving a pull request's own head, so the "tested against what it lands on"
-guarantee `strict` buys today would still hold without a pull request's
-checks ever being invalidated by someone else's merge, and every context in
-the table above would run a second time against that commit before anything
-actually merges. `strict` staying on until then is the safe direction to fail
-in: the alternative, dropping it with nothing in its place, would mean a pull
-request could merge having only ever been tested against a base it is no
-longer on, which is not decorative for a suite that stands the whole stack
-up. See [docs/TESTING.md](TESTING.md) for the fuller reasoning, including why
-selective or per-service testing was considered and rejected as a cheaper
-alternative to a queue.
+The queue supplies the same guarantee without that cascade. It tests a
+throwaway merge commit against the current `main` rather than moving a pull
+request's own head, so "tested against what it lands on" still holds, and
+every context in the table above runs a second time against that commit before
+anything merges. `strict` was the stand-in for a queue that could not exist
+yet; keeping both would have kept the rebase cascade while paying for the
+queue.
+
+That it could not exist yet was an ownership limit, not a design one. GitHub
+refuses the `merge_queue` ruleset rule on a repository owned by a personal
+account, confirmed empirically: the identical payload rejected here with
+`422 Invalid rule 'merge_queue'` was accepted, active, on a repository inside
+a free organization. This repository has since moved into the
+`ivan-pinatti-labs` organization, which is what unblocked it.
+
+Dropping `strict` on its own, with no queue in place, would have been the
+unsafe direction: a pull request could then merge having only ever been tested
+against a base it is no longer on, which is not decorative for a suite that
+stands the whole stack up. See [docs/TESTING.md](TESTING.md) for the fuller
+reasoning, including why selective or per-service testing was considered and
+rejected as a cheaper alternative to a queue.
+
+One consequence worth stating, since it is the whole point: a merge no longer
+puts the other open pull requests behind. `.github/renovate.json5`'s weekday
+spread existed to keep that cascade manageable and has been removed for the
+daily default the rest of the organization uses; see
+[docs/DEPENDENCY_UPDATES.md](DEPENDENCY_UPDATES.md).
 
 ## What blocks, and what clears it
 
@@ -231,12 +238,11 @@ intervention.
 - **A major dependency bump.** No automatic approval either way, by design.
 - **A genuine test failure or merge conflict.** Neither self-heals; someone
   has to change the code.
-- **A human pull request behind on `main`, while there is no merge queue.**
-  `strict` requires the branch to be current, so a maintainer runs
-  `gh pr update-branch` (or an equivalent rebase); this dismisses the
-  approval and spends a `Review Verified` review cycle on the new head. This
-  is exactly the churn #117 exists to remove, and it stays a manual step
-  until the merge queue above can be enabled.
+- **A pull request behind on `main`.** No longer a block. This was the
+  churn #117 existed to remove: `strict` required the branch to be current,
+  so a maintainer ran `gh pr update-branch`, which dismissed the approval and
+  spent a `Review Verified` cycle on the new head. The queue removed both the
+  requirement and the cascade.
 
 ---
 

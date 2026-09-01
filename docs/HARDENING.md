@@ -334,8 +334,8 @@ What is placed against it instead:
   evidence of a review in the first place.
 - **The suite itself**, which has to pass on the pull request's own head
   before it merges. See [docs/MERGE_PIPELINE.md](MERGE_PIPELINE.md) for the
-  merge queue this is meant to gain a second, throwaway-commit run through,
-  and why that is not enabled yet.
+  merge queue, which now runs every required context a second time against
+  its own throwaway commit before anything merges.
 
 What remains, and is accepted: the two bot identities are trusted to be
 themselves, and an upstream release that survives seven days, produces a

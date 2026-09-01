@@ -186,10 +186,36 @@ repos:
   # change which findings appear. The hook carries its own
   # `files: ^\.github/workflows/`, which selects the same five workflows
   # ACTION_ACTIONLINT did; verified by comparing against its file list.
+  #
+  # `-shellcheck=` disables actionlint's shellcheck integration, and it is a
+  # bug workaround rather than a preference.
+  #
+  # actionlint v1.7.12, the current release, deadlocks on any `run:` script
+  # larger than roughly 8 KB when a shellcheck binary is on PATH. Measured
+  # here: it sits at 0% CPU with no child process and never returns.
+  # Reproduced with the upstream release binary as well as this hook's own
+  # build, and with shellcheck 0.10.0 and 0.11.0 alike, so it is neither a
+  # local build nor a shellcheck version. shellcheck itself is not the slow
+  # part: handed the same script with actionlint's own flags it returns no
+  # findings in 0.03s. The minimal reproduction is an `echo hello` script
+  # padded to 8180 bytes with `# pad` comment lines; at 8100 bytes it passes.
+  #
+  # coderabbit-review-queue.yml's single 8.6 KB step crosses that line, which
+  # made `pre-commit run --all-files` hang forever, and with it every `git
+  # push`, since all-files-sweep runs at the pre-push stage and git holds the
+  # SSH connection open while hooks run until GitHub drops it.
+  #
+  # Nothing is lost by disabling it. CI has never run these checks: the
+  # `Code Check` job passes this hook in about a second, which is only
+  # possible without shellcheck present, so actionlint's shell linting has
+  # been silently skipped there all along. This makes local behavior match
+  # CI and deterministic instead of matching it by accident. Reported
+  # upstream; revisit when a release fixes the deadlock.
   - repo: https://github.com/rhysd/actionlint
     rev: v1.7.12
     hooks:
       - id: actionlint
+        args: ["-shellcheck="]
 
   # Dockerfile linting, which nothing here covered before. trivy and checkov
   # both read the two Dockerfiles already, but for security misconfiguration:
