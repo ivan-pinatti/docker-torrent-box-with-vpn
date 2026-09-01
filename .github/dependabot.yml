@@ -1,24 +1,43 @@
 version: 2
 
-# The three ecosystems below are staggered onto separate days rather than all
-# opening Monday, so the suites they trigger do not queue behind one another
-# and so a person does not see every dependency pull request for the week
-# arrive as one batch. Security updates are not affected either way: they are
-# alert driven and open as soon as GitHub raises the alert, ignoring this
-# schedule entirely.
+# The three ecosystems below are staggered rather than all opening at once, so
+# the suites they trigger do not queue behind one another and so a person does
+# not see every dependency pull request for the week arrive as one batch.
+# Security updates are not affected either way: they are alert driven and open
+# as soon as GitHub raises the alert, ignoring this schedule entirely.
+#
+# Thursday and Friday, not Monday and Tuesday, and the days are not arbitrary.
+# ivan-pinatti-labs/.github's docs/BOT_SCHEDULE.md allocates slots across the
+# organization because CodeRabbit's review quota is shared across the whole
+# app installation rather than handed out per repository, so two repositories
+# opening bot pull requests in the same hour queue behind each other and both
+# look stuck for no visible reason. Monday 06:00 and 06:30 belong to
+# rsync-crypt and Tuesday 06:30 to the .github profile repository, both of
+# which this repository collided with on arrival. Moving to 07:00 on those
+# same days was the first fix and was wrong too: Monday 07:00 is
+# pre-commit-checklists-demo's pip slot.
+#
+# Thursday and Friday were already reserved for this repository in that
+# document, held for the Renovate weekday spread that renovate.json5 no longer
+# has, so they are free and they are ours. Check that table before changing a
+# day here.
+#
+# The cooldown on each ecosystem is the organization-wide seven day window;
+# see BOT_SCHEDULE.md's "Cooling windows" for why both bots carry the same
+# floor and why only default-days is set.
 updates:
   - package-ecosystem: "pre-commit"
     directory: "/"
     schedule:
       interval: weekly
-      day: monday
+      day: thursday
       # 07:00, not 06:00: rsync-crypt's Dependabot pre-commit ecosystem also
       # opens Monday 06:00 (see ivan-pinatti-labs/.github's
       # docs/BOT_SCHEDULE.md "Slots in use" table), and two repositories'
       # bots opening at the same hour would queue their CodeRabbit review
       # requests behind each other. Moved this repository's hour rather than
       # rsync-crypt's, since rsync-crypt's slot is the one already on record.
-      time: "07:00"
+      time: "06:00"
       timezone: "America/Toronto"
     labels:
       - dependencies
@@ -45,7 +64,7 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
-      day: tuesday
+      day: thursday
       # 07:00, not 06:30: ivan-pinatti-labs/.github's own Dependabot
       # github-actions ecosystem opens Tuesday 06:30 (see its
       # docs/BOT_SCHEDULE.md "Slots in use" table), and two repositories'
@@ -53,7 +72,7 @@ updates:
       # requests behind each other. Moved this repository's hour rather than
       # the org repository's, for the same reason as the pre-commit slot
       # above.
-      time: "07:00"
+      time: "06:30"
       timezone: "America/Toronto"
     labels:
       - dependencies
@@ -74,8 +93,8 @@ updates:
     directory: "/tests"
     schedule:
       interval: weekly
-      day: wednesday
-      time: "07:00"
+      day: friday
+      time: "06:00"
       timezone: "America/Toronto"
     labels:
       - dependencies

@@ -386,3 +386,26 @@ def test_refuses_an_extra_tool_added_to_tool_versions():
         _diff(".tool-versions", "-pre-commit 4.5.1\n+pre-commit 4.6.2\n+evil 1.0.0\n")
     )
     assert result.returncode == 1
+
+
+def test_accepts_a_pip_floor_bump_in_test_requirements():
+    # tests/requirements.txt pins floors with `>=`, not exact versions with
+    # `==`, and `>=` was missing from the prefix set until PR #94 sat failing
+    # `Pin Only` on it. Every line in that file uses it, so no bump of it could
+    # ever have graded pin-only.
+    result = _check(_diff("tests/requirements.txt", "-json5>=0.12.1\n+json5>=0.15.0\n"))
+    assert result.returncode == 0, result.stdout
+
+
+def test_refuses_a_swapped_package_name_on_a_floor_pin():
+    result = _check(
+        _diff("tests/requirements.txt", "-json5>=0.12.1\n+attacker>=0.15.0\n")
+    )
+    assert result.returncode == 1
+
+
+def test_refuses_a_floor_pin_becoming_an_exact_pin():
+    # The prefix is captured and put back, so changing the pin's shape is a
+    # difference even when the package and the version are both plausible.
+    result = _check(_diff("tests/requirements.txt", "-json5>=0.12.1\n+json5==0.15.0\n"))
+    assert result.returncode == 1

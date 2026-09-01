@@ -112,16 +112,29 @@ def _normalize_action_sha(match: re.Match[str]) -> str:
 # `PUID=1000` becoming `PUID=0`, or a `fetch-depth` moving, since both sides
 # would normalize alike.
 #
-# The five prefixes are the shapes a pin takes everywhere except .tool-versions,
+# The six prefixes are the shapes a pin takes everywhere except .tool-versions,
 # which is handled whole-line above:
 #
 #   ==1.2.3              pip, in a workflow run step or additional_dependencies
+#   >=1.2.3              pip, in tests/requirements.txt, which pins floors
+#                        rather than exact versions
 #   @v1.2.3              an action ref, and what is left after a digest is cut
 #   FOO_VERSION=1.2.3    .env.example, where a bare `=` is not enough: PUID and
 #                        the port variables use one too
 #   rev: v1.2.3          a pre-commit hook revision
 #   image:1.2.3          a tag, the colon pressed against a non-space so that a
 #                        YAML `key: 25` cannot pass for one
+#
+# `>=` was missing until it was noticed on PR #94, a Dependabot bump of
+# tests/requirements.txt, which that pull request has been failing `Pin Only`
+# on ever since: every line in that file is a `>=` floor, so no bump of it
+# could ever grade pin-only and every one of them waited for a person for a
+# reason nobody could see from the status. Only `>=` is added, not the rest of
+# pip's operator vocabulary: `==` and `>=` are the only two that appear
+# anywhere in ALLOWED_PATHS, and inventing shapes this repository does not use
+# would widen what a bot may push for no benefit. The prefix is still captured
+# and put back, so `docker>=7.2.0` becoming `docker==7.2.0` is a change of pin
+# shape and still reads as a difference.
 # The prefix is captured and put back, so that a pin changing shape rather than
 # value, `foo==1.2.3` becoming `foo@1.2.3`, still reads as a difference.
 # The token is any tag-shaped run of characters, and the narrowing lives entirely
@@ -141,7 +154,7 @@ def _normalize_action_sha(match: re.Match[str]) -> str:
 # the value in a pin position, and only there, which is why `PUID=1000` is
 # untouched by this and a change to it is refused.
 VERSION = re.compile(
-    r"(?P<prefix>==|@|(?<=VERSION)=|\brev:[ \t]+|(?<=\S):)"
+    r"(?P<prefix>==|>=|@|(?<=VERSION)=|\brev:[ \t]+|(?<=\S):)"
     r"[0-9A-Za-z][0-9A-Za-z.+_-]*"
 )
 

@@ -45,11 +45,32 @@
   // ruled out, since the retest ran hours after it resolved. Raised with their
   // support.
   //
-  // Worth weighing if this is ever reconsidered: the window costs up to seven
-  // days on top of the seven minimumReleaseAge already imposes, and it existed
-  // to give a person one sitting a week to work through the batch. Nothing is
-  // worked through by hand any more.
-  schedule: ["before 7am on saturday"],
+  // Daily, and no weekday spread. This was a Saturday window with the groups
+  // below staggered across Thursday, Friday and Sunday, and that layout has
+  // been removed rather than kept, on the argument the previous version of
+  // this comment had already written down without acting on: the window costs
+  // up to seven days on top of the seven `minimumReleaseAge` already imposes,
+  // and it existed to give a person one sitting a week to work through the
+  // batch. Nothing is worked through by hand any more.
+  //
+  // So the spread was buying a review sitting nobody holds, and charging up
+  // to seven extra days of staleness for it. Worse, the two windows stack
+  // rather than overlap: a release that misses its day by a day waits a full
+  // extra week, so the oldest a package could sit before merging was 14 days
+  // when 7 was the intended floor. Daily keeps the schedule's own period
+  // short enough that it cannot add more than a day on top of that floor.
+  //
+  // The organization-wide statement of this, and the reasoning that it does
+  // not compete for CodeRabbit's shared review quota (a pin-only bump
+  // resolves `Review Verified` through the bot lane without a review being
+  // spent at all), is in ivan-pinatti-labs/.github's docs/BOT_SCHEDULE.md
+  // under "Renovate runs daily everywhere".
+  //
+  // Pull request volume is still bounded, by prConcurrentLimit and
+  // prHourlyLimit below rather than by the calendar. Those are the levers to
+  // reach for if the volume ever becomes a problem again; reinstating a
+  // weekday spread would bring the 14 day floor back with it.
+  schedule: ["before 7am"],
 
   // `docker` is not here on purpose. It is added by the datasource rule in
   // packageRules below, so a pypi or go update no longer arrives tagged as a
@@ -247,7 +268,6 @@
       ],
       groupName: "arr suite",
       groupSlug: "arr-suite",
-      schedule: ["before 7am on thursday"],
     },
     // The observability stack. Every image in it sits behind a profile that
     // ships disabled. Grouped for pull request volume rather than tidiness now:
@@ -294,7 +314,6 @@
       ],
       groupName: "observability stack",
       groupSlug: "observability",
-      schedule: ["before 7am on friday"],
     },
     // Library and reading tools. Grouped for the same reason as the arr suite
     // above, to cut pull request volume, not because these five share a
@@ -312,7 +331,6 @@
       ],
       groupName: "library and reading tools",
       groupSlug: "library-reading",
-      schedule: ["before 7am on friday"],
     },
     // gluetun, flaresolverr, wireguard, every download client (qbittorrent,
     // sabnzbd, nzbget, nzbhydra2, jdownloader-2), jellyfin and homepage are
@@ -366,7 +384,6 @@
       ],
       groupName: "lint and scanner tooling",
       groupSlug: "lint-scanner-tooling",
-      schedule: ["before 7am on sunday"],
     },
     // The container runtime tooling CI installs, pinned inline in the
     // workflows. Grouped so the two copies of the pin always move in one pull
@@ -390,7 +407,6 @@
       groupName: "container runtime tooling",
       groupSlug: "ci-runtime",
       addLabels: ["ci-runtime"],
-      schedule: ["before 7am on sunday"],
     },
   ],
 
