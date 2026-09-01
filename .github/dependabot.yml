@@ -31,12 +31,10 @@ updates:
     schedule:
       interval: weekly
       day: thursday
-      # 07:00, not 06:00: rsync-crypt's Dependabot pre-commit ecosystem also
-      # opens Monday 06:00 (see ivan-pinatti-labs/.github's
-      # docs/BOT_SCHEDULE.md "Slots in use" table), and two repositories'
-      # bots opening at the same hour would queue their CodeRabbit review
-      # requests behind each other. Moved this repository's hour rather than
-      # rsync-crypt's, since rsync-crypt's slot is the one already on record.
+      # 06:00 is free on a Thursday. It is rsync-crypt's hour on a Monday,
+      # which is what this repository collided with on arrival, but the unit
+      # the org schedule protects is the hour on a given day, not the hour
+      # across the week. See the header above for how Thursday came free.
       time: "06:00"
       timezone: "America/Toronto"
     labels:
@@ -65,13 +63,9 @@ updates:
     schedule:
       interval: weekly
       day: thursday
-      # 07:00, not 06:30: ivan-pinatti-labs/.github's own Dependabot
-      # github-actions ecosystem opens Tuesday 06:30 (see its
-      # docs/BOT_SCHEDULE.md "Slots in use" table), and two repositories'
-      # bots opening at the same hour would queue their CodeRabbit review
-      # requests behind each other. Moved this repository's hour rather than
-      # the org repository's, for the same reason as the pre-commit slot
-      # above.
+      # Half an hour after the pre-commit slot above, so the two suites this
+      # repository triggers do not start together. 06:30 is the profile
+      # repository's hour on a Tuesday, not a Thursday, so there is no clash.
       time: "06:30"
       timezone: "America/Toronto"
     labels:
