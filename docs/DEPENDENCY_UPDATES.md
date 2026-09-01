@@ -32,7 +32,7 @@ than restating it differently.
 | Thursday 06:00 | Dependabot | pre-commit hook revisions |
 | Thursday 06:30 | Dependabot | GitHub Actions |
 | Friday 06:00 | Dependabot | pip, `tests/requirements.txt` |
-| Daily, before 07:00 | Renovate | Every group and every ungrouped image |
+| Daily, before 07:00 | Renovate | Every Renovate update: the grouped and ungrouped images, and the inline pip and Go/PyPI pins |
 
 Dependabot moved off Monday and Tuesday because those hours collided with
 `rsync-crypt` and the organization profile repository; Thursday and Friday
@@ -54,7 +54,8 @@ invalidates anything. The queue builds each entry against the current `main`
 itself. With the cascade gone, the stagger was buying nothing and still
 costing: a weekly window stacks on top of `minimumReleaseAge`'s seven days
 rather than overlapping it, so a release that missed its day by a day waited a
-full extra week, making the real floor 14 days when 7 was intended.
+full extra week. The seven day minimum was unchanged; what grew was the
+worst case, to roughly 14 days.
 
 Renovate now runs daily, matching every other repository in the organization.
 Pull request volume is bounded by `prConcurrentLimit` and `prHourlyLimit`
