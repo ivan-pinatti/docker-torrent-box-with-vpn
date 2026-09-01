@@ -88,15 +88,21 @@
   // pull request no longer costs anything when a sibling merges, but it did
   // not make the suite cheaper: `max_entries_to_build` is 1, so queued entries
   // build one at a time and each one stands the whole stack up for upward of
-  // twelve minutes. Five concurrent groups is an hour of serialized queue
-  // time; three keeps a bad morning inside half of that.
+  // twelve minutes. Five concurrent entries is upward of an hour of
+  // serialized queue time; three is upward of thirty six minutes, which is
+  // not half but is the difference between a morning and most of one.
   //
   // This is the lever to reach for if volume becomes a problem again, rather
   // than reinstating a weekday spread. The spread would bound arrivals too,
   // but it would bring back the stacking described above the schedule: a
   // release missing its day waits a full extra week, taking the worst case to
-  // roughly 14 days when `minimumReleaseAge` intends 7. Lowering this number
-  // costs latency only for the sixth-most-urgent update in a burst.
+  // roughly 14 days when `minimumReleaseAge` intends 7.
+  //
+  // What the limit actually costs: with three open, a fourth eligible update
+  // is not opened until one of them closes, so it is the fourth and everything
+  // behind it that waits, not merely the last of a large burst. That is the
+  // trade being made, and it is a latency cost on updates that have already
+  // sat through the seven day window rather than a safety one.
   prConcurrentLimit: 3,
   prHourlyLimit: 2,
 
