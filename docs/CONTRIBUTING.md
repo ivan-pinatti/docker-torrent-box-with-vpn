@@ -135,7 +135,7 @@ concern.
 ## Report bugs using Github's [issues](https://github.com/briandk/transcriptase-atom/issues)
 
 I use GitHub issues to track public bugs. Report a bug by
-[opening a new issue](https://github.com/ivan-pinatti/docker-torrent-box-with-vpn/issues/new);
+[opening a new issue](https://github.com/ivan-pinatti-labs/docker-torrent-box-with-vpn/issues/new);
 it's that easy!
 
 ## Write bug reports with detail, background, and sample code
