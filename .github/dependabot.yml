@@ -12,7 +12,13 @@ updates:
     schedule:
       interval: weekly
       day: monday
-      time: "06:00"
+      # 07:00, not 06:00: rsync-crypt's Dependabot pre-commit ecosystem also
+      # opens Monday 06:00 (see ivan-pinatti-labs/.github's
+      # docs/BOT_SCHEDULE.md "Slots in use" table), and two repositories'
+      # bots opening at the same hour would queue their CodeRabbit review
+      # requests behind each other. Moved this repository's hour rather than
+      # rsync-crypt's, since rsync-crypt's slot is the one already on record.
+      time: "07:00"
       timezone: "America/Toronto"
     labels:
       - dependencies
@@ -25,13 +31,29 @@ updates:
       pre-commit-hooks:
         patterns:
           - "*"
+    # How old a release has to be before Dependabot offers it. Covers version
+    # updates only, never security updates, the same carve-out
+    # vulnerabilityAlerts.minimumReleaseAge: null gives Renovate below: a
+    # cooldown does not make a known vulnerability's fix any less safe to
+    # take immediately. See ivan-pinatti-labs/.github's docs/BOT_SCHEDULE.md
+    # under "Cooling windows" for the organization-wide policy this matches,
+    # and docs/HARDENING.md for why the window exists at all.
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: weekly
       day: tuesday
-      time: "06:30"
+      # 07:00, not 06:30: ivan-pinatti-labs/.github's own Dependabot
+      # github-actions ecosystem opens Tuesday 06:30 (see its
+      # docs/BOT_SCHEDULE.md "Slots in use" table), and two repositories'
+      # bots opening at the same hour would queue their CodeRabbit review
+      # requests behind each other. Moved this repository's hour rather than
+      # the org repository's, for the same reason as the pre-commit slot
+      # above.
+      time: "07:00"
       timezone: "America/Toronto"
     labels:
       - dependencies
@@ -44,6 +66,9 @@ updates:
       github-actions:
         patterns:
           - "*"
+    # See the pre-commit ecosystem above for what this covers and why.
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: "pip"
     directory: "/tests"
@@ -63,3 +88,14 @@ updates:
       test-dependencies:
         patterns:
           - "*"
+    # `pip` also supports semver-major-days, semver-minor-days and
+    # semver-patch-days, unlike github-actions and pre-commit above, but
+    # tiering the window by bump severity is not what the organization policy
+    # asks for: ivan-pinatti-labs/.github's docs/BOT_SCHEDULE.md sets one
+    # seven-day window for every ecosystem, on the reasoning that a freshly
+    # compromised release has no advisory yet regardless of whether the bump
+    # is a major, minor or patch. default-days alone keeps this ecosystem
+    # consistent with that single number instead of inventing a split the
+    # policy does not call for.
+    cooldown:
+      default-days: 7
