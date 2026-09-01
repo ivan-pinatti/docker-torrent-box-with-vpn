@@ -24,18 +24,17 @@
 
   timezone: "America/Toronto",
 
-  // The default day for anything not named in a group below. Each group in
-  // packageRules carries its own schedule, so this is only reached by images
-  // that stay ungrouped on purpose. See docs/DEPENDENCY_UPDATES.md for the
-  // full weekday layout and the reasoning behind spreading updates across the
-  // week instead of opening everything on one day.
+  // The schedule for everything. No group below carries one of its own any
+  // more; see docs/DEPENDENCY_UPDATES.md, "Why Renovate is no longer
+  // staggered".
   //
   // Only creating. updateNotScheduled defaults to true, so branches that
-  // already exist are still rebased outside the window, which matters here
-  // because required checks are strict: every merge puts the other open pull
-  // requests behind, and they would sit until the next scheduled day if
-  // Renovate could not touch them. This was misread once as a reason not to
-  // restore the window at all.
+  // already exist are still rebased outside the window. That used to matter a
+  // great deal, because required checks were `strict` and every merge put the
+  // other open pull requests behind. The merge queue removed both the `strict`
+  // requirement and that cascade, so this setting is no longer load bearing;
+  // it is left at the default rather than changed, since nothing is gained by
+  // narrowing it.
   //
   // Lifted briefly on 2026-08-18 to produce a bot pull request on demand, which
   // is the only way to observe whether CodeRabbit auto-reviews one. It does not.
@@ -80,8 +79,25 @@
   labels: ["dependencies"],
   commitMessagePrefix: "chore:",
 
-  // Keep PR volume manageable so CI is not overwhelmed.
-  prConcurrentLimit: 5,
+  // Keep pull request volume manageable, and note that this is now the only
+  // thing doing that. The weekday spread above used to bound the arrival rate
+  // by the calendar; with the schedule daily, these two are what stop several
+  // groups landing in one window.
+  //
+  // Three, not five. The merge queue removed the rebase cascade, so an open
+  // pull request no longer costs anything when a sibling merges, but it did
+  // not make the suite cheaper: `max_entries_to_build` is 1, so queued entries
+  // build one at a time and each one stands the whole stack up for upward of
+  // twelve minutes. Five concurrent groups is an hour of serialized queue
+  // time; three keeps a bad morning inside half of that.
+  //
+  // This is the lever to reach for if volume becomes a problem again, rather
+  // than reinstating a weekday spread. The spread would bound arrivals too,
+  // but it would bring back the stacking described above the schedule: a
+  // release missing its day waits a full extra week, taking the worst case to
+  // roughly 14 days when `minimumReleaseAge` intends 7. Lowering this number
+  // costs latency only for the sixth-most-urgent update in a burst.
+  prConcurrentLimit: 3,
   prHourlyLimit: 2,
 
   // The default, overridden per update type in packageRules below. Kept as the
