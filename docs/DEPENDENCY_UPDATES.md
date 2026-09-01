@@ -54,7 +54,7 @@ invalidates anything. The queue builds each entry against the current `main`
 itself. With the cascade gone, the stagger was buying nothing and still
 costing: a weekly window stacks on top of `minimumReleaseAge`'s seven days
 rather than overlapping it, so a release that missed its day by a day waited a
-full extra week. The seven day minimum was unchanged; what grew was the
+full extra week. The seven-day minimum was unchanged; what grew was the
 worst case, to roughly 14 days.
 
 Renovate now runs daily, matching every other repository in the organization.
