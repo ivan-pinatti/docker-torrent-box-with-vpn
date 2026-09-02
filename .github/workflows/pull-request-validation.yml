@@ -104,6 +104,35 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Log in to Docker Hub
+        # The pre-push hooks below shell out to containers: trivy, checkov,
+        # hadolint, lychee and actionlint all run from a Docker Hub image.
+        # Anonymous pulls are rate limited per source address, and GitHub
+        # runners share addresses across the whole pool, so those pulls fail
+        # intermittently with "unauthorized: authentication required". That is
+        # what ejected #143 from the merge queue: the same `Code Check` had
+        # passed minutes earlier on the pull request and failed on the queue's
+        # build, with trivy exiting 125 before it scanned anything.
+        #
+        # integration-tests.yml already logs in for exactly this reason, but it
+        # is the only workflow that did, so every merge_group build was pulling
+        # anonymously.
+        #
+        # Withheld from a fork's head, which has no access to the secrets
+        # anyway: the empty check below turns that into an anonymous pull
+        # rather than a failure, which is what a fork got before.
+        timeout-minutes: 2
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          if [ -z "$DOCKERHUB_USERNAME" ] || [ -z "$DOCKERHUB_TOKEN" ]; then
+            echo "No Docker Hub credentials for this head; pulling anonymously."
+            exit 0
+          fi
+          printf '%s' "$DOCKERHUB_TOKEN" \
+            | docker login docker.io --username "$DOCKERHUB_USERNAME" --password-stdin
+
       # --hook-stage pre-push, not the default. A hook with no `stages` key runs
       # at every stage, so this selects all of them: the fast file-scoped hooks
       # and, on top, the four that are pre-push only (gitleaks over the full

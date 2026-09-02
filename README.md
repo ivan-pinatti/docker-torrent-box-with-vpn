@@ -1,9 +1,11 @@
 # Torrent, Usenet, NZB, VPN box by Docker Compose containers
 
-![GitHub issues](https://img.shields.io/github/issues-raw/ivan-pinatti-labs/docker-torrent-box-with-vpn?logo=Github&style=for-the-badge)
-![GitHub Sponsors](https://img.shields.io/github/sponsors/ivan-pinatti?logo=Github&style=for-the-badge)
-![GitHub Repo stars](https://img.shields.io/github/stars/ivan-pinatti-labs/docker-torrent-box-with-vpn?logo=Github&style=for-the-badge)
-![GitHub forks](https://img.shields.io/github/forks/ivan-pinatti-labs/docker-torrent-box-with-vpn?logo=Github&style=for-the-badge)
+[![License](https://img.shields.io/github/license/ivan-pinatti-labs/docker-torrent-box-with-vpn?logo=Github&style=for-the-badge)](LICENSE.md)
+[![GitHub issues](https://img.shields.io/github/issues-raw/ivan-pinatti-labs/docker-torrent-box-with-vpn?logo=Github&style=for-the-badge)](https://github.com/ivan-pinatti-labs/docker-torrent-box-with-vpn/issues)
+[![GitHub Sponsors](https://img.shields.io/github/sponsors/ivan-pinatti?logo=Github&style=for-the-badge)](https://github.com/sponsors/ivan-pinatti)
+[![GitHub Repo stars](https://img.shields.io/github/stars/ivan-pinatti-labs/docker-torrent-box-with-vpn?logo=Github&style=for-the-badge)](https://github.com/ivan-pinatti-labs/docker-torrent-box-with-vpn)
+[![GitHub forks](https://img.shields.io/github/forks/ivan-pinatti-labs/docker-torrent-box-with-vpn?logo=Github&style=for-the-badge)](https://github.com/ivan-pinatti-labs/docker-torrent-box-with-vpn/forks)
+[![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/ivan-pinatti-labs/docker-torrent-box-with-vpn?utm_source=oss&utm_medium=github&utm_campaign=ivan-pinatti-labs%2Fdocker-torrent-box-with-vpn&labelColor=171717&color=FF570A&label=CodeRabbit+Reviews&style=for-the-badge)](https://coderabbit.ai)
 
 The code on this repository is intended to be used to share media content with
 various networks such as Torrent and Usenet while protecting your privacy
