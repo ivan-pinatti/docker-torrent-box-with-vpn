@@ -273,21 +273,27 @@ jobs:
               # dependency's name or version is ever read as jq syntax.
               #
               # shellcheck disable=SC2016
-              result=$(printf '%s' "$UPDATED_DEPENDENCIES_JSON" | jq -r '
-                  def ok: . == "version-update:semver-patch" or . == "version-update:semver-minor";
-                  if (type != "array") or length == 0 then
-                    "false\tno updated-dependencies-json to grade"
-                  else
-                    ([.[].updateType | if . == "" or . == null then "unknown" else . end]) as $types
-                    | if ($types | all(ok)) then
-                        "true\tevery dependency is a patch or minor bump (\($types | join(", ")))"
+              result=$(printf '%s' "$UPDATED_DEPENDENCIES_JSON" | jq -r -s '
+                  def ok: . == "version-update:semver-patch"
+                    or . == "version-update:semver-minor";
+                  if length != 1 then
+                    "false\texpected exactly one JSON value, got \(length)"
+                  else .[0]
+                    | if (type != "array") or length == 0 then
+                        "false\tno updated-dependencies-json to grade"
                       else
-                        "false\tnot every dependency is a patch or minor bump (\($types | join(", ")))"
+                        ([.[].updateType
+                          | if . == "" or . == null then "unknown" else . end]) as $types
+                        | if ($types | all(ok)) then
+                            "true\tevery bump is patch or minor (\($types | join(", ")))"
+                          else
+                            "false\tnot every bump is patch or minor (\($types | join(", ")))"
+                          end
                       end
                   end
-                ' 2>/dev/null || echo "")
+                ' 2>/dev/null) || result=""
               if [ -z "$result" ]; then
-                result="false"$'\t'"updated-dependencies-json was empty or could not be parsed as JSON"
+                result="false"$'\t'"updated-dependencies-json was empty or invalid JSON"
               fi
               IFS=$'\t' read -r bump_ok bump_reason <<< "$result"
               if [ "$bump_ok" = "true" ]; then

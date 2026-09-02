@@ -6,35 +6,36 @@ version: 2
 # Security updates are not affected either way: they are alert driven and open
 # as soon as GitHub raises the alert, ignoring this schedule entirely.
 #
-# Thursday and Friday, not Monday and Tuesday, and the days are not arbitrary.
-# ivan-pinatti-labs/.github's docs/BOT_SCHEDULE.md allocates slots across the
-# organization because CodeRabbit's review quota is shared across the whole
-# app installation rather than handed out per repository, so two repositories
-# opening bot pull requests in the same hour queue behind each other and both
-# look stuck for no visible reason. Monday 06:00 and 06:30 belong to
-# rsync-crypt and Tuesday 06:30 to the .github profile repository, both of
-# which this repository collided with on arrival. Moving to 07:00 on those
-# same days was the first fix and was wrong too: Monday 07:00 is
-# pre-commit-checklists-demo's pip slot.
+# Daily, matching Renovate and every other repository. Note that Dependabot's
+# "daily" means weekdays only, not all seven days.
 #
-# Thursday and Friday were already reserved for this repository in that
-# document, held for the Renovate weekday spread that renovate.json5 no longer
-# has, so they are free and they are ours. Check that table before changing a
-# day here.
+# These were Thursday and Friday until 2026-09-02, slots allocated in a
+# document that no longer exists: ivan-pinatti-labs/.github's
+# docs/BOT_SCHEDULE.md, named here only as history, with the policy that
+# replaced it in that repository's README.md. It allocated a weekday per
+# repository because CodeRabbit's review quota is shared across the whole app
+# installation, so two repositories opening bot pull requests in the same hour
+# would queue behind each other.
+# Picking those days took three attempts: Monday and Tuesday collided with
+# rsync-crypt and the profile repository on arrival, and Monday 07:00 turned
+# out to be pre-commit-checklists-demo's pip slot.
+#
+# All of that was solving a problem that did not exist. A pin-only Dependabot
+# bump resolves `Review Verified` through the bot lane with CodeRabbit never
+# asked, exactly as a Renovate bump does, so it spends no review quota and had
+# nothing to collide over. renovate.json5 already made this argument for
+# Renovate; it belongs to the bot lane, not to one bot. Meanwhile the weekly
+# slot stacked on the seven day cooldown rather than overlapping it, so the
+# real floor was 7 to 14 days depending on which weekday a release landed.
 #
 # The cooldown on each ecosystem is the organization-wide seven day window;
-# see BOT_SCHEDULE.md's "Cooling windows" for why both bots carry the same
-# floor and why only default-days is set.
+# see that repository's README.md, "Both bots wait seven days", for why both
+# bots carry the same floor and why only default-days is set.
 updates:
   - package-ecosystem: "pre-commit"
     directory: "/"
     schedule:
-      interval: weekly
-      day: thursday
-      # 06:00 is free on a Thursday. It is rsync-crypt's hour on a Monday,
-      # which is what this repository collided with on arrival, but the unit
-      # the org schedule protects is the hour on a given day, not the hour
-      # across the week. See the header above for how Thursday came free.
+      interval: daily
       time: "06:00"
       timezone: "America/Toronto"
     labels:
@@ -52,8 +53,8 @@ updates:
     # updates only, never security updates, the same carve-out
     # vulnerabilityAlerts.minimumReleaseAge: null gives Renovate below: a
     # cooldown does not make a known vulnerability's fix any less safe to
-    # take immediately. See ivan-pinatti-labs/.github's docs/BOT_SCHEDULE.md
-    # under "Cooling windows" for the organization-wide policy this matches,
+    # take immediately. See ivan-pinatti-labs/.github's README.md under
+    # "Both bots wait seven days" for the organization-wide policy this matches,
     # and docs/HARDENING.md for why the window exists at all.
     cooldown:
       default-days: 7
@@ -61,11 +62,10 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: weekly
-      day: thursday
+      interval: daily
       # Half an hour after the pre-commit slot above, so the two suites this
-      # repository triggers do not start together. 06:30 is the profile
-      # repository's hour on a Tuesday, not a Thursday, so there is no clash.
+      # repository triggers do not start together. That reason survives the
+      # move to daily; the weekday it used to sit on does not.
       time: "06:30"
       timezone: "America/Toronto"
     labels:
@@ -86,9 +86,8 @@ updates:
   - package-ecosystem: "pip"
     directory: "/tests"
     schedule:
-      interval: weekly
-      day: friday
-      time: "06:00"
+      interval: daily
+      time: "07:00"
       timezone: "America/Toronto"
     labels:
       - dependencies
@@ -104,7 +103,7 @@ updates:
     # `pip` also supports semver-major-days, semver-minor-days and
     # semver-patch-days, unlike github-actions and pre-commit above, but
     # tiering the window by bump severity is not what the organization policy
-    # asks for: ivan-pinatti-labs/.github's docs/BOT_SCHEDULE.md sets one
+    # asks for: ivan-pinatti-labs/.github's README.md sets one
     # seven-day window for every ecosystem, on the reasoning that a freshly
     # compromised release has no advisory yet regardless of whether the bump
     # is a major, minor or patch. default-days alone keeps this ecosystem

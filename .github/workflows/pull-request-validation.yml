@@ -104,6 +104,49 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Log in to Docker Hub
+        # merge_group only, and the restriction is the point rather than an
+        # optimization.
+        #
+        # The problem being fixed: the pre-push hooks below shell out to
+        # containers (trivy, checkov, hadolint, lychee, actionlint), pulling
+        # anonymously. Docker Hub rate limits anonymous pulls per source
+        # address and GitHub runners share addresses across the whole pool, so
+        # those pulls fail intermittently with "unauthorized: authentication
+        # required". That ejected #143 from the merge queue: trivy exited 125
+        # before scanning anything, on the queue's build, minutes after the
+        # same job passed on the pull request.
+        #
+        # Why not on `pull_request` too: `pre-commit/action` runs
+        # .pre-commit-config.yaml *from the checked out branch*, and that file
+        # carries `repo: local` hooks whose `entry` is arbitrary shell (the
+        # actionlint hook is one). `docker login` leaves credentials in the
+        # runner's Docker config, so authenticating first would put a token
+        # within reach of hook code the pull request itself supplies. A fork
+        # never sees the secrets and is unaffected either way, so the exposure
+        # would be same-repository branches, whose authors already hold these
+        # secrets; the point is that it buys nothing to hand them over again
+        # through a side channel. `pull_request` keeps pulling anonymously,
+        # exactly as it did before this step existed, and it is not where the
+        # failure was.
+        #
+        # merge_group still runs the pull request's own config, so this is
+        # narrowed rather than eliminated: what it gains is that the code has
+        # cleared review and every required context before the credential is
+        # ever present.
+        if: github.event_name == 'merge_group'
+        timeout-minutes: 2
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          if [ -z "$DOCKERHUB_USERNAME" ] || [ -z "$DOCKERHUB_TOKEN" ]; then
+            echo "No Docker Hub credentials available; pulling anonymously."
+            exit 0
+          fi
+          printf '%s' "$DOCKERHUB_TOKEN" \
+            | docker login docker.io --username "$DOCKERHUB_USERNAME" --password-stdin
+
       # --hook-stage pre-push, not the default. A hook with no `stages` key runs
       # at every stage, so this selects all of them: the fast file-scoped hooks
       # and, on top, the four that are pre-push only (gitleaks over the full

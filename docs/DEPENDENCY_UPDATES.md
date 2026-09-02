@@ -25,22 +25,23 @@ the seam that covers those inline pins, and the reasoning is spelled out in the 
 of [`.github/renovate.json5`](../.github/renovate.json5); this page reuses that reasoning rather
 than restating it differently.
 
-## The weekday layout
+## The daily layout
 
-| Day | Tool | What opens |
+| When | Tool | What opens |
 | --- | --- | --- |
-| Thursday 06:00 | Dependabot | pre-commit hook revisions |
-| Thursday 06:30 | Dependabot | GitHub Actions |
-| Friday 06:00 | Dependabot | pip, `tests/requirements.txt` |
+| Daily 06:00 | Dependabot | pre-commit hook revisions |
+| Daily 06:30 | Dependabot | GitHub Actions |
+| Daily 07:00 | Dependabot | pip, `tests/requirements.txt` |
 | Daily, before 07:00 | Renovate | Every Renovate update: the grouped and ungrouped images, and the inline pip and Go/PyPI pins |
 
-Dependabot moved off Monday and Tuesday because those hours collided with
-`rsync-crypt` and the organization profile repository; Thursday and Friday
-were already reserved for this repository. The organization-wide slot table
-is in `ivan-pinatti-labs/.github`'s `docs/BOT_SCHEDULE.md`, and it is the
-thing to check before changing a day here.
+There is no fixed weekday to check any more. Dependabot ran Thursday and Friday
+until 2026-09-02, out of an organization-wide slot table that has since been
+deleted; see "Why neither bot is staggered" below. The hours are still
+staggered so the suites this repository triggers do not all start at once,
+but nothing depends on which day they fall on. Note that Dependabot's
+`interval: daily` means weekdays only.
 
-## Why Renovate is no longer staggered
+## Why neither bot is staggered
 
 It used to be. The groups above opened on separate weekdays, and the reason
 was `strict` required status checks on `main`: every merge put every other
@@ -62,10 +63,24 @@ Pull request volume is bounded by `prConcurrentLimit` and `prHourlyLimit`
 instead of by the calendar; those are the levers if it ever needs bounding
 again. Reinstating a weekday spread would bring the 14 day floor back with it.
 
-Dependabot keeps its weekday slots, and that is a different concern: those
-exist so two repositories' bots do not open pull requests in the same hour and
-queue their CodeRabbit review requests behind each other. See
-`docs/BOT_SCHEDULE.md` in the organization profile repository.
+Dependabot kept its weekday slots for a while longer, on the grounds that
+those were a different concern: they existed so two repositories' bots would
+not open pull requests in the same hour and queue their CodeRabbit review
+requests behind each other.
+
+That turned out not to be a concern either. A pin-only bump from *either* bot
+resolves `Review Verified` through `coderabbit-review-verdict.py`'s bot lane
+with CodeRabbit never asked, so Dependabot spent no review quota and had
+nothing to queue behind. Confirmed on this repository's own merged pull
+requests: #139 and #140 are Dependabot and report `pin-only diff, nothing to
+review`, identical to Renovate's #135, #136 and #138. The weekday table was
+deleted on 2026-09-02 and Dependabot moved to daily here and everywhere else.
+
+The same 14 day arithmetic applied to it the whole time, and that is the part
+worth remembering: a weekly slot stacked on `cooldown`'s seven days rather
+than overlapping them, so a release missing its day by a day waited a full
+extra week. The organization policy now lives in
+`ivan-pinatti-labs/.github`'s `README.md` under "Dependency policy".
 
 ## The grouping rationale
 

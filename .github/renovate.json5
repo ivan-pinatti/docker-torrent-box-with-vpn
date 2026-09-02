@@ -62,8 +62,9 @@
   // The organization-wide statement of this, and the reasoning that it does
   // not compete for CodeRabbit's shared review quota (a pin-only bump
   // resolves `Review Verified` through the bot lane without a review being
-  // spent at all), is in ivan-pinatti-labs/.github's docs/BOT_SCHEDULE.md
-  // under "Renovate runs daily everywhere".
+  // spent at all), is in ivan-pinatti-labs/.github's README.md under
+  // "Dependency policy". That reasoning applies to Dependabot's pin-only
+  // bumps too, which is why dependabot.yml is daily as of 2026-09-02.
   //
   // Pull request volume is still bounded, by prConcurrentLimit and
   // prHourlyLimit below rather than by the calendar. Those are the levers to

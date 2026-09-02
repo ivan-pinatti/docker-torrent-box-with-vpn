@@ -19,6 +19,12 @@ exclude = [
   # a plain curl from this host. Not a real dead link, all three retries
   # and the 20s timeout above just aren't enough for whatever this is.
   "^https?://(www\\.)?contributor-covenant\\.org/",
+  # grafana.com/docs returns 403 to GitHub-hosted runners while answering 200
+  # from a developer machine (both confirmed live on the same three URLs in
+  # docs/observability/DASHBOARDS.md). Same shape as the two entries above:
+  # a documentation host that blocks datacenter address ranges, not a dead
+  # link. This blocked PR #144's Code Check on three links it did not touch.
+  "^https?://(www\\.)?grafana\\.com/docs/",
   "^https?://localhost(:[0-9]+)?(/.*)?$",
   "^https?://127\\.0\\.0\\.1(:[0-9]+)?(/.*)?$",
   "^https?://.*\\.internal(:[0-9]+)?(/.*)?$",
