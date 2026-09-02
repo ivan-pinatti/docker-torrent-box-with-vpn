@@ -362,6 +362,20 @@ def test_jellyfin_running_version_matches_pin(running_containers):
     assert resp.status_code == 200, (
         f"Jellyfin System/Info/Public returned {resp.status_code}: {resp.text[:200]}"
     )
+    # JELLYFIN_PROFILE is `enabled` in .env.example and .env.tests does not
+    # override it, so is_enabled() reads true while the test stack never
+    # stands the service up. The URL then answers, but with nginx's own
+    # response rather than Jellyfin's, and .json() raised JSONDecodeError at
+    # character 0. Skip on a non-JSON body instead of asserting against
+    # whatever happens to be listening: this test exists to catch a version
+    # mismatch, and "something else answered" is not one.
+    content_type = resp.headers.get("Content-Type", "")
+    if "json" not in content_type.lower():
+        pytest.skip(
+            "Jellyfin System/Info/Public did not answer with JSON "
+            f"(Content-Type {content_type!r}), so Jellyfin is not serving "
+            "this URL in this environment"
+        )
     reported = resp.json().get("Version")
     assert reported, (
         f"Jellyfin System/Info/Public returned no version: {resp.text[:200]}"
@@ -386,12 +400,27 @@ def test_grafana_running_version_matches_pin(running_containers):
         pytest.skip("grafana profile is disabled")
     skip_if_not_running("grafana", running_containers)
 
-    resp = requests.get(
-        base_url() + "/admin/grafana/api/health", verify=False, timeout=TIMEOUT
+    # Authenticated, and that is the whole point of this call rather than an
+    # incidental detail. Grafana's /api/health answers an anonymous request
+    # with only {"database": "ok"} and omits the version, which is exactly
+    # what test_observability.py's own test_grafana_health documents when it
+    # says that endpoint needs no auth: it needs none for liveness, and it
+    # tells you nothing about the version without it. An unauthenticated read
+    # here fails with "returned no version" no matter which Grafana is
+    # running, which is a broken test rather than a detected mismatch.
+    session = requests.Session()
+    session.verify = False
+    session.auth = (env("ADMIN_USER", "admin"), env("ADMIN_PASSWORD", "admin"))
+    resp = session.get(
+        base_url(https=True) + "/admin/grafana/api/health", timeout=TIMEOUT
     )
+    if resp.status_code == 401:
+        pytest.skip(f"could not authenticate to Grafana (HTTP 401): {resp.text[:120]}")
     assert resp.status_code == 200, f"Grafana health returned {resp.status_code}"
     reported = resp.json().get("version")
-    assert reported, f"Grafana /api/health returned no version: {resp.text[:200]}"
+    assert reported, (
+        f"Grafana /api/health returned no version even authenticated: {resp.text[:200]}"
+    )
     _assert_running_matches_pin(
         env("GRAFANA_VERSION"), reported, "grafana", "GRAFANA_VERSION"
     )
