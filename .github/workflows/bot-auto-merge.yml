@@ -60,6 +60,36 @@ on:
   workflow_run:
     workflows: ["CodeRabbit Gate"]
     types: [completed]
+  # The recovery lever, for the `nudge-bot` job below only. Neither
+  # `pull_request_target` above fires again once a pull request stops
+  # changing, so a bot pull request that was already open when this file's
+  # own decision changed has no future event left to earn an approval from.
+  # #94 and #136 were both stranded exactly that way; #136 was only
+  # recovered by closing and reopening it, which is a clumsy lever to ask of
+  # a maintainer, and `nudge-bot` below replaces it for Renovate. It cannot
+  # replace it for Dependabot: see that job for why, and what still needs
+  # closing and reopening until that changes.
+  #
+  # `pr_number` follows pull-request-validation.yml's own workflow_dispatch
+  # shape: optional, so leaving it blank re-checks every open Dependabot or
+  # Renovate pull request instead of one. It is validated as digits-only in
+  # `nudge-bot` below before it ever reaches an API path, since this is free
+  # text a maintainer types by hand, unlike github.event.pull_request.number,
+  # which GitHub has already parsed for us.
+  #checkov:skip=CKV_GHA_7:workflow_dispatch itself requires write access to
+  # trigger at all (GitHub platform-level gate, not something this file
+  # controls); pr_number never selects a checkout ref or anything else that
+  # runs. It only ever selects which pull request `nudge-bot` reads and,
+  # once matched against digits and graded eligible, approves through the
+  # API, the same trust a maintainer already has through `gh pr review`
+  # directly.
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: >-
+          Pull request number to re-check. Leave blank to re-check every
+          open Dependabot or Renovate pull request.
+        required: false
 
 # The floor. Each job widens it for itself.
 permissions:
@@ -136,8 +166,15 @@ jobs:
         run: |
           set -euo pipefail
           for _ in $(seq 1 24); do
+            # `select(. != null)` after `first`, not just `first` alone:
+            # `first` on an empty array (no "Pin Only" status published yet)
+            # is `null`, and `null | {state, description}` is
+            # `{"state": null, "description": null}`, not nothing. Without
+            # the select, that non-empty JSON made `[ -n "$result" ]` true on
+            # the very first poll, read `state` as the literal string "null",
+            # which is not "pending", and exited failed before ever looping.
             result=$(gh api "repos/$REPO/commits/$HEAD_SHA/status" \
-              --jq '[.statuses[] | select(.context == "Pin Only")] | first | {state, description} | @json' \
+              --jq '[.statuses[] | select(.context == "Pin Only")] | first | select(. != null) | {state, description} | @json' \
               || echo "")
             if [ -n "$result" ]; then
               state=$(printf '%s' "$result" | jq -r '.state')
@@ -180,11 +217,43 @@ jobs:
         # metadata action. All three of its ecosystems are eligible, test
         # requirements included: they only reach the test virtualenv, and the
         # suite is what clears them either way.
+        #
+        # Graded from `updated-dependencies-json` alone, never from the
+        # top-level `update-type` output. update-type is fetch-metadata's own
+        # summary of the *highest* semver level *present* among a group's
+        # entries, not a guarantee that *every* entry is at or below that
+        # level: `maxSemver` builds a set of each entry's updateType and
+        # returns the first of major/minor/patch found in it, blank entries
+        # included in the set but never selected over a real one. A group
+        # pairing one resolved minor bump with one blank, unresolved entry
+        # therefore reports the top-level type as "version-update:semver-minor",
+        # confirmed by running fetch-metadata's own algorithm against that
+        # exact shape, which would have approved the whole group on the
+        # strength of the one entry that happened to resolve. Reading
+        # `updated-dependencies-json` unconditionally instead, and requiring
+        # every single entry in it to be a patch or minor bump, closes that
+        # gap without opening a new one: for a genuine single-dependency
+        # update this is the same check the top-level field would have made,
+        # since its one entry is exactly what `update-type` was built from.
+        #
+        # A grouped update is the normal shape here, not an edge case: this
+        # organization's every repository groups its pre-commit and
+        # github-actions ecosystems with `patterns: ["*"]`, and #94 ("bump
+        # the test-dependencies group ... with 2 updates") is a live example,
+        # confirmed from that pull request's own run: update-type there is
+        # blank, since fetch-metadata has no single semver level to report
+        # for more than one dependency. #94 stays unapproved even with this
+        # fix in place: it is a pip "permit the latest version" style update
+        # whose commit message states no prior version for either
+        # dependency, so fetch-metadata cannot compute an update type for
+        # either entry at all (each reports "" confirmed live), and the
+        # check below correctly reads that as unresolved rather than as a
+        # bump it can vouch for.
         id: decide
         env:
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           HAS_AUTOMERGE_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'automerge') }}
-          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+          UPDATED_DEPENDENCIES_JSON: ${{ steps.metadata.outputs.updated-dependencies-json }}
         run: |
           approve=false
           arm=false
@@ -198,16 +267,37 @@ jobs:
               fi
               ;;
             "dependabot[bot]")
-              case "$UPDATE_TYPE" in
-                version-update:semver-patch | version-update:semver-minor)
-                  approve=true
-                  # Dependabot cannot arm auto-merge itself, unlike Renovate.
-                  arm=true
-                  ;;
-                *)
-                  echo "::notice::Update type ${UPDATE_TYPE:-unknown} is not a patch or minor bump, so it waits for review."
-                  ;;
-              esac
+              # Every entry has to be a patch or minor bump on its own, one
+              # dependency or many. Piped in on stdin rather than
+              # interpolated into the jq program text, so nothing about a
+              # dependency's name or version is ever read as jq syntax.
+              #
+              # shellcheck disable=SC2016
+              result=$(printf '%s' "$UPDATED_DEPENDENCIES_JSON" | jq -r '
+                  def ok: . == "version-update:semver-patch" or . == "version-update:semver-minor";
+                  if (type != "array") or length == 0 then
+                    "false\tno updated-dependencies-json to grade"
+                  else
+                    ([.[].updateType | if . == "" or . == null then "unknown" else . end]) as $types
+                    | if ($types | all(ok)) then
+                        "true\tevery dependency is a patch or minor bump (\($types | join(", ")))"
+                      else
+                        "false\tnot every dependency is a patch or minor bump (\($types | join(", ")))"
+                      end
+                  end
+                ' 2>/dev/null || echo "")
+              if [ -z "$result" ]; then
+                result="false"$'\t'"updated-dependencies-json was empty or could not be parsed as JSON"
+              fi
+              IFS=$'\t' read -r bump_ok bump_reason <<< "$result"
+              if [ "$bump_ok" = "true" ]; then
+                approve=true
+                # Dependabot cannot arm auto-merge itself, unlike Renovate.
+                arm=true
+                echo "::notice::$bump_reason."
+              else
+                echo "::notice::$bump_reason, so it waits for review."
+              fi
               ;;
           esac
 
@@ -257,6 +347,12 @@ jobs:
 
   resolve-owner:
     name: Find the owner's pull request to approve
+    # Not `workflow_dispatch`: that trigger exists for the `nudge-bot` job
+    # below only, and this job's case statement has no branch for it. The
+    # owner's own pull request already has `workflow_run` re-running this on
+    # every CodeRabbit Gate completion, so there is nothing here for a manual
+    # dispatch of the bot recovery lever to do.
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     permissions:
@@ -325,7 +421,16 @@ jobs:
     # An empty array is not an error: nothing to check in, and nothing to
     # approve. `fromJson('[]')` still starts a matrix with zero jobs, which
     # reports as success on its own with no step of this job ever running.
-    if: needs.resolve-owner.outputs.matrix != '[]'
+    #
+    # `resolve-owner.result == 'success'` matters as much as the matrix check:
+    # resolve-owner is now deliberately skipped on `workflow_dispatch` above,
+    # and a custom `if:` here opts this job out of GitHub's own implicit
+    # "needs succeeded" gate, so a skipped predecessor is not screened out on
+    # its own. Without this, `needs.resolve-owner.outputs.matrix` reads as
+    # empty rather than `'[]'` for a skipped run, `!= '[]'` is still true, and
+    # `fromJson('')` below would fail this job outright on every manual
+    # dispatch of the bot recovery lever.
+    if: needs.resolve-owner.result == 'success' && needs.resolve-owner.outputs.matrix != '[]'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     strategy:
@@ -485,3 +590,134 @@ jobs:
         # step the owner explicitly wants to keep for their own work, even
         # though nothing here would stop the owner running `gh pr merge
         # --auto` by hand if they wanted the same convenience Renovate gets.
+
+  nudge-bot:
+    name: Re-check a stranded bot pull request
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Find and re-check the target pull request(s)
+        # Two things were tried here first, and neither survives contact
+        # with how GitHub actually runs this.
+        #
+        # A synthetic pull_request event for dependabot/fetch-metadata,
+        # which reads context.payload.pull_request straight off the file at
+        # GITHUB_EVENT_PATH and throws "Event payload missing `pull_request`
+        # key" outside a real pull_request or pull_request_target trigger.
+        # Neither writable surface holds still long enough to fake one: a
+        # step's `env:` cannot override GITHUB_EVENT_PATH itself (GitHub
+        # documents that a `GITHUB_*` or `RUNNER_*` variable assignment
+        # through `env:` is silently ignored), and overwriting the file that
+        # variable already names does not survive either, confirmed live:
+        # the runner resets it before the next step starts.
+        #
+        # Manufacturing a real `labeled` pull_request_target event instead,
+        # by adding and removing a label through the API. That data would
+        # have been genuine, but the event never fires: GitHub documents
+        # that it does not start new workflow runs from most events created
+        # using the repository's own GITHUB_TOKEN, `workflow_dispatch` and
+        # `repository_dispatch` being the only exceptions, specifically to
+        # prevent recursive runs. Confirmed live: toggling a label on #94
+        # produced the label history entries and nothing else, no new run.
+        # Only a personal access token or a GitHub App installation token
+        # sidesteps that, and this repository stores neither.
+        #
+        # What is left, and what this step does, is grade a Renovate pull
+        # request directly: unlike Dependabot's, that decision was already
+        # small (has the `automerge` label, Pin Only still success, not
+        # already approved?) and reads entirely off the API, no marketplace
+        # action involved, so duplicating it here is a bounded, low-risk copy
+        # rather than the kind that drifted before (see the Decide step's own
+        # comment in the `approve` job above). The Pin Only check matters as
+        # much here as it does there: an automerge label is Renovate asking
+        # for this to merge, not a guarantee the diff is only a pin, and
+        # approving on the label alone would reopen the exact hole Pin Only
+        # exists to close. A Dependabot pull request cannot be graded this
+        # way: dependabot/fetch-metadata is the one thing here that only
+        # works on a real trigger, so this reports why and leaves closing and
+        # reopening the pull request, which is a genuine `reopened` trigger,
+        # as the still-clumsy but still-working lever for that half.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          INPUT_PR_NUMBER: ${{ inputs.pr_number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -n "$INPUT_PR_NUMBER" ]; then
+            # Digits only, checked before this ever reaches an API path
+            # below: unlike github.event.pull_request.number, which GitHub
+            # has already parsed for us, this is free text a maintainer
+            # types by hand.
+            if ! [[ "$INPUT_PR_NUMBER" =~ ^[0-9]+$ ]]; then
+              echo "::error::pr_number must be digits only, got '$INPUT_PR_NUMBER'."
+              exit 1
+            fi
+            numbers=$(gh api "repos/$REPO/pulls/$INPUT_PR_NUMBER" \
+              --jq 'if .state == "open"
+                        and (.user.login == "renovate[bot]" or .user.login == "dependabot[bot]")
+                        and .head.repo.fork == false
+                    then .number else empty end')
+          else
+            # The REST list endpoint, not `gh pr list`: its GraphQL-backed
+            # --json author reports a bot's login as "app/dependabot", not
+            # the "dependabot[bot]" shape every other author check in this
+            # file compares against, confirmed live against this
+            # repository's own open pull requests. REST's `.user.login`
+            # matches what github.event.pull_request.user.login reports on
+            # the pull_request_target path the `approve` job reads, so both
+            # agree on what a bot's login looks like.
+            numbers=$(gh api "repos/$REPO/pulls?state=open&per_page=100" \
+              --jq '[.[] | select((.user.login == "renovate[bot]" or .user.login == "dependabot[bot]")
+                              and .head.repo.fork == false)
+                      | .number] | .[]')
+          fi
+
+          if [ -z "$numbers" ]; then
+            echo "No eligible open bot pull request to re-check."
+            exit 0
+          fi
+
+          while read -r number; do
+            [ -n "$number" ] || continue
+            pr=$(gh api "repos/$REPO/pulls/$number")
+            author=$(printf '%s' "$pr" | jq -r '.user.login')
+
+            case "$author" in
+              "renovate[bot]")
+                has_label=$(printf '%s' "$pr" | jq -r '[.labels[].name] | any(. == "automerge")')
+                if [ "$has_label" != "true" ]; then
+                  echo "#$number: no automerge label, so Renovate is not asking for this to merge on its own."
+                  continue
+                fi
+                # The same guard the approve job always applies before
+                # approving anything: an automerge label says Renovate wants
+                # this merged, not that the diff is only a pin. Approving
+                # without this would let a Renovate pull request whose diff
+                # was not pin-only through on the strength of the label
+                # alone, which is exactly the hole Pin Only exists to close.
+                head_sha=$(printf '%s' "$pr" | jq -r '.head.sha')
+                pin_only_state=$(gh api "repos/$REPO/commits/$head_sha/status" \
+                  --jq '[.statuses[] | select(.context == "Pin Only")] | first | select(. != null) | .state // ""')
+                if [ "$pin_only_state" != "success" ]; then
+                  echo "#$number: Pin Only is ${pin_only_state:-absent}, not success, so this waits for review."
+                  continue
+                fi
+                existing=$(gh api --paginate "repos/$REPO/pulls/$number/reviews" \
+                  | jq -s '[.[][] | select(.user.login == "github-actions[bot]" and .state == "APPROVED")] | length')
+                if [ "$existing" -gt 0 ]; then
+                  echo "#$number: already approved and not dismissed. Nothing to do."
+                  continue
+                fi
+                gh pr review --approve "$(printf '%s' "$pr" | jq -r '.html_url')"
+                echo "#$number: approved."
+                ;;
+              "dependabot[bot]")
+                echo "::warning::#$number is a Dependabot pull request. Its grouped-update check needs dependabot/fetch-metadata, which only works on a real pull_request_target event; this job cannot manufacture one that survives GitHub's own recursive-trigger guard. Close and reopen the pull request to re-trigger it for real."
+                ;;
+            esac
+          done <<< "$numbers"
