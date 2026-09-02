@@ -540,9 +540,12 @@ def _digest_exempt_dependency_names() -> set[str]:
 
 def test_patched_services_were_found():
     """Guard the parametrize below: an empty sweep would pass every case."""
-    assert len(_patched_service_variables()) >= 4, (
+    assert len(_patched_service_variables()) >= 2, (
         f"only {len(_patched_service_variables())} services mount a patch, and "
-        f"four do: sabnzbd, lazylibrarian, mylar and jdownloader2"
+        f"two do: sabnzbd and mylar. lazylibrarian and jdownloader2 dropped "
+        f"theirs on 2026-09-02 once the fixes reached their images (#109, #107); "
+        f"if this count falls further, check that was deliberate rather than a "
+        f"mount going missing"
     )
 
 

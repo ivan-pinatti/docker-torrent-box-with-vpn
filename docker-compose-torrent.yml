@@ -29,7 +29,7 @@ secrets:
     file: ./configs/qbittorrent/secrets/password.txt
     x-podman.relabel: z
   # Consumed only by jdownloader2 itself (single consumer, no duplicate
-  # needed elsewhere), via patches/jdownloader2/10-webauth.sh.
+  # needed elsewhere), through the image's own CONT_ENV_ secrets loader.
   jdownloader2_username:
     file: ./configs/jdownloader2/secrets/username.txt
     x-podman.relabel: z
@@ -92,22 +92,23 @@ services:
       ]
     environment:
       ["USER_ID=${JDOWNLOADER2_UID}", "GROUP_ID=${JDOWNLOADER2_GID}", "TZ=${TIMEZONE}"]
-    # This image's own Docker-secrets support (CONT_ENV_<VAR>, documented for
-    # jlesage/docker-baseimage) does not work: its Dockerfile pre-declares
-    # WEB_AUTHENTICATION_USERNAME/PASSWORD as empty-string env vars, and the
-    # loader in /init only sets a variable if it is currently *unset*, so it
-    # always finds them already "set" (to "") and silently skips loading the
-    # secret (confirmed by source inspection and a live rotation test; same
-    # root cause as https://github.com/htpcBeginner/docker-traefik/issues/69,
-    # closed "not planned"). patches/jdownloader2/10-webauth.sh replaces the
-    # image's own cont-init.d script with one that reads the mounted secret
-    # files directly instead. See docs/COMPOSE_CONVENTIONS.md.
+    # Credentials arrive through this image's own Docker-secrets support
+    # (CONT_ENV_<VAR>, documented for jlesage/docker-baseimage).
+    #
+    # That support used to be broken here, and this service carried
+    # patches/jdownloader2/10-webauth.sh to work around it: the Dockerfile
+    # pre-declares WEB_AUTHENTICATION_USERNAME/PASSWORD as empty-string env
+    # vars, and the loader in /init only set a variable that was currently
+    # *unset*, so it always found them already "set" (to "") and silently
+    # skipped the secret. baseimage-gui 4.13.0 fixed it by giving load_env_var
+    # a `force` argument that secrets pass, and v26.08.1 of this image is built
+    # on 4.13.1, so the patch was overwriting a file that no longer needed it.
+    # Verified by extracting /init from the pinned image. See issue #107.
     secrets: [jdownloader2_username, jdownloader2_password]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/jdownloader2/config:/config:z
       - ${DOWNLOADS_FOLDER}:/data/downloads${DATA_VOLUME_FLAGS}
-      - ./patches/jdownloader2/10-webauth.sh:/etc/cont-init.d/10-webauth.sh:ro,z
     healthcheck:
       <<: *healthcheck-defaults
       # SECURE_CONNECTION=1 serves the web UI over https with a self-signed

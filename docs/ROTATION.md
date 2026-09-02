@@ -216,15 +216,19 @@ alphabetical by service.
   `configs/jdownloader2/secrets/password.txt`. This image's own
   Docker-secrets support (`CONT_ENV_<VAR>`) does not work: its Dockerfile
   pre-declares `WEB_AUTHENTICATION_USERNAME`/`PASSWORD` as empty-string env
-  vars, and `/init`'s secrets loader only sets a variable if it is currently
-  *unset*, so it always finds them already "set" (to `""`) and silently
-  skips loading the secret (confirmed by reading `/init`'s source inside the
-  image; same root cause as a known, closed-"not planned" upstream issue).
-  `patches/jdownloader2/10-webauth.sh` is bind-mounted over the image's own
-  cont-init.d script and reads the mounted secret files directly instead,
-  bypassing the broken loader entirely. That script runs on every container
-  start, so a plain restart picks up a rotated password (verified live). No
-  other consumer holds this credential.
+  vars, and `/init`'s secrets loader used to set a variable only if it was
+  currently *unset*, so it always found them already "set" (to `""`) and
+  silently skipped loading the secret. This repository carried
+  `patches/jdownloader2/10-webauth.sh` over the image's own cont-init.d
+  script until 2026-09-02 to bypass that.
+
+  `baseimage-gui` 4.13.0 fixed it: `load_env_var()` takes a `force` argument
+  and the secret loader passes it, so a secret now overrides an empty image
+  default. The pinned image is built on 4.13.1, verified by extracting
+  `/init` from it, so the patch is gone and the image's own loader is what
+  reads the secret. It still runs on every container start, so a plain
+  restart picks up a rotated password. No other consumer holds this
+  credential. See issue #107.
 - **Jellyfin**: sets a new password for the `jellyfin` user over Jellyfin's
   API, authenticated with the admin API key read from
   `configs/jellyfin/secrets/api_key.txt`. That key is unaffected by a

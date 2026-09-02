@@ -197,12 +197,18 @@ Rules that are easy to get wrong:
   confirmed by reading `/init`'s source, and by a live rotation that
   silently kept authenticating with the old password). When neither an env
   convention nor a shim will do, bind-mount a patched version of the
-  specific cont-init.d script that reads the secret file directly,
+  specific cont-init.d script that reads the secret file directly, the same
+  idiom `patches/mylar/` already uses for source patches (see
+  `docs/MYLAR.md`). On SELinux hosts such a volume mount needs `:ro,z` like
+  any other bind mount, not just the `x-podman.relabel: z` on the `secrets:`
+  declaration.
+
+  jdownloader-2 was the worked example here until 2026-09-02, carrying
   `patches/jdownloader2/10-webauth.sh` over the image's own
-  `/etc/cont-init.d/10-webauth.sh`, the same idiom `patches/mylar/` already
-  uses for source patches (see `docs/MYLAR.md`). On SELinux hosts this
-  volume mount needs `:ro,z` like any other bind mount, not just the
-  `x-podman.relabel: z` on the `secrets:` declaration.
+  `/etc/cont-init.d/10-webauth.sh`. `baseimage-gui` 4.13.0 fixed the loader
+  by giving it a `force` argument that secrets pass, and the pinned image was
+  already built on 4.13.1, so the patch was dropped; see issue #107. The
+  technique stands, the example is simply no longer live.
 - The owning service's `.gitignore` needs `!secrets/`, `secrets/*` and
   `!secrets/*.example`, so real values stay ignored while the `.example`
   templates commit. `scripts/seed-secrets.sh` seeds them on bootstrap.
