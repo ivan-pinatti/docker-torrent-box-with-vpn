@@ -240,7 +240,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Check out the default branch
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The repository's default branch, not
           # github.event.pull_request.base.ref: that context is absent on
@@ -258,6 +258,12 @@ jobs:
         # branching per event, the same choice coderabbit-gate.yml's grade job
         # makes for the same reason: one source of truth for what this pull
         # request currently looks like, not two that can disagree.
+        #
+        # Written to a file, not just piped into this step's own jq: the
+        # Synthesize step below needs the identical resource, and reading it
+        # from the API a second time there would reopen the same
+        # "not two that can disagree" problem this step exists to close, one
+        # step later.
         id: pr
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -266,12 +272,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gh api "repos/$REPO/pulls/$PR_NUMBER" | jq -r '
+          resource="$RUNNER_TEMP/pr-$PR_NUMBER.json"
+          gh api "repos/$REPO/pulls/$PR_NUMBER" > "$resource"
+          jq -r '
             "author=" + .user.login,
             "html_url=" + .html_url,
             "head_sha=" + .head.sha,
             "has_automerge_label=" + ([.labels[].name] | any(. == "automerge") | tostring)
-          ' >> "$GITHUB_OUTPUT"
+          ' "$resource" >> "$GITHUB_OUTPUT"
+          echo "resource=$resource" >> "$GITHUB_OUTPUT"
 
       - name: Wait for the published pin-only verdict
         # The check that keeps "approve on the strength of the author" from
@@ -319,22 +328,24 @@ jobs:
         # source (dist/index.js): getMessage, getBranchNames, getBody and
         # getTitle all destructure context.payload.pull_request with no other
         # fallback. workflow_dispatch carries no such key. The REST pull
-        # request resource read above has the same shape as the webhook
-        # payload the action expects, which is what makes wrapping it in
-        # {"pull_request": ...} and pointing GITHUB_EVENT_PATH at it for the
-        # next step a substitution the action cannot tell apart from the real
-        # thing.
+        # request resource the `pr` step above already saved has the same
+        # shape as the webhook payload the action expects, which is what
+        # makes wrapping it in {"pull_request": ...} and pointing
+        # GITHUB_EVENT_PATH at it for the next step a substitution the action
+        # cannot tell apart from the real thing. Built from that saved file
+        # rather than a second API call, so this can never read a pull
+        # request one push newer than what the `pr` step already committed to
+        # for every other output in this job.
         if: github.event_name == 'workflow_dispatch' && steps.pr.outputs.author == 'dependabot[bot]'
         id: synth_event
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
+          RESOURCE: ${{ steps.pr.outputs.resource }}
           PR_NUMBER: ${{ matrix.entry.pr_number }}
         shell: bash
         run: |
           set -euo pipefail
           path="$RUNNER_TEMP/pr-$PR_NUMBER-event.json"
-          gh api "repos/$REPO/pulls/$PR_NUMBER" | jq '{pull_request: .}' > "$path"
+          jq '{pull_request: .}' "$RESOURCE" > "$path"
           echo "path=$path" >> "$GITHUB_OUTPUT"
 
       - name: Fetch Dependabot metadata
