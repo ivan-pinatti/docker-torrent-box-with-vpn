@@ -90,9 +90,11 @@ import requests
 import urllib3
 
 from conftest import (
+    GRAFANA_INI,
     SERVICES,
     base_url,
     env,
+    grafana_admin_credentials,
     is_enabled,
     read_api_key,
     read_secret,
@@ -417,9 +419,20 @@ def test_grafana_running_version_matches_pin(running_containers):
     # unauthenticated users" only: signed out it reports
     # buildInfo.hideVersion true with version "", signed in it reports
     # hideVersion false with the real version.
+    # Grafana's own admin credentials, from grafana.ini, which is the only
+    # place they are set: ADMIN_USER and ADMIN_PASSWORD name no Grafana
+    # setting and are not in .env.example at all, so the "admin"/"admin"
+    # fallback they used here was the upstream default password sent to a
+    # Grafana whose grafana.ini overrides it. See grafana_admin_credentials.
+    admin_user, admin_password = grafana_admin_credentials()
+    assert admin_user and admin_password, (
+        "no Grafana admin credentials found in "
+        f"{GRAFANA_INI} or its .example, so GRAFANA_VERSION cannot be verified"
+    )
+
     session = requests.Session()
     session.verify = False
-    session.auth = (env("ADMIN_USER", "admin"), env("ADMIN_PASSWORD", "admin"))
+    session.auth = (admin_user, admin_password)
     resp = session.get(
         base_url(https=True) + "/admin/grafana/api/frontend/settings",
         timeout=TIMEOUT,
@@ -438,8 +451,8 @@ def test_grafana_running_version_matches_pin(running_containers):
     # the suite reported success.
     assert not build_info.get("hideVersion", True), (
         "Grafana served this request anonymously, so it masked the version "
-        "and GRAFANA_VERSION went unverified. ADMIN_USER and ADMIN_PASSWORD "
-        f"were rejected. buildInfo: {build_info}"
+        f"and GRAFANA_VERSION went unverified. The admin credentials in "
+        f"{GRAFANA_INI} were rejected. buildInfo: {build_info}"
     )
     reported = build_info.get("version")
     assert reported, f"Grafana reported no version while signed in: {build_info}"

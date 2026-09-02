@@ -325,6 +325,44 @@ def service_base_url(service_name: str) -> str:
     return base_url(https=True)
 
 
+GRAFANA_INI = "configs/grafana/config/grafana.ini"
+
+
+def grafana_admin_credentials():
+    """Return Grafana's admin (user, password) as Grafana itself reads them.
+
+    Not `ADMIN_USER`/`ADMIN_PASSWORD`: those name no Grafana setting and are
+    not defined in `.env.example` at all, so a caller reading them with an
+    "admin"/"admin" fallback is really sending the upstream default password
+    to a Grafana that does not use it. `docker-compose-observability.yml`
+    leaves `GF_SECURITY_ADMIN_USER` and `GF_SECURITY_ADMIN_PASSWORD`
+    commented out, and Grafana's `env_file` entries hold only SMTP settings,
+    so `grafana.ini` is the one place the admin credentials come from.
+
+    Read from the live file rather than hardcoded because
+    `rotate-passwords.sh` rotates `admin_password` there; the committed
+    `.example` is the fallback for a checkout that has not been seeded yet,
+    which is what `scripts/seed-configs.sh` produces the live file from.
+
+    Getting this wrong fails silently rather than loudly, which is why it is
+    read in one place here. With `[auth.anonymous] enabled = true`, Grafana answers
+    a request carrying wrong Basic Auth credentials with HTTP 200 and an
+    anonymous body, never 401, so a caller that treats 401 as "no credentials
+    configured" never fires and simply runs unauthenticated forever.
+    """
+    for rel in (GRAFANA_INI, GRAFANA_INI + ".example"):
+        path = REPO_ROOT / rel
+        if not path.exists():
+            continue
+        parser = configparser.ConfigParser()
+        parser.read(path)
+        user = parser.get("security", "admin_user", fallback="")
+        password = parser.get("security", "admin_password", fallback="")
+        if user and password:
+            return user, password
+    return "", ""
+
+
 def read_api_key(service_name: str):
     src = SERVICES[service_name].get("api_key_source")
     if src is None:
