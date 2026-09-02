@@ -416,7 +416,21 @@ def test_grafana_running_version_matches_pin(running_containers):
     # genuinely unconfigured environment earns a skip.
     configured_user = env("ADMIN_USER")
     configured_password = env("ADMIN_PASSWORD")
-    credentials_configured = bool(configured_user and configured_password)
+
+    # Three states, not two, and collapsing the third into "unconfigured" is
+    # what makes a skip dishonest. Neither variable set means auth is
+    # intentionally unavailable and a 401 is a fact about the environment.
+    # Both set means a 401 is a real failure. Exactly one set is neither: it
+    # is a misconfiguration that would silently downgrade this test to a skip
+    # while looking deliberate, so it fails here, before the request, where
+    # the message can name the actual problem instead of blaming Grafana.
+    assert bool(configured_user) == bool(configured_password), (
+        "ADMIN_USER and ADMIN_PASSWORD must be set together or not at all; "
+        f"got ADMIN_USER={'set' if configured_user else 'unset'} and "
+        f"ADMIN_PASSWORD={'set' if configured_password else 'unset'}, which "
+        "would leave GRAFANA_VERSION unverified behind a skip"
+    )
+    credentials_configured = bool(configured_user)
 
     session = requests.Session()
     session.verify = False
