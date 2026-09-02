@@ -60,33 +60,33 @@ on:
   workflow_run:
     workflows: ["CodeRabbit Gate"]
     types: [completed]
-  # The recovery lever, for the `resolve-bot`/`approve` jobs below only.
-  # Neither `pull_request_target` above fires again once a pull request stops
-  # changing, so a bot pull request that was already open when this file's own
-  # decision changed has no future event left to earn an approval from. #94
-  # and #136 were both stranded exactly that way; #136 was only recovered by
-  # closing and reopening it, which is a clumsy lever to ask of a maintainer.
+  # The recovery lever, for the `nudge-bot` job below only. Neither
+  # `pull_request_target` above fires again once a pull request stops
+  # changing, so a bot pull request that was already open when this file's
+  # own decision changed has no future event left to earn an approval from.
+  # #94 and #136 were both stranded exactly that way; #136 was only
+  # recovered by closing and reopening it, which is a clumsy lever to ask of
+  # a maintainer.
   #
   # `pr_number` follows pull-request-validation.yml's own workflow_dispatch
   # shape: optional, so leaving it blank re-checks every open Dependabot or
   # Renovate pull request instead of one. It is validated as digits-only in
-  # `resolve-bot` below before it ever reaches an API path, since this is free
+  # `nudge-bot` below before it ever reaches an API path, since this is free
   # text a maintainer types by hand, unlike github.event.pull_request.number,
   # which GitHub has already parsed for us.
   #checkov:skip=CKV_GHA_7:workflow_dispatch itself requires write access to
   # trigger at all (GitHub platform-level gate, not something this file
   # controls); pr_number never selects a checkout ref or anything else that
-  # runs, unlike pull-request-validation.yml's own input, since the checkout
-  # below always resolves to the default branch. It only ever selects which
-  # pull request a read-only `gh api` lookup and, if the decision below
-  # approves, `gh pr review`/`gh pr merge --auto` act on, matched against
-  # digits before either happens.
+  # runs. It only ever selects which pull request `nudge-bot` reads and, once
+  # matched against digits and graded eligible, briefly labels through the
+  # API, which is exactly the trust a maintainer typing an issue number into
+  # `/run-check` already carries elsewhere in this organization.
   workflow_dispatch:
     inputs:
       pr_number:
         description: >-
-          Pull request number to re-run the approval decision for. Leave
-          blank to check every open Dependabot or Renovate pull request.
+          Pull request number to re-check. Leave blank to re-check every
+          open Dependabot or Renovate pull request.
         required: false
 
 # The floor. Each job widens it for itself.
@@ -94,143 +94,40 @@ permissions:
   contents: read
 
 jobs:
-  resolve-bot:
-    name: Find the bot pull request(s) to check
-    # Not `workflow_run`: that trigger exists for `resolve-owner`/
-    # `approve-owner` below only, and this job's case statement has no branch
-    # for it. Excluded here rather than given a no-op branch, so an
-    # unhandled-event failure below stays meaningful if this file ever grows
-    # another trigger nobody taught this job about.
-    if: github.event_name != 'workflow_run'
-    runs-on: ubuntu-latest
-    timeout-minutes: 3
-    permissions:
-      pull-requests: read
-    outputs:
-      # A JSON array of {pr_number}, the same shape resolve-owner below
-      # already outputs and for the same reason: the approve job re-reads
-      # each pull request fresh from the number, so nothing else is worth
-      # carrying through the matrix.
-      matrix: ${{ steps.build.outputs.matrix }}
-    steps:
-      - name: Build the list of bot pull requests to check
-        id: build
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-          EVENT_NAME: ${{ github.event_name }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-          IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
-          EVENT_ACTION: ${{ github.event.action }}
-          LABEL_NAME: ${{ github.event.label.name }}
-          INPUT_PR_NUMBER: ${{ inputs.pr_number }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          case "$EVENT_NAME" in
-            pull_request_target)
-              # Read straight off the immutable payload: cheap, and this is
-              # the same trust boundary this job's own predecessor already
-              # relied on. user.login is set by GitHub from the authenticated
-              # author, so a pull request cannot claim to be a bot. Exact
-              # equality, not startsWith or contains: `renovate[bot]-x` is a
-              # login somebody may register, and the non-fork condition is the
-              # second half of the same fence, since reaching this any other
-              # way would take write access to this repository.
-              #
-              # The label condition is about noise rather than correctness.
-              # `labeled` fires once per label, Renovate applies three, and
-              # with `opened` as well #61 collected seven identical approvals
-              # before anything had even run. Only the label actually read
-              # below is worth waking this for.
-              if [ "$IS_FORK" = "false" ] \
-                && { [ "$PR_AUTHOR" = "renovate[bot]" ] || [ "$PR_AUTHOR" = "dependabot[bot]" ]; } \
-                && { [ "$EVENT_ACTION" != "labeled" ] || [ "$LABEL_NAME" = "automerge" ]; }; then
-                matrix=$(jq -nc --arg n "$PR_NUMBER" '[{pr_number: ($n | tonumber)}]')
-              else
-                matrix='[]'
-              fi
-              ;;
-
-            workflow_dispatch)
-              # The REST list endpoint throughout, not `gh pr list`: its
-              # GraphQL-backed --json author reports a bot's login as
-              # "app/dependabot", not the "dependabot[bot]" shape every other
-              # author check in this file compares against, confirmed live
-              # against this repository's own open pull requests. REST's
-              # `.user.login` matches what github.event.pull_request.user.login
-              # reports on the pull_request_target path above, so every trigger
-              # agrees on what a bot's login looks like.
-              if [ -n "$INPUT_PR_NUMBER" ]; then
-                # Digits only, checked before this ever reaches an API path
-                # below: unlike github.event.pull_request.number, which
-                # GitHub has already parsed for us, this is free text a
-                # maintainer types by hand.
-                if ! [[ "$INPUT_PR_NUMBER" =~ ^[0-9]+$ ]]; then
-                  echo "::error::pr_number must be digits only, got '$INPUT_PR_NUMBER'."
-                  exit 1
-                fi
-                # Checked against the same author/fork conditions as the
-                # "check every open one" branch below, rather than trusted on
-                # the strength of workflow_dispatch alone: dispatching this
-                # workflow already takes write access, but a maintainer typing
-                # the wrong number by hand should get a clear, empty matrix
-                # here rather than a same shape mismatch quietly falling
-                # through the decide step's own author check further down.
-                matrix=$(gh api "repos/$REPO/pulls/$INPUT_PR_NUMBER" \
-                  --jq 'if (.user.login == "renovate[bot]" or .user.login == "dependabot[bot]")
-                            and .head.repo.fork == false
-                        then [{pr_number: .number}]
-                        else [] end')
-              else
-                matrix=$(gh api "repos/$REPO/pulls?state=open&per_page=100" \
-                  --jq '[.[] | select((.user.login == "renovate[bot]" or .user.login == "dependabot[bot]")
-                                  and .head.repo.fork == false)
-                          | {pr_number: .number}]')
-              fi
-              ;;
-
-            *)
-              echo "::error::Unhandled event: $EVENT_NAME"
-              exit 1
-              ;;
-          esac
-
-          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
-          echo "Checking: $matrix"
-
   approve:
     name: Approve and enable auto-merge
-    needs: resolve-bot
-    # An empty array is not an error: nothing resolved to check, and nothing
-    # to approve. `fromJson('[]')` still starts a matrix with zero jobs, which
-    # reports as success on its own with no step of this job ever running,
-    # the same reasoning approve-owner below already relies on.
+    # user.login is set by GitHub from the authenticated author, so a pull
+    # request cannot claim to be a bot. Exact equality, not startsWith or
+    # contains: `renovate[bot]-x` is a login somebody may register, and the
+    # non-fork condition is the second half of the same fence, since reaching
+    # this job any other way would take write access to this repository.
     #
-    # `resolve-bot.result == 'success'` matters as much as the matrix check:
-    # resolve-bot is deliberately skipped on `workflow_run` above, and a
-    # custom `if:` here opts this job out of GitHub's own implicit
-    # "needs succeeded" gate, so a skipped predecessor is not screened out on
-    # its own. Without this, `needs.resolve-bot.outputs.matrix` reads as
-    # empty rather than `'[]'` for a skipped run, `!= '[]'` is still true, and
-    # `fromJson('')` below would fail the job outright on every `workflow_run`
-    # trigger.
-    if: needs.resolve-bot.result == 'success' && needs.resolve-bot.outputs.matrix != '[]'
+    # The label condition is about noise rather than correctness. `labeled`
+    # fires once per label, Renovate applies three, and with `opened` as well
+    # #61 collected seven identical approvals before anything had even run. Only
+    # a label this job actually reads is worth waking it for: `automerge`,
+    # Renovate's own signal, or `bot-recheck`, which the `nudge-bot` job below
+    # applies and removes right back off to manufacture exactly this event
+    # for a pull request stuck with no future trigger of its own, rather than
+    # asking a maintainer to close and reopen it.
+    if: >-
+      github.event.pull_request.head.repo.fork == false && (
+        github.event.pull_request.user.login == 'renovate[bot]' ||
+        github.event.pull_request.user.login == 'dependabot[bot]'
+      ) && (
+        github.event.action != 'labeled' ||
+        github.event.label.name == 'automerge' ||
+        github.event.label.name == 'bot-recheck'
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    strategy:
-      fail-fast: false
-      matrix:
-        entry: ${{ fromJson(needs.resolve-bot.outputs.matrix) }}
-    # One at a time per pull request. The guard in the Approve step below
-    # reads the reviews and then writes one, so two runs racing between those
-    # two steps would both see no approval and both add one, which is the
-    # pile-up this is meant to end. Queued rather than cancelled: a
-    # superseded run here has nothing to redo, but a cancelled one might have
-    # been the only run that would have approved.
+    # One at a time per pull request. The guard below reads the reviews and then
+    # writes one, so two runs racing between those two steps would both see no
+    # approval and both add one, which is the pile-up this is meant to end.
+    # Queued rather than cancelled: a superseded run here has nothing to redo,
+    # but a cancelled one might have been the only run that would have approved.
     concurrency:
-      group: bot-auto-merge-${{ matrix.entry.pr_number }}
+      group: bot-auto-merge-${{ github.event.pull_request.number }}
       cancel-in-progress: false
     permissions:
       # For `gh pr merge --auto` on the Dependabot path only. Arming auto-merge
@@ -240,47 +137,14 @@ jobs:
       pull-requests: write
     steps:
       - name: Check out the default branch
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7
         with:
-          # The repository's default branch, not
-          # github.event.pull_request.base.ref: that context is absent on
-          # workflow_dispatch, and every trigger this job runs under targets
-          # `main` as the base anyway (see the pull_request_target filter
-          # above), so this is not a behavior change on that path.
-          ref: ${{ github.event.repository.default_branch }}
+          # Explicitly the base branch, which is also what pull_request_target
+          # checks out by default. Stated anyway, because the assertion below is
+          # only worth running if it is this repository's copy of it and not the
+          # pull request's, and a default is a poor place to keep that.
+          ref: ${{ github.event.pull_request.base.ref }}
           persist-credentials: false
-
-      - name: Read the pull request's metadata
-        # Stands in for github.event.pull_request.* everywhere below, since
-        # that context only exists on the pull_request_target path;
-        # workflow_dispatch carries nothing but the number resolve-bot put in
-        # the matrix. Read fresh from the API on every trigger rather than
-        # branching per event, the same choice coderabbit-gate.yml's grade job
-        # makes for the same reason: one source of truth for what this pull
-        # request currently looks like, not two that can disagree.
-        #
-        # Written to a file, not just piped into this step's own jq: the
-        # Synthesize step below needs the identical resource, and reading it
-        # from the API a second time there would reopen the same
-        # "not two that can disagree" problem this step exists to close, one
-        # step later.
-        id: pr
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ matrix.entry.pr_number }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          resource="$RUNNER_TEMP/pr-$PR_NUMBER.json"
-          gh api "repos/$REPO/pulls/$PR_NUMBER" > "$resource"
-          jq -r '
-            "author=" + .user.login,
-            "html_url=" + .html_url,
-            "head_sha=" + .head.sha,
-            "has_automerge_label=" + ([.labels[].name] | any(. == "automerge") | tostring)
-          ' "$resource" >> "$GITHUB_OUTPUT"
-          echo "resource=$resource" >> "$GITHUB_OUTPUT"
 
       - name: Wait for the published pin-only verdict
         # The check that keeps "approve on the strength of the author" from
@@ -300,7 +164,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
-          HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         shell: bash
         run: |
           set -euo pipefail
@@ -312,8 +176,6 @@ jobs:
             # the select, that non-empty JSON made `[ -n "$result" ]` true on
             # the very first poll, read `state` as the literal string "null",
             # which is not "pending", and exited failed before ever looping.
-            # The select drops the null case so `gh api --jq` emits no output
-            # at all, `result` stays empty, and the loop actually waits.
             result=$(gh api "repos/$REPO/commits/$HEAD_SHA/status" \
               --jq '[.statuses[] | select(.context == "Pin Only")] | first | select(. != null) | {state, description} | @json' \
               || echo "")
@@ -330,55 +192,9 @@ jobs:
           echo "::error::No settled Pin Only verdict for $HEAD_SHA after two minutes."
           exit 1
 
-      - name: Synthesize a pull_request event payload
-        # dependabot/fetch-metadata reads github.event.pull_request straight
-        # off the event payload file and throws "Event payload missing
-        # `pull_request` key" when it is absent, confirmed by reading its
-        # source (dist/index.js): getMessage, getBranchNames, getBody and
-        # getTitle all destructure context.payload.pull_request with no other
-        # fallback. workflow_dispatch's own event carries no such key.
-        #
-        # Pointing GITHUB_EVENT_PATH itself at a different file does not
-        # work: GitHub documents that a step's `env:` cannot override any
-        # `GITHUB_*` or `RUNNER_*` default variable and silently ignores the
-        # attempt, confirmed against GitHub's own documentation. What is
-        # writable is the file that variable already names: an ordinary temp
-        # file on the runner's own disk, not a protected one, and nothing
-        # else in this job reads github.event after this step, so
-        # overwriting its contents here is contained to exactly the one
-        # action that needs it.
-        #
-        # The REST pull request resource the `pr` step above already saved
-        # has the same shape as the webhook payload the action expects,
-        # which is what makes {"pull_request": ...} a substitution the
-        # action cannot tell apart from the real thing. Built from that
-        # saved file rather than a second API call, so this can never read a
-        # pull request one push newer than what the `pr` step already
-        # committed to for every other output in this job.
-        if: github.event_name == 'workflow_dispatch' && steps.pr.outputs.author == 'dependabot[bot]'
-        env:
-          RESOURCE: ${{ steps.pr.outputs.resource }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          jq '{pull_request: .}' "$RESOURCE" > "$GITHUB_EVENT_PATH"
-          echo "DEBUG event_path=$GITHUB_EVENT_PATH"
-          echo "DEBUG contents:"
-          cat "$GITHUB_EVENT_PATH"
-          echo "DEBUG ls -la:"
-          ls -la "$GITHUB_EVENT_PATH"
-
-      - name: DEBUG recheck event path in a fresh step
-        if: steps.pr.outputs.author == 'dependabot[bot]'
-        shell: bash
-        run: |
-          echo "DEBUG2 event_path=$GITHUB_EVENT_PATH"
-          echo "DEBUG2 contents:"
-          cat "$GITHUB_EVENT_PATH"
-
       - name: Fetch Dependabot metadata
         id: metadata
-        if: steps.pr.outputs.author == 'dependabot[bot]'
+        if: github.event.pull_request.user.login == 'dependabot[bot]'
         uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -427,17 +243,19 @@ jobs:
         # organization's every repository groups its pre-commit and
         # github-actions ecosystems with `patterns: ["*"]`, and #94 ("bump
         # the test-dependencies group ... with 2 updates") is a live example,
-        # confirmed from that pull request's own run. #94 stays unapproved
-        # even with this fix in place: it is a pip "permit the latest
-        # version" style update whose commit message states no prior version
-        # for either dependency, so fetch-metadata cannot compute an update
-        # type for either entry at all (each reports "" confirmed live), and
-        # the check below correctly reads that as unresolved rather than as
-        # a bump it can vouch for.
+        # confirmed from that pull request's own run: update-type there is
+        # blank, since fetch-metadata has no single semver level to report
+        # for more than one dependency. #94 stays unapproved even with this
+        # fix in place: it is a pip "permit the latest version" style update
+        # whose commit message states no prior version for either
+        # dependency, so fetch-metadata cannot compute an update type for
+        # either entry at all (each reports "" confirmed live), and the
+        # check below correctly reads that as unresolved rather than as a
+        # bump it can vouch for.
         id: decide
         env:
-          PR_AUTHOR: ${{ steps.pr.outputs.author }}
-          HAS_AUTOMERGE_LABEL: ${{ steps.pr.outputs.has_automerge_label }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          HAS_AUTOMERGE_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'automerge') }}
           UPDATED_DEPENDENCIES_JSON: ${{ steps.metadata.outputs.updated-dependencies-json }}
         run: |
           approve=false
@@ -493,8 +311,8 @@ jobs:
         if: steps.decide.outputs.approve == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_URL: ${{ steps.pr.outputs.html_url }}
-          PR_NUMBER: ${{ matrix.entry.pr_number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
         # Re-approved on every push, which is required rather than wasteful:
         # branch protection dismisses stale reviews, so a rebase drops the
@@ -527,16 +345,16 @@ jobs:
         if: steps.decide.outputs.arm == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_URL: ${{ steps.pr.outputs.html_url }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
         run: gh pr merge --auto --squash "$PR_URL"
 
   resolve-owner:
     name: Find the owner's pull request to approve
-    # Not `workflow_dispatch`: that trigger exists for the bot path above
-    # only, and this job's case statement below has no branch for it. The
-    # recovery lever is for a stranded bot pull request; the owner's own
-    # already has `workflow_run` re-running this on every CodeRabbit Gate
-    # completion, so there is nothing here for a manual dispatch to recover.
+    # Not `workflow_dispatch`: that trigger exists for the `nudge-bot` job
+    # below only, and this job's case statement has no branch for it. The
+    # owner's own pull request already has `workflow_run` re-running this on
+    # every CodeRabbit Gate completion, so there is nothing here for a manual
+    # dispatch of the bot recovery lever to do.
     if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 3
@@ -775,3 +593,110 @@ jobs:
         # step the owner explicitly wants to keep for their own work, even
         # though nothing here would stop the owner running `gh pr merge
         # --auto` by hand if they wanted the same convenience Renovate gets.
+
+  nudge-bot:
+    name: Nudge a stranded bot pull request into a fresh check
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      # For the label add/remove below, which is what actually does the
+      # work: see the step for why a label toggle rather than reading
+      # github.event.pull_request.* directly here.
+      pull-requests: write
+    steps:
+      - name: Find and nudge the target pull request(s)
+        # This job never re-implements the `approve` job's own decision:
+        # doing that here would mean either reading github.event.pull_request,
+        # which does not exist on workflow_dispatch, or re-fetching every
+        # field that job reads from the API and hoping the two copies never
+        # drift, which is the exact failure this file's own "one decision,
+        # one place" convention exists to prevent (see the Decide step's own
+        # comment above for the last time a duplicated copy of this
+        # condition actually did drift).
+        #
+        # A synthetic pull_request event was tried and does not work.
+        # dependabot/fetch-metadata reads context.payload.pull_request from
+        # the file at GITHUB_EVENT_PATH, and neither writable surface holds
+        # still long enough to fake it: a step's `env:` cannot override
+        # GITHUB_EVENT_PATH itself (GitHub documents that a `GITHUB_*` or
+        # `RUNNER_*` variable assignment through `env:` is silently ignored),
+        # and overwriting the file that variable already names does not
+        # survive either, confirmed live: the runner resets it before the
+        # next step starts, so a subsequent step reads the original
+        # workflow_dispatch payload again, not what an earlier step wrote.
+        #
+        # What is left, and what this step does instead, is asking GitHub to
+        # generate a real `labeled` pull_request_target event: adding a
+        # label and then removing it right back off. That event carries an
+        # authentic, complete pull_request payload, exactly what the
+        # `approve` job already reads on every other trigger, so the
+        # approval decision runs through the one path this file has always
+        # had for it. `bot-recheck` is dedicated to this alone, never read
+        # for anything else, so toggling it can never be misread as
+        # Renovate's own `automerge` signal or leave that label's real state
+        # disturbed for a pull request that already carries it.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          INPUT_PR_NUMBER: ${{ inputs.pr_number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -n "$INPUT_PR_NUMBER" ]; then
+            # Digits only, checked before this ever reaches an API path
+            # below: unlike github.event.pull_request.number, which GitHub
+            # has already parsed for us, this is free text a maintainer
+            # types by hand.
+            if ! [[ "$INPUT_PR_NUMBER" =~ ^[0-9]+$ ]]; then
+              echo "::error::pr_number must be digits only, got '$INPUT_PR_NUMBER'."
+              exit 1
+            fi
+            # Checked against the same author, fork and state conditions the
+            # "check every open one" branch below already applies, rather
+            # than trusted on the strength of workflow_dispatch alone:
+            # dispatching this workflow already takes write access, but a
+            # maintainer typing the wrong number by hand should get a clear
+            # "nothing eligible" here rather than a label toggle that fires
+            # an event the `approve` job's own author check then silently
+            # ignores.
+            numbers=$(gh api "repos/$REPO/pulls/$INPUT_PR_NUMBER" \
+              --jq 'if .state == "open"
+                        and (.user.login == "renovate[bot]" or .user.login == "dependabot[bot]")
+                        and .head.repo.fork == false
+                    then .number else empty end')
+          else
+            # The REST list endpoint, not `gh pr list`: its GraphQL-backed
+            # --json author reports a bot's login as "app/dependabot", not
+            # the "dependabot[bot]" shape every other author check in this
+            # file compares against, confirmed live against this
+            # repository's own open pull requests. REST's `.user.login`
+            # matches what github.event.pull_request.user.login reports on
+            # the pull_request_target path the `approve` job reads, so both
+            # agree on what a bot's login looks like.
+            numbers=$(gh api "repos/$REPO/pulls?state=open&per_page=100" \
+              --jq '[.[] | select((.user.login == "renovate[bot]" or .user.login == "dependabot[bot]")
+                              and .head.repo.fork == false)
+                      | .number] | .[]')
+          fi
+
+          if [ -z "$numbers" ]; then
+            echo "No eligible open bot pull request to nudge."
+            exit 0
+          fi
+
+          while read -r number; do
+            [ -n "$number" ] || continue
+            echo "Nudging #$number..."
+            # POST auto-creates the label if this repository has never used
+            # it before, confirmed live, so there is nothing to provision
+            # ahead of time. DELETE right after: leaving the label on would
+            # make a second recovery attempt against the same pull request a
+            # no-op, since GitHub does not fire `labeled` for a label that is
+            # already there.
+            gh api --method POST "repos/$REPO/issues/$number/labels" \
+              -f "labels[]=bot-recheck" --silent
+            gh api --method DELETE "repos/$REPO/issues/$number/labels/bot-recheck" \
+              --silent
+          done <<< "$numbers"
