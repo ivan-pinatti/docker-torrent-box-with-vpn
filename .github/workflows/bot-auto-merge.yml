@@ -627,16 +627,19 @@ jobs:
         #
         # What is left, and what this step does, is grade a Renovate pull
         # request directly: unlike Dependabot's, that decision was already
-        # small (has the `automerge` label? not already approved?) and reads
-        # entirely off the API, no marketplace action involved, so
-        # duplicating it here is a bounded, low-risk copy rather than the
-        # kind that drifted before (see the Decide step's own comment in the
-        # `approve` job above). A Dependabot pull request cannot be graded
-        # this way: dependabot/fetch-metadata is the one thing here that
-        # only works on a real trigger, so this reports why and leaves
-        # closing and reopening the pull request, which is a genuine
-        # `reopened` trigger, as the still-clumsy but still-working lever
-        # for that half.
+        # small (has the `automerge` label, Pin Only still success, not
+        # already approved?) and reads entirely off the API, no marketplace
+        # action involved, so duplicating it here is a bounded, low-risk copy
+        # rather than the kind that drifted before (see the Decide step's own
+        # comment in the `approve` job above). The Pin Only check matters as
+        # much here as it does there: an automerge label is Renovate asking
+        # for this to merge, not a guarantee the diff is only a pin, and
+        # approving on the label alone would reopen the exact hole Pin Only
+        # exists to close. A Dependabot pull request cannot be graded this
+        # way: dependabot/fetch-metadata is the one thing here that only
+        # works on a real trigger, so this reports why and leaves closing and
+        # reopening the pull request, which is a genuine `reopened` trigger,
+        # as the still-clumsy but still-working lever for that half.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -689,6 +692,19 @@ jobs:
                 has_label=$(printf '%s' "$pr" | jq -r '[.labels[].name] | any(. == "automerge")')
                 if [ "$has_label" != "true" ]; then
                   echo "#$number: no automerge label, so Renovate is not asking for this to merge on its own."
+                  continue
+                fi
+                # The same guard the approve job always applies before
+                # approving anything: an automerge label says Renovate wants
+                # this merged, not that the diff is only a pin. Approving
+                # without this would let a Renovate pull request whose diff
+                # was not pin-only through on the strength of the label
+                # alone, which is exactly the hole Pin Only exists to close.
+                head_sha=$(printf '%s' "$pr" | jq -r '.head.sha')
+                pin_only_state=$(gh api "repos/$REPO/commits/$head_sha/status" \
+                  --jq '[.statuses[] | select(.context == "Pin Only")] | first | select(. != null) | .state // ""')
+                if [ "$pin_only_state" != "success" ]; then
+                  echo "#$number: Pin Only is ${pin_only_state:-absent}, not success, so this waits for review."
                   continue
                 fi
                 existing=$(gh api --paginate "repos/$REPO/pulls/$number/reviews" \
