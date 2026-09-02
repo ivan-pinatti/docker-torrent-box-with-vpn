@@ -66,7 +66,9 @@ on:
   # own decision changed has no future event left to earn an approval from.
   # #94 and #136 were both stranded exactly that way; #136 was only
   # recovered by closing and reopening it, which is a clumsy lever to ask of
-  # a maintainer.
+  # a maintainer, and `nudge-bot` below replaces it for Renovate. It cannot
+  # replace it for Dependabot: see that job for why, and what still needs
+  # closing and reopening until that changes.
   #
   # `pr_number` follows pull-request-validation.yml's own workflow_dispatch
   # shape: optional, so leaving it blank re-checks every open Dependabot or
@@ -77,10 +79,10 @@ on:
   #checkov:skip=CKV_GHA_7:workflow_dispatch itself requires write access to
   # trigger at all (GitHub platform-level gate, not something this file
   # controls); pr_number never selects a checkout ref or anything else that
-  # runs. It only ever selects which pull request `nudge-bot` reads and, once
-  # matched against digits and graded eligible, briefly labels through the
-  # API, which is exactly the trust a maintainer typing an issue number into
-  # `/run-check` already carries elsewhere in this organization.
+  # runs. It only ever selects which pull request `nudge-bot` reads and,
+  # once matched against digits and graded eligible, approves through the
+  # API, the same trust a maintainer already has through `gh pr review`
+  # directly.
   workflow_dispatch:
     inputs:
       pr_number:
@@ -105,19 +107,14 @@ jobs:
     # The label condition is about noise rather than correctness. `labeled`
     # fires once per label, Renovate applies three, and with `opened` as well
     # #61 collected seven identical approvals before anything had even run. Only
-    # a label this job actually reads is worth waking it for: `automerge`,
-    # Renovate's own signal, or `bot-recheck`, which the `nudge-bot` job below
-    # applies and removes right back off to manufacture exactly this event
-    # for a pull request stuck with no future trigger of its own, rather than
-    # asking a maintainer to close and reopen it.
+    # the label this job actually reads is worth waking it for.
     if: >-
       github.event.pull_request.head.repo.fork == false && (
         github.event.pull_request.user.login == 'renovate[bot]' ||
         github.event.pull_request.user.login == 'dependabot[bot]'
       ) && (
         github.event.action != 'labeled' ||
-        github.event.label.name == 'automerge' ||
-        github.event.label.name == 'bot-recheck'
+        github.event.label.name == 'automerge'
       )
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -595,47 +592,51 @@ jobs:
         # --auto` by hand if they wanted the same convenience Renovate gets.
 
   nudge-bot:
-    name: Nudge a stranded bot pull request into a fresh check
+    name: Re-check a stranded bot pull request
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     permissions:
-      # For the label add/remove below, which is what actually does the
-      # work: see the step for why a label toggle rather than reading
-      # github.event.pull_request.* directly here.
       pull-requests: write
     steps:
-      - name: Find and nudge the target pull request(s)
-        # This job never re-implements the `approve` job's own decision:
-        # doing that here would mean either reading github.event.pull_request,
-        # which does not exist on workflow_dispatch, or re-fetching every
-        # field that job reads from the API and hoping the two copies never
-        # drift, which is the exact failure this file's own "one decision,
-        # one place" convention exists to prevent (see the Decide step's own
-        # comment above for the last time a duplicated copy of this
-        # condition actually did drift).
+      - name: Find and re-check the target pull request(s)
+        # Two things were tried here first, and neither survives contact
+        # with how GitHub actually runs this.
         #
-        # A synthetic pull_request event was tried and does not work.
-        # dependabot/fetch-metadata reads context.payload.pull_request from
-        # the file at GITHUB_EVENT_PATH, and neither writable surface holds
-        # still long enough to fake it: a step's `env:` cannot override
-        # GITHUB_EVENT_PATH itself (GitHub documents that a `GITHUB_*` or
-        # `RUNNER_*` variable assignment through `env:` is silently ignored),
-        # and overwriting the file that variable already names does not
-        # survive either, confirmed live: the runner resets it before the
-        # next step starts, so a subsequent step reads the original
-        # workflow_dispatch payload again, not what an earlier step wrote.
+        # A synthetic pull_request event for dependabot/fetch-metadata,
+        # which reads context.payload.pull_request straight off the file at
+        # GITHUB_EVENT_PATH and throws "Event payload missing `pull_request`
+        # key" outside a real pull_request or pull_request_target trigger.
+        # Neither writable surface holds still long enough to fake one: a
+        # step's `env:` cannot override GITHUB_EVENT_PATH itself (GitHub
+        # documents that a `GITHUB_*` or `RUNNER_*` variable assignment
+        # through `env:` is silently ignored), and overwriting the file that
+        # variable already names does not survive either, confirmed live:
+        # the runner resets it before the next step starts.
         #
-        # What is left, and what this step does instead, is asking GitHub to
-        # generate a real `labeled` pull_request_target event: adding a
-        # label and then removing it right back off. That event carries an
-        # authentic, complete pull_request payload, exactly what the
-        # `approve` job already reads on every other trigger, so the
-        # approval decision runs through the one path this file has always
-        # had for it. `bot-recheck` is dedicated to this alone, never read
-        # for anything else, so toggling it can never be misread as
-        # Renovate's own `automerge` signal or leave that label's real state
-        # disturbed for a pull request that already carries it.
+        # Manufacturing a real `labeled` pull_request_target event instead,
+        # by adding and removing a label through the API. That data would
+        # have been genuine, but the event never fires: GitHub documents
+        # that it does not start new workflow runs from most events created
+        # using the repository's own GITHUB_TOKEN, `workflow_dispatch` and
+        # `repository_dispatch` being the only exceptions, specifically to
+        # prevent recursive runs. Confirmed live: toggling a label on #94
+        # produced the label history entries and nothing else, no new run.
+        # Only a personal access token or a GitHub App installation token
+        # sidesteps that, and this repository stores neither.
+        #
+        # What is left, and what this step does, is grade a Renovate pull
+        # request directly: unlike Dependabot's, that decision was already
+        # small (has the `automerge` label? not already approved?) and reads
+        # entirely off the API, no marketplace action involved, so
+        # duplicating it here is a bounded, low-risk copy rather than the
+        # kind that drifted before (see the Decide step's own comment in the
+        # `approve` job above). A Dependabot pull request cannot be graded
+        # this way: dependabot/fetch-metadata is the one thing here that
+        # only works on a real trigger, so this reports why and leaves
+        # closing and reopening the pull request, which is a genuine
+        # `reopened` trigger, as the still-clumsy but still-working lever
+        # for that half.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -653,14 +654,6 @@ jobs:
               echo "::error::pr_number must be digits only, got '$INPUT_PR_NUMBER'."
               exit 1
             fi
-            # Checked against the same author, fork and state conditions the
-            # "check every open one" branch below already applies, rather
-            # than trusted on the strength of workflow_dispatch alone:
-            # dispatching this workflow already takes write access, but a
-            # maintainer typing the wrong number by hand should get a clear
-            # "nothing eligible" here rather than a label toggle that fires
-            # an event the `approve` job's own author check then silently
-            # ignores.
             numbers=$(gh api "repos/$REPO/pulls/$INPUT_PR_NUMBER" \
               --jq 'if .state == "open"
                         and (.user.login == "renovate[bot]" or .user.login == "dependabot[bot]")
@@ -682,21 +675,33 @@ jobs:
           fi
 
           if [ -z "$numbers" ]; then
-            echo "No eligible open bot pull request to nudge."
+            echo "No eligible open bot pull request to re-check."
             exit 0
           fi
 
           while read -r number; do
             [ -n "$number" ] || continue
-            echo "Nudging #$number..."
-            # POST auto-creates the label if this repository has never used
-            # it before, confirmed live, so there is nothing to provision
-            # ahead of time. DELETE right after: leaving the label on would
-            # make a second recovery attempt against the same pull request a
-            # no-op, since GitHub does not fire `labeled` for a label that is
-            # already there.
-            gh api --method POST "repos/$REPO/issues/$number/labels" \
-              -f "labels[]=bot-recheck" --silent
-            gh api --method DELETE "repos/$REPO/issues/$number/labels/bot-recheck" \
-              --silent
+            pr=$(gh api "repos/$REPO/pulls/$number")
+            author=$(printf '%s' "$pr" | jq -r '.user.login')
+
+            case "$author" in
+              "renovate[bot]")
+                has_label=$(printf '%s' "$pr" | jq -r '[.labels[].name] | any(. == "automerge")')
+                if [ "$has_label" != "true" ]; then
+                  echo "#$number: no automerge label, so Renovate is not asking for this to merge on its own."
+                  continue
+                fi
+                existing=$(gh api --paginate "repos/$REPO/pulls/$number/reviews" \
+                  | jq -s '[.[][] | select(.user.login == "github-actions[bot]" and .state == "APPROVED")] | length')
+                if [ "$existing" -gt 0 ]; then
+                  echo "#$number: already approved and not dismissed. Nothing to do."
+                  continue
+                fi
+                gh pr review --approve "$(printf '%s' "$pr" | jq -r '.html_url')"
+                echo "#$number: approved."
+                ;;
+              "dependabot[bot]")
+                echo "::warning::#$number is a Dependabot pull request. Its grouped-update check needs dependabot/fetch-metadata, which only works on a real pull_request_target event; this job cannot manufacture one that survives GitHub's own recursive-trigger guard. Close and reopen the pull request to re-trigger it for real."
+                ;;
+            esac
           done <<< "$numbers"
