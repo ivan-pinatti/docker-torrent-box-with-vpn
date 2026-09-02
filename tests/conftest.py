@@ -354,7 +354,15 @@ def grafana_admin_credentials():
         path = REPO_ROOT / rel
         if not path.exists():
             continue
-        parser = configparser.ConfigParser()
+        # interpolation=None because a password is an opaque string, not a
+        # template. ConfigParser's default BasicInterpolation treats `%` as
+        # a reference and raises InterpolationSyntaxError on a lone one, so a
+        # password containing `%` would crash every Grafana test with an
+        # error naming configparser rather than the password. rotate-passwords.sh
+        # cannot currently emit one (its charset is A-Za-z0-9!@^*()_~-) but
+        # grafana.ini is hand-editable and `%` is an unremarkable thing to put
+        # in a password.
+        parser = configparser.ConfigParser(interpolation=None)
         parser.read(path)
         user = parser.get("security", "admin_user", fallback="")
         password = parser.get("security", "admin_password", fallback="")
