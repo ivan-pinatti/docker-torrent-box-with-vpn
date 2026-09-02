@@ -49,7 +49,9 @@ authenticated); Sonarr, Radarr, Lidarr, Prowlarr, Readarr
 (`system/status` beside each app's own already-registered `/health` path,
 same API prefix, same API key); Bazarr (`/api/system/status`); SABnzbd
 (`mode=version`, unauthenticated by design upstream); Jellyfin
-(`/System/Info/Public`, unauthenticated); Grafana (`/api/health`); Prometheus
+(`/System/Info/Public`, unauthenticated); Grafana
+(`/api/frontend/settings`, authenticated, because `hide_version` masks
+`/api/health`); Prometheus
 (`/api/v1/status/buildinfo`).
 
 Not covered, and why, so this is not a test that silently skips everything
@@ -400,58 +402,48 @@ def test_grafana_running_version_matches_pin(running_containers):
         pytest.skip("grafana profile is disabled")
     skip_if_not_running("grafana", running_containers)
 
-    # Authenticated, and that is the whole point of this call rather than an
-    # incidental detail. Grafana's /api/health answers an anonymous request
-    # with only {"database": "ok"} and omits the version, which is exactly
-    # what test_observability.py's own test_grafana_health documents when it
-    # says that endpoint needs no auth: it needs none for liveness, and it
-    # tells you nothing about the version without it. An unauthenticated read
-    # here fails with "returned no version" no matter which Grafana is
-    # running, which is a broken test rather than a detected mismatch.
-    # env() returns "" for an unset key, so a configured credential is
-    # distinguishable from the fallback, and that distinction decides what a
-    # 401 means. The two must not be conflated: skipping on a credential that
-    # was actually configured and rejected would let this test pass while
-    # verifying nothing, including when the password is simply wrong. Only a
-    # genuinely unconfigured environment earns a skip.
-    configured_user = env("ADMIN_USER")
-    configured_password = env("ADMIN_PASSWORD")
-
-    # Three states, not two, and collapsing the third into "unconfigured" is
-    # what makes a skip dishonest. Neither variable set means auth is
-    # intentionally unavailable and a 401 is a fact about the environment.
-    # Both set means a 401 is a real failure. Exactly one set is neither: it
-    # is a misconfiguration that would silently downgrade this test to a skip
-    # while looking deliberate, so it fails here, before the request, where
-    # the message can name the actual problem instead of blaming Grafana.
-    assert bool(configured_user) == bool(configured_password), (
-        "ADMIN_USER and ADMIN_PASSWORD must be set together or not at all; "
-        f"got ADMIN_USER={'set' if configured_user else 'unset'} and "
-        f"ADMIN_PASSWORD={'set' if configured_password else 'unset'}, which "
-        "would leave GRAFANA_VERSION unverified behind a skip"
-    )
-    credentials_configured = bool(configured_user)
-
+    # Not /api/health, and not because of authentication. configs/grafana/
+    # config/grafana.ini.example sets hide_version = true under
+    # [auth.anonymous], and Grafana applies that flag to /api/health
+    # unconditionally: the handler omits version and commit whenever the flag
+    # is set, without ever consulting whether the caller is signed in. So
+    # /api/health answers {"database": "ok"} to an anonymous request and to a
+    # correctly authenticated one alike, and a version check built on it fails
+    # identically whichever Grafana is running. Verified directly against
+    # grafana-oss:11.6.5 with that flag on.
+    #
+    # /api/frontend/settings is the endpoint that honours the flag as its
+    # comment in grafana.ini describes, masking the version "for
+    # unauthenticated users" only: signed out it reports
+    # buildInfo.hideVersion true with version "", signed in it reports
+    # hideVersion false with the real version.
     session = requests.Session()
     session.verify = False
-    session.auth = (configured_user or "admin", configured_password or "admin")
+    session.auth = (env("ADMIN_USER", "admin"), env("ADMIN_PASSWORD", "admin"))
     resp = session.get(
-        base_url(https=True) + "/admin/grafana/api/health", timeout=TIMEOUT
+        base_url(https=True) + "/admin/grafana/api/frontend/settings",
+        timeout=TIMEOUT,
     )
-    if resp.status_code == 401:
-        assert not credentials_configured, (
-            "ADMIN_USER and ADMIN_PASSWORD are configured but Grafana rejected "
-            f"them (HTTP 401), so GRAFANA_VERSION went unverified: {resp.text[:120]}"
-        )
-        pytest.skip(
-            "no Grafana credentials configured and the default admin login was "
-            f"rejected (HTTP 401): {resp.text[:120]}"
-        )
-    assert resp.status_code == 200, f"Grafana health returned {resp.status_code}"
-    reported = resp.json().get("version")
-    assert reported, (
-        f"Grafana /api/health returned no version even authenticated: {resp.text[:200]}"
+    assert resp.status_code == 200, (
+        f"Grafana frontend settings returned {resp.status_code}: {resp.text[:200]}"
     )
+    build_info = resp.json().get("buildInfo") or {}
+
+    # Grafana states here whether it treated this request as signed in, so
+    # the credentials are checked by the same call that reads the version
+    # rather than inferred from a status code. Anonymous access is enabled in
+    # this stack, so rejected credentials do not produce a 401: they produce a
+    # 200 carrying an empty version. That is a real failure and must not be a
+    # skip, or wrong credentials would leave GRAFANA_VERSION unverified while
+    # the suite reported success.
+    assert not build_info.get("hideVersion", True), (
+        "Grafana served this request anonymously, so it masked the version "
+        "and GRAFANA_VERSION went unverified. ADMIN_USER and ADMIN_PASSWORD "
+        f"were rejected. buildInfo: {build_info}"
+    )
+    reported = build_info.get("version")
+    assert reported, f"Grafana reported no version while signed in: {build_info}"
+
     _assert_running_matches_pin(
         env("GRAFANA_VERSION"), reported, "grafana", "GRAFANA_VERSION"
     )
