@@ -408,14 +408,31 @@ def test_grafana_running_version_matches_pin(running_containers):
     # tells you nothing about the version without it. An unauthenticated read
     # here fails with "returned no version" no matter which Grafana is
     # running, which is a broken test rather than a detected mismatch.
+    # env() returns "" for an unset key, so a configured credential is
+    # distinguishable from the fallback, and that distinction decides what a
+    # 401 means. The two must not be conflated: skipping on a credential that
+    # was actually configured and rejected would let this test pass while
+    # verifying nothing, including when the password is simply wrong. Only a
+    # genuinely unconfigured environment earns a skip.
+    configured_user = env("ADMIN_USER")
+    configured_password = env("ADMIN_PASSWORD")
+    credentials_configured = bool(configured_user and configured_password)
+
     session = requests.Session()
     session.verify = False
-    session.auth = (env("ADMIN_USER", "admin"), env("ADMIN_PASSWORD", "admin"))
+    session.auth = (configured_user or "admin", configured_password or "admin")
     resp = session.get(
         base_url(https=True) + "/admin/grafana/api/health", timeout=TIMEOUT
     )
     if resp.status_code == 401:
-        pytest.skip(f"could not authenticate to Grafana (HTTP 401): {resp.text[:120]}")
+        assert not credentials_configured, (
+            "ADMIN_USER and ADMIN_PASSWORD are configured but Grafana rejected "
+            f"them (HTTP 401), so GRAFANA_VERSION went unverified: {resp.text[:120]}"
+        )
+        pytest.skip(
+            "no Grafana credentials configured and the default admin login was "
+            f"rejected (HTTP 401): {resp.text[:120]}"
+        )
     assert resp.status_code == 200, f"Grafana health returned {resp.status_code}"
     reported = resp.json().get("version")
     assert reported, (
