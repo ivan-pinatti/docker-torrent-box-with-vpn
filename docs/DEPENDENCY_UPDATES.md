@@ -25,7 +25,7 @@ the seam that covers those inline pins, and the reasoning is spelled out in the 
 of [`.github/renovate.json5`](../.github/renovate.json5); this page reuses that reasoning rather
 than restating it differently.
 
-## The weekday layout
+## The daily layout
 
 | When | Tool | What opens |
 | --- | --- | --- |
@@ -34,7 +34,7 @@ than restating it differently.
 | Daily 07:00 | Dependabot | pip, `tests/requirements.txt` |
 | Daily, before 07:00 | Renovate | Every Renovate update: the grouped and ungrouped images, and the inline pip and Go/PyPI pins |
 
-There is no weekday to check any more. Dependabot ran Thursday and Friday
+There is no fixed weekday to check any more. Dependabot ran Thursday and Friday
 until 2026-09-02, out of an organization-wide slot table that has since been
 deleted; see "Why neither bot is staggered" below. The hours are still
 staggered so the suites this repository triggers do not all start at once,

@@ -9,10 +9,13 @@ version: 2
 # Daily, matching Renovate and every other repository. Note that Dependabot's
 # "daily" means weekdays only, not all seven days.
 #
-# These were Thursday and Friday until 2026-09-02, slots allocated in
-# ivan-pinatti-labs/.github's docs/BOT_SCHEDULE.md because CodeRabbit's review
-# quota is shared across the whole app installation, so two repositories
-# opening bot pull requests in the same hour would queue behind each other.
+# These were Thursday and Friday until 2026-09-02, slots allocated in a
+# document that no longer exists: ivan-pinatti-labs/.github's
+# docs/BOT_SCHEDULE.md, named here only as history, with the policy that
+# replaced it in that repository's README.md. It allocated a weekday per
+# repository because CodeRabbit's review quota is shared across the whole app
+# installation, so two repositories opening bot pull requests in the same hour
+# would queue behind each other.
 # Picking those days took three attempts: Monday and Tuesday collided with
 # rsync-crypt and the profile repository on arrival, and Monday 07:00 turned
 # out to be pre-commit-checklists-demo's pip slot.
