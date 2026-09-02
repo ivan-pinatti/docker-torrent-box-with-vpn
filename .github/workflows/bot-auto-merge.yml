@@ -362,6 +362,19 @@ jobs:
         run: |
           set -euo pipefail
           jq '{pull_request: .}' "$RESOURCE" > "$GITHUB_EVENT_PATH"
+          echo "DEBUG event_path=$GITHUB_EVENT_PATH"
+          echo "DEBUG contents:"
+          cat "$GITHUB_EVENT_PATH"
+          echo "DEBUG ls -la:"
+          ls -la "$GITHUB_EVENT_PATH"
+
+      - name: DEBUG recheck event path in a fresh step
+        if: steps.pr.outputs.author == 'dependabot[bot]'
+        shell: bash
+        run: |
+          echo "DEBUG2 event_path=$GITHUB_EVENT_PATH"
+          echo "DEBUG2 contents:"
+          cat "$GITHUB_EVENT_PATH"
 
       - name: Fetch Dependabot metadata
         id: metadata
