@@ -154,25 +154,36 @@ jobs:
               ;;
 
             workflow_dispatch)
+              # The REST list endpoint throughout, not `gh pr list`: its
+              # GraphQL-backed --json author reports a bot's login as
+              # "app/dependabot", not the "dependabot[bot]" shape every other
+              # author check in this file compares against, confirmed live
+              # against this repository's own open pull requests. REST's
+              # `.user.login` matches what github.event.pull_request.user.login
+              # reports on the pull_request_target path above, so every trigger
+              # agrees on what a bot's login looks like.
               if [ -n "$INPUT_PR_NUMBER" ]; then
                 # Digits only, checked before this ever reaches an API path
                 # below: unlike github.event.pull_request.number, which
-                # GitHub has already parsed for us, a workflow_dispatch input
-                # is free text a maintainer types by hand.
+                # GitHub has already parsed for us, this is free text a
+                # maintainer types by hand.
                 if ! [[ "$INPUT_PR_NUMBER" =~ ^[0-9]+$ ]]; then
                   echo "::error::pr_number must be digits only, got '$INPUT_PR_NUMBER'."
                   exit 1
                 fi
-                matrix=$(jq -nc --arg n "$INPUT_PR_NUMBER" '[{pr_number: ($n | tonumber)}]')
+                # Checked against the same author/fork conditions as the
+                # "check every open one" branch below, rather than trusted on
+                # the strength of workflow_dispatch alone: dispatching this
+                # workflow already takes write access, but a maintainer typing
+                # the wrong number by hand should get a clear, empty matrix
+                # here rather than a same shape mismatch quietly falling
+                # through the decide step's own author check further down.
+                matrix=$(gh api "repos/$REPO/pulls/$INPUT_PR_NUMBER" \
+                  --jq 'if (.user.login == "renovate[bot]" or .user.login == "dependabot[bot]")
+                            and .head.repo.fork == false
+                        then [{pr_number: .number}]
+                        else [] end')
               else
-                # The REST list endpoint, not `gh pr list`: its GraphQL-backed
-                # --json author reports a bot's login as "app/dependabot", not
-                # the "dependabot[bot]" shape every other author check in this
-                # file compares against, confirmed live against this
-                # repository's own open pull requests. REST's `.user.login`
-                # matches what github.event.pull_request.user.login reports on
-                # the pull_request_target path above, so both triggers agree
-                # on what a bot's login looks like.
                 matrix=$(gh api "repos/$REPO/pulls?state=open&per_page=100" \
                   --jq '[.[] | select((.user.login == "renovate[bot]" or .user.login == "dependabot[bot]")
                                   and .head.repo.fork == false)
