@@ -305,8 +305,17 @@ jobs:
         run: |
           set -euo pipefail
           for _ in $(seq 1 24); do
+            # `select(. != null)` after `first`, not just `first` alone:
+            # `first` on an empty array (no "Pin Only" status published yet)
+            # is `null`, and `null | {state, description}` is
+            # `{"state": null, "description": null}`, not nothing. Without
+            # the select, that non-empty JSON made `[ -n "$result" ]` true on
+            # the very first poll, read `state` as the literal string "null",
+            # which is not "pending", and exited failed before ever looping.
+            # The select drops the null case so `gh api --jq` emits no output
+            # at all, `result` stays empty, and the loop actually waits.
             result=$(gh api "repos/$REPO/commits/$HEAD_SHA/status" \
-              --jq '[.statuses[] | select(.context == "Pin Only")] | first | {state, description} | @json' \
+              --jq '[.statuses[] | select(.context == "Pin Only")] | first | select(. != null) | {state, description} | @json' \
               || echo "")
             if [ -n "$result" ]; then
               state=$(printf '%s' "$result" | jq -r '.state')
@@ -327,39 +336,37 @@ jobs:
         # `pull_request` key" when it is absent, confirmed by reading its
         # source (dist/index.js): getMessage, getBranchNames, getBody and
         # getTitle all destructure context.payload.pull_request with no other
-        # fallback. workflow_dispatch carries no such key. The REST pull
-        # request resource the `pr` step above already saved has the same
-        # shape as the webhook payload the action expects, which is what
-        # makes wrapping it in {"pull_request": ...} and pointing
-        # GITHUB_EVENT_PATH at it for the next step a substitution the action
-        # cannot tell apart from the real thing. Built from that saved file
-        # rather than a second API call, so this can never read a pull
-        # request one push newer than what the `pr` step already committed to
-        # for every other output in this job.
+        # fallback. workflow_dispatch's own event carries no such key.
+        #
+        # Pointing GITHUB_EVENT_PATH itself at a different file does not
+        # work: GitHub documents that a step's `env:` cannot override any
+        # `GITHUB_*` or `RUNNER_*` default variable and silently ignores the
+        # attempt, confirmed against GitHub's own documentation. What is
+        # writable is the file that variable already names: an ordinary temp
+        # file on the runner's own disk, not a protected one, and nothing
+        # else in this job reads github.event after this step, so
+        # overwriting its contents here is contained to exactly the one
+        # action that needs it.
+        #
+        # The REST pull request resource the `pr` step above already saved
+        # has the same shape as the webhook payload the action expects,
+        # which is what makes {"pull_request": ...} a substitution the
+        # action cannot tell apart from the real thing. Built from that
+        # saved file rather than a second API call, so this can never read a
+        # pull request one push newer than what the `pr` step already
+        # committed to for every other output in this job.
         if: github.event_name == 'workflow_dispatch' && steps.pr.outputs.author == 'dependabot[bot]'
-        id: synth_event
         env:
           RESOURCE: ${{ steps.pr.outputs.resource }}
-          PR_NUMBER: ${{ matrix.entry.pr_number }}
         shell: bash
         run: |
           set -euo pipefail
-          path="$RUNNER_TEMP/pr-$PR_NUMBER-event.json"
-          jq '{pull_request: .}' "$RESOURCE" > "$path"
-          echo "path=$path" >> "$GITHUB_OUTPUT"
+          jq '{pull_request: .}' "$RESOURCE" > "$GITHUB_EVENT_PATH"
 
       - name: Fetch Dependabot metadata
         id: metadata
         if: steps.pr.outputs.author == 'dependabot[bot]'
         uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
-        env:
-          # The real event payload on pull_request_target; the synthetic one
-          # from the step above on workflow_dispatch, which carries no
-          # pull_request key of its own. github.event_path, not a bare
-          # $GITHUB_EVENT_PATH default: this workflow never sets that variable
-          # itself, so there is no runner default to fall back on other than
-          # the one GitHub already exposes through this context.
-          GITHUB_EVENT_PATH: ${{ github.event_name == 'workflow_dispatch' && steps.synth_event.outputs.path || github.event_path }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -385,29 +392,39 @@ jobs:
         # requirements included: they only reach the test virtualenv, and the
         # suite is what clears them either way.
         #
-        # `update-type` is blank for a grouped update (#94, "bump the
-        # test-dependencies group ... with 2 updates"): confirmed live from
-        # that pull request's own run, fetch-metadata has no single semver
-        # level to report for more than one dependency, and this
+        # Graded from `updated-dependencies-json` alone, never from the
+        # top-level `update-type` output. update-type is fetch-metadata's own
+        # summary of the *highest* semver level *present* among a group's
+        # entries, not a guarantee that *every* entry is at or below that
+        # level: `maxSemver` builds a set of each entry's updateType and
+        # returns the first of major/minor/patch found in it, blank entries
+        # included in the set but never selected over a real one. A group
+        # pairing one resolved minor bump with one blank, unresolved entry
+        # therefore reports the top-level type as "version-update:semver-minor",
+        # confirmed by running fetch-metadata's own algorithm against that
+        # exact shape, which would have approved the whole group on the
+        # strength of the one entry that happened to resolve. Reading
+        # `updated-dependencies-json` unconditionally instead, and requiring
+        # every single entry in it to be a patch or minor bump, closes that
+        # gap without opening a new one: for a genuine single-dependency
+        # update this is the same check the top-level field would have made,
+        # since its one entry is exactly what `update-type` was built from.
+        #
+        # A grouped update is the normal shape here, not an edge case: this
         # organization's every repository groups its pre-commit and
-        # github-actions ecosystems with `patterns: ["*"]`, so a grouped bump
-        # is the normal shape, not an edge case, and the patch-or-minor branch
-        # below had been permanently unreachable for Dependabot.
-        # `updated-dependencies-json` is the fallback fetch-metadata itself
-        # documents for exactly this: one entry per dependency, each carrying
-        # its own updateType, so the group is approved only when every single
-        # entry is itself a patch or minor bump; a group hiding even one major
-        # still waits for review. #94 stays unapproved even with this fix in
-        # place: it is a pip "permit the latest version" style update whose
-        # commit message states no prior version for either dependency, so
-        # fetch-metadata cannot compute an update type for either entry at all
-        # (each reports "" confirmed live), and the fallback below correctly
-        # reads that as unresolved rather than as a bump it can vouch for.
+        # github-actions ecosystems with `patterns: ["*"]`, and #94 ("bump
+        # the test-dependencies group ... with 2 updates") is a live example,
+        # confirmed from that pull request's own run. #94 stays unapproved
+        # even with this fix in place: it is a pip "permit the latest
+        # version" style update whose commit message states no prior version
+        # for either dependency, so fetch-metadata cannot compute an update
+        # type for either entry at all (each reports "" confirmed live), and
+        # the check below correctly reads that as unresolved rather than as
+        # a bump it can vouch for.
         id: decide
         env:
           PR_AUTHOR: ${{ steps.pr.outputs.author }}
           HAS_AUTOMERGE_LABEL: ${{ steps.pr.outputs.has_automerge_label }}
-          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
           UPDATED_DEPENDENCIES_JSON: ${{ steps.metadata.outputs.updated-dependencies-json }}
         run: |
           approve=false
@@ -422,50 +439,37 @@ jobs:
               fi
               ;;
             "dependabot[bot]")
-              case "$UPDATE_TYPE" in
-                version-update:semver-patch | version-update:semver-minor)
-                  approve=true
-                  # Dependabot cannot arm auto-merge itself, unlike Renovate.
-                  arm=true
-                  ;;
-                "")
-                  # A grouped update: fall back to updated-dependencies-json
-                  # and require every dependency in it to be a patch or minor
-                  # bump on its own. Piped in on stdin rather than
-                  # interpolated into the jq program text, so nothing about a
-                  # dependency's name or version is ever read as jq syntax.
-                  #
-                  # shellcheck disable=SC2016
-                  result=$(printf '%s' "$UPDATED_DEPENDENCIES_JSON" | jq -r '
-                      def ok: . == "version-update:semver-patch" or . == "version-update:semver-minor";
-                      if (type != "array") or length == 0 then
-                        "false\tno updated-dependencies-json to fall back on"
-                      else
-                        ([.[].updateType | if . == "" or . == null then "unknown" else . end]) as $types
-                        | if ($types | all(ok)) then
-                            "true\tevery dependency in the group is a patch or minor bump (\($types | join(", ")))"
-                          else
-                            "false\tnot every dependency in the group is a patch or minor bump (\($types | join(", ")))"
-                          end
-                      end
-                    ' 2>/dev/null || echo "")
-                  if [ -z "$result" ]; then
-                    result="false"$'\t'"updated-dependencies-json was empty or could not be parsed as JSON"
-                  fi
-                  IFS=$'\t' read -r group_ok group_reason <<< "$result"
-                  if [ "$group_ok" = "true" ]; then
-                    approve=true
-                    # Dependabot cannot arm auto-merge itself, unlike Renovate.
-                    arm=true
-                    echo "::notice::Update type is blank (a grouped update); $group_reason."
+              # Every entry has to be a patch or minor bump on its own, one
+              # dependency or many. Piped in on stdin rather than
+              # interpolated into the jq program text, so nothing about a
+              # dependency's name or version is ever read as jq syntax.
+              #
+              # shellcheck disable=SC2016
+              result=$(printf '%s' "$UPDATED_DEPENDENCIES_JSON" | jq -r '
+                  def ok: . == "version-update:semver-patch" or . == "version-update:semver-minor";
+                  if (type != "array") or length == 0 then
+                    "false\tno updated-dependencies-json to grade"
                   else
-                    echo "::notice::Update type is blank (a grouped update), and $group_reason, so it waits for review."
-                  fi
-                  ;;
-                *)
-                  echo "::notice::Update type ${UPDATE_TYPE:-unknown} is not a patch or minor bump, so it waits for review."
-                  ;;
-              esac
+                    ([.[].updateType | if . == "" or . == null then "unknown" else . end]) as $types
+                    | if ($types | all(ok)) then
+                        "true\tevery dependency is a patch or minor bump (\($types | join(", ")))"
+                      else
+                        "false\tnot every dependency is a patch or minor bump (\($types | join(", ")))"
+                      end
+                  end
+                ' 2>/dev/null || echo "")
+              if [ -z "$result" ]; then
+                result="false"$'\t'"updated-dependencies-json was empty or could not be parsed as JSON"
+              fi
+              IFS=$'\t' read -r bump_ok bump_reason <<< "$result"
+              if [ "$bump_ok" = "true" ]; then
+                approve=true
+                # Dependabot cannot arm auto-merge itself, unlike Renovate.
+                arm=true
+                echo "::notice::$bump_reason."
+              else
+                echo "::notice::$bump_reason, so it waits for review."
+              fi
               ;;
           esac
 
