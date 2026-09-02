@@ -122,6 +122,29 @@ it rather than only itself. gluetun is isolated for the same reason: it is what 
 clients' kill switch depends on, so a bad gluetun bump is exactly the kind of failure a group
 should not be allowed to spread.
 
+nzbget no longer arrives as a pull request at all, isolated or otherwise. It is not part of the
+default stack (`NZBGET_PROFILE=disabled`; SABnzbd is the usenet client actually enabled), and
+`.env.tests` does not turn it on either, so no test in this repository ever starts an nzbget
+container. A version bump there could never be validated by CI, only by everything else in the
+suite continuing to pass, which is exactly the gap PR #103 (`24.8.20250509 -> 26.2.20260821`)
+exposed: the bump itself was verified genuine by hand, and was closed rather than merged because
+maintaining a pin CI cannot check is a liability, not coverage. `.github/renovate.json5` now holds
+`docker.io/linuxserver/nzbget` with `enabled: false`. Dropping that rule is a decision to actually
+run and test nzbget again, not merely to bump its pin.
+
+Two more pins carry an `allowedVersions` ceiling rather than being grouped or held, because their
+tag history contains something that outranks their real version line under Renovate's default
+docker versioning: `docker.io/linuxserver/qbittorrent` (`<10.0.0`) and
+`docker.io/linuxserver/readarr` (`<1.0.0`). The qbittorrent case is what PR #137 exploited --
+`5.2.2 -> 20.04.1`, a four-and-a-half-year-old image from an abandoned Ubuntu-base-release tag
+line that satisfied the entire integration suite anyway -- and readarr's `1.0.<build>` decoy tags
+(123 of them, all built around 2021-12, really an early `0.1.0` build under `versioning=loose`)
+were found by auditing every LinuxServer pin for the same shape afterward. See the comment above
+each rule in `.github/renovate.json5` for the full evidence, and
+[`tests/test_version_pins.py`](../tests/test_version_pins.py) for the coverage that asks each
+running service what version it actually is, which is the check that would have caught PR #137
+directly instead of relying on a human noticing an implausible major-version jump.
+
 Four more pins are ungrouped without that argument applying to them, simply because there is no
 group they belong in: `docker.io/library/alpine` for the reason above,
 `docker.io/linuxserver/mylar3` because it is the base of a wrapper this repository builds rather

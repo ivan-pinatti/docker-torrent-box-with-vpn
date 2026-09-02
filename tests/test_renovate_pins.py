@@ -55,7 +55,10 @@ VERSIONS_HEADING = "### VERSIONS"
 # .env.example no longer defines.
 FLOATING = {
     "NGINX_VERSION": "stable-alpine is a channel tag, not a version",
-    "PLEX_VERSION": "latest is a channel tag, not a version",
+    "PLEX_VERSION": (
+        "not in the default stack (PLEX_PROFILE=disabled); latest is also a "
+        "channel tag with no digest to pin anyway"
+    ),
     "WHISPARR_VERSION": "v3 tracks the v3 branch, which upstream keeps moving",
 }
 

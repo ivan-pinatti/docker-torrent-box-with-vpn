@@ -14,7 +14,15 @@ import pytest
 import requests
 import urllib3
 
-from conftest import REPO_ROOT, base_url, env, is_enabled, skip_if_not_running
+from conftest import (
+    GRAFANA_INI,
+    REPO_ROOT,
+    base_url,
+    env,
+    grafana_admin_credentials,
+    is_enabled,
+    skip_if_not_running,
+)
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -23,8 +31,6 @@ pytestmark = pytest.mark.observability
 TIMEOUT = 10
 PROMETHEUS_PATH = "/admin/prometheus/api/v1"
 GRAFANA_PATH = "/admin/grafana/api"
-GRAFANA_USER = env("ADMIN_USER", "admin")
-GRAFANA_PASSWORD = env("ADMIN_PASSWORD", "admin")
 
 # Scrape jobs whose target only exists when a profile is enabled, mapped to the
 # service that provides it. Prometheus's own config is static, so a disabled
@@ -397,18 +403,47 @@ def grafana_url():
 
 @pytest.fixture(scope="module")
 def grafana_session():
-    """Return a requests.Session authenticated against Grafana via Basic Auth."""
+    """Return a requests.Session authenticated against Grafana via Basic Auth.
+
+    Two things here were wrong together, and each hid the other.
+
+    The credentials were `ADMIN_USER`/`ADMIN_PASSWORD` with an
+    "admin"/"admin" fallback. Those name no Grafana setting and are not in
+    `.env.example`, so the fallback always won and sent Grafana the upstream
+    default password, which `grafana.ini` overrides. Grafana's admin
+    credentials come from `grafana.ini` alone, which is what
+    `grafana_admin_credentials` reads.
+
+    The check was `if resp.status_code == 401`, which can never fire. With
+    `[auth.anonymous] enabled = true`, Grafana answers wrong Basic Auth with
+    HTTP 200 and an anonymous body rather than 401. So the skip never
+    triggered, and this fixture has been returning an unauthenticated session
+    the whole time. The tests using it passed anyway because an anonymous
+    Viewer can read what they assert, which is exactly why nobody noticed.
+
+    `/api/frontend/settings` is asked instead, because Grafana states in
+    `buildInfo.hideVersion` whether it treated the request as signed in.
+    That is a direct answer rather than an inference from a status code.
+    """
+    user, password = grafana_admin_credentials()
+    assert user and password, (
+        f"no Grafana admin credentials found in {GRAFANA_INI} or its .example"
+    )
+
     session = requests.Session()
     session.verify = False
-    session.auth = (GRAFANA_USER, GRAFANA_PASSWORD)
+    session.auth = (user, password)
     resp = session.get(
-        base_url(https=True) + GRAFANA_PATH + "/health",
+        base_url(https=True) + GRAFANA_PATH + "/frontend/settings",
         timeout=TIMEOUT,
     )
-    if resp.status_code == 401:
-        pytest.skip(
-            f"Could not authenticate to Grafana (HTTP {resp.status_code}): {resp.text[:200]}"
-        )
+    assert resp.status_code == 200, (
+        f"Grafana frontend settings returned {resp.status_code}: {resp.text[:200]}"
+    )
+    assert not (resp.json().get("buildInfo") or {}).get("hideVersion", True), (
+        "Grafana served this request anonymously, so the admin credentials in "
+        f"{GRAFANA_INI} were rejected and this session is not authenticated"
+    )
     return session
 
 

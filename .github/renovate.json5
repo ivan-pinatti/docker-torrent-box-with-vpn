@@ -268,6 +268,77 @@
       ],
       enabled: false,
     },
+    // Two images whose tag history contains a decoy that outranks their real
+    // version line under Renovate's default docker versioning, found the hard
+    // way rather than by audit.
+    //
+    // qbittorrent: PR #137 offered `5.2.2 -> 20.04.1` as a major upgrade.
+    // Verified with `skopeo inspect`: the pinned `5.2.2` was built
+    // 2026-07-05, `org.opencontainers.image.version` label
+    // `5.2.2_v2.0.13-ls465`. The proposed `20.04.1` was built 2021-11-29,
+    // label `14.3.9.99202110311443-7435-01519b5e7ubuntu20.04.1-ls163` -- the
+    // qBittorrent actually bundled inside it self-reports as `v4.3.9` over
+    // its own `/api/v2/app/version` (confirmed live against a standalone
+    // container of that exact image). qBittorrent has never shipped a
+    // version 20; LinuxServer briefly tagged this image by Ubuntu base
+    // release around that build, and `20.04.1` parses as greater than `5.x`.
+    // The pull request's `Tests Verified` check read SUCCESS: a
+    // four-and-a-half-year-old image from an abandoned tag line booted and
+    // satisfied the whole integration suite. `allowedVersions` is the fix
+    // because it constrains what Renovate will ever offer, not merely what a
+    // human notices in review; `10.0.0` rather than `6.0.0` leaves headroom
+    // for a real major release without the constraint needing to move for
+    // routine cause. `versioning: "loose"` was considered and rejected: that
+    // is *more* permissive about odd tag shapes, the opposite of what this
+    // needs, and this file's own comment above the lazylibrarian/mylar3 hold
+    // already documents `loose` misordering a commit-hash tag.
+    // tests/test_version_pins.py adds the coverage that would have caught the
+    // substitution directly, by asking the running container what version it
+    // actually is rather than trusting either the tag or the image label.
+    //
+    // readarr: no incident, found while auditing every LinuxServer pin in
+    // .env.example for the same shape after the qbittorrent one surfaced.
+    // `skopeo list-tags` on `docker.io/linuxserver/readarr` turns up 123
+    // tags of the form `1.0.<build>` (e.g. `1.0.1126`), all built around
+    // 2021-12, whose `org.opencontainers.image.version` label reads
+    // `0.1.0.1126-ls53` -- an early readarr build, not version `1.0.1126`.
+    // Readarr has never shipped a stable 1.0; the real line is entirely
+    // `0.x` and the newest tag in it today is the pinned `0.4.19-nightly`.
+    // Under `versioning=loose`, already set on this pin and already flagged
+    // above as the more permissive, misorder-prone scheme, a bare `1.0.x`
+    // tag outranks `0.4.19` the same way `20.04.1` outranked `5.2.2`.
+    // `<1.0.0` excludes every one of the 123 decoy tags while leaving the
+    // entire real `0.x` line open, including whatever nightly and develop
+    // builds land before an eventual real 1.0.
+    {
+      matchPackageNames: ["docker.io/linuxserver/qbittorrent"],
+      allowedVersions: "<10.0.0",
+    },
+    {
+      matchPackageNames: ["docker.io/linuxserver/readarr"],
+      allowedVersions: "<1.0.0",
+    },
+    // nzbget is not part of the default stack: `NZBGET_PROFILE=disabled` in
+    // .env.example, and SABnzbd (`SABNZBD_PROFILE=enabled`) is the usenet
+    // client actually in use. `.env.tests` deliberately does not enable it
+    // either, so no test in this repository ever starts an nzbget container,
+    // which means a version bump here can never be validated by CI: its
+    // `Tests Verified` can only ever prove nothing *else* broke, exactly the
+    // gap #103 (`nzbget 24.8.20250509 -> 26.2.20260821`) exposed. That
+    // particular bump was verified genuine by hand -- LinuxServer
+    // `v24.8-ls196 -> v26.2-ls260`, nothing like the qbittorrent or readarr
+    // decoys above -- and was closed rather than merged for exactly this
+    // reason: maintaining a pin CI cannot check is a liability, not
+    // coverage. `enabled: false` stops Renovate offering another one. This is
+    // its own rule rather than folded into the patch-mount hold above: that
+    // rule exists because a bind-mounted patch can desync from upstream
+    // source, which does not apply here, nzbget mounts no patch. Dropping
+    // this rule is a decision to actually run and test nzbget again, not
+    // merely to bump its pin.
+    {
+      matchPackageNames: ["docker.io/linuxserver/nzbget"],
+      enabled: false,
+    },
     // The arr suite. Grouped to cut the pull request volume these seven images
     // would otherwise open one at a time, not because they share a release
     // cadence. They do not: image creation dates measured with skopeo inspect
