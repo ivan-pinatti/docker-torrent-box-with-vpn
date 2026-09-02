@@ -190,12 +190,25 @@ repos:
   # (language: docker_image). Both of those were tried and each fails here for
   # its own reason.
   #
-  # The golang build deadlocks. On any `run:` script larger than roughly 8 KB,
-  # with a shellcheck binary on PATH, it sits at 0% CPU with no child process
-  # and never returns. Measured, not inferred: the minimal reproduction is an
-  # `echo hello` script padded to 8180 bytes with `# pad` comment lines, where
-  # 8100 bytes passes. shellcheck is not the slow part; handed the same script
-  # with actionlint's own flags it returns no findings in 0.03s.
+  # The golang build deadlocks. With a shellcheck binary on PATH it sits at 0%
+  # CPU with no child process and never returns, on any `run:` script larger
+  # than the kernel pipe capacity in effect at that moment. This is upstream
+  # rhysd/actionlint#702: process.go writes the script to cmd.StdinPipe()
+  # before cmd.Output() starts the process, and a pre-start pipe has no
+  # reader, so the write can only complete if it fits the buffer.
+  #
+  # The threshold is not a constant, which matters when reproducing it. A
+  # fresh pipe holds 65536 bytes on an idle Linux box, but the kernel drops
+  # new pipes to 8192 once the user's total pipe allocation passes
+  # fs.pipe-user-pages-soft (16384 pages, shared across every pipe that uid
+  # owns), which is routine on a busy workstation or CI runner. Measured here,
+  # not inferred: an `echo hello` script padded with `# pad` lines hung at
+  # 8180 bytes and passed at 8100, against a measured pipe capacity of exactly
+  # 8192 (F_GETPIPE_SZ, with 774 pipes already open). So a machine that passes
+  # today can hang tomorrow with no change to the workflow. shellcheck is not
+  # the slow part; handed the same script with actionlint's own flags it
+  # returns no findings in 0.03s.
+  #
   # coderabbit-review-queue.yml's single 8.6 KB step crosses that line, which
   # made `pre-commit run --all-files` hang forever, and with it every `git
   # push`, since all-files-sweep runs at the pre-push stage and git holds the
@@ -211,8 +224,8 @@ repos:
   # Hence this: the image, invoked through the same docker-or-podman shim the
   # hadolint, trivy, lychee and dotenv-linter hooks in this file already use.
   # It keeps the shellcheck coverage of `run:` blocks that disabling it would
-  # have given up, and it works under either runtime. Report the golang
-  # deadlock upstream and revisit if a release fixes it.
+  # have given up, and it works under either runtime. Revisit if a release
+  # fixes rhysd/actionlint#702.
   - repo: local
     hooks:
       - id: actionlint

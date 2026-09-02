@@ -263,6 +263,7 @@
     "gethomepage",
     "getlftp",
     "getpeercert",
+    "getpipe",
     "getuid",
     "GID",
     "gitblame",
