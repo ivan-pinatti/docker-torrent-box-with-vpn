@@ -216,7 +216,10 @@ intervention.
   `@coderabbitai review` command posted by a bot account, the same way it
   ignores a pull request authored by one: no review, no decline, no rate limit
   notice, nothing. `GITHUB_TOKEN` posts as `github-actions[bot]`, so a nudge
-  sent that way is discarded without a trace anywhere.
+  sent that way is discarded without a CodeRabbit reply, status, or rate limit
+  notice. The comment itself is still posted and still visible on the pull
+  request, which is what makes this hard to spot: the nudge looks like it
+  worked and nothing downstream of it ever happens.
 
   This repository sent them that way until 2026-09-03, which is why its bot
   pull requests kept needing a human to ask by hand while the other five
