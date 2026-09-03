@@ -3,7 +3,7 @@
 # The cooling window did not apply. `make bootstrap_tests` builds tests/.venv
 # from scratch and runs `pip install -r tests/requirements.txt`, so a `>=`
 # floor resolves to whatever is newest on PyPI at that moment. Dependabot's
-# seven day `cooldown` only governs when Dependabot *proposes* a change, not
+# seven-day `cooldown` only governs when Dependabot *proposes* a change, not
 # what pip installs, so a package published an hour ago went straight into the
 # suite on the next run. The window that the rest of this repository's
 # dependency policy is built around had no effect on this surface at all.

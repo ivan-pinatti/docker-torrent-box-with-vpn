@@ -176,7 +176,7 @@ were both invisible until #94 sat unapproved.
 **The cooling window did not reach this surface.** `make bootstrap_tests`
 builds `tests/.venv` from scratch and runs `pip install -r
 tests/requirements.txt`, so a `>=` floor resolved to whatever was newest on
-PyPI at that moment. Dependabot's seven day `cooldown` governs when Dependabot
+PyPI at that moment. Dependabot's seven-day `cooldown` governs when Dependabot
 *proposes* a change, not what pip installs, so a package published an hour
 earlier went into the suite on the next run. The window the rest of this page
 is built around had no effect here at all, which is the more serious of the
