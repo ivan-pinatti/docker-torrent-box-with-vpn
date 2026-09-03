@@ -245,12 +245,15 @@ patched files mounted over it. The alternative to holding the pin is re-deriving
 against each release, which is work with no end date and no test that would catch getting it
 wrong.
 
-The hold covers digest refreshes too, not only version bumps. Two of the four patches shadow a
-file belonging to the image rather than to the application: `patches/sabnzbd/svc-sabnzbd/run` is
-an s6 service script and `patches/jdownloader2/10-webauth.sh` is a `baseimage-gui` init script,
-and a rebuild of the same tag is exactly how either changes underneath the patch. Issue #107
-already frames the jdownloader-2 case that way, since the fix it waits on arrives as a
-`baseimage-gui` bump inside an image whose tag need not move.
+The hold covers digest refreshes too, not only version bumps. `patches/sabnzbd/svc-sabnzbd/run`
+shadows a file belonging to the image rather than to the application, an s6 service script, and a
+rebuild of the same tag is exactly how that changes underneath the patch.
+
+Two of the four patches are gone as of 2026-09-02, both because the fix reached the image.
+`patches/jdownloader2/` went when `baseimage-gui` 4.13.0 gave the secrets loader a `force`
+argument, which the pinned image already carried (#107), and `patches/lazylibrarian/` went when
+upstream !1832 reached the image, which needed a pin bump to collect (#109). jdownloader-2 came
+off the hold with its patch; lazylibrarian did not, for the reason under "Remaining gaps" below.
 
 Worth being explicit about the cost: sabnzbd and jdownloader-2 were both flowing, and merging
 unattended, before this. It costs less than it looks like, because, as the section above says,
@@ -287,10 +290,10 @@ BusyBox is a far smaller surface than our Python against a new interpreter.
 
 `tests/test_renovate_pins.py` closes the loop in the other direction: it derives the patched set
 from the `./patches/` volumes in the compose files rather than from a list, so a service that
-grows a patch mount whose image is not held fails the suite. Each of the four has an open issue
-for dropping its patch (#106, #107, #108, #109), and dropping one is what unfreezes its pin. That
-is the
-distinction this whole page turns on: these pins are deliberately fixed, not accidentally frozen.
+grows a patch mount whose image is not held fails the suite. Each remaining patch has an open
+issue for dropping it (#106 mylar, #108 sabnzbd), and dropping one is what unfreezes its pin, as
+issues #107 and #109 already showed. That is the distinction this whole page turns on: these
+pins are deliberately fixed, not accidentally frozen.
 
 ## Remaining gaps
 
@@ -307,14 +310,17 @@ image being built can only be given a tag, so `pinDigests` is turned off for bot
 other way round, asking for a digest to be added to lazylibrarian; adding one would have
 stopped the wrapper building.
 
-One pin is watched and still cannot be ordered. `LAZYLIBRARIAN_VERSION=40a389ea-ls310` holds no
+One pin is watched and still cannot be ordered. `LAZYLIBRARIAN_VERSION=f9f62f7a-ls342` holds no
 version number at all, so `loose` versioning parses the tag rather than refusing it and then
-orders it wrongly: it reads the leading `40` as the version and ranks the current pin above
-`9a2c0d5e-ls334`, comparing a commit hash fragment as a number. Renovate reports nothing to do
-rather than reporting that it cannot tell, which is the worse of the two failures. The hold above
-switches the pin off entirely today, so this matters on the day `patches/lazylibrarian/` is
-dropped and not before, which is why issue #119 asks for the versioning scheme to be settled
-before the hold lifts rather than after.
+orders it wrongly, reading the leading hex of the commit fragment as a number and comparing it
+against another commit fragment. Renovate reports nothing to do rather than reporting that it
+cannot tell, which is the worse of the two failures.
+
+That day has now arrived. `patches/lazylibrarian/` was dropped on 2026-09-02, which is what the
+note here used to say this would matter on, so the hold is the only thing still standing between
+Renovate and a pin it cannot rank. It therefore stays until issue #119 settles the versioning
+scheme, and the pin is bumped by hand until then. This is the one entry on the `enabled: false`
+list held for ordering rather than for a patch.
 
 `KORSYNC_VERSION` used to be the other case, pinned to `sha-7bcefd34...`, a commit tag nothing can
 order. Upstream publishes plain semantic tags and has since well before that pin landed here on

@@ -220,11 +220,11 @@
       ],
       pinDigests: false,
     },
-    // The four images whose containers run a file bind mounted out of
-    // patches/, held at a fixed version until the patch that made them special
-    // is gone. sabnzbd, lazylibrarian, mylar and jdownloader-2, matching the
-    // `./patches/` volumes in docker-compose-nzb.yml,
-    // docker-compose-servarr.yml and docker-compose-torrent.yml.
+    // The images whose containers run a file bind mounted out of patches/,
+    // held at a fixed version until the patch that made them special is gone.
+    // sabnzbd and mylar today, matching the `./patches/` volumes in
+    // docker-compose-nzb.yml and docker-compose-servarr.yml. lazylibrarian is
+    // on the list without a patch; see the note further down for why.
     //
     // A patch shadows one file inside the image, and nothing in this repository
     // can tell whether the shadowing copy still matches the file it replaces.
@@ -236,20 +236,16 @@
     // unattended across two upstream minor releases with five patched files
     // mounted over it.
     //
-    // A digest refresh is held too, not only a version bump. Two of the four
-    // patches shadow a file that belongs to the image rather than to the
-    // application: patches/sabnzbd/svc-sabnzbd/run is an s6 service script and
-    // patches/jdownloader2/10-webauth.sh is a baseimage-gui init script, and a
-    // rebuild of the same tag is exactly how either of those changes underneath
-    // the patch. Issue #107 records the jdownloader-2 case in those terms
-    // already: the fix it is waiting for arrives as a baseimage-gui bump inside
-    // an image whose tag need not move.
+    // A digest refresh is held too, not only a version bump.
+    // patches/sabnzbd/svc-sabnzbd/run shadows an s6 service script that belongs
+    // to the image rather than to the application, and a rebuild of the same
+    // tag is exactly how that changes underneath the patch.
     //
     // The alternative was chasing each upstream release with a fresh patch,
     // which is work with no end date and no test that would catch getting it
-    // wrong. Each of the four has an open issue for dropping its patch (#106
-    // mylar, #107 jdownloader-2, #108 sabnzbd, #109 lazylibrarian), and dropping
-    // one is what unfreezes its pin. Until then the pin is
+    // wrong. Each patch has an open issue for dropping it (#106 mylar, #108
+    // sabnzbd), and dropping one is what unfreezes its pin. Until then the pin
+    // is
     // deliberately fixed rather than accidentally frozen, which is the whole
     // distinction the rest of this file is about, and
     // tests/test_renovate_pins.py fails when a service grows a patch mount
@@ -260,12 +256,24 @@
     // like, because GitHub raises no vulnerability alert for a container image
     // at all, so neither pin had a security path that this closes; see
     // docs/DEPENDENCY_UPDATES.md.
+    //
+    // jdownloader-2 came off this list on 2026-09-02. Its patch is gone,
+    // baseimage-gui 4.13.0 carries the fix and the image was already built on
+    // 4.13.1, so nothing shadows a file in it any more; see issue #107.
+    //
+    // lazylibrarian is the odd one here and stays for a different reason than
+    // the other two. Its patch is gone as well, upstream !1832 having reached
+    // the image, so nothing shadows a file in it either. What holds it is issue
+    // #119: its tag carries no version number, so `loose` versioning reads the
+    // leading hex of the commit fragment as a number and orders releases
+    // wrongly, reporting nothing to do rather than reporting that it cannot
+    // tell. Lifting this before that is settled would hand Renovate a pin it
+    // cannot rank. Bump it by hand until then.
     {
       matchPackageNames: [
         "docker.io/linuxserver/sabnzbd",
         "docker.io/linuxserver/lazylibrarian",
         "docker.io/linuxserver/mylar3",
-        "docker.io/jlesage/jdownloader-2",
       ],
       enabled: false,
     },
@@ -430,8 +438,9 @@
     // sabnzbd, nzbget, nzbhydra2, jdownloader-2), jellyfin and homepage are
     // deliberately named in no group here, so each opens its own pull request
     // on the root schedule instead of sharing one with anything else. sabnzbd
-    // and jdownloader-2 open nothing at all while the hold above stands; this
-    // still describes where they land the day it is lifted. A group
+    // opens nothing at all while the hold above stands; this still describes
+    // where it lands the day that is lifted. jdownloader-2 came off the hold
+    // on 2026-09-02 and opens its own pull request again. A group
     // is only as mergeable as its worst member, and the two bumps that broke
     // something this week, SABnzbd 5.0.4 and qBittorrent 5.2.2 (see
     // issue #108), were both download clients. Isolating them keeps one bad

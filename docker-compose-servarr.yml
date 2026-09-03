@@ -344,10 +344,6 @@ services:
       - ${CERTIFICATES_FOLDER}:/certs:ro,z
       - ${CONFIG_FOLDER}/lazylibrarian/config:/config:z
       - ${DATA_FOLDER}:/data${DATA_VOLUME_FLAGS}
-      # login()/logout() double-prefixed HTTP_ROOT onto from_page, which is
-      # already prefixed (nginx forwards this app's URIs unstripped). 404'd
-      # the very first post-login redirect every time. See patches/README.md.
-      - ./patches/lazylibrarian/lazylibrarian/auth.py:/app/lazylibrarian/lazylibrarian/auth.py:ro,z
     healthcheck:
       <<: *healthcheck-defaults
       test: curl --fail --insecure https://127.0.0.1:${LAZYLIBRARIAN_HTTP_PORT}/lazylibrarian/ || exit 1
