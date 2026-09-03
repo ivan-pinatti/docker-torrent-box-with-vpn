@@ -215,7 +215,6 @@
     // missing digest cannot be mistaken for an oversight.
     {
       matchPackageNames: [
-        "docker.io/linuxserver/lazylibrarian",
         "docker.io/linuxserver/mylar3",
       ],
       pinDigests: false,
@@ -261,18 +260,19 @@
     // baseimage-gui 4.13.0 carries the fix and the image was already built on
     // 4.13.1, so nothing shadows a file in it any more; see issue #107.
     //
-    // lazylibrarian is the odd one here and stays for a different reason than
-    // the other two. Its patch is gone as well, upstream !1832 having reached
-    // the image, so nothing shadows a file in it either. What holds it is issue
-    // #119: its tag carries no version number, so `loose` versioning reads the
-    // leading hex of the commit fragment as a number and orders releases
-    // wrongly, reporting nothing to do rather than reporting that it cannot
-    // tell. Lifting this before that is settled would hand Renovate a pin it
-    // cannot rank. Bump it by hand until then.
+    // lazylibrarian came off this list on 2026-09-03, and issue #119 is what
+    // was holding it: its tag is a composite of the upstream app commit and
+    // linuxserver's own build revision, `82aad29e-ls342`, which no versioning
+    // scheme can order. Two releases can even share one ls number, since that
+    // half only moves when linuxserver's side changes.
+    //
+    // Solved by not ordering it. The pin is now `latest@sha256:...`, so
+    // Renovate refreshes the digest as the tag moves and never has to rank
+    // anything. That needed the variable to stop doubling as the wrapper's
+    // own image tag first; see docker-compose-servarr.yml.
     {
       matchPackageNames: [
         "docker.io/linuxserver/sabnzbd",
-        "docker.io/linuxserver/lazylibrarian",
         "docker.io/linuxserver/mylar3",
       ],
       enabled: false,

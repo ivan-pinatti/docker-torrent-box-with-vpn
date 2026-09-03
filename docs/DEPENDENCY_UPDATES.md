@@ -302,25 +302,33 @@ Three tags are deliberately left floating rather than pinned to a version at all
 `tests/test_renovate_pins.py` carries them in an explicit allowlist, so the exemption is a
 decision on the record rather than an omission.
 
-`LAZYLIBRARIAN_VERSION` and `MYLAR_VERSION` carry no digest, and cannot. Each is read twice out
-of one variable: as the base image the wrapper in `build/` is built on, and as the tag of the
-locally built result. A digest is legal in the first position and not in the second, because an
-image being built can only be given a tag, so `pinDigests` is turned off for both in
-`.github/renovate.json5` and the test exempts them by name. An earlier note recorded this the
-other way round, asking for a digest to be added to lazylibrarian; adding one would have
-stopped the wrapper building.
+`MYLAR_VERSION` carries no digest, and cannot as it stands. It is read twice out of one
+variable: as the base image the wrapper in `build/` is built on, and as the tag of the locally
+built result. A digest is legal in the first position and not in the second, because an image
+being built can only be given a tag, so `pinDigests` is turned off for it in
+`.github/renovate.json5` and the test exempts it by name. An earlier note recorded this the
+other way round, asking for a digest to be added; adding one would have stopped the wrapper
+building.
 
-One pin is watched and still cannot be ordered. `LAZYLIBRARIAN_VERSION=f9f62f7a-ls342` holds no
-version number at all, so `loose` versioning parses the tag rather than refusing it and then
-orders it wrongly, reading the leading hex of the commit fragment as a number and comparing it
-against another commit fragment. Renovate reports nothing to do rather than reporting that it
-cannot tell, which is the worse of the two failures.
+`LAZYLIBRARIAN_VERSION` was the other half of that pair until 2026-09-03, and it is the worked
+example of the way out. The wrapper's own image is now tagged `local` rather than with the
+version, which leaves the variable naming only the base, which can then carry a digest. **The
+same fix applies to mylar** whenever its patch clears and there is reason to touch that file;
+issue #106 records it.
 
-That day has now arrived. `patches/lazylibrarian/` was dropped on 2026-09-02, which is what the
-note here used to say this would matter on, so the hold is the only thing still standing between
-Renovate and a pin it cannot rank. It therefore stays until issue #119 settles the versioning
-scheme, and the pin is bumped by hand until then. This is the one entry on the `enabled: false`
-list held for ordering rather than for a patch.
+Splitting it also settled issue #119, which was the harder half. The tag is a composite:
+`82aad29e-ls342` is the upstream LazyLibrarian commit and linuxserver's own build revision,
+joined by a hyphen. Neither half orders the tags on its own. The hex is a commit, and the `ls`
+number only moves when linuxserver's side changes, so two releases can share one: `ls342` was
+published twice, on 2026-09-02 and 2026-09-03, with different app commits. `ls314` appears four
+times in the last hundred releases. LazyLibrarian publishes no versions upstream at all, which
+is why linuxserver has none to put in a tag, and why `mylar3` gets `v0.9.0-lsNNN` and this image
+does not.
+
+So it is not ordered. `LAZYLIBRARIAN_VERSION=latest@sha256:...` tracks the tag linuxserver
+actually documents, and Renovate refreshes the digest as it moves. There is no ranking to get
+wrong, the pin is still immutable because the digest decides what runs, and the automerge rule
+already covers `digest` updates.
 
 `KORSYNC_VERSION` used to be the other case, pinned to `sha-7bcefd34...`, a commit tag nothing can
 order. Upstream publishes plain semantic tags and has since well before that pin landed here on

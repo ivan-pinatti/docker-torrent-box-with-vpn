@@ -322,7 +322,15 @@ services:
 
   lazylibrarian:
     <<: [*servarr-common, *limit-servarr]
-    image: lazylibrarian-calibre:${LAZYLIBRARIAN_VERSION}
+    # `local`, not ${LAZYLIBRARIAN_VERSION}. The variable used to be both the
+    # base image reference and the tag of the wrapper built from it, and a
+    # locally built image can only be given a tag: podman rejects a reference
+    # carrying both a tag and a digest. That single reuse is what forced
+    # LAZYLIBRARIAN_VERSION out of pinDigests, which in turn left the pin
+    # unable to be ordered or refreshed (issue #119). Splitting the two uses
+    # lets the base carry a digest; this tag names a local artefact and does
+    # not need a version in it.
+    image: lazylibrarian-calibre:local
     build:
       context: ./build/lazylibrarian
       args:
