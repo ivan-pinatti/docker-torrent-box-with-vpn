@@ -84,6 +84,7 @@ while looking thorough:
 """
 
 import re
+import subprocess  # nosec B404 - podman CLI, see the call sites
 
 import pytest
 import requests
@@ -93,6 +94,7 @@ from conftest import (
     GRAFANA_INI,
     SERVICES,
     base_url,
+    container_name,
     env,
     grafana_admin_credentials,
     is_enabled,
@@ -459,6 +461,68 @@ def test_grafana_running_version_matches_pin(running_containers):
 
     _assert_running_matches_pin(
         env("GRAFANA_VERSION"), reported, "grafana", "GRAFANA_VERSION"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Calibre, which reaches lazylibrarian through a build-time mod rather than a
+# pin of its own
+# ---------------------------------------------------------------------------
+
+
+def test_lazylibrarian_carries_the_calibre_mod(running_containers):
+    """The wrapper's whole reason to exist is present in the running container.
+
+    `build/lazylibrarian/Dockerfile` layers ghcr.io/linuxserver/mods:universal-calibre
+    onto the stock image, which ships no Calibre at all, so a wrapper that
+    silently lost the layer would start, report healthy and serve the web UI
+    while Calibredb import quietly did nothing.
+
+    Deliberately no assertion on *which* Calibre. The mod is digest pinned in
+    that Dockerfile, so the version is already fixed by the digest, and
+    hardcoding the version here as well would fail this test on every
+    Renovate digest bump and take the automerge path down with it. What is
+    asserted is what the digest cannot promise on its own: that the layer
+    survived the build and the binary actually runs.
+    """
+    if not is_enabled("lazylibrarian"):
+        pytest.skip("lazylibrarian profile is disabled")
+    skip_if_not_running("lazylibrarian", running_containers)
+
+    # CALIBRE_RELEASE ships in the mod and the Dockerfile copies it in; it is
+    # the one file that records which Calibre the layer carried.
+    release = subprocess.run(  # nosec B607 - podman is a trusted, fixed CLI in this stack
+        ["podman", "exec", container_name("lazylibrarian"), "cat", "/CALIBRE_RELEASE"],
+        capture_output=True,
+        text=True,
+        timeout=TIMEOUT,
+    )
+    assert release.returncode == 0, (
+        "/CALIBRE_RELEASE is missing from the lazylibrarian container, so the "
+        f"universal-calibre layer did not survive the build: {release.stderr[:200]}"
+    )
+    assert release.stdout.strip(), "/CALIBRE_RELEASE is present but empty"
+
+    # The file existing only proves the COPY ran. This proves the tarball was
+    # unpacked and calibre_postinstall completed.
+    binary = subprocess.run(  # nosec B607 - podman is a trusted, fixed CLI in this stack
+        [
+            "podman",
+            "exec",
+            container_name("lazylibrarian"),
+            "/app/calibre/calibredb",
+            "--version",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=TIMEOUT,
+    )
+    assert binary.returncode == 0, (
+        "/app/calibre/calibredb did not run in the lazylibrarian container, so "
+        f"Calibre is present as files but not usable: {binary.stderr[:200]}"
+    )
+    assert "calibre" in binary.stdout.lower(), (
+        f"unexpected calibredb --version output: {binary.stdout[:200]}"
     )
 
 

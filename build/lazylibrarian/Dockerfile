@@ -11,7 +11,26 @@
 # and a bare `docker build` should fail loudly rather than quietly produce an
 # image built on :latest that no longer matches the pinned version.
 ARG BASE_VERSION
-FROM ghcr.io/linuxserver/mods:universal-calibre AS calibre-mod
+# Digest pinned. This line carried a bare tag until 2026-09-03, which meant
+# the Calibre that ends up inside the wrapper was whatever the mod happened to
+# be at build time, with nothing in any diff recording which one. Renovate's
+# dockerfile manager already reads this file and pinDigests is on globally, so
+# the only reason it was never maintained is that there was no digest here to
+# maintain.
+#
+# Most of what this stack pulls is digest pinned, not all of it: three tags
+# float deliberately, with a reason recorded for each in the FLOATING
+# allowlist in tests/test_renovate_pins.py and under "Remaining gaps" in
+# docs/DEPENDENCY_UPDATES.md.
+#
+# tests/test_version_pins.py's test_lazylibrarian_carries_the_calibre_mod
+# checks that this layer survived the build, by reading the CALIBRE_RELEASE
+# file the mod ships and the COPY below brings in, and by running calibredb.
+# It deliberately asserts no version: the digest above already fixes which
+# Calibre this is, and hardcoding it in the test as well would fail on every
+# digest bump and take the automerge path down with it.
+# renovate: datasource=docker depName=ghcr.io/linuxserver/mods versioning=docker
+FROM ghcr.io/linuxserver/mods:universal-calibre@sha256:ceae75f021e73a049fcea41777dc8b1f2adeb5da10d2749caca12ca290293cce AS calibre-mod
 
 FROM docker.io/linuxserver/lazylibrarian:${BASE_VERSION}
 COPY --from=calibre-mod /calibre.txz /calibre.txz

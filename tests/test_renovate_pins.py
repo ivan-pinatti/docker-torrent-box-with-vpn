@@ -73,10 +73,12 @@ FLOATING = {
 # either value would therefore break the build rather than pin anything, which
 # is why pinDigests has to be allowed to leave these two alone.
 NO_DIGEST = {
-    "LAZYLIBRARIAN_VERSION": (
-        "also the BASE_VERSION build arg and the local wrapper image's own tag, "
-        "and a container runtime rejects a reference with both a tag and a digest"
-    ),
+    # LAZYLIBRARIAN_VERSION was here until 2026-09-03 for exactly this reason,
+    # and came off by splitting the two uses: the wrapper's own image is now
+    # tagged `local` in docker-compose-servarr.yml, leaving the variable to
+    # name only the base, which can then carry a digest. MYLAR_VERSION has the
+    # identical shape and the same fix applies to it, once its patch clears
+    # and there is a reason to touch the file; see issue #106.
     "MYLAR_VERSION": (
         "also the BASE_VERSION build arg and the local wrapper image's own tag, "
         "and a container runtime rejects a reference with both a tag and a digest"
