@@ -1,9 +1,31 @@
-docker>=7.2.0
-json5>=0.12.1
-pytest>=9.1.1
-pytest-testinfra>=10.2.2
-pytest-xdist>=3.8.0
-python-dotenv>=1.2.2
-pyyaml>=6.0.3
-requests>=2.34.2
-urllib3>=2.7.0
+# Exact pins, not `>=` floors, for two reasons that both bite.
+#
+# The cooling window did not apply. `make bootstrap_tests` builds tests/.venv
+# from scratch and runs `pip install -r tests/requirements.txt`, so a `>=`
+# floor resolves to whatever is newest on PyPI at that moment. Dependabot's
+# seven day `cooldown` only governs when Dependabot *proposes* a change, not
+# what pip installs, so a package published an hour ago went straight into the
+# suite on the next run. The window that the rest of this repository's
+# dependency policy is built around had no effect on this surface at all.
+#
+# The update-type grader could not read them either. `bot-auto-merge.yml`
+# approves a bot bump only when every entry in dependabot's
+# `updated-dependencies-json` is a patch or minor, and `fetch-metadata` cannot
+# compute an update type for a floor bump, since there is no exact prior
+# version to compare. It reports an empty string, which the grader cannot
+# grade, so it withholds approval and the pull request sits green but
+# unapproved. #94 is exactly that.
+#
+# Pinned to what `>=` was already resolving to, so this is a lockfile of
+# current behavior rather than a change of versions, and every one of these
+# releases is more than seven days old as of 2026-09-03. Dependabot maintains
+# them from here, under the cooldown, and the suite is what clears them.
+docker==7.2.0
+json5==0.15.0
+pytest==9.1.1
+pytest-testinfra==10.2.2
+pytest-xdist==3.8.0
+python-dotenv==1.2.3
+pyyaml==6.0.3
+requests==2.34.2
+urllib3==2.7.0
