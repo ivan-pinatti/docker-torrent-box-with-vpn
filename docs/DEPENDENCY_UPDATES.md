@@ -168,6 +168,33 @@ than an image it pulls, `ghcr.io/notifiarr/notifiarr` because its service is com
 anyway. An unwatched pin is the thing this arrangement exists to prevent, and a year stale image
 is a worse starting point than a current one for whoever turns either service back on.
 
+## Why tests/requirements.txt is pinned exactly
+
+Every entry is `==`, not `>=`, and the difference mattered in two ways that
+were both invisible until #94 sat unapproved.
+
+**The cooling window did not reach this surface.** `make bootstrap_tests`
+builds `tests/.venv` from scratch and runs `pip install -r
+tests/requirements.txt`, so a `>=` floor resolved to whatever was newest on
+PyPI at that moment. Dependabot's seven-day `cooldown` governs when Dependabot
+*proposes* a change, not what pip installs, so a package published an hour
+earlier went into the suite on the next run. The window the rest of this page
+is built around had no effect here at all, which is the more serious of the
+two problems: these nine packages are what the suite is written in, so a
+compromised one compromises the gate itself.
+
+**The update-type grader could not read a floor bump.**
+`bot-auto-merge.yml` approves a bot bump only when every entry in
+`updated-dependencies-json` is a patch or minor, and `fetch-metadata` cannot
+compute an update type without an exact prior version to compare against. It
+returns an empty string, the grader cannot grade that, so it withholds
+approval by design, and the pull request stays green but unapproved. That is
+the whole story of #94.
+
+Pinning fixed both without changing a single installed version: the pins are
+what `>=` was already resolving to. Dependabot maintains them from here, under
+the cooldown, and `Tests Verified` is what clears them.
+
 ## Security updates
 
 Both bots' security paths are alert driven and enabled on this repository, and neither reads the
