@@ -211,6 +211,23 @@ intervention.
   thread of its own, since a review cannot fix any of those and the quota slot
   would be wasted.
 
+  **That comment is posted with `CODERABBIT_NUDGE_TOKEN`, not `GITHUB_TOKEN`,
+  and the distinction is the whole thing.** CodeRabbit silently ignores an
+  `@coderabbitai review` command posted by a bot account, the same way it
+  ignores a pull request authored by one: no review, no decline, no rate limit
+  notice, nothing. `GITHUB_TOKEN` posts as `github-actions[bot]`, so a nudge
+  sent that way is discarded without a CodeRabbit reply, status, or rate limit
+  notice. The comment itself is still posted and still visible on the pull
+  request, which is what makes this hard to spot: the nudge looks like it
+  worked and nothing downstream of it ever happens.
+
+  This repository sent them that way until 2026-09-03, which is why its bot
+  pull requests kept needing a human to ask by hand while the other five
+  repositories recovered on their own. Measured on `rsync-crypt#33`, where the
+  same command text was posted by both accounts on one pull request:
+  `ivan-pinatti` drew a reply within about seven seconds every time,
+  `github-actions[bot]` drew nothing, three times out of three.
+
   The quota itself is worth meeting here rather than being surprised by it:
   this repository is on CodeRabbit's Open Source plan, which scales the
   included review count with the repository's star count rather than holding
