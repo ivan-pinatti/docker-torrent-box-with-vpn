@@ -290,10 +290,10 @@ BusyBox is a far smaller surface than our Python against a new interpreter.
 
 `tests/test_renovate_pins.py` closes the loop in the other direction: it derives the patched set
 from the `./patches/` volumes in the compose files rather than from a list, so a service that
-grows a patch mount whose image is not held fails the suite. Each of the four has an open issue
-for dropping its patch (#106, #107, #108, #109), and dropping one is what unfreezes its pin. That
-is the
-distinction this whole page turns on: these pins are deliberately fixed, not accidentally frozen.
+grows a patch mount whose image is not held fails the suite. Each remaining patch has an open
+issue for dropping it (#106 mylar, #108 sabnzbd), and dropping one is what unfreezes its pin, as
+issues #107 and #109 already showed. That is the distinction this whole page turns on: these
+pins are deliberately fixed, not accidentally frozen.
 
 ## Remaining gaps
 

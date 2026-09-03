@@ -220,11 +220,11 @@
       ],
       pinDigests: false,
     },
-    // The four images whose containers run a file bind mounted out of
-    // patches/, held at a fixed version until the patch that made them special
-    // is gone. sabnzbd, lazylibrarian, mylar and jdownloader-2, matching the
-    // `./patches/` volumes in docker-compose-nzb.yml,
-    // docker-compose-servarr.yml and docker-compose-torrent.yml.
+    // The images whose containers run a file bind mounted out of patches/,
+    // held at a fixed version until the patch that made them special is gone.
+    // sabnzbd and mylar today, matching the `./patches/` volumes in
+    // docker-compose-nzb.yml and docker-compose-servarr.yml. lazylibrarian is
+    // on the list without a patch; see the note further down for why.
     //
     // A patch shadows one file inside the image, and nothing in this repository
     // can tell whether the shadowing copy still matches the file it replaces.
@@ -438,8 +438,9 @@
     // sabnzbd, nzbget, nzbhydra2, jdownloader-2), jellyfin and homepage are
     // deliberately named in no group here, so each opens its own pull request
     // on the root schedule instead of sharing one with anything else. sabnzbd
-    // and jdownloader-2 open nothing at all while the hold above stands; this
-    // still describes where they land the day it is lifted. A group
+    // opens nothing at all while the hold above stands; this still describes
+    // where it lands the day that is lifted. jdownloader-2 came off the hold
+    // on 2026-09-02 and opens its own pull request again. A group
     // is only as mergeable as its worst member, and the two bumps that broke
     // something this week, SABnzbd 5.0.4 and qBittorrent 5.2.2 (see
     // issue #108), were both download clients. Isolating them keeps one bad

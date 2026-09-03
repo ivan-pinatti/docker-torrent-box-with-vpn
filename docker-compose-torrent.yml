@@ -29,11 +29,19 @@ secrets:
     file: ./configs/qbittorrent/secrets/password.txt
     x-podman.relabel: z
   # Consumed only by jdownloader2 itself (single consumer, no duplicate
-  # needed elsewhere), through the image's own CONT_ENV_ secrets loader.
-  jdownloader2_username:
+  # needed elsewhere), through the image's own secrets loader.
+  #
+  # The CONT_ENV_ prefix is load bearing, not decoration. /init's cont-secrets
+  # stage runs `find /run/secrets -maxdepth 1 -type f -name "CONT_ENV_*"` and
+  # derives the environment variable name by stripping exactly that prefix, so
+  # the secret's compose name *is* the variable name. A secret called
+  # jdownloader2_username, which is what these were while
+  # patches/jdownloader2/10-webauth.sh read the files directly, is simply not
+  # seen by that loop.
+  CONT_ENV_WEB_AUTHENTICATION_USERNAME:
     file: ./configs/jdownloader2/secrets/username.txt
     x-podman.relabel: z
-  jdownloader2_password:
+  CONT_ENV_WEB_AUTHENTICATION_PASSWORD:
     file: ./configs/jdownloader2/secrets/password.txt
     x-podman.relabel: z
 
@@ -104,7 +112,14 @@ services:
     # a `force` argument that secrets pass, and v26.08.1 of this image is built
     # on 4.13.1, so the patch was overwriting a file that no longer needed it.
     # Verified by extracting /init from the pinned image. See issue #107.
-    secrets: [jdownloader2_username, jdownloader2_password]
+    #
+    # The secrets are named CONT_ENV_WEB_AUTHENTICATION_USERNAME and
+    # CONT_ENV_WEB_AUTHENTICATION_PASSWORD for that loader's benefit; see the
+    # `secrets:` declarations at the top of this file for why the prefix
+    # matters. WEB_AUTHENTICATION=1 comes from configs/jdownloader2/.env, and
+    # the image's own default is 0.
+    secrets:
+      [CONT_ENV_WEB_AUTHENTICATION_USERNAME, CONT_ENV_WEB_AUTHENTICATION_PASSWORD]
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${CONFIG_FOLDER}/jdownloader2/config:/config:z
