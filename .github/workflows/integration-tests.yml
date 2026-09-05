@@ -706,6 +706,22 @@ jobs:
           echo "::error::Could not pull the images after 3 attempts."
           exit 1
 
+      - name: Build custom container images
+        # `make bootstrap` builds LazyLibrarian and Mylar before it ever calls
+        # `start` (they have no upstream image; compose builds them from the
+        # Dockerfiles under build/), but this workflow replicates bootstrap's
+        # steps one by one instead of calling it, and this one had been left
+        # out. Without it, `make start` built lazylibrarian for the first time
+        # inline, and assert-stack-started.sh's 300s readiness clock (see
+        # `Wait for containers to be ready` below) started counting before
+        # that build finished, so a slow apt mirror for the Calibre
+        # dependency install (over 4 minutes fetching 60MB at times) burned
+        # the whole budget on a build and left none for any container to
+        # actually come up: three unrelated pull requests failed this way in
+        # the same run.
+        timeout-minutes: 10
+        run: make build_images
+
       - name: Start stack
         # Every long step carries its own timeout. Without them the job-level
         # 25 minutes was the only bound, so a single stuck step burned the
